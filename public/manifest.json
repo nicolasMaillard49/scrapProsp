@@ -1,0 +1,37 @@
+{
+  "regions": [
+    {
+      "key": "auvergne",
+      "label": "Auvergne",
+      "csv": "/prospects-auvergne.csv",
+      "total": 99,
+      "plombiers": 59,
+      "electriciens": 40
+    },
+    {
+      "key": "bourgogne",
+      "label": "Bourgogne",
+      "csv": "/prospects-bourgogne.csv",
+      "total": 106,
+      "plombiers": 51,
+      "electriciens": 55
+    },
+    {
+      "key": "centre",
+      "label": "Centre-Val de Loire",
+      "csv": "/prospects-centre.csv",
+      "total": 96,
+      "plombiers": 44,
+      "electriciens": 52
+    },
+    {
+      "key": "limousin",
+      "label": "Limousin",
+      "csv": "/prospects-limousin.csv",
+      "total": 159,
+      "plombiers": 68,
+      "electriciens": 91
+    }
+  ],
+  "generated_at": "2026-05-21 21:07"
+}
