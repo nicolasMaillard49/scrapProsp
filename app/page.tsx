@@ -168,6 +168,7 @@ function HomeInner() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
+    const qDigits = q.replace(/\D/g, "");
     return enriched
       .filter(({ p, _radie, _jeune }) => {
         const st = states[p.maps_url]?.status || "todo";
@@ -178,7 +179,11 @@ function HomeInner() {
         if (effectiveNow && !isOpenNow(p, effectiveNow, scrapeDate)) return false;
         if (hideRadie && _radie) return false;
         if (jeuneOnly && !_jeune) return false;
-        if (q && !`${p.name} ${p.phone} ${p.ville} ${p.metier} ${p.address || ""}`.toLowerCase().includes(q)) return false;
+        if (q) {
+          const matchesText = `${p.name} ${p.ville} ${p.metier} ${p.address || ""}`.toLowerCase().includes(q);
+          const matchesPhone = qDigits.length >= 2 && p.phone.replace(/\D/g, "").includes(qDigits);
+          if (!matchesText && !matchesPhone) return false;
+        }
         return true;
       })
       .sort((a, b) => {
