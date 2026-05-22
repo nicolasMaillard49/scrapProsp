@@ -7,6 +7,7 @@ import {
   Calendar, ChevronDown, MapPin, Star, Clock, History,
 } from "lucide-react";
 import { whatsAppUrl, googleCalendarUrl, defaultRdvDate } from "../lib/links";
+import { ageBadge } from "../lib/sirene";
 import type { Prospect, ProspectState, Status } from "../lib/types";
 
 interface Props {
@@ -175,6 +176,17 @@ export default function CallModal({
                   {isOpen ? "Ouvert" : "Fermé"}
                 </span>
               )}
+              {prospect && (() => {
+                const b = ageBadge(prospect);
+                return b ? (
+                  <span
+                    className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${b.cls}`}
+                    title={prospect.created_at ? `Créée le ${prospect.created_at}${prospect.siret ? ` · SIRET ${prospect.siret}` : ""}` : undefined}
+                  >
+                    {b.emoji && <span className="mr-1">{b.emoji}</span>}{b.label}
+                  </span>
+                ) : null;
+              })()}
             </div>
             <div className="text-lg font-bold text-neutral-100 leading-tight break-words">{name}</div>
           </div>

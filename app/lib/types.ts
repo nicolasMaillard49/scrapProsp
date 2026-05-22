@@ -14,6 +14,11 @@ export interface Prospect {
   is_open_now?: string;
   address?: string;
   maps_url: string;
+  siret?: string;
+  created_at?: string;
+  age_years?: string;
+  legal_status?: "actif" | "radie" | "inconnu" | "";
+  naf_code?: string;
 }
 
 export interface ProspectState {
