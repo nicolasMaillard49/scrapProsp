@@ -15,22 +15,41 @@
   --color-warning: #fbbf24;
   --color-danger: #f87171;
   --color-info: #60a5fa;
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
 html, body {
   height: 100%;
   background: var(--color-background);
   color: var(--color-text-primary);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  font-feature-settings: "cv11", "ss01", "ss03";
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 body {
   background-image:
-    radial-gradient(at 0% 0%, rgba(123, 79, 224, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(96, 165, 250, 0.04) 0px, transparent 50%);
+    radial-gradient(at 8% 0%, rgba(123, 79, 224, 0.12) 0px, transparent 45%),
+    radial-gradient(at 100% 8%, rgba(96, 165, 250, 0.06) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(123, 79, 224, 0.04) 0px, transparent 60%);
   background-attachment: fixed;
+  position: relative;
 }
+
+/* tactile noise overlay — adds depth without slowing render */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 200px 200px;
+  mix-blend-mode: overlay;
+}
+
+body > * { position: relative; z-index: 1; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -40,6 +59,9 @@ body {
 input:focus, select:focus, button:focus, textarea:focus {
   outline: none;
 }
+
+.font-display { font-family: var(--font-display), Georgia, serif; }
+.font-mono-num { font-family: var(--font-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 
 @keyframes pulse-ring {
   0% { box-shadow: 0 0 0 0 rgba(123, 79, 224, 0.6); }
@@ -63,10 +85,36 @@ input:focus, select:focus, button:focus, textarea:focus {
   100% { transform: scale(0.8) rotate(360deg); opacity: 0; }
 }
 
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
 .animate-pulse-ring { animation: pulse-ring 2s cubic-bezier(0.66, 0, 0, 1) infinite; }
 .animate-slide-up { animation: slide-up 200ms ease-out; }
 .animate-fade-in { animation: fade-in 200ms ease-out; }
 .animate-confetti { animation: confetti-pop 800ms ease-out forwards; }
+.stagger-1 { animation: stagger-in 400ms ease-out 0ms both; }
+.stagger-2 { animation: stagger-in 400ms ease-out 80ms both; }
+.stagger-3 { animation: stagger-in 400ms ease-out 160ms both; }
+.stagger-4 { animation: stagger-in 400ms ease-out 240ms both; }
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(35, 35, 41, 0.4) 0%,
+    rgba(46, 46, 54, 0.7) 50%,
+    rgba(35, 35, 41, 0.4) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
 
 .glass {
   background: rgba(17, 17, 20, 0.7);

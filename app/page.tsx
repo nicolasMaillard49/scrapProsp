@@ -284,8 +284,10 @@ function HomeInner() {
               <ProgressRing positive={stats.positive} called={stats.called} negative={stats.negative} total={stats.total} size={44} />
             </div>
             <div className="min-w-0">
-              <h1 className="text-base md:text-xl font-bold tracking-tight truncate">Prospects Tracker</h1>
-              <p className="text-[10px] md:text-[11px] text-neutral-500 truncate">
+              <h1 className="font-display italic text-[22px] md:text-[28px] leading-none tracking-tight text-neutral-50 truncate">
+                Prospects <span className="text-violet-300">Tracker</span>
+              </h1>
+              <p className="text-[10px] md:text-[11px] text-neutral-500 truncate mt-1 font-mono-num">
                 {regions.length > 0 ? `${regions.length} régions` : "Limousin"} · {stats.total} prospects {regionFilter !== "all" ? `(${regions.find(r => r.key === regionFilter)?.label})` : ""}
               </p>
             </div>
@@ -351,7 +353,7 @@ function HomeInner() {
       </div>
 
       <div className="px-3 md:px-6 py-3 md:py-4">
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 md:gap-2 mb-3 md:mb-4">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
           <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.negative) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-100" />
           <StatCard label="À appeler" value={stats.todo} sub="non traités" active={filter === "todo"} onClick={() => setFilter("todo")} accent="text-neutral-300" iconBg="bg-neutral-800" />
           <StatCard label="Appelés" value={stats.called} sub="en attente" active={filter === "called"} onClick={() => setFilter("called")} accent="text-amber-300" iconBg="bg-amber-950/40" />
@@ -359,7 +361,7 @@ function HomeInner() {
           <StatCard label="Négatifs" value={stats.negative} sub="exclus" active={filter === "negative"} onClick={() => setFilter("negative")} accent="text-rose-300" iconBg="bg-rose-950/40" />
         </div>
 
-        <div className="flex flex-wrap gap-1.5 md:gap-2 items-stretch mb-3">
+        <div className="flex flex-wrap gap-1.5 md:gap-2 items-stretch mb-3 stagger-2">
           <div className="relative w-full md:flex-1 md:min-w-[220px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
             <input
@@ -458,8 +460,23 @@ function HomeInner() {
           )}
         </div>
 
+        {!loaded && (
+          <div className="stagger-3 space-y-2 md:hidden mb-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="skeleton h-[110px]" />
+            ))}
+          </div>
+        )}
+        {!loaded && (
+          <div className="stagger-3 hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]/40">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="skeleton h-[64px] m-2" />
+            ))}
+          </div>
+        )}
+
         {/* MOBILE : vue cards */}
-        <div className="md:hidden space-y-2">
+        <div className="md:hidden space-y-2 stagger-3">
           {paginated.map((p, localIdx) => {
             const idx = pageStart + localIdx;
             const state = states[p.maps_url] || { status: "todo" as Status, notes: "" };
@@ -558,7 +575,7 @@ function HomeInner() {
               </div>
             );
           })}
-          {paginated.length === 0 && (
+          {loaded && paginated.length === 0 && (
             <div className="py-12 text-center text-neutral-500 flex flex-col items-center gap-2">
               <Search className="w-8 h-8 text-neutral-700" />
               <div>Aucun prospect avec ces filtres</div>
@@ -570,7 +587,7 @@ function HomeInner() {
         </div>
 
         {/* DESKTOP : vue table */}
-        <div className="hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]/40">
+        <div className="hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]/40 stagger-3">
           <table className="w-full text-base">
             <thead className="bg-[var(--color-surface)]/80 backdrop-blur text-left text-xs uppercase tracking-wider text-neutral-500 border-b border-[var(--color-border)]">
               <tr>
@@ -690,7 +707,7 @@ function HomeInner() {
                   </tr>
                 );
               })}
-              {filtered.length === 0 && (
+              {loaded && filtered.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-neutral-500">
@@ -784,16 +801,26 @@ function StatCard({ label, value, sub, active, onClick, accent, iconBg }: { labe
   return (
     <button
       onClick={onClick}
-      className={`text-left px-2.5 md:px-3 py-2 md:py-2.5 rounded-xl border transition group ${
-        active ? "bg-[var(--color-surface-2)] border-violet-500/40 shadow-lg shadow-violet-900/10" : "bg-[var(--color-surface)]/50 border-[var(--color-border)] hover:border-[var(--color-border-strong)]"
+      className={`text-left px-2.5 md:px-3 py-2 md:py-2.5 rounded-xl border transition-all duration-200 group relative overflow-hidden ${
+        active
+          ? "bg-[var(--color-surface-2)] border-violet-500/50 shadow-lg shadow-violet-900/20 ring-1 ring-violet-500/20"
+          : "bg-[var(--color-surface)]/50 border-[var(--color-border)] hover:border-[var(--color-border-strong)] hover:-translate-y-px"
       }`}
     >
+      {active && (
+        <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent" />
+      )}
       <div className="flex items-center justify-between mb-0.5">
-        <div className="text-[9px] md:text-[10px] text-neutral-500 uppercase tracking-wider truncate">{label}</div>
+        <div className="text-[9px] md:text-[10px] text-neutral-500 uppercase tracking-[0.14em] truncate">{label}</div>
         {iconBg && <div className={`w-1.5 h-1.5 rounded-full ${iconBg}`} />}
       </div>
-      <div className={`text-xl md:text-2xl font-bold tabular-nums ${accent}`}>{value}</div>
-      {sub && <div className="hidden md:block text-[10px] text-neutral-600 mt-0.5">{sub}</div>}
+      <div
+        className={`${active ? "font-display italic" : "font-display"} text-2xl md:text-3xl leading-none tabular-nums ${accent}`}
+        style={{ fontVariantNumeric: "tabular-nums" }}
+      >
+        {value}
+      </div>
+      {sub && <div className="hidden md:block text-[10px] text-neutral-600 mt-1 font-mono-num">{sub}</div>}
     </button>
   );
 }

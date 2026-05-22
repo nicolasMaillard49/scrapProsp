@@ -156,7 +156,7 @@ export default function FocusMode({ open, prospects, states, initialIndex, onClo
           )}
         </div>
 
-        <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-1 break-words max-w-full">
+        <h1 className="font-display text-4xl md:text-5xl leading-[1.02] tracking-tight mb-1 break-words max-w-full text-neutral-50">
           {current.name}
         </h1>
         <a
