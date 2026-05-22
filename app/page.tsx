@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { whatsAppUrl } from "./lib/links";
 import { isOpenNow, openLabel, parseScrapeDate } from "./lib/openNow";
-import { ageBadge, ageYears, isJeune, isRadie } from "./lib/sirene";
+import { ageYears, isJeune, isRadie } from "./lib/sirene";
+import AgeBadge from "./components/AgeBadge";
 import FocusMode from "./components/FocusMode";
 import KeyboardHelp from "./components/KeyboardHelp";
 import ProgressRing from "./components/ProgressRing";
@@ -140,53 +141,61 @@ function HomeInner() {
     }
   };
 
+  const enriched = useMemo(
+    () => prospects.map((p) => ({ p, _age: ageYears(p), _radie: isRadie(p), _jeune: isJeune(p) })),
+    [prospects],
+  );
+
   const stats = useMemo(() => {
-    const filteredByRegion = regionFilter === "all" ? prospects : prospects.filter((p) => p.region === regionFilter);
-    const s = { total: filteredByRegion.length, todo: 0, called: 0, positive: 0, negative: 0, jeunes: 0, radie: 0 };
-    filteredByRegion.forEach((p) => {
-      const st = states[p.maps_url]?.status || "todo";
+    const pool = regionFilter === "all" ? enriched : enriched.filter((e) => e.p.region === regionFilter);
+    const s = { total: pool.length, todo: 0, called: 0, positive: 0, negative: 0, jeunes: 0, radie: 0 };
+    for (const e of pool) {
+      const st = states[e.p.maps_url]?.status || "todo";
       s[st]++;
-      if (isJeune(p)) s.jeunes++;
-      if (isRadie(p)) s.radie++;
-    });
+      if (e._jeune) s.jeunes++;
+      if (e._radie) s.radie++;
+    }
     return s;
-  }, [prospects, states, regionFilter]);
+  }, [enriched, states, regionFilter]);
 
   const villes = useMemo(() => {
     const pool = regionFilter === "all" ? prospects : prospects.filter((p) => p.region === regionFilter);
     return Array.from(new Set(pool.map((p) => p.ville))).sort();
   }, [prospects, regionFilter]);
 
+  const effectiveNow = openNowOnly ? now : null;
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return prospects
-      .filter((p) => {
+    return enriched
+      .filter(({ p, _radie, _jeune }) => {
         const st = states[p.maps_url]?.status || "todo";
         if (filter !== "all" && st !== filter) return false;
         if (regionFilter !== "all" && p.region !== regionFilter) return false;
         if (metierFilter !== "all" && p.metier !== metierFilter) return false;
         if (villeFilter !== "all" && p.ville !== villeFilter) return false;
-        if (openNowOnly && !isOpenNow(p, now, scrapeDate)) return false;
-        if (hideRadie && isRadie(p)) return false;
-        if (jeuneOnly && !isJeune(p)) return false;
+        if (effectiveNow && !isOpenNow(p, effectiveNow, scrapeDate)) return false;
+        if (hideRadie && _radie) return false;
+        if (jeuneOnly && !_jeune) return false;
         if (q && !`${p.name} ${p.phone} ${p.ville} ${p.metier} ${p.address || ""}`.toLowerCase().includes(q)) return false;
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "reviews") return Number(b.reviews || 0) - Number(a.reviews || 0);
-        if (sortBy === "reviews-asc") return Number(a.reviews || 0) - Number(b.reviews || 0);
-        if (sortBy === "rating") return Number((b.rating || "0").replace(",", ".")) - Number((a.rating || "0").replace(",", "."));
+        if (sortBy === "reviews") return Number(b.p.reviews || 0) - Number(a.p.reviews || 0);
+        if (sortBy === "reviews-asc") return Number(a.p.reviews || 0) - Number(b.p.reviews || 0);
+        if (sortBy === "rating") return Number((b.p.rating || "0").replace(",", ".")) - Number((a.p.rating || "0").replace(",", "."));
         if (sortBy === "age-asc" || sortBy === "age-desc") {
-          const aa = ageYears(a);
-          const bb = ageYears(b);
+          const aa = a._age;
+          const bb = b._age;
           if (aa === null && bb === null) return 0;
           if (aa === null) return 1;
           if (bb === null) return -1;
           return sortBy === "age-asc" ? aa - bb : bb - aa;
         }
-        return a.name.localeCompare(b.name);
-      });
-  }, [prospects, states, search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, hideRadie, jeuneOnly, sortBy, now, scrapeDate]);
+        return a.p.name.localeCompare(b.p.name);
+      })
+      .map((e) => e.p);
+  }, [enriched, states, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, jeuneOnly, sortBy, effectiveNow, scrapeDate]);
 
   // Auto-reset page when filters change
   useEffect(() => {
@@ -197,6 +206,21 @@ function HomeInner() {
   const safePage = Math.min(page, totalPages);
   const paginated = pageSize === 0 ? filtered : filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
   const pageStart = pageSize === 0 ? 0 : (safePage - 1) * pageSize;
+
+  const hasActiveFilters =
+    filter !== "all" || regionFilter !== "all" || metierFilter !== "all" ||
+    villeFilter !== "all" || openNowOnly || jeuneOnly || !hideRadie || !!search;
+
+  const resetFilters = () => {
+    setSearch("");
+    setFilter("all");
+    setMetierFilter("all");
+    setVilleFilter("all");
+    setRegionFilter("all");
+    setOpenNowOnly(false);
+    setJeuneOnly(false);
+    setHideRadie(true);
+  };
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -424,12 +448,9 @@ function HomeInner() {
               ⛔ {stats.radie} radiée{stats.radie > 1 ? "s" : ""}
             </span>
           )}
-          {(filter !== "all" || regionFilter !== "all" || metierFilter !== "all" || villeFilter !== "all" || openNowOnly || jeuneOnly || !hideRadie || search) && (
+          {hasActiveFilters && (
             <button
-              onClick={() => {
-                setFilter("all"); setMetierFilter("all"); setVilleFilter("all");
-                setRegionFilter("all"); setOpenNowOnly(false); setJeuneOnly(false); setHideRadie(true); setSearch("");
-              }}
+              onClick={resetFilters}
               className="text-violet-400 hover:text-violet-300 underline underline-offset-2"
             >
               Effacer tous les filtres
@@ -462,14 +483,7 @@ function HomeInner() {
                       <span className={`px-2 py-0.5 rounded ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
                         {p.metier}
                       </span>
-                      {(() => {
-                        const b = ageBadge(p);
-                        return b ? (
-                          <span className={`px-2 py-0.5 rounded text-[11px] ${b.cls}`} title={p.created_at ? `Créée le ${p.created_at}` : undefined}>
-                            {b.emoji && <span className="mr-1">{b.emoji}</span>}{b.label}
-                          </span>
-                        ) : null;
-                      })()}
+                      <AgeBadge prospect={p} size="sm" />
                       <span className="flex items-center gap-1 text-neutral-500">
                         <MapPin className="w-3 h-3" /> {p.ville}
                       </span>
@@ -548,7 +562,7 @@ function HomeInner() {
             <div className="py-12 text-center text-neutral-500 flex flex-col items-center gap-2">
               <Search className="w-8 h-8 text-neutral-700" />
               <div>Aucun prospect avec ces filtres</div>
-              <button onClick={() => { setSearch(""); setFilter("all"); setMetierFilter("all"); setVilleFilter("all"); setRegionFilter("all"); setOpenNowOnly(false); setJeuneOnly(false); setHideRadie(true); }} className="text-xs text-violet-400 hover:text-violet-300">
+              <button onClick={resetFilters} className="text-xs text-violet-400 hover:text-violet-300">
                 Réinitialiser les filtres
               </button>
             </div>
@@ -593,14 +607,7 @@ function HomeInner() {
                         <span className={`px-2 py-0.5 rounded text-xs ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
                           {p.metier}
                         </span>
-                        {(() => {
-                          const b = ageBadge(p);
-                          return b ? (
-                            <span className={`px-2 py-0.5 rounded text-xs ${b.cls}`} title={p.created_at ? `Créée le ${p.created_at}` : undefined}>
-                              {b.emoji && <span className="mr-1">{b.emoji}</span>}{b.label}
-                            </span>
-                          ) : null;
-                        })()}
+                        <AgeBadge prospect={p} size="md" />
                         <span className="flex items-center gap-1 text-neutral-300 font-medium">
                           <MapPin className="w-4 h-4 text-neutral-500" /> {p.ville}
                         </span>
@@ -689,7 +696,7 @@ function HomeInner() {
                     <div className="flex flex-col items-center gap-2 text-neutral-500">
                       <Search className="w-8 h-8 text-neutral-700" />
                       <div>Aucun prospect avec ces filtres</div>
-                      <button onClick={() => { setSearch(""); setFilter("all"); setMetierFilter("all"); setVilleFilter("all"); setRegionFilter("all"); setOpenNowOnly(false); setJeuneOnly(false); setHideRadie(true); }} className="text-xs text-violet-400 hover:text-violet-300">
+                      <button onClick={resetFilters} className="text-xs text-violet-400 hover:text-violet-300">
                         Réinitialiser les filtres
                       </button>
                     </div>

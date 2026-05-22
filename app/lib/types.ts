@@ -17,7 +17,7 @@ export interface Prospect {
   siret?: string;
   created_at?: string;
   age_years?: string;
-  legal_status?: "actif" | "radie" | "inconnu" | "";
+  legal_status?: "actif" | "radie" | "inconnu";
   naf_code?: string;
 }
 
