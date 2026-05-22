@@ -795,6 +795,13 @@ function HomeInner() {
             setCallTarget(null);
           }
         }}
+        onMarkNegative={() => {
+          if (callTarget) {
+            setStatus(callTarget.maps_url, "negative");
+            toast.push("success", `${callTarget.name} marqué négatif`);
+            setCallTarget(null);
+          }
+        }}
       />
     </main>
   );

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
-  X, Phone, PhoneOff, Smartphone, CheckCircle2, Settings, ExternalLink,
+  X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
   Calendar, ChevronDown, MapPin, Star, Clock, History,
 } from "lucide-react";
 import { whatsAppUrl, googleCalendarUrl, defaultRdvDate } from "../lib/links";
@@ -21,6 +21,7 @@ interface Props {
   onMarkCalled?: () => void;
   onMarkPositive?: () => void;
   onMarkNoAnswer?: () => void;
+  onMarkNegative?: () => void;
 }
 
 const statusLabel: Record<Status, { label: string; cls: string }> = {
@@ -56,7 +57,7 @@ const NTFY_KEY = "prospects-tracker-ntfy-topic";
 
 export default function CallModal({
   open, prospect, state, isOpen, hoursLabel, initialTab = "call",
-  onClose, onMarkCalled, onMarkPositive, onMarkNoAnswer,
+  onClose, onMarkCalled, onMarkPositive, onMarkNoAnswer, onMarkNegative,
 }: Props) {
   const [qrUrl, setQrUrl] = useState<string>("");
   const [ntfyTopic, setNtfyTopic] = useState<string>("");
@@ -409,34 +410,52 @@ export default function CallModal({
           <NtfySetup draft={ntfyDraft} setDraft={setNtfyDraft} onSave={saveNtfy} onCancel={() => setNtfyEditing(false)} />
         )}
 
-        <div className="flex gap-2">
-          {onMarkCalled && (
-            <button
-              onClick={onMarkCalled}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 hover:bg-amber-500/25 transition"
-            >
-              <Phone className="w-4 h-4" />
-              Appelé
-            </button>
+        <div className="space-y-2">
+          {(onMarkCalled || onMarkNoAnswer) && (
+            <div className="flex gap-2">
+              {onMarkCalled && (
+                <button
+                  onClick={onMarkCalled}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-200 hover:bg-amber-500/25 transition"
+                >
+                  <Phone className="w-4 h-4" />
+                  Appelé
+                </button>
+              )}
+              {onMarkNoAnswer && (
+                <button
+                  onClick={onMarkNoAnswer}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm rounded-lg bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 transition"
+                  title="Pas de réponse — à rappeler plus tard"
+                >
+                  <PhoneOff className="w-4 h-4" />
+                  Pas de rép.
+                </button>
+              )}
+            </div>
           )}
-          {onMarkNoAnswer && (
-            <button
-              onClick={onMarkNoAnswer}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm rounded-lg bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 transition"
-              title="Pas de réponse — à rappeler plus tard"
-            >
-              <PhoneOff className="w-4 h-4" />
-              Pas de rép.
-            </button>
-          )}
-          {onMarkPositive && (
-            <button
-              onClick={onMarkPositive}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/25 transition"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Positif
-            </button>
+          {(onMarkPositive || onMarkNegative) && (
+            <div className="flex gap-2">
+              {onMarkPositive && (
+                <button
+                  onClick={onMarkPositive}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/25 transition"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Positif
+                </button>
+              )}
+              {onMarkNegative && (
+                <button
+                  onClick={onMarkNegative}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm rounded-lg bg-rose-500/15 border border-rose-500/40 text-rose-200 hover:bg-rose-500/25 transition"
+                  title="Négatif — exclu, ferme la fiche"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Négatif
+                </button>
+              )}
+            </div>
           )}
         </div>
 
