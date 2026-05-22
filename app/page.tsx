@@ -38,7 +38,7 @@ function HomeInner() {
   const [villeFilter, setVilleFilter] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [openNowOnly, setOpenNowOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<"reviews" | "rating" | "name">("reviews");
+  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name">("reviews");
   const [loaded, setLoaded] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
@@ -167,6 +167,7 @@ function HomeInner() {
       })
       .sort((a, b) => {
         if (sortBy === "reviews") return Number(b.reviews || 0) - Number(a.reviews || 0);
+        if (sortBy === "reviews-asc") return Number(a.reviews || 0) - Number(b.reviews || 0);
         if (sortBy === "rating") return Number((b.rating || "0").replace(",", ".")) - Number((a.rating || "0").replace(",", "."));
         return a.name.localeCompare(b.name);
       });
@@ -347,6 +348,7 @@ function HomeInner() {
           <SelectIcon icon={<ArrowUpDown className="w-3.5 h-3.5" />}>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="bg-transparent text-sm outline-none cursor-pointer">
               <option value="reviews">Avis ↓</option>
+              <option value="reviews-asc">Avis ↑</option>
               <option value="rating">Note ↓</option>
               <option value="name">A→Z</option>
             </select>
