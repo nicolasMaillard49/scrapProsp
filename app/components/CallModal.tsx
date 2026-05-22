@@ -63,6 +63,7 @@ export default function CallModal({
   const [ntfyEditing, setNtfyEditing] = useState(false);
   const [ntfyDraft, setNtfyDraft] = useState("");
   const [pushed, setPushed] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
   const [rdvOpen, setRdvOpen] = useState(initialTab === "rdv");
   const [historyOpen, setHistoryOpen] = useState(false);
 
@@ -128,23 +129,39 @@ export default function CallModal({
 
   const pushToPhone = async () => {
     if (!ntfyTopic) return;
+    setPushError(null);
     try {
-      await fetch(`https://ntfy.sh/${ntfyTopic}`, {
+      const r = await fetch("https://ntfy.sh/", {
         method: "POST",
-        headers: {
-          Title: `Appeler ${name}`,
-          Priority: "high",
-          Tags: "phone",
-          Actions: `view, Appeler, ${telUri}, clear=true; view, WhatsApp, ${waUrl}`,
-        },
-        body: `${name}\n${phone}`,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: ntfyTopic,
+          title: `Appeler ${name}`,
+          message: `${name}\n${phone}`,
+          priority: 5,
+          tags: ["phone"],
+          actions: [
+            { action: "view", label: "Appeler", url: telUri, clear: true },
+            { action: "view", label: "WhatsApp", url: waUrl },
+          ],
+        }),
       });
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "");
+        setPushError(`Échec ntfy ${r.status}${txt ? ` — ${txt.slice(0, 80)}` : ""}`);
+        return;
+      }
       setPushed(true);
       setTimeout(() => setPushed(false), 3000);
     } catch (e) {
       console.error(e);
+      setPushError("Erreur réseau — vérifie ta connexion ou le topic");
     }
   };
+
+  useEffect(() => {
+    if (!open) setPushError(null);
+  }, [open]);
 
   if (!open) return null;
 
@@ -309,21 +326,32 @@ export default function CallModal({
         </div>
 
         {ntfyTopic && !ntfyEditing && (
-          <button
-            onClick={pushToPhone}
-            disabled={pushed}
-            className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl mb-4 font-medium transition shadow-lg ${
-              pushed
-                ? "bg-emerald-600/80 text-white shadow-emerald-900/30"
-                : "bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white shadow-violet-900/30"
-            }`}
-          >
-            {pushed ? (
-              <><CheckCircle2 className="w-5 h-5" /> Envoyé sur le téléphone</>
-            ) : (
-              <><Smartphone className="w-5 h-5" /> Pousser sur mon téléphone</>
+          <div className="mb-4">
+            <button
+              onClick={pushToPhone}
+              disabled={pushed}
+              className={`w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-medium transition shadow-lg ${
+                pushed
+                  ? "bg-emerald-600/80 text-white shadow-emerald-900/30"
+                  : pushError
+                    ? "bg-rose-600/70 hover:bg-rose-600/85 text-white shadow-rose-900/30"
+                    : "bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white shadow-violet-900/30"
+              }`}
+            >
+              {pushed ? (
+                <><CheckCircle2 className="w-5 h-5" /> Envoyé sur le téléphone</>
+              ) : pushError ? (
+                <><Smartphone className="w-5 h-5" /> Réessayer le push</>
+              ) : (
+                <><Smartphone className="w-5 h-5" /> Pousser sur mon téléphone</>
+              )}
+            </button>
+            {pushError && (
+              <div className="mt-1.5 px-3 py-1.5 rounded text-[11px] text-rose-300 bg-rose-500/5 border border-rose-500/20 break-words">
+                {pushError}
+              </div>
             )}
-          </button>
+          </div>
         )}
 
         <details
