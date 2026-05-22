@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
-  X, Phone, Smartphone, CheckCircle2, Settings, ExternalLink,
+  X, Phone, PhoneOff, Smartphone, CheckCircle2, Settings, ExternalLink,
   Calendar, ChevronDown, MapPin, Star, Clock, History,
 } from "lucide-react";
 import { whatsAppUrl, googleCalendarUrl, defaultRdvDate } from "../lib/links";
@@ -20,6 +20,7 @@ interface Props {
   onClose: () => void;
   onMarkCalled?: () => void;
   onMarkPositive?: () => void;
+  onMarkNoAnswer?: () => void;
 }
 
 const statusLabel: Record<Status, { label: string; cls: string }> = {
@@ -27,6 +28,7 @@ const statusLabel: Record<Status, { label: string; cls: string }> = {
   called: { label: "Déjà appelé", cls: "bg-amber-500/15 text-amber-200 border-amber-500/40" },
   positive: { label: "Positif", cls: "bg-emerald-500/15 text-emerald-200 border-emerald-500/40" },
   negative: { label: "Négatif", cls: "bg-rose-500/15 text-rose-200 border-rose-500/40" },
+  no_answer: { label: "Pas de réponse", cls: "bg-sky-500/15 text-sky-200 border-sky-500/40" },
 };
 
 function formatRelativeTime(iso: string): string {
@@ -54,7 +56,7 @@ const NTFY_KEY = "prospects-tracker-ntfy-topic";
 
 export default function CallModal({
   open, prospect, state, isOpen, hoursLabel, initialTab = "call",
-  onClose, onMarkCalled, onMarkPositive,
+  onClose, onMarkCalled, onMarkPositive, onMarkNoAnswer,
 }: Props) {
   const [qrUrl, setQrUrl] = useState<string>("");
   const [ntfyTopic, setNtfyTopic] = useState<string>("");
@@ -263,7 +265,8 @@ export default function CallModal({
                   <span className={`shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full ${
                     h.status === "positive" ? "bg-emerald-400" :
                     h.status === "negative" ? "bg-rose-400" :
-                    h.status === "called" ? "bg-amber-400" : "bg-neutral-500"
+                    h.status === "called" ? "bg-amber-400" :
+                    h.status === "no_answer" ? "bg-sky-400" : "bg-neutral-500"
                   }`} />
                   <div className="min-w-0 flex-1">
                     <div className="text-neutral-300">
@@ -386,6 +389,16 @@ export default function CallModal({
             >
               <Phone className="w-4 h-4" />
               Appelé
+            </button>
+          )}
+          {onMarkNoAnswer && (
+            <button
+              onClick={onMarkNoAnswer}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm rounded-lg bg-sky-500/15 border border-sky-500/40 text-sky-200 hover:bg-sky-500/25 transition"
+              title="Pas de réponse — à rappeler plus tard"
+            >
+              <PhoneOff className="w-4 h-4" />
+              Pas de rép.
             </button>
           )}
           {onMarkPositive && (

@@ -1,4 +1,4 @@
-export type Status = "todo" | "called" | "positive" | "negative";
+export type Status = "todo" | "called" | "positive" | "negative" | "no_answer";
 
 export interface Prospect {
   name: string;

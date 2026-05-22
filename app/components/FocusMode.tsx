@@ -96,6 +96,7 @@ export default function FocusMode({ open, prospects, states, initialIndex, onClo
       if (e.key === "1" || e.key.toLowerCase() === "p") finalize("positive");
       if (e.key === "2" || e.key.toLowerCase() === "c") finalize("called");
       if (e.key === "3" || e.key.toLowerCase() === "n") finalize("negative");
+      if (e.key === "4" || e.key.toLowerCase() === "r") finalize("no_answer");
       if (e.key.toLowerCase() === "k") callingSince ? endCall() : startCall();
       if (e.key.toLowerCase() === "t") noteRef.current?.focus();
     };
@@ -213,7 +214,7 @@ export default function FocusMode({ open, prospects, states, initialIndex, onClo
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-3 w-full max-w-md mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-md mb-8">
           <OutcomeButton
             icon={<CheckCircle2 className="w-5 h-5" />}
             label="Positif"
@@ -227,6 +228,13 @@ export default function FocusMode({ open, prospects, states, initialIndex, onClo
             shortcut="2 / C"
             color="amber"
             onClick={() => finalize("called")}
+          />
+          <OutcomeButton
+            icon={<PhoneOff className="w-5 h-5" />}
+            label="Pas de rép."
+            shortcut="4 / R"
+            color="sky"
+            onClick={() => finalize("no_answer")}
           />
           <OutcomeButton
             icon={<XCircle className="w-5 h-5" />}
@@ -300,11 +308,12 @@ function SessionBadge({ label, value, accent }: { label: string; value: number; 
   );
 }
 
-function OutcomeButton({ icon, label, shortcut, color, onClick }: { icon: React.ReactNode; label: string; shortcut: string; color: "emerald" | "amber" | "rose"; onClick: () => void }) {
+function OutcomeButton({ icon, label, shortcut, color, onClick }: { icon: React.ReactNode; label: string; shortcut: string; color: "emerald" | "amber" | "rose" | "sky"; onClick: () => void }) {
   const palette = {
     emerald: "from-emerald-500/15 to-emerald-700/10 border-emerald-700/50 hover:from-emerald-500/30 hover:to-emerald-700/20 text-emerald-200",
     amber: "from-amber-500/15 to-amber-700/10 border-amber-700/50 hover:from-amber-500/30 hover:to-amber-700/20 text-amber-200",
     rose: "from-rose-500/15 to-rose-700/10 border-rose-700/50 hover:from-rose-500/30 hover:to-rose-700/20 text-rose-200",
+    sky: "from-sky-500/15 to-sky-700/10 border-sky-700/50 hover:from-sky-500/30 hover:to-sky-700/20 text-sky-200",
   }[color];
   return (
     <button

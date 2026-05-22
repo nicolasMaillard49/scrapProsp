@@ -20,6 +20,7 @@ export default function KeyboardHelp({ open, onClose }: { open: boolean; onClose
     ["Focus", "1 / P", "Marquer Positif (auto-advance)"],
     ["Focus", "2 / C", "Marquer Appelé"],
     ["Focus", "3 / N", "Marquer Négatif"],
+    ["Focus", "4 / R", "Marquer Pas de réponse (à rappeler)"],
     ["Focus", "K", "Démarrer / raccrocher le timer d'appel"],
     ["Focus", "T", "Focus sur le champ de notes"],
     ["Focus", "→ / Espace", "Prospect suivant"],

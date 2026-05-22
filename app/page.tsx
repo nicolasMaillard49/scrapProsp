@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import {
-  Search, Upload, Download, ExternalLink, MapPin, Star, Phone,
+  Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
   CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2,
   Filter, ArrowUpDown, Clock, Globe,
   ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
@@ -27,6 +27,7 @@ const statusConfig: Record<Status, { label: string; ring: string; rowBg: string;
   called: { label: "Appelé", ring: "ring-amber-600/60", rowBg: "bg-amber-950/20", text: "text-amber-300" },
   positive: { label: "Positif", ring: "ring-emerald-500/70", rowBg: "bg-emerald-950/25", text: "text-emerald-300" },
   negative: { label: "Négatif", ring: "ring-rose-600/60", rowBg: "bg-rose-950/15", text: "text-rose-300" },
+  no_answer: { label: "Pas de réponse", ring: "ring-sky-600/60", rowBg: "bg-sky-950/15", text: "text-sky-300" },
 };
 
 function HomeInner() {
@@ -148,7 +149,7 @@ function HomeInner() {
 
   const stats = useMemo(() => {
     const pool = regionFilter === "all" ? enriched : enriched.filter((e) => e.p.region === regionFilter);
-    const s = { total: pool.length, todo: 0, called: 0, positive: 0, negative: 0, jeunes: 0, radie: 0 };
+    const s = { total: pool.length, todo: 0, called: 0, positive: 0, negative: 0, no_answer: 0, jeunes: 0, radie: 0 };
     for (const e of pool) {
       const st = states[e.p.maps_url]?.status || "todo";
       s[st]++;
@@ -353,10 +354,11 @@ function HomeInner() {
       </div>
 
       <div className="px-3 md:px-6 py-3 md:py-4">
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
-          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.negative) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-100" />
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
+          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-100" />
           <StatCard label="À appeler" value={stats.todo} sub="non traités" active={filter === "todo"} onClick={() => setFilter("todo")} accent="text-neutral-300" iconBg="bg-neutral-800" />
           <StatCard label="Appelés" value={stats.called} sub="en attente" active={filter === "called"} onClick={() => setFilter("called")} accent="text-amber-300" iconBg="bg-amber-950/40" />
+          <StatCard label="Pas de rép." value={stats.no_answer} sub="à rappeler" active={filter === "no_answer"} onClick={() => setFilter("no_answer")} accent="text-sky-300" iconBg="bg-sky-950/40" />
           <StatCard label="Positifs" value={stats.positive} sub={`${stats.positive > 0 && stats.called + stats.positive + stats.negative > 0 ? Math.round((stats.positive / (stats.called + stats.positive + stats.negative)) * 100) : 0} %`} active={filter === "positive"} onClick={() => setFilter("positive")} accent="text-emerald-300" iconBg="bg-emerald-950/40" />
           <StatCard label="Négatifs" value={stats.negative} sub="exclus" active={filter === "negative"} onClick={() => setFilter("negative")} accent="text-rose-300" iconBg="bg-rose-950/40" />
         </div>
@@ -556,6 +558,7 @@ function HomeInner() {
                 <div className="flex items-center gap-1.5 mb-2.5">
                   <StatusBtn active={state.status === "positive"} onClick={() => state.status === "positive" ? setStatus(p.maps_url, "todo") : setStatusWithRdv(p, "positive")} color="emerald" icon={<CheckCircle2 className="w-4 h-4" />} title="Positif" />
                   <StatusBtn active={state.status === "called"} onClick={() => setStatus(p.maps_url, state.status === "called" ? "todo" : "called")} color="amber" icon={<Phone className="w-4 h-4" />} title="Appelé" />
+                  <StatusBtn active={state.status === "no_answer"} onClick={() => setStatus(p.maps_url, state.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
                   <StatusBtn active={state.status === "negative"} onClick={() => setStatus(p.maps_url, state.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
                   {state.status !== "todo" && (
                     <button onClick={() => resetState(p.maps_url)} className="p-2 text-neutral-600 hover:text-neutral-300 transition" title="Reset">
@@ -682,6 +685,7 @@ function HomeInner() {
                       <div className="flex gap-1.5">
                         <StatusBtn active={state.status === "positive"} onClick={() => state.status === "positive" ? setStatus(p.maps_url, "todo") : setStatusWithRdv(p, "positive")} color="emerald" icon={<CheckCircle2 className="w-4 h-4" />} title="Positif (proposera RDV)" />
                         <StatusBtn active={state.status === "called"} onClick={() => setStatus(p.maps_url, state.status === "called" ? "todo" : "called")} color="amber" icon={<Phone className="w-4 h-4" />} title="Appelé" />
+                        <StatusBtn active={state.status === "no_answer"} onClick={() => setStatus(p.maps_url, state.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
                         <StatusBtn active={state.status === "negative"} onClick={() => setStatus(p.maps_url, state.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
                         {state.status !== "todo" && (
                           <button onClick={() => resetState(p.maps_url)} className="p-2 text-neutral-600 hover:text-neutral-300 transition" title="Reset">
@@ -782,6 +786,13 @@ function HomeInner() {
             setStatus(target.maps_url, "positive");
             toast.push("success", `${target.name} marqué positif`);
             setCallTab("rdv");
+          }
+        }}
+        onMarkNoAnswer={() => {
+          if (callTarget) {
+            setStatus(callTarget.maps_url, "no_answer");
+            toast.push("success", `${callTarget.name} — pas de réponse`);
+            setCallTarget(null);
           }
         }}
       />
@@ -946,11 +957,12 @@ function WhatsAppIcon({ className }: { className?: string }) {
   );
 }
 
-function StatusBtn({ active, onClick, color, icon, title }: { active: boolean; onClick: () => void; color: "emerald" | "amber" | "rose"; icon: React.ReactNode; title: string }) {
+function StatusBtn({ active, onClick, color, icon, title }: { active: boolean; onClick: () => void; color: "emerald" | "amber" | "rose" | "sky"; icon: React.ReactNode; title: string }) {
   const styles = active ? {
     emerald: "bg-emerald-500/15 border-emerald-500/50 text-emerald-300",
     amber: "bg-amber-500/15 border-amber-500/50 text-amber-300",
     rose: "bg-rose-500/15 border-rose-500/50 text-rose-300",
+    sky: "bg-sky-500/15 border-sky-500/50 text-sky-300",
   }[color] : "border-[var(--color-border)] text-neutral-500 hover:border-neutral-600 hover:text-neutral-300";
   return (
     <button onClick={onClick} title={title} className={`p-1.5 rounded border transition ${styles}`}>
