@@ -5,7 +5,7 @@ import Papa from "papaparse";
 import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
   CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2,
-  Filter, ArrowUpDown, Clock, Globe,
+  Filter, ArrowUpDown, Clock, Globe, UploadCloud,
   ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
   MoreVertical, Calendar,
 } from "lucide-react";
@@ -62,10 +62,24 @@ function HomeInner() {
   }, []);
 
   useEffect(() => {
+    let local: Record<string, ProspectState> | null = null;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setStates(JSON.parse(raw));
+      if (raw) local = JSON.parse(raw);
     } catch {}
+    if (local && Object.keys(local).length > 0) {
+      setStates(local);
+    } else {
+      // No local state → try the bundled seed (only useful on a fresh device)
+      fetch("/state-seed.json")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((seed) => {
+          if (seed && typeof seed === "object" && Object.keys(seed).length > 0) {
+            setStates(seed);
+          }
+        })
+        .catch(() => {});
+    }
 
     // Load manifest, then all CSVs in parallel
     fetch("/manifest.json")
@@ -243,6 +257,50 @@ function HomeInner() {
     return () => window.removeEventListener("keydown", h);
   }, [filtered.length]);
 
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
+
+  const pushStateSnapshot = async () => {
+    if (snapshotBusy) return;
+    setSnapshotBusy(true);
+    try {
+      const r = await fetch("/api/snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(states),
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) {
+        const reason = data?.error ?? `HTTP ${r.status}`;
+        if (r.status === 403) {
+          downloadStateJson();
+          toast.push("error", `Push impossible en prod : ${reason}. JSON téléchargé pour upload manuel.`);
+          return;
+        }
+        toast.push("error", `Snapshot échoué — ${reason}`);
+        return;
+      }
+      toast.push(
+        "success",
+        `État écrit dans public/state-seed.json (${data?.keys ?? "?"} prospects). Lance maintenant : git add public/state-seed.json && git commit -m "snapshot état" && git push`,
+      );
+    } catch (e) {
+      console.error(e);
+      toast.push("error", "Impossible de joindre /api/snapshot");
+    } finally {
+      setSnapshotBusy(false);
+    }
+  };
+
+  const downloadStateJson = () => {
+    const blob = new Blob([JSON.stringify(states, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `prospects-state-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const exportCsv = () => {
     const rows = filtered.map((p) => ({
       ...p,
@@ -324,6 +382,15 @@ function HomeInner() {
             <button onClick={exportCsv} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] transition">
               <Download className="w-4 h-4" />
               <span className="hidden md:inline">Export</span>
+            </button>
+            <button
+              onClick={pushStateSnapshot}
+              disabled={snapshotBusy}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-violet-500/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:border-violet-500/60 transition disabled:opacity-50"
+              title="Écrit l'état actuel dans public/state-seed.json — git push ensuite pour publier en ligne"
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span className="hidden md:inline">{snapshotBusy ? "En cours…" : "Sync ↑"}</span>
             </button>
           </div>
         </div>
