@@ -4,26 +4,55 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
   X, Phone, Smartphone, CheckCircle2, Settings, ExternalLink,
-  MessageCircle, Calendar, ChevronDown,
+  Calendar, ChevronDown, MapPin, Star, Clock, History,
 } from "lucide-react";
 import { whatsAppUrl, googleCalendarUrl, defaultRdvDate } from "../lib/links";
+import type { Prospect, ProspectState, Status } from "../lib/types";
 
 interface Props {
   open: boolean;
-  name: string;
-  phone: string;
-  notes?: string;
-  address?: string;
+  prospect: Prospect | null;
+  state?: ProspectState;
+  isOpen?: boolean;
+  hoursLabel?: string;
   initialTab?: "call" | "rdv";
   onClose: () => void;
   onMarkCalled?: () => void;
   onMarkPositive?: () => void;
 }
 
+const statusLabel: Record<Status, { label: string; cls: string }> = {
+  todo: { label: "À appeler", cls: "bg-neutral-700/40 text-neutral-300 border-neutral-600/50" },
+  called: { label: "Déjà appelé", cls: "bg-amber-500/15 text-amber-200 border-amber-500/40" },
+  positive: { label: "Positif", cls: "bg-emerald-500/15 text-emerald-200 border-emerald-500/40" },
+  negative: { label: "Négatif", cls: "bg-rose-500/15 text-rose-200 border-rose-500/40" },
+};
+
+function formatRelativeTime(iso: string): string {
+  const d = new Date(iso);
+  const diff = Date.now() - d.getTime();
+  const mn = Math.round(diff / 60_000);
+  if (mn < 1) return "à l'instant";
+  if (mn < 60) return `il y a ${mn} min`;
+  const h = Math.round(mn / 60);
+  if (h < 24) return `il y a ${h} h`;
+  const j = Math.round(h / 24);
+  if (j < 30) return `il y a ${j} j`;
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatDuration(s?: number): string {
+  if (!s) return "";
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return r ? `${m}m${r}s` : `${m}m`;
+}
+
 const NTFY_KEY = "prospects-tracker-ntfy-topic";
 
 export default function CallModal({
-  open, name, phone, notes, address, initialTab = "call",
+  open, prospect, state, isOpen, hoursLabel, initialTab = "call",
   onClose, onMarkCalled, onMarkPositive,
 }: Props) {
   const [qrUrl, setQrUrl] = useState<string>("");
@@ -32,10 +61,22 @@ export default function CallModal({
   const [ntfyDraft, setNtfyDraft] = useState("");
   const [pushed, setPushed] = useState(false);
   const [rdvOpen, setRdvOpen] = useState(initialTab === "rdv");
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const name = prospect?.name || "";
+  const phone = prospect?.phone || "";
+  const address = prospect?.address;
+  const notes = state?.notes;
 
   const cleanPhone = phone.replace(/\s/g, "");
   const telUri = `tel:${cleanPhone}`;
   const waUrl = whatsAppUrl(phone);
+  const rating = prospect?.rating?.replace(",", ".");
+  const reviewCount = prospect?.reviews;
+  const hasRating = rating && rating !== "0" && rating !== "";
+  const history = state?.callHistory || [];
+  const currentStatus: Status = state?.status || "todo";
+  const statusCfg = statusLabel[currentStatus];
 
   useEffect(() => {
     if (open) setRdvOpen(initialTab === "rdv");
@@ -113,15 +154,128 @@ export default function CallModal({
         className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-6 my-4 animate-slide-up shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <div className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Contacter</div>
-            <div className="text-lg font-bold text-neutral-100">{name}</div>
+        <div className="flex items-start justify-between mb-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${statusCfg.cls}`}>
+                {statusCfg.label}
+              </span>
+              {prospect?.metier && (
+                <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                  prospect.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"
+                }`}>
+                  {prospect.metier}
+                </span>
+              )}
+              {typeof isOpen === "boolean" && (
+                <span className={`flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                  isOpen ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-neutral-800/60 text-neutral-500 border border-neutral-700"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? "bg-emerald-400" : "bg-neutral-600"}`} />
+                  {isOpen ? "Ouvert" : "Fermé"}
+                </span>
+              )}
+            </div>
+            <div className="text-lg font-bold text-neutral-100 leading-tight break-words">{name}</div>
           </div>
-          <button onClick={onClose} className="p-1 hover:bg-[var(--color-surface-2)] rounded text-neutral-400 hover:text-neutral-100 transition">
+          <button onClick={onClose} className="shrink-0 p-1 hover:bg-[var(--color-surface-2)] rounded text-neutral-400 hover:text-neutral-100 transition ml-2">
             <X className="w-4 h-4" />
           </button>
         </div>
+
+        <div className="mb-4 space-y-1.5 text-sm">
+          {hasRating && (
+            <div className="flex items-center gap-1.5 text-neutral-300">
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
+              <span className="font-semibold">{rating}</span>
+              <span className="text-neutral-500">/ 5 · {reviewCount} avis Google</span>
+            </div>
+          )}
+          {(prospect?.ville || prospect?.departement || prospect?.region_label) && (
+            <div className="flex items-start gap-1.5 text-neutral-400">
+              <MapPin className="w-3.5 h-3.5 mt-0.5 text-neutral-500 shrink-0" />
+              <div className="min-w-0">
+                <div className="text-neutral-200">
+                  {prospect?.ville}
+                  {prospect?.departement ? `, ${prospect.departement}` : ""}
+                </div>
+                {prospect?.region_label && (
+                  <div className="text-[11px] text-neutral-500">{prospect.region_label}</div>
+                )}
+                {address && (
+                  <div className="text-[11px] text-neutral-500 break-words">{address}</div>
+                )}
+              </div>
+            </div>
+          )}
+          {(hoursLabel || prospect?.hours_status) && (
+            <div className="flex items-center gap-1.5 text-neutral-400">
+              <Clock className={`w-3.5 h-3.5 shrink-0 ${isOpen ? "text-emerald-400" : "text-neutral-500"}`} />
+              <span className={`text-[12px] ${isOpen ? "text-emerald-200" : ""}`}>
+                {hoursLabel || prospect?.hours_status}
+              </span>
+            </div>
+          )}
+          {prospect?.maps_url && (
+            <a
+              href={prospect.maps_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200 transition"
+            >
+              <ExternalLink className="w-3 h-3" /> Fiche Google Maps
+            </a>
+          )}
+        </div>
+
+        {state?.calledAt && (
+          <div className="mb-3 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-[12px] text-amber-200/80">
+            Dernier appel <span className="font-medium text-amber-200">{formatRelativeTime(state.calledAt)}</span>
+            {state.callDuration ? ` · ${formatDuration(state.callDuration)}` : ""}
+          </div>
+        )}
+
+        {notes && (
+          <div className="mb-3 px-3 py-2 rounded-lg bg-violet-500/5 border border-violet-500/20 text-[12px] text-violet-100/90 whitespace-pre-wrap break-words">
+            <div className="text-[10px] uppercase tracking-wider text-violet-300 mb-1">Notes</div>
+            {notes}
+          </div>
+        )}
+
+        {history.length > 0 && (
+          <details
+            open={historyOpen}
+            onToggle={(e) => setHistoryOpen((e.target as HTMLDetailsElement).open)}
+            className="mb-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-background)]/40 group"
+          >
+            <summary className="flex items-center justify-between px-3 py-2 cursor-pointer list-none">
+              <span className="flex items-center gap-2 text-[12px] font-medium text-neutral-300">
+                <History className="w-3.5 h-3.5 text-violet-300" />
+                Historique des appels ({history.length})
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-neutral-500 group-open:rotate-180 transition" />
+            </summary>
+            <ul className="px-3 pb-2.5 space-y-1.5 text-[11px]">
+              {[...history].reverse().slice(0, 10).map((h, i) => (
+                <li key={i} className="flex items-start gap-2 pt-1.5 border-t border-[var(--color-border)] first:border-t-0 first:pt-0">
+                  <span className={`shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full ${
+                    h.status === "positive" ? "bg-emerald-400" :
+                    h.status === "negative" ? "bg-rose-400" :
+                    h.status === "called" ? "bg-amber-400" : "bg-neutral-500"
+                  }`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-neutral-300">
+                      {statusLabel[h.status].label}
+                      {h.duration ? <span className="text-neutral-500"> · {formatDuration(h.duration)}</span> : null}
+                    </div>
+                    <div className="text-neutral-500">{formatRelativeTime(h.at)}</div>
+                    {h.note && <div className="text-neutral-400 break-words mt-0.5">{h.note}</div>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
 
         <a
           href={telUri}

@@ -10,6 +10,7 @@ import {
   MoreVertical, Calendar,
 } from "lucide-react";
 import { whatsAppUrl } from "./lib/links";
+import { isOpenNow, openLabel, parseScrapeDate } from "./lib/openNow";
 import FocusMode from "./components/FocusMode";
 import KeyboardHelp from "./components/KeyboardHelp";
 import ProgressRing from "./components/ProgressRing";
@@ -46,7 +47,14 @@ function HomeInner() {
   const [pageSize, setPageSize] = useState(20);
   const [callTarget, setCallTarget] = useState<Prospect | null>(null);
   const [callTab, setCallTab] = useState<"call" | "rdv">("call");
+  const [now, setNow] = useState(() => new Date());
+  const [scrapeDate, setScrapeDate] = useState<Date>(() => new Date());
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     try {
@@ -59,6 +67,7 @@ function HomeInner() {
       .then((r) => r.ok ? r.json() : Promise.reject(r.status))
       .then(async (m: Manifest) => {
         setRegions(m.regions);
+        setScrapeDate(parseScrapeDate(m.generated_at));
         const all: Prospect[] = [];
         await Promise.all(m.regions.map(async (r) => {
           try {
@@ -152,7 +161,7 @@ function HomeInner() {
         if (regionFilter !== "all" && p.region !== regionFilter) return false;
         if (metierFilter !== "all" && p.metier !== metierFilter) return false;
         if (villeFilter !== "all" && p.ville !== villeFilter) return false;
-        if (openNowOnly && p.is_open_now !== "oui") return false;
+        if (openNowOnly && !isOpenNow(p, now, scrapeDate)) return false;
         if (q && !`${p.name} ${p.phone} ${p.ville} ${p.metier} ${p.address || ""}`.toLowerCase().includes(q)) return false;
         return true;
       })
@@ -161,7 +170,7 @@ function HomeInner() {
         if (sortBy === "rating") return Number((b.rating || "0").replace(",", ".")) - Number((a.rating || "0").replace(",", "."));
         return a.name.localeCompare(b.name);
       });
-  }, [prospects, states, search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, sortBy]);
+  }, [prospects, states, search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, sortBy, now, scrapeDate]);
 
   // Auto-reset page when filters change
   useEffect(() => {
@@ -377,7 +386,7 @@ function HomeInner() {
             const idx = pageStart + localIdx;
             const state = states[p.maps_url] || { status: "todo" as Status, notes: "" };
             const cfg = statusConfig[state.status];
-            const isOpen = p.is_open_now === "oui";
+            const isOpen = isOpenNow(p, now, scrapeDate);
             return (
               <div
                 key={p.maps_url}
@@ -421,14 +430,12 @@ function HomeInner() {
                   ) : (
                     <span className="text-neutral-700">— pas de note —</span>
                   )}
-                  {p.hours_status && (
-                    <div className="flex items-center gap-1.5">
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
-                      <span className={`${isOpen ? "text-emerald-300" : "text-neutral-500"} truncate max-w-[160px]`}>
-                        {p.hours_status}
-                      </span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
+                    <span className={`${isOpen ? "text-emerald-300" : "text-neutral-500"} truncate max-w-[160px]`}>
+                      {openLabel(p, now, scrapeDate)}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="flex items-stretch gap-1.5 mb-3">
@@ -503,7 +510,7 @@ function HomeInner() {
                 const idx = pageStart + localIdx;
                 const state = states[p.maps_url] || { status: "todo" as Status, notes: "" };
                 const cfg = statusConfig[state.status];
-                const isOpen = p.is_open_now === "oui";
+                const isOpen = isOpenNow(p, now, scrapeDate);
                 return (
                   <tr key={p.maps_url} className={`border-t border-[var(--color-border)] ${cfg.rowBg} hover:bg-[var(--color-surface)]/60 transition`}>
                     <td className="px-4 py-3">
@@ -517,15 +524,15 @@ function HomeInner() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-semibold text-neutral-100 leading-tight text-base">{p.name}</div>
-                      <div className="flex items-center gap-2 mt-1 text-xs flex-wrap">
-                        <span className={`px-2 py-0.5 rounded ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
+                      <div className="flex items-center gap-2 mt-1.5 text-sm flex-wrap">
+                        <span className={`px-2 py-0.5 rounded text-xs ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
                           {p.metier}
                         </span>
-                        <span className="flex items-center gap-1 text-neutral-500">
-                          <MapPin className="w-3 h-3" /> {p.ville}
+                        <span className="flex items-center gap-1 text-neutral-300 font-medium">
+                          <MapPin className="w-4 h-4 text-neutral-500" /> {p.ville}
                         </span>
                         {p.region_label && p.region_label !== p.ville && (
-                          <span className="text-neutral-700">· {p.region_label}</span>
+                          <span className="text-neutral-400">· {p.region_label}</span>
                         )}
                       </div>
                       {p.address && (
@@ -556,16 +563,12 @@ function HomeInner() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {p.hours_status ? (
-                        <div className="flex items-start gap-1.5">
-                          <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
-                          <span className={`text-sm leading-tight ${isOpen ? "text-emerald-300" : "text-neutral-500"}`}>
-                            {p.hours_status}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-neutral-700 text-sm">—</span>
-                      )}
+                      <div className="flex items-start gap-1.5">
+                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
+                        <span className={`text-sm leading-tight ${isOpen ? "text-emerald-300" : "text-neutral-500"}`}>
+                          {openLabel(p, now, scrapeDate)}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {p.rating ? (
@@ -663,10 +666,10 @@ function HomeInner() {
       <KeyboardHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
       <CallModal
         open={!!callTarget}
-        name={callTarget?.name || ""}
-        phone={callTarget?.phone || ""}
-        notes={callTarget ? states[callTarget.maps_url]?.notes : ""}
-        address={callTarget?.address}
+        prospect={callTarget}
+        state={callTarget ? states[callTarget.maps_url] : undefined}
+        isOpen={callTarget ? isOpenNow(callTarget, now, scrapeDate) : undefined}
+        hoursLabel={callTarget ? openLabel(callTarget, now, scrapeDate) : undefined}
         initialTab={callTab}
         onClose={() => setCallTarget(null)}
         onMarkCalled={() => {
