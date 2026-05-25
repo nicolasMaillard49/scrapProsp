@@ -1,6 +1,6 @@
 import type { Prospect } from "./types";
 
-export function yearsSince(dateStr?: string): number | null {
+export function yearsSince(dateStr?: string | null): number | null {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return null;
@@ -13,11 +13,9 @@ export function isRadie(p: Prospect): boolean {
 }
 
 export function ageYears(p: Prospect): number | null {
-  const live = yearsSince(p.created_at);
+  const live = yearsSince(p.company_created_at);
   if (live !== null) return live;
-  if (!p.age_years) return null;
-  const n = Number(p.age_years);
-  return Number.isFinite(n) ? n : null;
+  return p.age_years ?? null;
 }
 
 export function isJeune(p: Prospect, threshold = 5): boolean {
