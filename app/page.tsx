@@ -20,6 +20,7 @@ import CallModal from "./components/CallModal";
 import { ToastProvider, useToast } from "./components/Toast";
 import type { Prospect, Status } from "./lib/types";
 import { useProspects } from "./lib/useProspects";
+import { gbpBadge, computeGbpScore } from "./lib/gbp";
 
 const statusConfig: Record<Status, { label: string; ring: string; rowBg: string; text: string }> = {
   todo: { label: "À appeler", ring: "ring-neutral-700", rowBg: "", text: "text-neutral-400" },
@@ -50,7 +51,8 @@ function HomeInner() {
   const [openNowOnly, setOpenNowOnly] = useState(false);
   const [hideRadie, setHideRadie] = useState(true);
   const [jeuneOnly, setJeuneOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc">("reviews");
+  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp">("reviews");
+  const [tourneeMode, setTourneeMode] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -128,6 +130,9 @@ function HomeInner() {
         if (sortBy === "reviews") return (b.p.reviews ?? 0) - (a.p.reviews ?? 0);
         if (sortBy === "reviews-asc") return (a.p.reviews ?? 0) - (b.p.reviews ?? 0);
         if (sortBy === "rating") return (b.p.rating ?? 0) - (a.p.rating ?? 0);
+        if (sortBy === "gbp") {
+          return computeGbpScore(b.p.rating, b.p.reviews) - computeGbpScore(a.p.rating, a.p.reviews);
+        }
         if (sortBy === "age-asc" || sortBy === "age-desc") {
           const aa = a._age;
           const bb = b._age;
@@ -340,6 +345,7 @@ function HomeInner() {
               <option value="rating">Note ↓</option>
               <option value="age-asc">Âge ↑ (jeunes)</option>
               <option value="age-desc">Âge ↓ (anciens)</option>
+              <option value="gbp">Score GBP ↓</option>
               <option value="name">A→Z</option>
             </select>
           </SelectIcon>
@@ -378,6 +384,25 @@ function HomeInner() {
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span className="hidden min-[420px]:inline">{hideRadie ? "Radiées off" : "Radiées on"}</span>
+          </button>
+          <button
+            onClick={() => {
+              const next = !tourneeMode;
+              setTourneeMode(next);
+              if (next) {
+                setSortBy("gbp");
+                setFilter("todo");
+              }
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
+              tourneeMode
+                ? "bg-violet-500/15 border-violet-500/40 text-violet-200"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+            }`}
+            title="Mode Tournée : prospects triés par potentiel GBP, filtrés à appeler"
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            <span className="hidden min-[420px]:inline">Tourn{"\u00E9"}e</span>
           </button>
         </div>
 
@@ -463,15 +488,19 @@ function HomeInner() {
                 </div>
 
                 <div className="flex items-center justify-between gap-2 text-xs mb-3 px-0.5">
-                  {p.rating ? (
-                    <div className="flex items-center gap-1 text-neutral-300">
-                      <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                      <span className="font-semibold">{p.rating}</span>
-                      <span className="text-neutral-600">({p.reviews})</span>
-                    </div>
-                  ) : (
-                    <span className="text-neutral-700">— pas de note —</span>
-                  )}
+                  {(() => {
+                    const badge = gbpBadge(p.rating, p.reviews);
+                    return p.rating ? (
+                      <div className="flex items-center gap-1 text-neutral-300">
+                        <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                        <span className="font-semibold">{p.rating}</span>
+                        <span className="text-neutral-600">({p.reviews})</span>
+                        <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.bg} ${badge.color}`}>{badge.label}</span>
+                      </div>
+                    ) : (
+                      <span className="text-neutral-700">— pas de note —</span>
+                    );
+                  })()}
                   <div className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
                     <span className={`${isOpen ? "text-emerald-300" : "text-neutral-500"} truncate max-w-[160px]`}>
@@ -615,15 +644,19 @@ function HomeInner() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {p.rating ? (
-                        <div className="flex items-center gap-1 text-neutral-300">
-                          <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                          <span className="font-semibold text-base">{p.rating}</span>
-                          <span className="text-neutral-600 text-sm">({p.reviews})</span>
-                        </div>
-                      ) : (
-                        <span className="text-neutral-700">—</span>
-                      )}
+                      {(() => {
+                        const badge = gbpBadge(p.rating, p.reviews);
+                        return p.rating ? (
+                          <div className="flex items-center gap-1 text-neutral-300">
+                            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+                            <span className="font-semibold text-base">{p.rating}</span>
+                            <span className="text-neutral-600 text-sm">({p.reviews})</span>
+                            <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.bg} ${badge.color}`}>{badge.label}</span>
+                          </div>
+                        ) : (
+                          <span className="text-neutral-700">—</span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
