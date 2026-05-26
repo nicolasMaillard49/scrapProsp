@@ -166,6 +166,8 @@ export default function CallModal({
     if (!open) setPushError(null);
   }, [open]);
 
+  const [competitorOpen, setCompetitorOpen] = useState(false);
+
   if (!open) return null;
 
   return (
@@ -174,8 +176,11 @@ export default function CallModal({
       onClick={onClose}
     >
       <div
-        className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-6 my-4 animate-slide-up shadow-2xl"
+        className={`flex gap-4 my-4 animate-slide-up ${competitorOpen ? "max-w-5xl" : "max-w-md"} w-full transition-all duration-300`}
         onClick={(e) => e.stopPropagation()}
+      >
+      <div
+        className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-6 shadow-2xl shrink-0"
       >
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0 flex-1">
@@ -391,17 +396,6 @@ export default function CallModal({
           </div>
         </details>
 
-        {prospect && (
-          <CompetitorSection
-            prospectId={prospect.id}
-            ville={prospect.ville || ""}
-            metier={prospect.metier || ""}
-            prospectName={prospect.name}
-            prospectRating={prospect.rating ?? null}
-            prospectReviews={prospect.reviews ?? null}
-          />
-        )}
-
         {!ntfyTopic && !ntfyEditing && (
           <button
             onClick={() => { setNtfyDraft(""); setNtfyEditing(true); }}
@@ -475,6 +469,20 @@ export default function CallModal({
         <div className="mt-3 text-center text-[10px] text-neutral-700">
           Entrée = marquer appelé · Échap = fermer
         </div>
+      </div>
+
+      {/* Right panel: Competitor analysis */}
+      {prospect && (
+        <CompetitorSection
+          prospectId={prospect.id}
+          ville={prospect.ville || ""}
+          metier={prospect.metier || ""}
+          prospectName={prospect.name}
+          prospectRating={prospect.rating ?? null}
+          prospectReviews={prospect.reviews ?? null}
+          onExpandChange={setCompetitorOpen}
+        />
+      )}
       </div>
     </div>
   );

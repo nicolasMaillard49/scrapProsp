@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
-  ChevronDown,
   Star,
   Globe,
   Loader2,
@@ -11,6 +10,7 @@ import {
   TrendingUp,
   MapPin,
   Trophy,
+  ExternalLink,
 } from "lucide-react";
 import type { CompetitorReport } from "../lib/types";
 
@@ -21,6 +21,7 @@ interface Props {
   prospectName: string;
   prospectRating: number | null;
   prospectReviews: number | null;
+  onExpandChange?: (expanded: boolean) => void;
 }
 
 const LIMITS = [5, 10, 20] as const;
@@ -55,11 +56,18 @@ export default function CompetitorSection({
   prospectName,
   prospectRating,
   prospectReviews,
+  onExpandChange,
 }: Props) {
   const [report, setReport] = useState<CompetitorReport | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [limit, setLimit] = useState<Limit>(10);
+
+  const isExpanded = !!(report || loading);
+
+  useEffect(() => {
+    onExpandChange?.(isExpanded);
+  }, [isExpanded, onExpandChange]);
 
   const analyze = async () => {
     setLoading(true);
@@ -132,187 +140,202 @@ export default function CompetitorSection({
       })()
     : [];
 
-  return (
-    <details className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-background)]/40 group">
-      <summary className="flex items-center justify-between px-4 py-3 cursor-pointer list-none">
-        <span className="flex items-center gap-2 text-sm font-medium text-neutral-200">
-          <BarChart3 className="w-4 h-4 text-violet-300" />
-          Analyse concurrentielle
-        </span>
-        <ChevronDown className="w-4 h-4 text-neutral-500 group-open:rotate-180 transition" />
-      </summary>
-      <div className="px-4 pb-4">
-        {/* No report, not loading — show controls */}
-        {!report && !loading && !error && (
-          <div className="flex items-center gap-3">
-            <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
-              {LIMITS.map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setLimit(l)}
-                  className={`px-3 py-1.5 text-xs font-mono transition ${
-                    limit === l
-                      ? "bg-violet-500/20 text-violet-200 border-violet-500/40"
-                      : "bg-[var(--color-surface)] text-neutral-400 hover:text-neutral-200"
-                  } ${l !== LIMITS[0] ? "border-l border-[var(--color-border)]" : ""}`}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
+  // Collapsed: show button inside the modal area
+  if (!isExpanded && !error) {
+    return (
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-5 w-full max-w-xs shadow-2xl flex flex-col items-center justify-center gap-4">
+        <BarChart3 className="w-8 h-8 text-violet-300" />
+        <h3 className="text-sm font-medium text-neutral-200 text-center">Analyse concurrentielle</h3>
+        <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
+          {LIMITS.map((l) => (
             <button
-              onClick={analyze}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30"
+              key={l}
+              onClick={() => setLimit(l)}
+              className={`px-3 py-1.5 text-xs font-mono transition ${
+                limit === l
+                  ? "bg-violet-500/20 text-violet-200"
+                  : "bg-[var(--color-surface)] text-neutral-400 hover:text-neutral-200"
+              } ${l !== LIMITS[0] ? "border-l border-[var(--color-border)]" : ""}`}
             >
-              <TrendingUp className="w-4 h-4" />
-              Analyser la concurrence
+              {l}
             </button>
-          </div>
-        )}
-
-        {/* Loading state */}
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-8 gap-3">
-            <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
-            <p className="text-sm text-neutral-400">
-              Analyse en cours... (~15-30s)
-            </p>
-            <div className="w-32 h-1 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
-              <div className="h-full w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 animate-pulse rounded-full" />
-            </div>
-          </div>
-        )}
-
-        {/* Error state */}
-        {error && (
-          <div className="space-y-3">
-            <div className="px-3 py-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20 text-[12px] text-rose-300 break-words">
-              {error}
-            </div>
-            <button
-              onClick={() => { setError(null); }}
-              className="text-xs text-neutral-400 hover:text-violet-300 transition"
-            >
-              Retour
-            </button>
-          </div>
-        )}
-
-        {/* Report display */}
-        {report && (
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-medium text-neutral-200">
-                  Concurrents {"\u00E0"} {report.ville}
-                </h4>
-                <p className="text-[11px] text-neutral-500 mt-0.5">
-                  {formatDate(report.created_at)}
-                </p>
-              </div>
-              <button
-                onClick={reAnalyze}
-                className="flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-violet-300 transition"
-              >
-                <RefreshCw className="w-3 h-3" />
-                Relancer
-              </button>
-            </div>
-
-            {/* Ranked list (competitors + prospect merged) */}
-            <div className="space-y-1.5">
-              {rankedList.map((c, i) => {
-                const rc = c.isProspect ? rankColor(i + 1) : null;
-                return (
-                  <div
-                    key={`${c.name}-${i}`}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] ${
-                      c.isProspect
-                        ? `${rc!.bg} border-2 ${rc!.border} ring-1 ring-violet-500/20`
-                        : "bg-[var(--color-surface)]/60 border border-[var(--color-border)]"
-                    }`}
-                  >
-                    {/* Rank */}
-                    <span className={`shrink-0 w-5 text-right font-mono ${c.isProspect ? rc!.text + " font-bold" : "text-neutral-500"}`}>
-                      #{i + 1}
-                    </span>
-
-                    {/* Prospect marker */}
-                    {c.isProspect && <MapPin className={`w-3.5 h-3.5 shrink-0 ${rc!.text}`} />}
-
-                    {/* Name */}
-                    <span className={`flex-1 min-w-0 font-medium truncate ${c.isProspect ? rc!.text : "text-neutral-200"}`}>
-                      {c.name}
-                      {c.isProspect && <span className="text-[10px] ml-1.5 opacity-70">(vous)</span>}
-                    </span>
-
-                    {/* Rating */}
-                    {c.rating != null && c.rating > 0 ? (
-                      <span className="shrink-0 flex items-center gap-0.5 text-neutral-300">
-                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                        <span className="font-semibold">{c.rating}</span>
-                      </span>
-                    ) : (
-                      <span className="shrink-0 text-neutral-600">--</span>
-                    )}
-
-                    {/* Reviews */}
-                    <span className="shrink-0 w-12 text-right text-neutral-500">
-                      {c.reviews ?? 0} avis
-                    </span>
-
-                    {/* Website badge */}
-                    {c.website ? (
-                      <span className="shrink-0 flex items-center gap-0.5 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
-                        <Globe className="w-2.5 h-2.5" />
-                        Site
-                      </span>
-                    ) : (
-                      <span className="shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-800/60 text-neutral-500 border border-neutral-700">
-                        Pas de site
-                      </span>
-                    )}
-
-                    {/* GBP Score bar */}
-                    <div className="shrink-0 flex items-center gap-1.5 w-24">
-                      <div className="flex-1 h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
-                        <div
-                          className={`h-full rounded-full bg-gradient-to-r ${scoreColor(c.gbp_score)}`}
-                          style={{ width: `${Math.min(c.gbp_score, 100)}%` }}
-                        />
-                      </div>
-                      <span className={`font-mono text-[11px] w-5 text-right ${c.isProspect ? rc!.text : "text-neutral-400"}`}>
-                        {c.gbp_score}
-                      </span>
-                    </div>
-
-                    {/* Trophy for top 3 */}
-                    {c.isProspect && i < 3 && (
-                      <Trophy className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Ads budget card */}
-            {report.ads_budget_est != null && (
-              <div className="px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
-                  <span className="text-[12px] font-medium text-neutral-200">
-                    Budget Google Ads estim{"\u00E9"}
-                  </span>
-                </div>
-                <div className="text-lg font-bold text-neutral-100 font-mono">
-                  {report.ads_budget_est}{"\u20AC"} <span className="text-sm font-normal text-neutral-500">/ mois</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+          ))}
+        </div>
+        <button
+          onClick={analyze}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30"
+        >
+          <TrendingUp className="w-4 h-4" />
+          Analyser
+        </button>
       </div>
-    </details>
+    );
+  }
+
+  // Expanded: side panel with results
+  return (
+    <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-5 w-full min-w-[340px] max-w-lg shadow-2xl overflow-y-auto max-h-[85vh]">
+      {/* Loading state */}
+      {loading && (
+        <div className="flex flex-col items-center justify-center py-12 gap-3">
+          <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
+          <p className="text-sm text-neutral-400">Analyse en cours... (~15-30s)</p>
+          <div className="w-32 h-1 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+            <div className="h-full w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 animate-pulse rounded-full" />
+          </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <div className="space-y-3">
+          <div className="px-3 py-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20 text-[12px] text-rose-300 break-words">
+            {error}
+          </div>
+          <button
+            onClick={() => { setError(null); setReport(null); }}
+            className="text-xs text-neutral-400 hover:text-violet-300 transition"
+          >
+            Retour
+          </button>
+        </div>
+      )}
+
+      {/* Report display */}
+      {report && (
+        <div className="space-y-3">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-medium text-neutral-200 flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-violet-300" />
+                Concurrents {"\u00E0"} {report.ville}
+              </h3>
+              <p className="text-[11px] text-neutral-500 mt-0.5 ml-6">
+                {formatDate(report.created_at)} · {rankedList.length} r{"\u00E9"}sultats
+              </p>
+            </div>
+            <button
+              onClick={reAnalyze}
+              className="flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-violet-300 transition"
+            >
+              <RefreshCw className="w-3 h-3" />
+              Relancer
+            </button>
+          </div>
+
+          {/* Score legend */}
+          <div className="text-[10px] text-neutral-500 px-1">
+            Score = note (40%) + avis (40%) + site web (20%)
+          </div>
+
+          {/* Ranked list */}
+          <div className="space-y-1">
+            {rankedList.map((c, i) => {
+              const rc = c.isProspect ? rankColor(i + 1) : null;
+              const mapsUrl = !c.isProspect && "maps_url" in c ? (c as Record<string, unknown>).maps_url as string : null;
+              return (
+                <div
+                  key={`${c.name}-${i}`}
+                  className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-[12px] ${
+                    c.isProspect
+                      ? `${rc!.bg} border-2 ${rc!.border}`
+                      : "bg-[var(--color-surface)]/60 border border-[var(--color-border)] hover:border-[var(--color-border-strong)] transition"
+                  }`}
+                >
+                  {/* Rank */}
+                  <span className={`shrink-0 w-5 text-right font-mono ${c.isProspect ? rc!.text + " font-bold" : "text-neutral-500"}`}>
+                    #{i + 1}
+                  </span>
+
+                  {/* Prospect marker */}
+                  {c.isProspect && <MapPin className={`w-3 h-3 shrink-0 ${rc!.text}`} />}
+
+                  {/* Name */}
+                  <div className="flex-1 min-w-0">
+                    <span className={`font-medium truncate block ${c.isProspect ? rc!.text : "text-neutral-200"}`}>
+                      {c.name}
+                      {c.isProspect && <span className="text-[10px] ml-1 opacity-70">(vous)</span>}
+                    </span>
+                  </div>
+
+                  {/* Rating */}
+                  {c.rating != null && c.rating > 0 ? (
+                    <span className="shrink-0 flex items-center gap-0.5 text-neutral-300">
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      <span className="font-semibold">{c.rating}</span>
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-neutral-600 text-[11px]">--</span>
+                  )}
+
+                  {/* Reviews */}
+                  <span className="shrink-0 text-right text-neutral-500 tabular-nums">
+                    {c.reviews ?? 0}
+                  </span>
+
+                  {/* Website badge */}
+                  {c.website ? (
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-200">
+                      <Globe className="w-2.5 h-2.5 inline" />
+                    </span>
+                  ) : (
+                    <span className="shrink-0 w-4" />
+                  )}
+
+                  {/* Score bar */}
+                  <div className="shrink-0 flex items-center gap-1 w-16">
+                    <div className="flex-1 h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+                      <div
+                        className={`h-full rounded-full bg-gradient-to-r ${scoreColor(c.gbp_score)}`}
+                        style={{ width: `${Math.min(c.gbp_score, 100)}%` }}
+                      />
+                    </div>
+                    <span className={`font-mono text-[10px] w-5 text-right ${c.isProspect ? rc!.text : "text-neutral-400"}`}>
+                      {c.gbp_score}
+                    </span>
+                  </div>
+
+                  {/* Maps link for competitors */}
+                  {mapsUrl ? (
+                    <a
+                      href={mapsUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 text-violet-300 hover:text-violet-200 transition"
+                      title="Voir sur Google Maps"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  ) : !c.isProspect ? (
+                    <span className="shrink-0 w-3" />
+                  ) : null}
+
+                  {/* Trophy for top 3 prospects */}
+                  {c.isProspect && i < 3 && (
+                    <Trophy className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Ads budget card */}
+          {report.ads_budget_est != null && (
+            <div className="px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40">
+              <div className="flex items-center gap-1.5 mb-1">
+                <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
+                <span className="text-[12px] font-medium text-neutral-200">
+                  Budget Google Ads estim{"\u00E9"}
+                </span>
+              </div>
+              <div className="text-lg font-bold text-neutral-100 font-mono">
+                {report.ads_budget_est}{"\u20AC"} <span className="text-sm font-normal text-neutral-500">/ mois</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
