@@ -326,27 +326,70 @@ export default function CompetitorSection({
             })}
           </div>
 
-          {/* Ads budget card */}
-          {report.ads_budget_est != null && (
+          {/* Ads tiers */}
+          {(report.ads_tiers ?? []).length > 0 ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 px-1">
+                <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
+                <span className="text-[12px] font-medium text-neutral-200">
+                  Forfaits Google Ads
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {report.ads_tiers!.map((tier) => {
+                  const isTop = tier.key === "top1";
+                  const isMid = tier.key === "performance";
+                  return (
+                    <div
+                      key={tier.key}
+                      className={`relative rounded-lg px-2.5 py-3 text-center border ${
+                        isTop
+                          ? "border-violet-500/50 bg-violet-500/10"
+                          : isMid
+                            ? "border-amber-500/30 bg-amber-500/5"
+                            : "border-[var(--color-border)] bg-[var(--color-surface)]/40"
+                      }`}
+                    >
+                      {isTop && (
+                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-violet-500 text-[9px] font-bold text-white uppercase tracking-wider">
+                          Populaire
+                        </div>
+                      )}
+                      <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                        isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-400"
+                      }`}>
+                        {tier.label}
+                      </div>
+                      <div className="text-lg font-bold text-neutral-100 font-mono leading-tight">
+                        {tier.budget}{"\u20AC"}
+                      </div>
+                      <div className="text-[9px] text-neutral-500">/ mois</div>
+                      <div className="text-[10px] text-neutral-400 mt-1 leading-tight">{tier.desc}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : report.ads_budget_est != null ? (
             <div className="px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40">
               <div className="flex items-center gap-1.5 mb-1">
                 <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
                 <span className="text-[12px] font-medium text-neutral-200">
-                  Budget Google Ads estim{"\u00E9"}
+                  Budget Google Ads
                 </span>
               </div>
               <div className="text-lg font-bold text-neutral-100 font-mono">
                 {report.ads_budget_est}{"\u20AC"} <span className="text-sm font-normal text-neutral-500">/ mois</span>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Sales arguments */}
           <SalesArguments
             prospectName={prospectName}
             prospectScore={prospectScore}
             competitors={report.competitors}
-            adsBudget={report.ads_budget_est}
+            adsBudget={report.ads_tiers?.[1]?.budget ?? report.ads_budget_est}
           />
 
           {/* Actions */}
