@@ -1,6 +1,7 @@
 # VPS Scraper — Google Maps Competitor Intelligence
 
 FastAPI service that scrapes Google Maps for competitors in a given city/trade.
+Runs on VPS OVH (51.255.200.169:8001).
 
 ## Local development
 
@@ -13,7 +14,15 @@ source .venv/bin/activate   # Linux/macOS
 pip install -r requirements.txt
 playwright install chromium
 
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8001
+```
+
+Test:
+
+```bash
+curl -X POST http://localhost:8001/scrape \
+  -H "Content-Type: application/json" \
+  -d '{"ville":"Limoges","metier":"plombier","limit":3}'
 ```
 
 ## API
@@ -21,7 +30,7 @@ uvicorn main:app --reload --port 8000
 **Health check**
 
 ```
-GET /health
+GET /health  ->  {"status": "ok"}
 ```
 
 **Scrape competitors**
@@ -55,19 +64,72 @@ Returns:
 }
 ```
 
-## VPS deployment
+## VPS deployment (SSH)
+
+### 1. Install system dependencies
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-playwright install --with-deps chromium
+ssh root@51.255.200.169
 
-# Run with uvicorn (production)
-uvicorn main:app --host 0.0.0.0 --port 8000
+apt update && apt install -y python3 python3-venv python3-pip
 
-# Or behind a process manager
-# pip install gunicorn
-# gunicorn main:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+# Install Node.js 20 + PM2
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
+npm install -g pm2
 ```
 
-Note: use a single worker (`-w 1`) since the browser instance is shared.
+### 2. Setup scraper
+
+```bash
+mkdir -p /opt/scrapprosp-scraper
+cd /opt/scrapprosp-scraper
+
+# Upload files from local machine (run from your PC):
+# scp vps/scraper/main.py vps/scraper/requirements.txt root@51.255.200.169:/opt/scrapprosp-scraper/
+
+# On VPS:
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+playwright install --with-deps chromium
+```
+
+### 3. Test manually
+
+```bash
+cd /opt/scrapprosp-scraper
+source venv/bin/activate
+uvicorn main:app --host 0.0.0.0 --port 8001
+# Ctrl+C to stop
+```
+
+### 4. Setup PM2 (auto-restart)
+
+```bash
+pm2 start "/opt/scrapprosp-scraper/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8001" \
+  --name scraper \
+  --cwd /opt/scrapprosp-scraper
+
+pm2 save
+pm2 startup  # auto-start on reboot
+```
+
+### 5. Open port (if firewall active)
+
+```bash
+ufw allow 8001/tcp
+```
+
+### 6. Verify from local machine
+
+```bash
+curl http://51.255.200.169:8001/health
+# -> {"status": "ok"}
+```
+
+## Notes
+
+- Single worker only (`-w 1`) — the browser instance is shared
+- Timeout: 120 seconds per request
+- No auth — the endpoint is open
