@@ -7,8 +7,9 @@ import {
   CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2,
   Filter, ArrowUpDown, Clock, Globe,
   ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
-  MoreVertical, Calendar,
+  Calendar,
 } from "lucide-react";
+import Link from "next/link";
 import { whatsAppUrl } from "./lib/links";
 import { isOpenNow, openLabel } from "./lib/openNow";
 import { ageYears, isJeune, isRadie } from "./lib/sirene";
@@ -62,10 +63,18 @@ function HomeInner() {
   const [callTab, setCallTab] = useState<"call" | "rdv">("call");
   const [now, setNow] = useState(() => new Date());
   const searchRef = useRef<HTMLInputElement>(null);
+  const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const h = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", h, { passive: true });
+    h();
+    return () => window.removeEventListener("scroll", h);
   }, []);
 
   const promptRdvFor = (p: Prospect) => {
@@ -222,7 +231,7 @@ function HomeInner() {
 
   return (
     <main className="min-h-screen">
-      <div className="glass sticky top-0 z-20 border-b border-[var(--color-border)] px-3 md:px-6 py-2.5 md:py-3">
+      <div className={`sticky top-0 z-20 border-b border-[var(--color-border)] px-3 md:px-6 py-2.5 md:py-3 transition-all duration-300 ${scrolled ? "bg-[#111114] shadow-lg shadow-black/30" : "glass"}`}>
         <div className="flex items-center justify-between flex-wrap gap-2 md:gap-3">
           <div className="flex items-center gap-3 md:gap-4 min-w-0">
             <div className="hidden sm:block">
@@ -255,6 +264,14 @@ function HomeInner() {
               <span className="hidden md:inline">Mode</span>
               <kbd className="hidden md:inline ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-black/20 rounded">F</kbd>
             </button>
+            <Link
+              href="/carte"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+              title="Carte des prospects"
+            >
+              <MapPin className="w-4 h-4" />
+              <span className="hidden md:inline">Carte</span>
+            </Link>
             <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-400 hover:text-neutral-100 transition" title="Raccourcis (?)">
               <Keyboard className="w-4 h-4" />
             </button>
@@ -466,7 +483,7 @@ function HomeInner() {
                     {idx + 1}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-neutral-100 leading-tight text-[15px] break-words">{p.name}</div>
+                    <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-100 leading-tight text-[15px] break-words text-left hover:text-violet-300 transition cursor-pointer">{p.name}</button>
                     <div className="flex items-center gap-1.5 mt-1 text-xs flex-wrap">
                       <span className={`px-2 py-0.5 rounded ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
                         {p.metier}
@@ -482,9 +499,14 @@ function HomeInner() {
                       </div>
                     )}
                   </div>
-                  <a href={p.maps_url} target="_blank" rel="noreferrer" className="shrink-0 p-1.5 text-neutral-500 hover:text-violet-400 transition" title="Fiche Google Maps">
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <a href={p.maps_url} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-500 hover:text-violet-400 transition" title="Fiche Google Maps">
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                    <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-600 hover:text-fuchsia-400 transition" title="Maquette site">
+                      <Sparkles className="w-4 h-4" />
+                    </a>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-2 text-xs mb-3 px-0.5">
@@ -519,13 +541,13 @@ function HomeInner() {
                     <WhatsAppIcon className="w-5 h-5" />
                     {p.phone}
                   </a>
-                  <button
-                    onClick={() => { setCallTab("call"); setCallTarget(p); }}
-                    className="px-3 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 active:bg-violet-500/10 text-neutral-400 hover:text-violet-300 transition"
-                    title="Options (QR, push tél, RDV)"
+                  <a
+                    href={`tel:${p.phone.replace(/\s/g, "")}`}
+                    className="flex items-center justify-center px-3 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 active:bg-violet-500/10 text-neutral-400 hover:text-violet-300 transition"
+                    title="Appeler directement"
                   >
-                    <MoreVertical className="w-5 h-5" />
-                  </button>
+                    <Phone className="w-5 h-5" />
+                  </a>
                 </div>
 
                 <div className="flex items-center gap-1.5 mb-2.5">
@@ -595,7 +617,7 @@ function HomeInner() {
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-neutral-100 leading-tight text-base">{p.name}</div>
+                      <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-100 leading-tight text-base text-left hover:text-violet-300 transition cursor-pointer">{p.name}</button>
                       <div className="flex items-center gap-2 mt-1.5 text-sm flex-wrap">
                         <span className={`px-2 py-0.5 rounded text-xs ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
                           {p.metier}
@@ -626,13 +648,13 @@ function HomeInner() {
                           <WhatsAppIcon className="w-4 h-4 group-hover:scale-110 transition" />
                           {p.phone}
                         </a>
-                        <button
-                          onClick={() => { setCallTab("call"); setCallTarget(p); }}
-                          className="px-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 hover:bg-violet-500/10 text-neutral-400 hover:text-violet-300 transition"
-                          title="Options d'appel (QR, push tél, RDV…)"
+                        <a
+                          href={`tel:${p.phone.replace(/\s/g, "")}`}
+                          className="flex items-center justify-center px-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 hover:bg-violet-500/10 text-neutral-400 hover:text-violet-300 transition"
+                          title="Appeler directement"
                         >
-                          <MoreVertical className="w-4 h-4" />
-                        </button>
+                          <Phone className="w-4 h-4" />
+                        </a>
                       </div>
                     </td>
                     <td className="px-4 py-3">
@@ -682,9 +704,14 @@ function HomeInner() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <a href={p.maps_url} target="_blank" rel="noreferrer" className="text-neutral-500 hover:text-violet-400 transition inline-flex" title="Fiche Google Maps">
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
+                      <div className="flex items-center gap-1.5">
+                        <a href={p.maps_url} target="_blank" rel="noreferrer" className="text-neutral-500 hover:text-violet-400 transition inline-flex" title="Fiche Google Maps">
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="text-neutral-600 hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
+                          <Sparkles className="w-4 h-4" />
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 );

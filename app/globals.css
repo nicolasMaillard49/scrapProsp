@@ -121,3 +121,32 @@ input:focus, select:focus, button:focus, textarea:focus {
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
+
+/* Leaflet dark popup overrides */
+.leaflet-popup-content-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+}
+.leaflet-popup-content {
+  margin: 0 !important;
+}
+.leaflet-popup-tip {
+  background: #1a1a1f !important;
+  border: 1px solid #2a2a30 !important;
+}
+.leaflet-popup-close-button {
+  color: #666 !important;
+}
+.leaflet-popup-close-button:hover {
+  color: #aaa !important;
+}
+.leaflet-control-attribution {
+  background: rgba(17, 17, 20, 0.8) !important;
+  color: #555 !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a {
+  color: #666 !important;
+}

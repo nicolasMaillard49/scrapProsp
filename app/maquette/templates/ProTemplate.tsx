@@ -1,152 +1,417 @@
 import type { TemplateProps } from "./data";
 import { getServices, metierLabel } from "./data";
 
+/* ── JDT Plomberie design — navy/slate brutalist, orange accent ── */
+
+const C = {
+  bg: "#0f172a",
+  bgAlt: "#1e293b",
+  border: "#334155",
+  borderLight: "#475569",
+  accent: "#f97316",
+  accentBg: "rgba(249,115,22,0.1)",
+  accentBorder: "rgba(249,115,22,0.2)",
+  text: "#f8fafc",
+  muted: "#94a3b8",
+  dim: "#64748b",
+  subtle: "#cbd5e1",
+  primary: "#1e3a5f",
+} as const;
+
+const mono: React.CSSProperties = {
+  fontFamily: "'Space Mono', monospace",
+  fontSize: 11,
+  textTransform: "uppercase",
+  letterSpacing: "0.3em",
+  color: C.accent,
+};
+
 export default function ProTemplate({ name, metier, ville, phone, rating, reviews, address }: TemplateProps) {
   const services = getServices(metier);
   const label = metierLabel(metier);
-  const stars = rating ? "★".repeat(Math.round(rating)) + "☆".repeat(5 - Math.round(rating)) : "";
+  const mainIcon = services[0]?.icon || "🔧";
 
   return (
-    <div style={{ fontFamily: "'Rubik', 'Segoe UI', sans-serif", color: "#1f2933", margin: 0, background: "#fff" }}>
-      {/* Nav */}
-      <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 40px", background: "#1f2933", position: "sticky", top: 0, zIndex: 50 }}>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "#e47b02" }}>{name}</div>
-        <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
-          <a href="#services" style={{ color: "#fff", textDecoration: "none", fontSize: 15 }}>Services</a>
-          <a href="#avis" style={{ color: "#fff", textDecoration: "none", fontSize: 15 }}>Avis</a>
-          <a href="#contact" style={{ color: "#fff", textDecoration: "none", fontSize: 15 }}>Contact</a>
-          <a href={`tel:${phone.replace(/\s/g, "")}`} style={{ background: "#e47b02", color: "#fff", padding: "10px 24px", borderRadius: 6, textDecoration: "none", fontWeight: 600, fontSize: 15 }}>
-            📞 {phone}
-          </a>
+    <div style={{ fontFamily: "'Outfit', sans-serif", color: C.text, margin: 0, background: C.bg }}>
+
+      {/* ── Nav ── */}
+      <nav style={{
+        background: `${C.bg}f2`,
+        backdropFilter: "blur(12px)",
+        borderBottom: `1px solid ${C.accentBorder}`,
+        position: "sticky",
+        top: 0,
+        zIndex: 50,
+      }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 40, height: 40, background: C.accent, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+              {mainIcon}
+            </div>
+            <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.025em" }}>{name.toUpperCase()}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
+            {["Services", "A propos", "Contact"].map((l) => (
+              <a key={l} href={`#${l.toLowerCase().replace(/ /g, "")}`} style={{
+                fontFamily: "'Space Mono', monospace",
+                fontSize: 12,
+                textTransform: "uppercase" as const,
+                letterSpacing: "0.1em",
+                color: C.muted,
+                textDecoration: "none",
+              }}>{l}</a>
+            ))}
+            <a href={`tel:${phone.replace(/\s/g, "")}`} style={{
+              background: C.accent,
+              color: "#fff",
+              fontWeight: 700,
+              padding: "10px 20px",
+              borderRadius: 2,
+              textDecoration: "none",
+              fontSize: 14,
+              letterSpacing: "0.05em",
+            }}>{phone}</a>
+          </div>
         </div>
       </nav>
 
-      {/* Hero */}
+      {/* ── Hero ── */}
       <section style={{
-        background: "linear-gradient(135deg, rgba(31,41,51,0.85), rgba(228,123,2,0.7)), url('https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1400&q=80') center/cover",
-        minHeight: 500,
+        position: "relative",
+        minHeight: "100vh",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
         alignItems: "center",
-        textAlign: "center",
-        padding: "80px 24px",
-        color: "#fff",
+        overflow: "hidden",
+        background: C.bg,
       }}>
-        <div style={{ fontSize: 18, textTransform: "uppercase", letterSpacing: 3, marginBottom: 16, opacity: 0.9 }}>
-          {label} à {ville}
-        </div>
-        <h1 style={{ fontFamily: "'Roboto Slab', Georgia, serif", fontSize: 52, fontWeight: 700, margin: "0 0 20px", lineHeight: 1.2, maxWidth: 700 }}>
-          {name}
-        </h1>
-        <p style={{ fontSize: 20, maxWidth: 600, lineHeight: 1.6, opacity: 0.9, margin: "0 0 32px" }}>
-          Votre {label.toLowerCase()} de confiance à {ville} et ses environs. Devis gratuit, intervention rapide.
-        </p>
-        <div style={{ display: "flex", gap: 16 }}>
-          <a href={`tel:${phone.replace(/\s/g, "")}`} style={{ background: "#e47b02", color: "#fff", padding: "16px 36px", borderRadius: 8, textDecoration: "none", fontWeight: 700, fontSize: 18, boxShadow: "0 4px 20px rgba(228,123,2,0.4)" }}>
-            Appeler maintenant
-          </a>
-          <a href="#contact" style={{ border: "2px solid #fff", color: "#fff", padding: "16px 36px", borderRadius: 8, textDecoration: "none", fontWeight: 600, fontSize: 18 }}>
-            Devis gratuit
-          </a>
-        </div>
-      </section>
+        <img
+          src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=1600&q=80"
+          alt=""
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3 }}
+        />
+        <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, ${C.bg}, rgba(15,23,42,0.6), transparent)` }} />
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 128, background: `linear-gradient(to top, ${C.bg}, transparent)` }} />
 
-      {/* Trust badges */}
-      <section style={{ display: "flex", justifyContent: "center", gap: 48, padding: "40px 24px", background: "#f6f8f9", flexWrap: "wrap" }}>
-        {[
-          { value: rating ? `${rating}/5` : "5/5", label: "Note Google" },
-          { value: reviews ? `${reviews}+` : "—", label: "Avis clients" },
-          { value: "7j/7", label: "Disponibilité" },
-          { value: "Gratuit", label: "Devis" },
-        ].map((b) => (
-          <div key={b.label} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 32, fontWeight: 800, color: "#e47b02" }}>{b.value}</div>
-            <div style={{ fontSize: 14, color: "#6b7280", marginTop: 4 }}>{b.label}</div>
+        <div style={{ position: "relative", maxWidth: 1280, margin: "0 auto", padding: "176px 24px 128px", textAlign: "center", width: "100%" }}>
+          {/* Status badge */}
+          <div style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            borderRadius: 2,
+            padding: "6px 16px",
+            marginBottom: 32,
+            background: "rgba(34,197,94,0.15)",
+            border: "1px solid rgba(34,197,94,0.3)",
+          }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", display: "inline-block" }} />
+            <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#4ade80" }}>Disponible</span>
           </div>
-        ))}
-      </section>
 
-      {/* Services */}
-      <section id="services" style={{ padding: "80px 40px", maxWidth: 1100, margin: "0 auto" }}>
-        <h2 style={{ fontFamily: "'Roboto Slab', Georgia, serif", fontSize: 36, textAlign: "center", marginBottom: 12 }}>Nos Services</h2>
-        <p style={{ textAlign: "center", color: "#6b7280", fontSize: 17, marginBottom: 48 }}>
-          Des prestations professionnelles adaptées à tous vos besoins
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 28 }}>
-          {services.map((s) => (
-            <div key={s.title} style={{ background: "#f6f8f9", borderRadius: 12, padding: "32px 24px", textAlign: "center", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-              <div style={{ fontSize: 40, marginBottom: 16 }}>{s.icon}</div>
-              <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>{s.title}</h3>
-              <p style={{ color: "#6b7280", fontSize: 15, lineHeight: 1.6 }}>{s.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+          <h1 style={{ fontSize: 80, fontWeight: 900, lineHeight: 1, margin: "0 0 24px", letterSpacing: "-0.04em" }}>
+            {name.toUpperCase()}
+          </h1>
 
-      {/* Reviews */}
-      <section id="avis" style={{ padding: "80px 40px", background: "#1f2933", color: "#fff" }}>
-        <h2 style={{ fontFamily: "'Roboto Slab', Georgia, serif", fontSize: 36, textAlign: "center", marginBottom: 12 }}>
-          Ce que disent nos clients
-        </h2>
-        {rating && (
-          <div style={{ textAlign: "center", fontSize: 28, color: "#e47b02", marginBottom: 8 }}>{stars}</div>
-        )}
-        <p style={{ textAlign: "center", opacity: 0.7, marginBottom: 48 }}>
-          {rating ? `${rating}/5 basé sur ${reviews ?? 0} avis Google` : "Avis clients"}
-        </p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, maxWidth: 900, margin: "0 auto" }}>
-          {[
-            { text: "Intervention rapide et professionnelle. Je recommande vivement !", author: "Marie D." },
-            { text: "Très bon travail, propre et soigné. Tarifs honnêtes et devis respecté.", author: "Pierre L." },
-            { text: "Disponible rapidement, à l'écoute et de bon conseil. Je referai appel à eux.", author: "Sophie M." },
-          ].map((r) => (
-            <div key={r.author} style={{ background: "rgba(255,255,255,0.08)", borderRadius: 12, padding: "28px 24px", border: "1px solid rgba(255,255,255,0.1)" }}>
-              <div style={{ color: "#e47b02", fontSize: 18, marginBottom: 12 }}>★★★★★</div>
-              <p style={{ fontSize: 15, lineHeight: 1.7, opacity: 0.9 }}>&ldquo;{r.text}&rdquo;</p>
-              <div style={{ marginTop: 12, fontWeight: 600, fontSize: 14, opacity: 0.7 }}>— {r.author}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Contact */}
-      <section id="contact" style={{ padding: "80px 40px", maxWidth: 700, margin: "0 auto", textAlign: "center" }}>
-        <h2 style={{ fontFamily: "'Roboto Slab', Georgia, serif", fontSize: 36, marginBottom: 12 }}>Contactez-nous</h2>
-        <p style={{ color: "#6b7280", fontSize: 17, marginBottom: 40 }}>
-          Demandez votre devis gratuit et sans engagement
-        </p>
-        <div style={{ background: "#f6f8f9", borderRadius: 16, padding: "40px 32px", textAlign: "left" }}>
-          {[
-            { label: "Nom", type: "text", placeholder: "Votre nom" },
-            { label: "Téléphone", type: "tel", placeholder: "06 XX XX XX XX" },
-            { label: "Email", type: "email", placeholder: "votre@email.fr" },
-          ].map((f) => (
-            <div key={f.label} style={{ marginBottom: 20 }}>
-              <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }}>{f.label}</label>
-              <input type={f.type} placeholder={f.placeholder} style={{ width: "100%", padding: "14px 16px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 16, boxSizing: "border-box" }} />
-            </div>
-          ))}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: "block", fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Message</label>
-            <textarea placeholder="Décrivez votre besoin..." rows={4} style={{ width: "100%", padding: "14px 16px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 16, resize: "vertical", boxSizing: "border-box" }} />
+          {/* Decorative line + label */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginBottom: 32 }}>
+            <div style={{ height: 1, width: 64, background: C.accent }} />
+            <span style={{ ...mono, fontSize: 14 }}>{label}</span>
+            <div style={{ height: 1, width: 64, background: C.accent }} />
           </div>
-          <button style={{ width: "100%", background: "#e47b02", color: "#fff", padding: "16px", borderRadius: 8, border: "none", fontSize: 17, fontWeight: 700, cursor: "pointer" }}>
-            Envoyer ma demande
-          </button>
+
+          <p style={{ fontSize: 24, color: C.subtle, fontWeight: 500, margin: "0 0 8px" }}>
+            {label} professionnel
+          </p>
+          <p style={{ fontFamily: "'Space Mono', monospace", color: C.dim, fontSize: 14, letterSpacing: "0.05em", margin: "0 0 56px" }}>
+            {ville}
+          </p>
+
+          <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
+            <a href="#contact" style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 12,
+              background: C.accent,
+              color: "#fff",
+              fontWeight: 700,
+              padding: "16px 40px",
+              borderRadius: 2,
+              textDecoration: "none",
+              fontSize: 18,
+            }}>Devis gratuit</a>
+            <a href={`tel:${phone.replace(/\s/g, "")}`} style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 12,
+              border: `1px solid ${C.dim}`,
+              color: C.text,
+              fontWeight: 600,
+              padding: "16px 40px",
+              borderRadius: 2,
+              textDecoration: "none",
+              fontSize: 18,
+            }}>{phone}</a>
+          </div>
         </div>
-        {address && (
-          <p style={{ marginTop: 24, color: "#6b7280", fontSize: 15 }}>📍 {address}</p>
-        )}
       </section>
 
-      {/* Footer */}
-      <footer style={{ background: "#1f2933", color: "#fff", textAlign: "center", padding: "32px 24px" }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: "#e47b02", marginBottom: 8 }}>{name}</div>
-        <div style={{ opacity: 0.6, fontSize: 14 }}>
-          {label} à {ville} — {phone}
+      {/* ── Services ── */}
+      <section id="services" style={{ padding: "96px 24px", background: C.bg }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 80 }}>
+            <span style={{ ...mono, display: "block", marginBottom: 16 }}>Ce que nous faisons</span>
+            <h2 style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", margin: 0 }}>Nos Services</h2>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
+            {services.map((s) => (
+              <div key={s.title} style={{
+                position: "relative",
+                overflow: "hidden",
+                borderRadius: 2,
+                background: C.bgAlt,
+                border: `1px solid ${C.border}`,
+                padding: "32px 24px",
+              }}>
+                <div style={{ width: 32, height: 2, background: C.accent, marginBottom: 16 }} />
+                <div style={{ fontSize: 40, marginBottom: 16 }}>{s.icon}</div>
+                <h3 style={{ fontSize: 20, fontWeight: 700, margin: "0 0 8px" }}>{s.title}</h3>
+                <p style={{ color: C.muted, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{s.desc}</p>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ opacity: 0.4, fontSize: 12, marginTop: 12 }}>© {new Date().getFullYear()} {name}. Tous droits réservés.</div>
+      </section>
+
+      {/* ── About ── */}
+      <section id="apropos" style={{ padding: "96px 24px", background: C.bgAlt }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
+            {/* Image placeholder */}
+            <div style={{ position: "relative" }}>
+              <div style={{
+                aspectRatio: "4/5",
+                background: `linear-gradient(135deg, ${C.border}, ${C.bg})`,
+                borderRadius: 2,
+                overflow: "hidden",
+              }}>
+                <img
+                  src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=800&q=80"
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.5 }}
+                />
+              </div>
+              <div style={{
+                position: "absolute",
+                bottom: -24,
+                right: -24,
+                background: C.accent,
+                color: "#fff",
+                fontWeight: 900,
+                fontSize: 36,
+                padding: "24px 32px",
+                borderRadius: 2,
+              }}>7j/7</div>
+            </div>
+
+            {/* Text */}
+            <div>
+              <span style={{ ...mono, display: "block", marginBottom: 16 }}>A propos</span>
+              <h2 style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 32px" }}>
+                Votre {label.toLowerCase()}<br />de confiance
+              </h2>
+              <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.7, margin: "0 0 24px" }}>
+                {name} est votre {label.toLowerCase()} de référence à {ville} et ses environs. Nous intervenons rapidement pour tous vos besoins.
+              </p>
+              <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.7, margin: "0 0 40px" }}>
+                Notre priorité : un travail soigné, dans le respect des normes en vigueur, avec des tarifs transparents et sans surprise.
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+                <div style={{ borderLeft: `2px solid ${C.accent}`, paddingLeft: 24 }}>
+                  <div style={{ fontSize: 30, fontWeight: 900, marginBottom: 4 }}>Devis</div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", color: C.dim, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em" }}>Gratuit</div>
+                </div>
+                <div style={{ borderLeft: `2px solid ${C.accent}`, paddingLeft: 24 }}>
+                  <div style={{ fontSize: 30, fontWeight: 900, marginBottom: 4 }}>{rating ?? "5.0"}</div>
+                  <div style={{ fontFamily: "'Space Mono', monospace", color: C.dim, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em" }}>{reviews ?? 0} avis</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Contact ── */}
+      <section id="contact" style={{ padding: "96px 24px", background: C.bg }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 80 }}>
+            <span style={{ ...mono, display: "block", marginBottom: 16 }}>Contact</span>
+            <h2 style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", margin: 0 }}>Demandez votre devis</h2>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>
+            {/* Form */}
+            <div style={{ background: C.bgAlt, border: `1px solid ${C.border}`, borderRadius: 2, padding: 40 }}>
+              {[
+                { label: "Nom complet", type: "text", placeholder: "Votre nom" },
+                { label: "Email", type: "email", placeholder: "votre@email.fr" },
+                { label: "Téléphone", type: "tel", placeholder: "06 00 00 00 00" },
+              ].map((f) => (
+                <div key={f.label} style={{ marginBottom: 24 }}>
+                  <label style={{
+                    display: "block",
+                    fontFamily: "'Space Mono', monospace",
+                    fontSize: 11,
+                    textTransform: "uppercase" as const,
+                    letterSpacing: "0.1em",
+                    color: C.dim,
+                    marginBottom: 8,
+                  }}>{f.label}</label>
+                  <input
+                    type={f.type}
+                    placeholder={f.placeholder}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      background: C.border,
+                      border: `1px solid ${C.borderLight}`,
+                      borderRadius: 2,
+                      color: C.text,
+                      fontSize: 16,
+                      boxSizing: "border-box" as const,
+                      outline: "none",
+                      fontFamily: "'Outfit', sans-serif",
+                    }}
+                  />
+                </div>
+              ))}
+              <div style={{ marginBottom: 24 }}>
+                <label style={{
+                  display: "block",
+                  fontFamily: "'Space Mono', monospace",
+                  fontSize: 11,
+                  textTransform: "uppercase" as const,
+                  letterSpacing: "0.1em",
+                  color: C.dim,
+                  marginBottom: 8,
+                }}>Message</label>
+                <textarea
+                  rows={4}
+                  placeholder="Décrivez votre besoin..."
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    background: C.border,
+                    border: `1px solid ${C.borderLight}`,
+                    borderRadius: 2,
+                    color: C.text,
+                    fontSize: 16,
+                    boxSizing: "border-box" as const,
+                    outline: "none",
+                    resize: "none" as const,
+                    fontFamily: "'Outfit', sans-serif",
+                  }}
+                />
+              </div>
+              <button style={{
+                width: "100%",
+                background: C.accent,
+                color: "#fff",
+                fontWeight: 700,
+                padding: 16,
+                borderRadius: 2,
+                border: "none",
+                fontSize: 18,
+                cursor: "pointer",
+                fontFamily: "'Outfit', sans-serif",
+              }}>Envoyer ma demande</button>
+            </div>
+
+            {/* Info sidebar */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              {[
+                { icon: "📍", title: "Zone d'intervention", text: `${ville} et environs` },
+                { icon: "📞", title: "Téléphone", text: phone, highlight: true },
+                { icon: "⏰", title: "Disponibilité", text: "Lun-Ven 8h-18h" },
+              ].map((info) => (
+                <div key={info.title} style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+                  <div style={{
+                    width: 48,
+                    height: 48,
+                    background: C.accentBg,
+                    border: `1px solid ${C.accentBorder}`,
+                    borderRadius: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                    flexShrink: 0,
+                  }}>{info.icon}</div>
+                  <div>
+                    <h3 style={{ fontWeight: 700, fontSize: 18, margin: "0 0 4px" }}>{info.title}</h3>
+                    <p style={{ color: info.highlight ? C.accent : C.muted, fontSize: 16, margin: 0 }}>{info.text}</p>
+                  </div>
+                </div>
+              ))}
+
+              {/* Schedule card */}
+              <div style={{ background: C.bgAlt, border: `1px solid ${C.border}`, borderRadius: 2, padding: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+                  <div style={{
+                    width: 48,
+                    height: 48,
+                    background: C.accentBg,
+                    border: `1px solid ${C.accentBorder}`,
+                    borderRadius: 2,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                  }}>🕐</div>
+                  <h3 style={{ fontWeight: 700, fontSize: 18, margin: 0 }}>Horaires</h3>
+                </div>
+                <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 13 }}>
+                  {["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"].map((day, i) => (
+                    <div key={day} style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "6px 0",
+                      color: i === new Date().getDay() - 1 || (i === 6 && new Date().getDay() === 0) ? C.accent : C.muted,
+                    }}>
+                      <span>{day}</span>
+                      <span>{i < 5 ? "08:00 – 18:00" : i === 5 ? "09:00 – 13:00" : "Fermé"}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {address && (
+                <div style={{ background: C.bgAlt, border: `1px solid ${C.border}`, borderRadius: 2, padding: 24, color: C.muted, fontSize: 14 }}>
+                  📍 {address}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer style={{ background: C.bg, borderTop: `1px solid ${C.border}`, padding: "40px 24px" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 32, height: 32, background: C.accent, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+              {mainIcon}
+            </div>
+            <span style={{ fontWeight: 700 }}>{name.toUpperCase()}</span>
+            <span style={{ fontFamily: "'Space Mono', monospace", color: C.dim, fontSize: 12 }}>/ {label}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 24, fontFamily: "'Space Mono', monospace", fontSize: 14, color: C.dim }}>
+            <span>{phone}</span>
+            <span style={{ color: C.border }}>|</span>
+            <span>© {new Date().getFullYear()}</span>
+          </div>
+        </div>
       </footer>
     </div>
   );
