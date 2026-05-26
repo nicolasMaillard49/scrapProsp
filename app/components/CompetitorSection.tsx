@@ -11,8 +11,14 @@ import {
   MapPin,
   Trophy,
   ExternalLink,
+  FileDown,
+  Copy,
+  Check,
+  MessageSquareQuote,
 } from "lucide-react";
 import type { CompetitorReport } from "../lib/types";
+import { generateSalesArgs } from "../lib/gbp";
+import { generateProspectReport } from "../lib/generateReport";
 
 interface Props {
   prospectId: string;
@@ -334,8 +340,106 @@ export default function CompetitorSection({
               </div>
             </div>
           )}
+
+          {/* Sales arguments */}
+          <SalesArguments
+            prospectName={prospectName}
+            prospectScore={prospectScore}
+            competitors={report.competitors}
+            adsBudget={report.ads_budget_est}
+          />
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                const prospectRank = rankedList.findIndex((c) => c.isProspect) + 1;
+                generateProspectReport({
+                  report,
+                  prospectName,
+                  prospectRating,
+                  prospectReviews,
+                  prospectScore,
+                  prospectRank: prospectRank || rankedList.length,
+                });
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-[12px] font-medium transition"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              T{"\u00E9"}l{"\u00E9"}charger PDF
+            </button>
+          </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------- Sales Arguments sub-component ---------- */
+
+function SalesArguments({
+  prospectName,
+  prospectScore,
+  competitors,
+  adsBudget,
+}: {
+  prospectName: string;
+  prospectScore: number;
+  competitors: import("../lib/types").CompetitorResult[];
+  adsBudget: number | null;
+}) {
+  const [copied, setCopied] = useState<number | null>(null);
+
+  const args = generateSalesArgs(prospectName, prospectScore, competitors, adsBudget);
+
+  if (args.length === 0) return null;
+
+  const copyArg = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopied(idx);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const copyAll = () => {
+    navigator.clipboard.writeText(args.join("\n\n"));
+    setCopied(-1);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  return (
+    <div className="px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <MessageSquareQuote className="w-3.5 h-3.5 text-violet-300" />
+          <span className="text-[12px] font-medium text-neutral-200">
+            Arguments de vente
+          </span>
+        </div>
+        <button
+          onClick={copyAll}
+          className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-violet-300 transition"
+        >
+          {copied === -1 ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+          {copied === -1 ? "Copi\u00E9" : "Tout copier"}
+        </button>
+      </div>
+      {args.map((arg, i) => (
+        <button
+          key={i}
+          onClick={() => copyArg(arg, i)}
+          className="w-full text-left group flex items-start gap-2 text-[11px] text-neutral-300 hover:text-neutral-100 transition"
+          title="Cliquer pour copier"
+        >
+          <span className="shrink-0 mt-0.5">
+            {copied === i ? (
+              <Check className="w-3 h-3 text-emerald-400" />
+            ) : (
+              <Copy className="w-3 h-3 text-neutral-600 group-hover:text-violet-400" />
+            )}
+          </span>
+          <span>{arg}</span>
+        </button>
+      ))}
     </div>
   );
 }
