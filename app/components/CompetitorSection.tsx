@@ -15,16 +15,20 @@ import {
   Copy,
   Check,
   MessageSquareQuote,
+  Receipt,
+  Tag,
 } from "lucide-react";
 import type { CompetitorReport } from "../lib/types";
 import { generateSalesArgs } from "../lib/gbp";
 import { generateProspectReport } from "../lib/generateReport";
+import { whatsAppUrl, salesWhatsAppMsg } from "../lib/links";
 
 interface Props {
   prospectId: string;
   ville: string;
   metier: string;
   prospectName: string;
+  prospectPhone: string;
   prospectRating: number | null;
   prospectReviews: number | null;
   onExpandChange?: (expanded: boolean) => void;
@@ -60,6 +64,7 @@ export default function CompetitorSection({
   ville,
   metier,
   prospectName,
+  prospectPhone,
   prospectRating,
   prospectReviews,
   onExpandChange,
@@ -75,7 +80,7 @@ export default function CompetitorSection({
     onExpandChange?.(isExpanded);
   }, [isExpanded, onExpandChange]);
 
-  const analyze = async () => {
+  const analyze = async (force = false) => {
     setLoading(true);
     setError(null);
     setReport(null);
@@ -83,7 +88,7 @@ export default function CompetitorSection({
       const res = await fetch("/api/competitor/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prospectId, limit }),
+        body: JSON.stringify({ prospectId, limit, force }),
       });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
@@ -101,7 +106,7 @@ export default function CompetitorSection({
   const reAnalyze = () => {
     setReport(null);
     setError(null);
-    analyze();
+    analyze(true);
   };
 
   // Compute prospect score using same formula as API
@@ -168,7 +173,7 @@ export default function CompetitorSection({
           ))}
         </div>
         <button
-          onClick={analyze}
+          onClick={() => analyze()}
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30"
         >
           <TrendingUp className="w-4 h-4" />
@@ -384,6 +389,17 @@ export default function CompetitorSection({
             </div>
           ) : null}
 
+          {/* Devis estimation */}
+          <DevisEstimation
+            prospectName={prospectName}
+            prospectScore={prospectScore}
+            prospectRank={rankedList.findIndex((c) => c.isProspect) + 1}
+            totalCompetitors={rankedList.length}
+            hasWebsite={!!report.competitors.find(
+              (c) => c.name.toLowerCase() === prospectName.toLowerCase()
+            )?.website}
+          />
+
           {/* Sales arguments */}
           <SalesArguments
             prospectName={prospectName}
@@ -409,8 +425,19 @@ export default function CompetitorSection({
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-[12px] font-medium transition"
             >
               <FileDown className="w-3.5 h-3.5" />
-              T{"\u00E9"}l{"\u00E9"}charger PDF
+              PDF
             </button>
+            {prospectPhone && (
+              <a
+                href={whatsAppUrl(prospectPhone, salesWhatsAppMsg(prospectName, metier, ville))}
+                target="_blank"
+                rel="noreferrer"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-200 text-[12px] font-medium transition"
+              >
+                <MessageSquareQuote className="w-3.5 h-3.5" />
+                Pitch WhatsApp
+              </a>
+            )}
           </div>
         </div>
       )}
@@ -483,6 +510,96 @@ function SalesArguments({
           <span>{arg}</span>
         </button>
       ))}
+    </div>
+  );
+}
+
+/* ---------- Devis Estimation sub-component ---------- */
+
+const DEVIS_ITEMS = [
+  { label: "Site vitrine professionnel", desc: "Responsive, SEO, formulaire, Google Maps", prix: 990 },
+  { label: "Optimisation Google Business", desc: "Audit, photos, catégories, posts 3 mois", prix: 290 },
+  { label: "Formation & accompagnement", desc: "Gestion site, avis, réseaux sociaux (2h)", prix: 190 },
+];
+
+const PACK_DISCOUNT = 0.15;
+
+function DevisEstimation({
+  prospectName,
+  prospectScore,
+  prospectRank,
+  totalCompetitors,
+  hasWebsite,
+}: {
+  prospectName: string;
+  prospectScore: number;
+  prospectRank: number;
+  totalCompetitors: number;
+  hasWebsite: boolean;
+}) {
+  const totalHT = DEVIS_ITEMS.reduce((s, i) => s + i.prix, 0);
+  const packPrice = Math.round(totalHT * (1 - PACK_DISCOUNT));
+
+  // Adapt items: if prospect already has a website, reduce site price
+  const items = hasWebsite
+    ? DEVIS_ITEMS.filter((i) => !i.label.includes("Site vitrine"))
+    : DEVIS_ITEMS;
+  const adaptedTotal = items.reduce((s, i) => s + i.prix, 0);
+  const adaptedPack = Math.round(adaptedTotal * (1 - PACK_DISCOUNT));
+
+  // Priority label based on rank
+  const priority =
+    prospectRank > totalCompetitors * 0.6
+      ? { label: "Priorité haute", cls: "text-rose-300 bg-rose-500/10 border-rose-500/30" }
+      : prospectRank > totalCompetitors * 0.3
+        ? { label: "Recommandé", cls: "text-amber-300 bg-amber-500/10 border-amber-500/30" }
+        : { label: "Optimisation", cls: "text-emerald-300 bg-emerald-500/10 border-emerald-500/30" };
+
+  return (
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
+        <div className="flex items-center gap-1.5">
+          <Receipt className="w-3.5 h-3.5 text-violet-300" />
+          <span className="text-[12px] font-medium text-neutral-200">Estimation devis</span>
+        </div>
+        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${priority.cls}`}>
+          {priority.label}
+        </span>
+      </div>
+
+      <div className="px-3 py-2.5 space-y-1.5">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[11px] text-neutral-200 font-medium">{item.label}</div>
+              <div className="text-[10px] text-neutral-500 leading-tight">{item.desc}</div>
+            </div>
+            <span className="shrink-0 text-[12px] font-mono font-semibold text-neutral-300">{item.prix}{"\u20AC"}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Pack */}
+      <div className="mx-3 mb-3 mt-1 px-3 py-2.5 rounded-lg bg-violet-500/8 border border-dashed border-violet-500/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Tag className="w-3.5 h-3.5 text-violet-400" />
+            <span className="text-[12px] font-semibold text-violet-200">
+              {hasWebsite ? "Pack GBP + Formation" : "Pack Complet"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-neutral-500 line-through font-mono">{adaptedTotal}{"\u20AC"}</span>
+            <span className="text-[14px] font-bold font-mono text-violet-200">{adaptedPack}{"\u20AC"}</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-[10px] text-neutral-500">
+            {hasWebsite ? "Optimisation GBP + formation incluse" : "Site + GBP + formation — tout inclus"}
+          </span>
+          <span className="text-[10px] font-bold text-violet-400">-{Math.round(PACK_DISCOUNT * 100)}%</span>
+        </div>
+      </div>
     </div>
   );
 }

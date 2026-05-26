@@ -101,8 +101,9 @@ async def scroll_feed(page, target: int) -> int:
     Returns the total number of result links found.
     """
     prev_count = 0
+    stale_rounds = 0
     for _ in range(80):
-        current = await page.locator('div[role="feed"] > div > div > a').count()
+        current = await page.locator('div[role="feed"] a[href*="/maps/place/"]').count()
         if current >= target:
             break
 
@@ -119,115 +120,218 @@ async def scroll_feed(page, target: int) -> int:
                 const f = document.querySelector('div[role="feed"]');
                 if (!f) return false;
                 return f.innerText.includes('Vous avez atteint')
+                    || f.innerText.includes("You've reached")
                     || f.querySelector('span.HlvSq') !== null;
             }"""
         )
         if end:
             break
 
-        new_count = await page.locator('div[role="feed"] > div > div > a').count()
+        new_count = await page.locator('div[role="feed"] a[href*="/maps/place/"]').count()
         if new_count == prev_count and new_count > 0:
-            break
+            stale_rounds += 1
+            if stale_rounds >= 3:
+                break
+        else:
+            stale_rounds = 0
         prev_count = new_count
 
-    return await page.locator('div[role="feed"] > div > div > a').count()
+    return await page.locator('div[role="feed"] a[href*="/maps/place/"]').count()
 
 
-async def extract_place(page) -> Competitor:
-    """Extract competitor data from the currently-open place detail panel."""
-    data = Competitor()
+async def extract_feed_items(page, limit: int) -> list[dict]:
+    """Extract competitor data directly from the feed listing using JS evaluation.
 
-    # Name
-    try:
-        data.name = (
-            await page.locator("h1.DUwDvf").first.text_content(timeout=5000)
-        ).strip()
-    except Exception:
+    This is much more reliable than clicking into each place and navigating back.
+    Returns basic data: name, rating, reviews, website presence, maps_url.
+    """
+    items = await page.evaluate("""(limit) => {
+        const feed = document.querySelector('div[role="feed"]');
+        if (!feed) return [];
+
+        const links = feed.querySelectorAll('a[href*="/maps/place/"]');
+        const results = [];
+        const seen = new Set();
+
+        for (const link of links) {
+            if (results.length >= limit) break;
+
+            const name = (link.getAttribute('aria-label') || '').trim();
+            if (!name || seen.has(name)) continue;
+            seen.add(name);
+
+            const href = link.getAttribute('href') || '';
+
+            // Walk up to find the card container (typically 2-3 levels up)
+            let card = link.parentElement;
+            for (let i = 0; i < 4 && card; i++) {
+                if (card.parentElement === feed || card.parentElement?.parentElement === feed) break;
+                card = card.parentElement;
+            }
+
+            const cardText = card ? card.innerText : '';
+
+            // Extract rating: look for pattern like "4,8" or "5,0"
+            let rating = '';
+            const ratingMatch = cardText.match(/(\d[,,]\d)\s*\(/);
+            if (ratingMatch) {
+                rating = ratingMatch[1].replace(',', '.');
+            }
+
+            // Extract review count: number in parentheses after rating
+            let reviews = '';
+            const reviewMatch = cardText.match(/\((\d[\d\s\u202f.,]*)\)/);
+            if (reviewMatch) {
+                reviews = reviewMatch[1].replace(/[\s\u202f.,]/g, '');
+            }
+
+            // Check for website link
+            let hasWebsite = false;
+            if (card) {
+                const siteLink = card.querySelector('a[data-value="Site Web"], a[data-value="Website"]');
+                hasWebsite = !!siteLink;
+                // Also check for "Site Web" or "Website" text in buttons/links
+                if (!hasWebsite) {
+                    const allLinks = card.querySelectorAll('a');
+                    for (const a of allLinks) {
+                        const t = (a.textContent || '').trim().toLowerCase();
+                        if (t === 'site web' || t === 'website') {
+                            hasWebsite = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Extract category from card text (usually first line after name)
+            let category = '';
+            const lines = cardText.split('\\n').map(l => l.trim()).filter(Boolean);
+            // Category is typically after name, before address
+            for (const line of lines) {
+                if (line === name) continue;
+                if (/^\d/.test(line)) continue; // skip if starts with number (rating, address)
+                if (line.includes('Ouvert') || line.includes('Fermé') || line.includes('Open') || line.includes('Closed')) continue;
+                if (line.includes('Itinéraires') || line.includes('Directions')) continue;
+                if (line.includes('Site Web') || line.includes('Website')) continue;
+                if (line.match(/^\d[,,]\d/)) continue; // rating line
+                if (line.match(/\(\d/)) continue; // reviews line
+                // This could be the category
+                if (!category && line.length < 60) {
+                    category = line;
+                }
+            }
+
+            results.push({
+                name,
+                rating,
+                reviews,
+                website: hasWebsite ? 'yes' : '',
+                maps_url: href.startsWith('http') ? href : 'https://www.google.com' + href,
+                category,
+            });
+        }
+
+        return results;
+    }""", limit + 10)
+
+    return items
+
+
+async def enrich_with_details(page, items: list[dict], original_url: str) -> list[Competitor]:
+    """Click into each place to get phone and address. Falls back gracefully."""
+    competitors: list[Competitor] = []
+
+    for item in items:
+        comp = Competitor(
+            name=item.get("name", ""),
+            rating=item.get("rating", ""),
+            reviews=item.get("reviews", ""),
+            website=item.get("website", ""),
+            maps_url=item.get("maps_url", ""),
+            category=item.get("category", ""),
+        )
+
+        # Try to click into the place to get phone and address
         try:
-            data.name = (
-                await page.locator("h1").first.text_content(timeout=3000)
-            ).strip()
-        except Exception:
-            pass
+            links = page.locator(f'div[role="feed"] a[aria-label="{comp.name}"]')
+            if await links.count() > 0:
+                await links.first.click()
+                await page.wait_for_timeout(3000)
 
-    # Rating
-    try:
-        r = await page.locator(
-            'div.F7nice span[aria-hidden="true"]'
-        ).first.text_content(timeout=2000)
-        data.rating = r.strip()
-    except Exception:
-        pass
+                # Wait for place page
+                try:
+                    await page.wait_for_selector("h1", timeout=5000)
+                except Exception:
+                    pass
 
-    # Reviews count
-    try:
-        rev_spans = page.locator("div.F7nice span")
-        for idx in range(await rev_spans.count()):
-            txt = await rev_spans.nth(idx).text_content(timeout=1000)
-            m = re.search(r"\((\d[\d\s\u202f.,]*)\)", txt or "")
-            if m:
-                data.reviews = (
-                    m.group(1)
-                    .strip()
-                    .replace("\u202f", "")
-                    .replace(" ", "")
-                    .replace(".", "")
-                    .replace(",", "")
-                )
-                break
-    except Exception:
-        pass
+                if "/place/" in page.url:
+                    comp.maps_url = page.url
 
-    # Phone
-    try:
-        phone_btn = page.locator(
-            'button[data-tooltip="Copier le numéro de téléphone"]'
-        ).first
-        phone_label = await phone_btn.get_attribute("aria-label", timeout=2000)
-        if phone_label and ":" in phone_label:
-            data.phone = phone_label.split(":")[-1].strip()
-    except Exception:
-        pass
+                    # Phone
+                    try:
+                        phone_btn = page.locator(
+                            'button[data-tooltip="Copier le numéro de téléphone"]'
+                        ).first
+                        phone_label = await phone_btn.get_attribute("aria-label", timeout=2000)
+                        if phone_label and ":" in phone_label:
+                            comp.phone = phone_label.split(":")[-1].strip()
+                    except Exception:
+                        pass
 
-    # Address
-    try:
-        addr_btn = page.locator(
-            "button[data-tooltip=\"Copier l'adresse\"]"
-        ).first
-        addr_label = await addr_btn.get_attribute("aria-label", timeout=2000)
-        if addr_label:
-            addr = (
-                addr_label.split(":", 1)[-1].strip()
-                if ":" in addr_label
-                else addr_label
-            )
-            data.address = addr
-    except Exception:
-        pass
+                    # Address
+                    try:
+                        addr_btn = page.locator(
+                            "button[data-tooltip=\"Copier l'adresse\"]"
+                        ).first
+                        addr_label = await addr_btn.get_attribute("aria-label", timeout=2000)
+                        if addr_label:
+                            addr = (
+                                addr_label.split(":", 1)[-1].strip()
+                                if ":" in addr_label
+                                else addr_label
+                            )
+                            comp.address = addr
+                    except Exception:
+                        pass
 
-    # Website
-    try:
-        auth = page.locator('a[data-item-id="authority"]')
-        if await auth.count() > 0:
-            href = await auth.first.get_attribute("href", timeout=2000)
-            data.website = href or ""
-    except Exception:
-        pass
+                    # Website (get actual URL if not already found)
+                    if not comp.website:
+                        try:
+                            auth = page.locator('a[data-item-id="authority"]')
+                            if await auth.count() > 0:
+                                href = await auth.first.get_attribute("href", timeout=2000)
+                                comp.website = href or ""
+                        except Exception:
+                            pass
 
-    # Category
-    try:
-        cat_btn = page.locator("button.DkEaL")
-        if await cat_btn.count() > 0:
-            data.category = (
-                await cat_btn.first.text_content(timeout=2000)
-            ).strip()
-    except Exception:
-        pass
+                # Navigate back
+                try:
+                    back = page.locator('button[aria-label="Retour"]')
+                    if await back.count() > 0:
+                        await back.first.click()
+                    else:
+                        await page.go_back()
+                    await page.wait_for_selector('div[role="feed"]', timeout=10000)
+                    await page.wait_for_timeout(1500)
+                except Exception:
+                    # If back fails, reload the search
+                    try:
+                        await page.goto(original_url, wait_until="domcontentloaded", timeout=30000)
+                        await page.wait_for_timeout(3000)
+                        await accept_cookies(page)
+                        await page.wait_for_selector('div[role="feed"]', timeout=15000)
+                    except Exception:
+                        log.warning(f"Failed to navigate back for {comp.name}, stopping enrichment")
+                        competitors.append(comp)
+                        break
 
-    # Maps URL
-    data.maps_url = page.url
+            log.info(f"Enriched: {comp.name} | phone={comp.phone} | addr={comp.address[:30] if comp.address else ''}")
+        except Exception as exc:
+            log.warning(f"Could not enrich {comp.name}: {str(exc)[:80]}")
 
-    return data
+        competitors.append(comp)
+
+    return competitors
 
 
 # ---------------------------------------------------------------------------
@@ -243,7 +347,6 @@ async def scrape(req: ScrapeRequest):
     query = f"{req.metier}+{req.ville}"
     url = f"https://www.google.com/maps/search/{query}"
 
-    context = None
     try:
         competitors: list[Competitor] = await asyncio.wait_for(
             _do_scrape(url, req.limit),
@@ -265,22 +368,6 @@ async def scrape(req: ScrapeRequest):
         ville=req.ville,
         metier=req.metier,
     )
-
-
-async def _go_back_to_feed(page) -> bool:
-    """Navigate back to the results feed and wait for it to be ready."""
-    try:
-        back = page.locator('button[aria-label="Retour"]')
-        if await back.count() > 0:
-            await back.first.click()
-        else:
-            await page.go_back()
-        # Wait for feed to reappear
-        await page.wait_for_selector('div[role="feed"]', timeout=10000)
-        await page.wait_for_timeout(2000)
-        return True
-    except Exception:
-        return False
 
 
 async def _do_scrape(url: str, limit: int) -> list[Competitor]:
@@ -310,100 +397,36 @@ async def _do_scrape(url: str, limit: int) -> list[Competitor]:
             log.info("Feed found")
         except Exception:
             log.warning("No feed found — page title: %s", await page.title())
-            # Take screenshot for debugging
             return []
 
         await page.wait_for_timeout(2000)
         total = await scroll_feed(page, limit)
         log.info(f"Feed has {total} items after scrolling (target: {limit})")
-        competitors: list[Competitor] = []
-        seen: set[str] = set()
-        consecutive_errors = 0
 
-        for i in range(min(total, limit + 15)):
-            if len(competitors) >= limit:
-                break
-            if consecutive_errors >= 3:
-                break
+        # Phase 1: Extract basic data from feed (fast, reliable)
+        feed_items = await extract_feed_items(page, limit)
+        log.info(f"Extracted {len(feed_items)} items from feed")
 
-            try:
-                # Re-query links each iteration (DOM changes after back nav)
-                links = page.locator('div[role="feed"] > div > div > a')
-                count = await links.count()
-                if i >= count:
-                    break
+        # Filter out garbage
+        valid_items = []
+        for item in feed_items:
+            name = item.get("name", "").strip()
+            if not name:
+                continue
+            if name.lower() in BLACKLISTED_NAMES:
+                log.warning(f"Skipping blacklisted: {name}")
+                continue
+            valid_items.append(item)
 
-                aria = (
-                    await links.nth(i).get_attribute("aria-label") or ""
-                ).strip()
-                if not aria or aria in seen:
-                    continue
+        log.info(f"{len(valid_items)} valid items after filtering")
 
-                # Click into the place
-                log.info(f"[{i+1}/{total}] Clicking: {aria[:50]}")
-                await links.nth(i).click()
-                await page.wait_for_timeout(3000)
-                try:
-                    await page.wait_for_selector("h1", timeout=8000)
-                except Exception:
-                    log.warning(f"[{i+1}] No h1 found, skipping")
-                    await _go_back_to_feed(page)
-                    continue
+        if not valid_items:
+            return []
 
-                # Verify we landed on a real place page
-                if "/place/" not in page.url:
-                    log.warning(f"[{i+1}] Not a place page ({page.url[:80]}), skipping")
-                    seen.add(aria)
-                    await _go_back_to_feed(page)
-                    continue
+        # Phase 2: Enrich with phone/address by clicking into each place
+        competitors = await enrich_with_details(page, valid_items[:limit], url)
 
-                comp = await extract_place(page)
-                log.info(f"[{i+1}] Extracted: {comp.name} | {comp.rating} | {comp.reviews} avis")
-
-                # Filter out garbage entries
-                is_garbage = (
-                    not comp.name
-                    or comp.name in seen
-                    or comp.name.lower() in BLACKLISTED_NAMES
-                    or (not comp.rating and not comp.reviews)
-                )
-                if is_garbage:
-                    reason = (
-                        "duplicate" if comp.name in seen
-                        else "blacklisted" if comp.name and comp.name.lower() in BLACKLISTED_NAMES
-                        else "no rating/reviews" if not comp.rating and not comp.reviews
-                        else "no name"
-                    )
-                    log.warning(f"[{i+1}] Skipping '{comp.name}': {reason}")
-                    seen.add(aria)
-                    if comp.name:
-                        seen.add(comp.name)
-                else:
-                    seen.add(aria)
-                    seen.add(comp.name)
-                    competitors.append(comp)
-
-                # Navigate back to the feed
-                if not await _go_back_to_feed(page):
-                    # If we can't go back, try reloading the search
-                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                    await page.wait_for_timeout(3000)
-                    await accept_cookies(page)
-                    try:
-                        await page.wait_for_selector('div[role="feed"]', timeout=15000)
-                    except Exception:
-                        break
-
-                consecutive_errors = 0
-
-            except Exception as exc:
-                consecutive_errors += 1
-                log.error(f"[{i+1}] Error: {str(exc)[:100]}")
-                try:
-                    await _go_back_to_feed(page)
-                except Exception:
-                    pass
-
+        log.info(f"Final result: {len(competitors)} competitors")
         return competitors
     finally:
         await context.close()

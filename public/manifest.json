@@ -28,11 +28,66 @@
       "key": "limousin",
       "label": "Limousin",
       "csv": "/prospects-limousin.csv",
-      "total": 159,
+      "total": 189,
       "plombiers": 68,
-      "electriciens": 91
+      "electriciens": 91,
+      "paysagistes": 30
+    },
+    {
+      "key": "occitanie-rurale",
+      "label": "Lot / Aveyron / Lozère",
+      "csv": "/prospects-occitanie-rurale.csv",
+      "total": 128,
+      "electriciens": 57,
+      "plombiers": 42,
+      "paysagistes": 29
+    },
+    {
+      "key": "champagne-rurale",
+      "label": "Ardennes / Haute-Marne",
+      "csv": "/prospects-champagne-rurale.csv",
+      "total": 80,
+      "electriciens": 32,
+      "plombiers": 26,
+      "paysagistes": 22
+    },
+    {
+      "key": "poitou",
+      "label": "Deux-Sèvres / Charente",
+      "csv": "/prospects-poitou.csv",
+      "total": 65,
+      "electriciens": 24,
+      "plombiers": 28,
+      "paysagistes": 13
+    },
+    {
+      "key": "pyrenees-rurales",
+      "label": "Gers / Ariège",
+      "csv": "/prospects-pyrenees-rurales.csv",
+      "total": 81,
+      "electriciens": 38,
+      "plombiers": 26,
+      "paysagistes": 17
+    },
+    {
+      "key": "lorraine-rurale",
+      "label": "Meuse / Vosges",
+      "csv": "/prospects-lorraine-rurale.csv",
+      "total": 75,
+      "electriciens": 32,
+      "plombiers": 29,
+      "paysagistes": 14
+    },
+    {
+      "key": "normandie-rurale",
+      "label": "Orne / Manche",
+      "csv": "/prospects-normandie-rurale.csv",
+      "total": 59,
+      "electriciens": 28,
+      "plombiers": 18,
+      "paysagistes": 13
     }
   ],
-  "generated_at": "2026-05-21 21:07",
-  "enriched_at": "2026-05-22T13:18:01.001Z"
+  "generated_at": "2026-05-26 14:21",
+  "enriched_at": "2026-05-26T15:32:36.491267"
 }

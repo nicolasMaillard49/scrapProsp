@@ -16,6 +16,19 @@ export function whatsAppUrl(phone: string, text?: string): string {
   return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
+/** Message WhatsApp pré-rempli pour la prospection commerciale. */
+export function salesWhatsAppMsg(name: string, metier: string, ville: string): string {
+  return `Bonjour,
+
+Je me permets de vous contacter concernant la visibilité en ligne de votre activité de ${metier} à ${ville}.
+
+Après une analyse rapide de votre présence sur Google, j'ai identifié des opportunités intéressantes pour développer votre clientèle.
+
+Seriez-vous disponible pour un échange de 5 minutes ? Je peux vous présenter un audit gratuit et sans engagement.
+
+Bien cordialement`;
+}
+
 /**
  * Formate une date pour l'URL Google Calendar (heure locale, sans Z).
  * "2026-05-22T10:00" -> "20260522T100000"

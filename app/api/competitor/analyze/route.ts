@@ -30,9 +30,10 @@ function computeGbpScore(
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { prospectId, limit = 10 } = body as {
+    const { prospectId, limit = 10, force = false } = body as {
       prospectId?: string;
       limit?: number;
+      force?: boolean;
     };
 
     // 1. Validate
@@ -57,22 +58,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Check cache
-    const cacheThreshold = new Date();
-    cacheThreshold.setDate(cacheThreshold.getDate() - REPORT_CACHE_DAYS);
+    // 3. Check cache (skip if force refresh)
+    if (!force) {
+      const cacheThreshold = new Date();
+      cacheThreshold.setDate(cacheThreshold.getDate() - REPORT_CACHE_DAYS);
 
-    const { data: cached } = await supabase
-      .from("competitor_reports")
-      .select("*")
-      .eq("prospect_id", prospectId)
-      .eq("limit_used", limit)
-      .gte("created_at", cacheThreshold.toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+      const { data: cached } = await supabase
+        .from("competitor_reports")
+        .select("*")
+        .eq("prospect_id", prospectId)
+        .eq("limit_used", limit)
+        .gte("created_at", cacheThreshold.toISOString())
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
 
-    if (cached) {
-      return NextResponse.json(cached);
+      if (cached) {
+        return NextResponse.json(cached);
+      }
     }
 
     // 4. Call VPS scraper

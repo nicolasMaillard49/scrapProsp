@@ -100,13 +100,14 @@ for (const region of manifest.regions) {
   console.log(`  Parsed ${region.key}: ${data.length} rows`);
 
   for (const row of data) {
+    if (!row.name || !row.phone) continue;
     const mapsUrl = row.maps_url || "";
     const state = stateSeed[mapsUrl] || {};
 
     allRows.push({
-      name: row.name || null,
-      metier: row.metier || null,
-      phone: row.phone || null,
+      name: row.name,
+      metier: row.metier || "",
+      phone: row.phone,
       ville: row.ville || null,
       departement: row.departement || null,
       region: region.key,

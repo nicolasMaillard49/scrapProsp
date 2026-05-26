@@ -6,7 +6,7 @@ import {
   X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
   Calendar, ChevronDown, MapPin, Star, Clock, History, Palette,
 } from "lucide-react";
-import { whatsAppUrl, googleCalendarUrl, defaultRdvDate } from "../lib/links";
+import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import AgeBadge from "./AgeBadge";
 import CompetitorSection from "./CompetitorSection";
 import type { Call, Prospect, Status } from "../lib/types";
@@ -75,7 +75,8 @@ export default function CallModal({
 
   const cleanPhone = phone.replace(/\s/g, "");
   const telUri = `tel:${cleanPhone}`;
-  const waUrl = whatsAppUrl(phone);
+  const salesMsg = salesWhatsAppMsg(name, prospect?.metier || "", prospect?.ville || "");
+  const waUrl = whatsAppUrl(phone, salesMsg);
   const rating = prospect?.rating;
   const reviewCount = prospect?.reviews;
   const hasRating = rating != null && rating > 0;
@@ -113,10 +114,13 @@ export default function CallModal({
       if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return;
       if (e.key === "Escape") onClose();
       if (e.key === "Enter") onMarkCalled?.();
+      if ((e.key === "m" || e.key === "M") && prospect) {
+        window.open(`/maquette/${prospect.id}`, "_blank");
+      }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [open, onClose, onMarkCalled]);
+  }, [open, onClose, onMarkCalled, prospect]);
 
   const saveNtfy = () => {
     const clean = ntfyDraft.trim().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -180,7 +184,7 @@ export default function CallModal({
         onClick={(e) => e.stopPropagation()}
       >
       <div
-        className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-6 shadow-2xl shrink-0"
+        className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-6 shadow-2xl shrink-0 max-h-[90vh] overflow-y-auto"
       >
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0 flex-1">
@@ -255,16 +259,6 @@ export default function CallModal({
               <ExternalLink className="w-3 h-3" /> Fiche Google Maps
             </a>
           )}
-          {prospect && (
-            <a
-              href={`/maquette/${prospect.id}`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[12px] text-fuchsia-300 hover:text-fuchsia-200 transition"
-            >
-              <Palette className="w-3 h-3" /> Maquette site
-            </a>
-          )}
         </div>
 
         {lastCall && (
@@ -319,10 +313,29 @@ export default function CallModal({
 
         <a
           href={telUri}
-          className="block text-center mb-5 font-mono text-3xl font-bold text-neutral-50 tracking-wider hover:text-violet-300 transition"
+          className="block text-center mb-4 font-mono text-3xl font-bold text-neutral-50 tracking-wider hover:text-violet-300 transition"
         >
           {phone}
         </a>
+
+        {/* Maquette CTA */}
+        {prospect && (
+          <a
+            href={`/maquette/${prospect.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="group flex items-center gap-3 w-full mb-4 px-4 py-3 rounded-xl bg-[var(--color-background)] border border-dashed border-violet-500/30 hover:border-violet-400/60 hover:bg-violet-500/5 transition"
+          >
+            <div className="w-10 h-10 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+              <Palette className="w-5 h-5 text-violet-400 group-hover:text-violet-300 transition" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-neutral-200 group-hover:text-violet-200 transition">Générer une maquette</div>
+              <div className="text-[11px] text-neutral-500">Aperçu site web personnalisé</div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-neutral-600 group-hover:text-violet-400 transition shrink-0" />
+          </a>
+        )}
 
         <div className="grid grid-cols-2 gap-2 mb-4">
           <a
@@ -477,7 +490,7 @@ export default function CallModal({
         </div>
 
         <div className="mt-3 text-center text-[10px] text-neutral-700">
-          Entrée = marquer appelé · Échap = fermer
+          Entrée = appelé · M = maquette · Échap = fermer
         </div>
       </div>
 
@@ -488,6 +501,7 @@ export default function CallModal({
           ville={prospect.ville || ""}
           metier={prospect.metier || ""}
           prospectName={prospect.name}
+          prospectPhone={prospect.phone || ""}
           prospectRating={prospect.rating ?? null}
           prospectReviews={prospect.reviews ?? null}
           onExpandChange={setCompetitorOpen}
