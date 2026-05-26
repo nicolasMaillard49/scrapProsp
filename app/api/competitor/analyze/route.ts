@@ -183,8 +183,7 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error("Failed to cache competitor report:", insertError.message);
-      // Still return the computed data even if caching fails
-      return NextResponse.json(report);
+      return NextResponse.json({ ...report, created_at: new Date().toISOString() });
     }
 
     return NextResponse.json(inserted);
