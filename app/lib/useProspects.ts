@@ -12,7 +12,7 @@ export function useProspects() {
   // ── Initial fetch ───────────────────────────────────────────────────
   useEffect(() => {
     if (!supabaseConfigured) {
-      console.warn("Supabase not configured — set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env");
+      console.warn("Supabase not configured — set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env");
       setLoaded(true);
       return;
     }
@@ -78,6 +78,34 @@ export function useProspects() {
             prev.map((p) =>
               p.id === newCall.prospect_id
                 ? { ...p, calls: [...(p.calls ?? []), newCall] }
+                : p,
+            ),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "calls" },
+        (payload) => {
+          const updated = payload.new as Call;
+          setProspects((prev) =>
+            prev.map((p) =>
+              p.id === updated.prospect_id
+                ? { ...p, calls: (p.calls ?? []).map((c) => c.id === updated.id ? updated : c) }
+                : p,
+            ),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "calls" },
+        (payload) => {
+          const deleted = payload.old as Call;
+          setProspects((prev) =>
+            prev.map((p) =>
+              p.id === deleted.prospect_id
+                ? { ...p, calls: (p.calls ?? []).filter((c) => c.id !== deleted.id) }
                 : p,
             ),
           );
@@ -207,13 +235,11 @@ export function useProspects() {
         age_years: r.age_years ? parseFloat(r.age_years) : null,
         legal_status: r.legal_status || null,
         naf_code: r.naf_code || null,
-        status: "todo" as Status,
-        notes: "",
       }));
 
       const { data, error } = await supabase
         .from("prospects")
-        .upsert(dbRows, { onConflict: "maps_url" })
+        .upsert(dbRows, { onConflict: "maps_url", ignoreDuplicates: false })
         .select("*, calls(*)");
 
       if (error) {

@@ -3,7 +3,7 @@
 //
 // Requires env vars:
 //   NEXT_PUBLIC_SUPABASE_URL
-//   NEXT_PUBLIC_SUPABASE_ANON_KEY
+//   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -18,11 +18,11 @@ const PUBLIC_DIR = resolve(ROOT, "public");
 
 // ── env ─────────────────────────────────────────────────────────────────
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error(
-    "Missing env vars NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "Missing env vars NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
   );
   process.exit(1);
 }
