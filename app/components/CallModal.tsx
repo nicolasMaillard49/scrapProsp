@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { whatsAppUrl, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import AgeBadge from "./AgeBadge";
+import CompetitorSection from "./CompetitorSection";
 import type { Call, Prospect, Status } from "../lib/types";
 
 interface Props {
@@ -389,6 +390,17 @@ export default function CallModal({
             )}
           </div>
         </details>
+
+        {prospect && (
+          <CompetitorSection
+            prospectId={prospect.id}
+            ville={prospect.ville || ""}
+            metier={prospect.metier || ""}
+            prospectName={prospect.name}
+            prospectRating={prospect.rating ?? null}
+            prospectReviews={prospect.reviews ?? null}
+          />
+        )}
 
         {!ntfyTopic && !ntfyEditing && (
           <button
