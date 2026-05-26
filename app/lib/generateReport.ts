@@ -113,29 +113,50 @@ export function generateProspectReport(data: ReportData) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tableEndY = ((doc as any).lastAutoTable?.finalY ?? 170) + 12;
 
-  if (report.ads_budget_est != null) {
+  // --- Ads tiers table ---
+  const tiers = report.ads_tiers ?? [];
+  if (tiers.length > 0) {
+    doc.setFontSize(12);
+    doc.setTextColor(109, 40, 217);
+    doc.text("Forfaits Google Ads", 20, tableEndY);
+
+    autoTable(doc, {
+      startY: tableEndY + 4,
+      head: [["Forfait", "Budget/mois", "Objectif"]],
+      body: tiers.map((t) => [t.label, `${t.budget} €`, t.desc]),
+      headStyles: {
+        fillColor: [109, 40, 217],
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 9,
+      },
+      bodyStyles: { fontSize: 10 },
+      columnStyles: { 1: { fontStyle: "bold", halign: "center" } },
+      alternateRowStyles: { fillColor: [245, 243, 255] },
+    });
+  } else if (report.ads_budget_est != null) {
     doc.setFillColor(245, 243, 255);
     doc.roundedRect(20, tableEndY, 170, 22, 3, 3, "F");
-
     doc.setFontSize(10);
     doc.setTextColor(109, 40, 217);
-    doc.text("Budget Google Ads estimé dans votre secteur :", 28, tableEndY + 9);
-
+    doc.text("Budget Google Ads estimé :", 28, tableEndY + 9);
     doc.setFontSize(16);
     doc.setTextColor(30, 27, 75);
     doc.text(`${report.ads_budget_est} €/mois`, 28, tableEndY + 18);
   }
 
   // --- Sales arguments ---
+  const midTierBudget = tiers[1]?.budget ?? report.ads_budget_est;
   const salesArgs = generateSalesArgs(
     prospectName,
     prospectScore,
     report.competitors,
-    report.ads_budget_est,
+    midTierBudget,
   );
 
   if (salesArgs.length > 0) {
-    const argsY = tableEndY + (report.ads_budget_est != null ? 32 : 0);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const argsY = ((doc as any).lastAutoTable?.finalY ?? tableEndY) + 12;
     doc.setFontSize(12);
     doc.setTextColor(60, 60, 60);
     doc.text("Points clés", 20, argsY);

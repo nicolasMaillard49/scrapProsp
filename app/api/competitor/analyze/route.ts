@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/app/lib/supabase";
 import {
-  CPC_PAR_METIER,
-  DEFAULT_CPC,
-  MONTHLY_CLICKS,
-  DEFAULT_MONTHLY_CLICKS,
-  ADS_MARGIN,
+  estimateAdsTiers,
   SCRAPER_URL,
   REPORT_CACHE_DAYS,
 } from "@/app/lib/competitor-config";
@@ -27,11 +23,7 @@ function computeGbpScore(
   return Math.round(ratingScore + reviewsScore + websiteScore);
 }
 
-function estimateAdsBudget(metier: string): number {
-  const cpc = CPC_PAR_METIER[metier] ?? DEFAULT_CPC;
-  const clicks = MONTHLY_CLICKS[metier] ?? DEFAULT_MONTHLY_CLICKS;
-  return Math.round(cpc * clicks * ADS_MARGIN);
-}
+// Removed: single budget → now using estimateAdsTiers from config
 
 /* ---------- POST handler ---------- */
 
@@ -160,8 +152,8 @@ export async function POST(request: NextRequest) {
     // 6. Sort by gbp_score descending
     competitors.sort((a, b) => b.gbp_score - a.gbp_score);
 
-    // 7. Estimate Ads budget
-    const adsBudget = estimateAdsBudget(prospect.metier);
+    // 7. Estimate Ads tiers
+    const adsTiers = estimateAdsTiers(prospect.metier);
 
     // 8. Build the report
     const report = {
@@ -169,7 +161,8 @@ export async function POST(request: NextRequest) {
       ville: prospect.ville,
       metier: prospect.metier,
       competitors,
-      ads_budget_est: adsBudget,
+      ads_budget_est: adsTiers[0].budget, // keep for backwards compat
+      ads_tiers: adsTiers,
       limit_used: limit,
     };
 

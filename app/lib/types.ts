@@ -48,6 +48,13 @@ export interface CompetitorResult {
   gbp_score: number;
 }
 
+export interface AdsTierResult {
+  key: string;
+  label: string;
+  desc: string;
+  budget: number;
+}
+
 export interface CompetitorReport {
   id: string;
   prospect_id: string;
@@ -55,6 +62,7 @@ export interface CompetitorReport {
   metier: string;
   competitors: CompetitorResult[];
   ads_budget_est: number | null;
+  ads_tiers?: AdsTierResult[];
   limit_used: number;
   created_at: string;
 }
