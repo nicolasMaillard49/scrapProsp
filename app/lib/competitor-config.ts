@@ -14,21 +14,24 @@ export const CPC_PAR_METIER: Record<string, number> = {
 
 export const DEFAULT_CPC = 3.5;
 
-// Nombre de clics/mois estimé pour un artisan local faisant des ads
+// Clics/mois réalistes pour un artisan local en zone rurale/moyenne
 export const MONTHLY_CLICKS: Record<string, number> = {
-  plombier: 150,
-  chauffagiste: 130,
-  electricien: 120,
-  paysagiste: 80,
-  couvreur: 100,
-  maçon: 90,
-  serrurier: 140,
-  menuisier: 80,
-  carreleur: 70,
-  peintre: 80,
+  plombier: 15,
+  chauffagiste: 13,
+  electricien: 15,
+  paysagiste: 13,
+  couvreur: 12,
+  maçon: 12,
+  serrurier: 15,
+  menuisier: 10,
+  carreleur: 10,
+  peintre: 10,
 };
 
-export const DEFAULT_MONTHLY_CLICKS = 100;
+export const DEFAULT_MONTHLY_CLICKS = 12;
+
+// Marge sur la gestion Ads (50%)
+export const ADS_MARGIN = 1.5;
 
 export const SCRAPER_URL = process.env.SCRAPER_URL || "http://51.255.200.169:8001";
 

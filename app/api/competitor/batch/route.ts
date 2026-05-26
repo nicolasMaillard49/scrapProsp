@@ -5,6 +5,7 @@ import {
   DEFAULT_CPC,
   MONTHLY_CLICKS,
   DEFAULT_MONTHLY_CLICKS,
+  ADS_MARGIN,
   SCRAPER_URL,
   REPORT_CACHE_DAYS,
 } from "@/app/lib/competitor-config";
@@ -27,7 +28,7 @@ function computeGbpScore(
 function estimateAdsBudget(metier: string): number {
   const cpc = CPC_PAR_METIER[metier] ?? DEFAULT_CPC;
   const clicks = MONTHLY_CLICKS[metier] ?? DEFAULT_MONTHLY_CLICKS;
-  return Math.round(cpc * clicks);
+  return Math.round(cpc * clicks * ADS_MARGIN);
 }
 
 /**
