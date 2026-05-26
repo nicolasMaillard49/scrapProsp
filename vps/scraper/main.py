@@ -27,6 +27,9 @@ _browser = None
 
 REQUEST_TIMEOUT = 120  # seconds
 
+# Names that are clearly not real businesses (page artifacts)
+BLACKLISTED_NAMES = {"résultats", "results", "rechercher", "search", "plus de résultats"}
+
 
 # ---------------------------------------------------------------------------
 # Lifespan: launch / close the browser once
@@ -347,15 +350,38 @@ async def _do_scrape(url: str, limit: int) -> list[Competitor]:
                     await _go_back_to_feed(page)
                     continue
 
+                # Verify we landed on a real place page
+                if "/place/" not in page.url:
+                    log.warning(f"[{i+1}] Not a place page ({page.url[:80]}), skipping")
+                    seen.add(aria)
+                    await _go_back_to_feed(page)
+                    continue
+
                 comp = await extract_place(page)
                 log.info(f"[{i+1}] Extracted: {comp.name} | {comp.rating} | {comp.reviews} avis")
 
-                if comp.name and comp.name not in seen:
+                # Filter out garbage entries
+                is_garbage = (
+                    not comp.name
+                    or comp.name in seen
+                    or comp.name.lower() in BLACKLISTED_NAMES
+                    or (not comp.rating and not comp.reviews)
+                )
+                if is_garbage:
+                    reason = (
+                        "duplicate" if comp.name in seen
+                        else "blacklisted" if comp.name and comp.name.lower() in BLACKLISTED_NAMES
+                        else "no rating/reviews" if not comp.rating and not comp.reviews
+                        else "no name"
+                    )
+                    log.warning(f"[{i+1}] Skipping '{comp.name}': {reason}")
+                    seen.add(aria)
+                    if comp.name:
+                        seen.add(comp.name)
+                else:
                     seen.add(aria)
                     seen.add(comp.name)
                     competitors.append(comp)
-                else:
-                    seen.add(aria)
 
                 # Navigate back to the feed
                 if not await _go_back_to_feed(page):
