@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-interface MapProspect {
+export interface MapProspect {
   id: string;
   name: string;
   rank: number;
@@ -13,6 +13,7 @@ interface MapProspect {
   rating: number | null;
   reviews: number | null;
   phone: string;
+  website?: string | null;
   lat?: number;
   lng?: number;
 }
@@ -24,10 +25,13 @@ interface Props {
   onHover: (id: string | null) => void;
 }
 
-/* ── Custom marker icon per rank ── */
-function createIcon(rank: number, isHovered: boolean): L.DivIcon {
-  const size = isHovered ? 36 : 28;
-  const bg =
+/* -- Pin-shaped SVG marker -- */
+function createPinIcon(rank: number, isHovered: boolean, hasWebsite: boolean): L.DivIcon {
+  const scale = isHovered ? 1.25 : 1;
+  const w = Math.round(30 * scale);
+  const h = Math.round(42 * scale);
+
+  const fill =
     rank === 1
       ? "#f59e0b"
       : rank <= 3
@@ -35,29 +39,34 @@ function createIcon(rank: number, isHovered: boolean): L.DivIcon {
         : rank <= 7
           ? "#8b5cf6"
           : "#6b7280";
-  const border = isHovered ? "3px solid #fff" : "2px solid rgba(255,255,255,0.3)";
-  const shadow = isHovered ? "0 0 12px rgba(139,92,246,0.6)" : "0 2px 6px rgba(0,0,0,0.4)";
+
+  const stroke = isHovered ? "#fff" : "rgba(255,255,255,0.3)";
+  const strokeW = isHovered ? 2.5 : 1.5;
+  const shadow = isHovered
+    ? "filter:drop-shadow(0 0 8px rgba(139,92,246,0.7));"
+    : "filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));";
+
+  // Red dot if no website
+  const noSiteDot = !hasWebsite
+    ? `<circle cx="22" cy="6" r="4" fill="#ef4444" stroke="#1a1a1f" stroke-width="1.5"/>`
+    : "";
 
   return L.divIcon({
     className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2 - 4],
-    html: `<div style="
-      width:${size}px;height:${size}px;
-      background:${bg};
-      border-radius:50%;
-      display:flex;align-items:center;justify-content:center;
-      color:#fff;font-weight:700;font-size:${isHovered ? 14 : 12}px;
-      border:${border};
-      box-shadow:${shadow};
-      transition:all 0.15s ease;
-      cursor:pointer;
-    ">${rank}</div>`,
+    iconSize: [w, h],
+    iconAnchor: [w / 2, h],
+    popupAnchor: [0, -h + 4],
+    html: `<svg width="${w}" height="${h}" viewBox="0 0 30 42" style="${shadow}transition:all 0.15s ease;cursor:pointer;">
+      <path d="M15 41 C15 41 28 25 28 15 C28 7.3 22.2 1 15 1 C7.8 1 2 7.3 2 15 C2 25 15 41 15 41Z"
+        fill="${fill}" stroke="${stroke}" stroke-width="${strokeW}"/>
+      <text x="15" y="18" text-anchor="middle" dominant-baseline="central"
+        fill="#fff" font-weight="800" font-size="${isHovered ? 13 : 11}" font-family="system-ui,sans-serif">${rank}</text>
+      ${noSiteDot}
+    </svg>`,
   });
 }
 
-/* ── Recenter the map when center changes ── */
+/* -- Recenter map -- */
 function RecenterMap({ center }: { center: { lat: number; lng: number } }) {
   const map = useMap();
   useEffect(() => {
@@ -86,7 +95,7 @@ export default function MapView({ prospects, center, hoveredId, onHover }: Props
         <Marker
           key={p.id}
           position={[p.lat!, p.lng!]}
-          icon={createIcon(p.rank, hoveredId === p.id)}
+          icon={createPinIcon(p.rank, hoveredId === p.id, !!p.website)}
           eventHandlers={{
             mouseover: () => onHover(p.id),
             mouseout: () => onHover(null),
@@ -99,7 +108,7 @@ export default function MapView({ prospects, center, hoveredId, onHover }: Props
               padding: "12px 14px",
               borderRadius: "10px",
               border: "1px solid #2a2a30",
-              minWidth: "180px",
+              minWidth: "200px",
               fontFamily: "system-ui, sans-serif",
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
@@ -111,15 +120,18 @@ export default function MapView({ prospects, center, hoveredId, onHover }: Props
                 }}>
                   {p.rank}
                 </div>
-                <div style={{ fontWeight: 600, fontSize: "13px" }}>{p.name}</div>
+                <div style={{ fontWeight: 600, fontSize: "13px", flex: 1 }}>{p.name}</div>
               </div>
-              {p.rating && (
+              {p.rating != null && (
                 <div style={{ fontSize: "12px", color: "#a0a0a0", marginBottom: "4px" }}>
                   {"⭐"} {p.rating} ({p.reviews ?? 0} avis)
                 </div>
               )}
               <div style={{ fontSize: "12px", color: "#a0a0a0", marginBottom: "4px" }}>
                 Score GBP: <span style={{ color: p.gbp_score >= 70 ? "#10b981" : p.gbp_score >= 40 ? "#f59e0b" : "#ef4444", fontWeight: 700 }}>{p.gbp_score}/100</span>
+              </div>
+              <div style={{ fontSize: "11px", color: p.website ? "#6b7280" : "#ef4444", marginBottom: "4px" }}>
+                {p.website ? "Site web" : "Pas de site web"}
               </div>
               {p.phone && (
                 <a href={`tel:${p.phone.replace(/\s/g, "")}`} style={{ fontSize: "12px", color: "#8b5cf6", textDecoration: "none" }}>
