@@ -8,12 +8,11 @@ import {
 } from "lucide-react";
 import { whatsAppUrl, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import AgeBadge from "./AgeBadge";
-import type { Prospect, ProspectState, Status } from "../lib/types";
+import type { Call, Prospect, Status } from "../lib/types";
 
 interface Props {
   open: boolean;
   prospect: Prospect | null;
-  state?: ProspectState;
   isOpen?: boolean;
   hoursLabel?: string;
   initialTab?: "call" | "rdv";
@@ -45,7 +44,7 @@ function formatRelativeTime(iso: string): string {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function formatDuration(s?: number): string {
+function formatDuration(s?: number | null): string {
   if (!s) return "";
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
@@ -56,7 +55,7 @@ function formatDuration(s?: number): string {
 const NTFY_KEY = "prospects-tracker-ntfy-topic";
 
 export default function CallModal({
-  open, prospect, state, isOpen, hoursLabel, initialTab = "call",
+  open, prospect, isOpen, hoursLabel, initialTab = "call",
   onClose, onMarkCalled, onMarkPositive, onMarkNoAnswer, onMarkNegative,
 }: Props) {
   const [qrUrl, setQrUrl] = useState<string>("");
@@ -70,17 +69,19 @@ export default function CallModal({
 
   const name = prospect?.name || "";
   const phone = prospect?.phone || "";
-  const address = prospect?.address;
-  const notes = state?.notes;
+  const address = prospect?.address ?? undefined;
+  const notes = prospect?.notes;
 
   const cleanPhone = phone.replace(/\s/g, "");
   const telUri = `tel:${cleanPhone}`;
   const waUrl = whatsAppUrl(phone);
-  const rating = prospect?.rating?.replace(",", ".");
+  const rating = prospect?.rating;
   const reviewCount = prospect?.reviews;
-  const hasRating = rating && rating !== "0" && rating !== "";
-  const history = state?.callHistory || [];
-  const currentStatus: Status = state?.status || "todo";
+  const hasRating = rating != null && rating > 0;
+  const calls: Call[] = prospect?.calls || [];
+  const sortedCalls = [...calls].sort((a, b) => new Date(b.called_at).getTime() - new Date(a.called_at).getTime());
+  const lastCall = sortedCalls[0] ?? null;
+  const currentStatus: Status = prospect?.status || "todo";
   const statusCfg = statusLabel[currentStatus];
 
   useEffect(() => {
@@ -250,10 +251,10 @@ export default function CallModal({
           )}
         </div>
 
-        {state?.calledAt && (
+        {lastCall && (
           <div className="mb-3 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-[12px] text-amber-200/80">
-            Dernier appel <span className="font-medium text-amber-200">{formatRelativeTime(state.calledAt)}</span>
-            {state.callDuration ? ` · ${formatDuration(state.callDuration)}` : ""}
+            Dernier appel <span className="font-medium text-amber-200">{formatRelativeTime(lastCall.called_at)}</span>
+            {lastCall.duration ? ` · ${formatDuration(lastCall.duration)}` : ""}
           </div>
         )}
 
@@ -264,7 +265,7 @@ export default function CallModal({
           </div>
         )}
 
-        {history.length > 0 && (
+        {sortedCalls.length > 0 && (
           <details
             open={historyOpen}
             onToggle={(e) => setHistoryOpen((e.target as HTMLDetailsElement).open)}
@@ -273,13 +274,13 @@ export default function CallModal({
             <summary className="flex items-center justify-between px-3 py-2 cursor-pointer list-none">
               <span className="flex items-center gap-2 text-[12px] font-medium text-neutral-300">
                 <History className="w-3.5 h-3.5 text-violet-300" />
-                Historique des appels ({history.length})
+                Historique des appels ({sortedCalls.length})
               </span>
               <ChevronDown className="w-3.5 h-3.5 text-neutral-500 group-open:rotate-180 transition" />
             </summary>
             <ul className="px-3 pb-2.5 space-y-1.5 text-[11px]">
-              {[...history].reverse().slice(0, 10).map((h, i) => (
-                <li key={i} className="flex items-start gap-2 pt-1.5 border-t border-[var(--color-border)] first:border-t-0 first:pt-0">
+              {sortedCalls.slice(0, 10).map((h) => (
+                <li key={h.id} className="flex items-start gap-2 pt-1.5 border-t border-[var(--color-border)] first:border-t-0 first:pt-0">
                   <span className={`shrink-0 w-1.5 h-1.5 mt-1.5 rounded-full ${
                     h.status === "positive" ? "bg-emerald-400" :
                     h.status === "negative" ? "bg-rose-400" :
@@ -288,10 +289,10 @@ export default function CallModal({
                   }`} />
                   <div className="min-w-0 flex-1">
                     <div className="text-neutral-300">
-                      {statusLabel[h.status].label}
+                      {statusLabel[h.status as Status].label}
                       {h.duration ? <span className="text-neutral-500"> · {formatDuration(h.duration)}</span> : null}
                     </div>
-                    <div className="text-neutral-500">{formatRelativeTime(h.at)}</div>
+                    <div className="text-neutral-500">{formatRelativeTime(h.called_at)}</div>
                     {h.note && <div className="text-neutral-400 break-words mt-0.5">{h.note}</div>}
                   </div>
                 </li>

@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "./supabase";
+import { supabase, supabaseConfigured } from "./supabase";
 import type { Call, Prospect, Status } from "./types";
 
 export function useProspects() {
@@ -11,6 +11,11 @@ export function useProspects() {
 
   // ── Initial fetch ───────────────────────────────────────────────────
   useEffect(() => {
+    if (!supabaseConfigured) {
+      console.warn("Supabase not configured — set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env");
+      setLoaded(true);
+      return;
+    }
     async function load() {
       const { data, error } = await supabase
         .from("prospects")
@@ -35,7 +40,7 @@ export function useProspects() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "prospects" },
         (payload) => {
-          const newProspect = { ...payload.new, calls: [] } as Prospect;
+          const newProspect = { ...(payload.new as Prospect), calls: [] };
           setProspects((prev) => {
             if (prev.some((p) => p.id === newProspect.id)) return prev;
             return [...prev, newProspect];

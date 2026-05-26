@@ -5,12 +5,12 @@ import Papa from "papaparse";
 import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
   CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2,
-  Filter, ArrowUpDown, Clock, Globe, UploadCloud,
+  Filter, ArrowUpDown, Clock, Globe,
   ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
   MoreVertical, Calendar,
 } from "lucide-react";
 import { whatsAppUrl } from "./lib/links";
-import { isOpenNow, openLabel, parseScrapeDate } from "./lib/openNow";
+import { isOpenNow, openLabel } from "./lib/openNow";
 import { ageYears, isJeune, isRadie } from "./lib/sirene";
 import AgeBadge from "./components/AgeBadge";
 import FocusMode from "./components/FocusMode";
@@ -18,9 +18,8 @@ import KeyboardHelp from "./components/KeyboardHelp";
 import ProgressRing from "./components/ProgressRing";
 import CallModal from "./components/CallModal";
 import { ToastProvider, useToast } from "./components/Toast";
-import type { Manifest, Prospect, ProspectState, Status } from "./lib/types";
-
-const STORAGE_KEY = "prospects-tracker-state-v2";
+import type { Prospect, Status } from "./lib/types";
+import { useProspects } from "./lib/useProspects";
 
 const statusConfig: Record<Status, { label: string; ring: string; rowBg: string; text: string }> = {
   todo: { label: "À appeler", ring: "ring-neutral-700", rowBg: "", text: "text-neutral-400" },
@@ -32,9 +31,17 @@ const statusConfig: Record<Status, { label: string; ring: string; rowBg: string;
 
 function HomeInner() {
   const toast = useToast();
-  const [prospects, setProspects] = useState<Prospect[]>([]);
-  const [regions, setRegions] = useState<Manifest["regions"]>([]);
-  const [states, setStates] = useState<Record<string, ProspectState>>({});
+  const {
+    prospects,
+    regions,
+    loaded,
+    updateStatus,
+    updateNotes,
+    setLocalNotes,
+    resetProspect,
+    importProspects,
+  } = useProspects();
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | Status>("all");
   const [metierFilter, setMetierFilter] = useState<"all" | "plombier" | "electricien">("all");
@@ -44,7 +51,6 @@ function HomeInner() {
   const [hideRadie, setHideRadie] = useState(true);
   const [jeuneOnly, setJeuneOnly] = useState(false);
   const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc">("reviews");
-  const [loaded, setLoaded] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -53,7 +59,6 @@ function HomeInner() {
   const [callTarget, setCallTarget] = useState<Prospect | null>(null);
   const [callTab, setCallTab] = useState<"call" | "rdv">("call");
   const [now, setNow] = useState(() => new Date());
-  const [scrapeDate, setScrapeDate] = useState<Date>(() => new Date());
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -61,95 +66,14 @@ function HomeInner() {
     return () => clearInterval(id);
   }, []);
 
-  useEffect(() => {
-    let local: Record<string, ProspectState> | null = null;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) local = JSON.parse(raw);
-    } catch {}
-    if (local && Object.keys(local).length > 0) {
-      setStates(local);
-    } else {
-      // No local state → try the bundled seed (only useful on a fresh device)
-      fetch("/state-seed.json")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((seed) => {
-          if (seed && typeof seed === "object" && Object.keys(seed).length > 0) {
-            setStates(seed);
-          }
-        })
-        .catch(() => {});
-    }
-
-    // Load manifest, then all CSVs in parallel
-    fetch("/manifest.json")
-      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
-      .then(async (m: Manifest) => {
-        setRegions(m.regions);
-        setScrapeDate(parseScrapeDate(m.generated_at));
-        const all: Prospect[] = [];
-        await Promise.all(m.regions.map(async (r) => {
-          try {
-            const csv = await fetch(r.csv).then((res) => res.text());
-            const parsed = Papa.parse<Prospect>(csv, { header: true, skipEmptyLines: true });
-            for (const p of parsed.data) {
-              if (p.name && p.phone) all.push({ ...p, region: p.region || r.key, region_label: p.region_label || r.label });
-            }
-          } catch {}
-        }));
-        setProspects(all);
-        setLoaded(true);
-      })
-      .catch(async () => {
-        // Fallback : try the legacy single prospects.csv
-        try {
-          const csv = await fetch("/prospects.csv").then((r) => r.text());
-          const parsed = Papa.parse<Prospect>(csv, { header: true, skipEmptyLines: true });
-          setProspects(parsed.data.filter((p) => p.name && p.phone));
-        } catch {}
-        setLoaded(true);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
-  }, [states, loaded]);
-
-  const updateNote = (id: string, notes: string) => {
-    setStates((prev) => ({ ...prev, [id]: { ...(prev[id] || { status: "todo" as Status, notes: "" }), notes } }));
-  };
-
-  const setStatus = (id: string, status: Status, duration?: number) => {
-    setStates((prev) => {
-      const current = prev[id] || { status: "todo" as Status, notes: "" };
-      const history = current.callHistory || [];
-      const next: ProspectState = {
-        ...current,
-        status,
-        calledAt: status !== "todo" ? new Date().toISOString() : current.calledAt,
-        callDuration: duration ?? current.callDuration,
-        callHistory: status !== "todo" ? [...history, { at: new Date().toISOString(), status, duration }] : history,
-      };
-      return { ...prev, [id]: next };
-    });
-  };
-
-  const resetState = (id: string) => {
-    setStates((prev) => {
-      const { [id]: _, ...rest } = prev;
-      return rest;
-    });
-    toast.push("info", "Statut réinitialisé");
-  };
-
   const promptRdvFor = (p: Prospect) => {
     setCallTarget(p);
     setCallTab("rdv");
   };
 
   const setStatusWithRdv = (p: Prospect, status: Status) => {
-    const wasNotPositive = (states[p.maps_url]?.status || "todo") !== "positive";
-    setStatus(p.maps_url, status);
+    const wasNotPositive = p.status !== "positive";
+    updateStatus(p.id, status);
     if (status === "positive" && wasNotPositive) {
       toast.push("success", `${p.name} marqué positif`);
       setTimeout(() => promptRdvFor(p), 400);
@@ -165,13 +89,13 @@ function HomeInner() {
     const pool = regionFilter === "all" ? enriched : enriched.filter((e) => e.p.region === regionFilter);
     const s = { total: pool.length, todo: 0, called: 0, positive: 0, negative: 0, no_answer: 0, jeunes: 0, radie: 0 };
     for (const e of pool) {
-      const st = states[e.p.maps_url]?.status || "todo";
+      const st = e.p.status;
       s[st]++;
       if (e._jeune) s.jeunes++;
       if (e._radie) s.radie++;
     }
     return s;
-  }, [enriched, states, regionFilter]);
+  }, [enriched, regionFilter]);
 
   const villes = useMemo(() => {
     const pool = regionFilter === "all" ? prospects : prospects.filter((p) => p.region === regionFilter);
@@ -185,12 +109,12 @@ function HomeInner() {
     const qDigits = q.replace(/\D/g, "");
     return enriched
       .filter(({ p, _radie, _jeune }) => {
-        const st = states[p.maps_url]?.status || "todo";
+        const st = p.status;
         if (filter !== "all" && st !== filter) return false;
         if (regionFilter !== "all" && p.region !== regionFilter) return false;
         if (metierFilter !== "all" && p.metier !== metierFilter) return false;
         if (villeFilter !== "all" && p.ville !== villeFilter) return false;
-        if (effectiveNow && !isOpenNow(p, effectiveNow, scrapeDate)) return false;
+        if (effectiveNow && !isOpenNow(p, effectiveNow, now)) return false;
         if (hideRadie && _radie) return false;
         if (jeuneOnly && !_jeune) return false;
         if (q) {
@@ -201,9 +125,9 @@ function HomeInner() {
         return true;
       })
       .sort((a, b) => {
-        if (sortBy === "reviews") return Number(b.p.reviews || 0) - Number(a.p.reviews || 0);
-        if (sortBy === "reviews-asc") return Number(a.p.reviews || 0) - Number(b.p.reviews || 0);
-        if (sortBy === "rating") return Number((b.p.rating || "0").replace(",", ".")) - Number((a.p.rating || "0").replace(",", "."));
+        if (sortBy === "reviews") return (b.p.reviews ?? 0) - (a.p.reviews ?? 0);
+        if (sortBy === "reviews-asc") return (a.p.reviews ?? 0) - (b.p.reviews ?? 0);
+        if (sortBy === "rating") return (b.p.rating ?? 0) - (a.p.rating ?? 0);
         if (sortBy === "age-asc" || sortBy === "age-desc") {
           const aa = a._age;
           const bb = b._age;
@@ -215,7 +139,7 @@ function HomeInner() {
         return a.p.name.localeCompare(b.p.name);
       })
       .map((e) => e.p);
-  }, [enriched, states, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, jeuneOnly, sortBy, effectiveNow, scrapeDate]);
+  }, [enriched, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, jeuneOnly, sortBy, effectiveNow, now]);
 
   // Auto-reset page when filters change
   useEffect(() => {
@@ -257,60 +181,24 @@ function HomeInner() {
     return () => window.removeEventListener("keydown", h);
   }, [filtered.length]);
 
-  const [snapshotBusy, setSnapshotBusy] = useState(false);
-
-  const pushStateSnapshot = async () => {
-    if (snapshotBusy) return;
-    setSnapshotBusy(true);
-    try {
-      const r = await fetch("/api/snapshot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(states),
-      });
-      const data = await r.json().catch(() => null);
-      if (!r.ok) {
-        const reason = data?.error ?? `HTTP ${r.status}`;
-        if (r.status === 403) {
-          downloadStateJson();
-          toast.push("error", `Push impossible en prod : ${reason}. JSON téléchargé pour upload manuel.`);
-          return;
-        }
-        toast.push("error", `Snapshot échoué — ${reason}`);
-        return;
-      }
-      toast.push(
-        "success",
-        `État écrit dans public/state-seed.json (${data?.keys ?? "?"} prospects). Lance maintenant : git add public/state-seed.json && git commit -m "snapshot état" && git push`,
-      );
-    } catch (e) {
-      console.error(e);
-      toast.push("error", "Impossible de joindre /api/snapshot");
-    } finally {
-      setSnapshotBusy(false);
-    }
-  };
-
-  const downloadStateJson = () => {
-    const blob = new Blob([JSON.stringify(states, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `prospects-state-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const exportCsv = () => {
     const rows = filtered.map((p) => ({
-      ...p,
-      status: statusConfig[states[p.maps_url]?.status || "todo"].label,
-      notes: states[p.maps_url]?.notes || "",
-      calledAt: states[p.maps_url]?.calledAt || "",
-      callDuration: states[p.maps_url]?.callDuration || "",
+      name: p.name,
+      metier: p.metier,
+      phone: p.phone,
+      ville: p.ville,
+      departement: p.departement,
+      region: p.region,
+      region_label: p.region_label,
+      rating: p.rating,
+      reviews: p.reviews,
+      address: p.address,
+      maps_url: p.maps_url,
+      status: statusConfig[p.status].label,
+      notes: p.notes,
     }));
     const csv = Papa.unparse(rows);
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -320,20 +208,11 @@ function HomeInner() {
     toast.push("success", `Export CSV de ${rows.length} prospects`);
   };
 
-  const importCsv = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const csv = e.target?.result as string;
-      const parsed = Papa.parse<Prospect>(csv, { header: true, skipEmptyLines: true });
-      const filteredData = parsed.data.filter((p) => p.name && p.phone);
-      setProspects((prev) => {
-        const byUrl = new Map(prev.map((p) => [p.maps_url, p]));
-        for (const p of filteredData) byUrl.set(p.maps_url, { ...p, region: p.region || "import" });
-        return Array.from(byUrl.values());
-      });
-      toast.push("success", `${filteredData.length} prospects ajoutés / fusionnés`);
-    };
-    reader.readAsText(file);
+  const importCsv = async (file: File) => {
+    const text = await file.text();
+    const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+    const count = await importProspects(parsed.data);
+    toast.push("success", `${count} prospects ajoutés / fusionnés`);
   };
 
   return (
@@ -352,7 +231,7 @@ function HomeInner() {
                 Prospects <span className="text-violet-300">Tracker</span>
               </h1>
               <p className="text-[10px] md:text-[11px] text-neutral-500 truncate mt-1 font-mono-num">
-                {regions.length > 0 ? `${regions.length} régions` : "Limousin"} · {stats.total} prospects {regionFilter !== "all" ? `(${regions.find(r => r.key === regionFilter)?.label})` : ""}
+                {regions.length > 0 ? `${regions.length} régions` : ""} · {stats.total} prospects {regionFilter !== "all" ? `(${regions.find(r => r.key === regionFilter)?.label ?? ""})` : ""}
               </p>
             </div>
           </div>
@@ -383,15 +262,6 @@ function HomeInner() {
               <Download className="w-4 h-4" />
               <span className="hidden md:inline">Export</span>
             </button>
-            <button
-              onClick={pushStateSnapshot}
-              disabled={snapshotBusy}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-violet-500/40 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 hover:border-violet-500/60 transition disabled:opacity-50"
-              title="Écrit l'état actuel dans public/state-seed.json — git push ensuite pour publier en ligne"
-            >
-              <UploadCloud className="w-4 h-4" />
-              <span className="hidden md:inline">{snapshotBusy ? "En cours…" : "Sync ↑"}</span>
-            </button>
           </div>
         </div>
 
@@ -408,19 +278,22 @@ function HomeInner() {
               <Globe className="w-3 h-3 inline mr-1" />
               Toutes ({prospects.length})
             </button>
-            {regions.map((r) => (
-              <button
-                key={r.key}
-                onClick={() => { setRegionFilter(r.key); setVilleFilter("all"); }}
-                className={`shrink-0 px-3 py-1.5 text-xs rounded-full border transition ${
-                  regionFilter === r.key
-                    ? "bg-violet-500/15 border-violet-500/40 text-violet-200"
-                    : "bg-[var(--color-surface)]/50 border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
-                }`}
-              >
-                {r.label} <span className="text-neutral-600">({r.total})</span>
-              </button>
-            ))}
+            {regions.map((r) => {
+              const count = prospects.filter((p) => p.region === r.key).length;
+              return (
+                <button
+                  key={r.key}
+                  onClick={() => { setRegionFilter(r.key); setVilleFilter("all"); }}
+                  className={`shrink-0 px-3 py-1.5 text-xs rounded-full border transition ${
+                    regionFilter === r.key
+                      ? "bg-violet-500/15 border-violet-500/40 text-violet-200"
+                      : "bg-[var(--color-surface)]/50 border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+                  }`}
+                >
+                  {r.label} <span className="text-neutral-600">({count})</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -553,12 +426,11 @@ function HomeInner() {
         <div className="md:hidden space-y-2 stagger-3">
           {paginated.map((p, localIdx) => {
             const idx = pageStart + localIdx;
-            const state = states[p.maps_url] || { status: "todo" as Status, notes: "" };
-            const cfg = statusConfig[state.status];
-            const isOpen = isOpenNow(p, now, scrapeDate);
+            const cfg = statusConfig[p.status];
+            const isOpen = isOpenNow(p, now, now);
             return (
               <div
-                key={p.maps_url}
+                key={p.id}
                 className={`rounded-xl border border-[var(--color-border)] ${cfg.rowBg || "bg-[var(--color-surface)]/40"} p-3.5`}
               >
                 <div className="flex items-start gap-2.5 mb-2.5">
@@ -603,7 +475,7 @@ function HomeInner() {
                   <div className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
                     <span className={`${isOpen ? "text-emerald-300" : "text-neutral-500"} truncate max-w-[160px]`}>
-                      {openLabel(p, now, scrapeDate)}
+                      {openLabel(p, now, now)}
                     </span>
                   </div>
                 </div>
@@ -628,12 +500,12 @@ function HomeInner() {
                 </div>
 
                 <div className="flex items-center gap-1.5 mb-2.5">
-                  <StatusBtn active={state.status === "positive"} onClick={() => state.status === "positive" ? setStatus(p.maps_url, "todo") : setStatusWithRdv(p, "positive")} color="emerald" icon={<CheckCircle2 className="w-4 h-4" />} title="Positif" />
-                  <StatusBtn active={state.status === "called"} onClick={() => setStatus(p.maps_url, state.status === "called" ? "todo" : "called")} color="amber" icon={<Phone className="w-4 h-4" />} title="Appelé" />
-                  <StatusBtn active={state.status === "no_answer"} onClick={() => setStatus(p.maps_url, state.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
-                  <StatusBtn active={state.status === "negative"} onClick={() => setStatus(p.maps_url, state.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
-                  {state.status !== "todo" && (
-                    <button onClick={() => resetState(p.maps_url)} className="p-2 text-neutral-600 hover:text-neutral-300 transition" title="Reset">
+                  <StatusBtn active={p.status === "positive"} onClick={() => p.status === "positive" ? updateStatus(p.id, "todo") : setStatusWithRdv(p, "positive")} color="emerald" icon={<CheckCircle2 className="w-4 h-4" />} title="Positif" />
+                  <StatusBtn active={p.status === "called"} onClick={() => updateStatus(p.id, p.status === "called" ? "todo" : "called")} color="amber" icon={<Phone className="w-4 h-4" />} title="Appelé" />
+                  <StatusBtn active={p.status === "no_answer"} onClick={() => updateStatus(p.id, p.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
+                  <StatusBtn active={p.status === "negative"} onClick={() => updateStatus(p.id, p.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
+                  {p.status !== "todo" && (
+                    <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-neutral-600 hover:text-neutral-300 transition" title="Reset">
                       <Undo2 className="w-4 h-4" />
                     </button>
                   )}
@@ -643,8 +515,9 @@ function HomeInner() {
                 <input
                   type="text"
                   placeholder="Notes…"
-                  value={state.notes}
-                  onChange={(e) => updateNote(p.maps_url, e.target.value)}
+                  value={p.notes}
+                  onChange={(e) => setLocalNotes(p.id, e.target.value)}
+                  onBlur={(e) => updateNotes(p.id, e.target.value)}
                   className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--color-background)]/60 border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-700"
                 />
               </div>
@@ -679,11 +552,10 @@ function HomeInner() {
             <tbody>
               {paginated.map((p, localIdx) => {
                 const idx = pageStart + localIdx;
-                const state = states[p.maps_url] || { status: "todo" as Status, notes: "" };
-                const cfg = statusConfig[state.status];
-                const isOpen = isOpenNow(p, now, scrapeDate);
+                const cfg = statusConfig[p.status];
+                const isOpen = isOpenNow(p, now, now);
                 return (
-                  <tr key={p.maps_url} className={`border-t border-[var(--color-border)] ${cfg.rowBg} hover:bg-[var(--color-surface)]/60 transition`}>
+                  <tr key={p.id} className={`border-t border-[var(--color-border)] ${cfg.rowBg} hover:bg-[var(--color-surface)]/60 transition`}>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => { setFocusStart(idx); setFocusOpen(true); }}
@@ -738,7 +610,7 @@ function HomeInner() {
                       <div className="flex items-start gap-1.5">
                         <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
                         <span className={`text-sm leading-tight ${isOpen ? "text-emerald-300" : "text-neutral-500"}`}>
-                          {openLabel(p, now, scrapeDate)}
+                          {openLabel(p, now, now)}
                         </span>
                       </div>
                     </td>
@@ -755,12 +627,12 @@ function HomeInner() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5">
-                        <StatusBtn active={state.status === "positive"} onClick={() => state.status === "positive" ? setStatus(p.maps_url, "todo") : setStatusWithRdv(p, "positive")} color="emerald" icon={<CheckCircle2 className="w-4 h-4" />} title="Positif (proposera RDV)" />
-                        <StatusBtn active={state.status === "called"} onClick={() => setStatus(p.maps_url, state.status === "called" ? "todo" : "called")} color="amber" icon={<Phone className="w-4 h-4" />} title="Appelé" />
-                        <StatusBtn active={state.status === "no_answer"} onClick={() => setStatus(p.maps_url, state.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
-                        <StatusBtn active={state.status === "negative"} onClick={() => setStatus(p.maps_url, state.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
-                        {state.status !== "todo" && (
-                          <button onClick={() => resetState(p.maps_url)} className="p-2 text-neutral-600 hover:text-neutral-300 transition" title="Reset">
+                        <StatusBtn active={p.status === "positive"} onClick={() => p.status === "positive" ? updateStatus(p.id, "todo") : setStatusWithRdv(p, "positive")} color="emerald" icon={<CheckCircle2 className="w-4 h-4" />} title="Positif (proposera RDV)" />
+                        <StatusBtn active={p.status === "called"} onClick={() => updateStatus(p.id, p.status === "called" ? "todo" : "called")} color="amber" icon={<Phone className="w-4 h-4" />} title="Appelé" />
+                        <StatusBtn active={p.status === "no_answer"} onClick={() => updateStatus(p.id, p.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
+                        <StatusBtn active={p.status === "negative"} onClick={() => updateStatus(p.id, p.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
+                        {p.status !== "todo" && (
+                          <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-neutral-600 hover:text-neutral-300 transition" title="Reset">
                             <Undo2 className="w-4 h-4" />
                           </button>
                         )}
@@ -770,8 +642,9 @@ function HomeInner() {
                       <input
                         type="text"
                         placeholder="Notes…"
-                        value={state.notes}
-                        onChange={(e) => updateNote(p.maps_url, e.target.value)}
+                        value={p.notes}
+                        onChange={(e) => setLocalNotes(p.id, e.target.value)}
+                        onBlur={(e) => updateNotes(p.id, e.target.value)}
                         className="w-full px-2.5 py-1.5 text-sm rounded bg-[var(--color-background)]/50 border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-700"
                       />
                     </td>
@@ -812,17 +685,15 @@ function HomeInner() {
         )}
 
         <footer className="mt-6 flex items-center justify-between text-xs text-neutral-600">
-          <span>Stockage local · {Object.keys(states).length} interactions enregistrées</span>
+          <span>Supabase · {prospects.filter(p => p.status !== "todo").length} interactions enregistrées</span>
           <button
             onClick={() => {
-              if (confirm("Effacer toutes les données locales ?")) {
-                setStates({});
-                toast.push("info", "Données effacées");
-              }
+              resetFilters();
+              toast.push("info", "Filtres réinitialisés");
             }}
             className="flex items-center gap-1 hover:text-rose-400 transition"
           >
-            <Trash2 className="w-3 h-3" /> Tout réinitialiser
+            <Trash2 className="w-3 h-3" /> Réinitialiser les filtres
           </button>
         </footer>
       </div>
@@ -830,46 +701,43 @@ function HomeInner() {
       <FocusMode
         open={focusOpen}
         prospects={filtered}
-        states={states}
         initialIndex={focusStart}
         onClose={() => setFocusOpen(false)}
-        onSetStatus={setStatus}
-        onUpdateNote={updateNote}
+        onSetStatus={(id: string, status: Status, duration?: number) => updateStatus(id, status, duration)}
+        onUpdateNote={(id: string, note: string) => updateNotes(id, note)}
       />
       <KeyboardHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
       <CallModal
         open={!!callTarget}
         prospect={callTarget}
-        state={callTarget ? states[callTarget.maps_url] : undefined}
-        isOpen={callTarget ? isOpenNow(callTarget, now, scrapeDate) : undefined}
-        hoursLabel={callTarget ? openLabel(callTarget, now, scrapeDate) : undefined}
+        isOpen={callTarget ? isOpenNow(callTarget, now, now) : undefined}
+        hoursLabel={callTarget ? openLabel(callTarget, now, now) : undefined}
         initialTab={callTab}
         onClose={() => setCallTarget(null)}
         onMarkCalled={() => {
           if (callTarget) {
-            setStatus(callTarget.maps_url, "called");
+            updateStatus(callTarget.id, "called");
             toast.push("success", `${callTarget.name} marqué appelé`);
             setCallTarget(null);
           }
         }}
         onMarkPositive={() => {
           if (callTarget) {
-            const target = callTarget;
-            setStatus(target.maps_url, "positive");
-            toast.push("success", `${target.name} marqué positif`);
+            updateStatus(callTarget.id, "positive");
+            toast.push("success", `${callTarget.name} marqué positif`);
             setCallTab("rdv");
           }
         }}
         onMarkNoAnswer={() => {
           if (callTarget) {
-            setStatus(callTarget.maps_url, "no_answer");
+            updateStatus(callTarget.id, "no_answer");
             toast.push("success", `${callTarget.name} — pas de réponse`);
             setCallTarget(null);
           }
         }}
         onMarkNegative={() => {
           if (callTarget) {
-            setStatus(callTarget.maps_url, "negative");
+            updateStatus(callTarget.id, "negative");
             toast.push("success", `${callTarget.name} marqué négatif`);
             setCallTarget(null);
           }

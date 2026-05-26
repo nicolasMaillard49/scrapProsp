@@ -5,19 +5,18 @@ import {
   Phone, X, ChevronLeft, ChevronRight, MapPin, Star,
   CheckCircle2, XCircle, PhoneOff, PhoneCall, SkipForward, Pause, Play, ExternalLink,
 } from "lucide-react";
-import type { Prospect, ProspectState, Status } from "../lib/types";
+import type { Prospect, Status } from "../lib/types";
 
 interface Props {
   open: boolean;
   prospects: Prospect[];
-  states: Record<string, ProspectState>;
   initialIndex: number;
   onClose: () => void;
   onSetStatus: (id: string, status: Status, duration?: number) => void;
   onUpdateNote: (id: string, note: string) => void;
 }
 
-export default function FocusMode({ open, prospects, states, initialIndex, onClose, onSetStatus, onUpdateNote }: Props) {
+export default function FocusMode({ open, prospects, initialIndex, onClose, onSetStatus, onUpdateNote }: Props) {
   const [idx, setIdx] = useState(initialIndex);
   const [callingSince, setCallingSince] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
@@ -28,15 +27,14 @@ export default function FocusMode({ open, prospects, states, initialIndex, onClo
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const current = prospects[idx];
-  const currentState = current ? states[current.maps_url] : null;
 
   useEffect(() => {
     if (open) setIdx(initialIndex);
   }, [open, initialIndex]);
 
   useEffect(() => {
-    setNoteDraft(currentState?.notes || "");
-  }, [current?.maps_url, currentState?.notes]);
+    setNoteDraft(current?.notes || "");
+  }, [current?.id, current?.notes]);
 
   useEffect(() => {
     if (callingSince === null || paused) return;
@@ -57,9 +55,9 @@ export default function FocusMode({ open, prospects, states, initialIndex, onClo
   const finalize = (status: Status) => {
     if (!current) return;
     const duration = callingSince ? Math.floor((Date.now() - callingSince) / 1000) : undefined;
-    onSetStatus(current.maps_url, status, duration);
-    if (noteDraft !== (currentState?.notes || "")) {
-      onUpdateNote(current.maps_url, noteDraft);
+    onSetStatus(current.id, status, duration);
+    if (noteDraft !== (current?.notes || "")) {
+      onUpdateNote(current.id, noteDraft);
     }
     setSessionStats((s) => ({
       calls: s.calls + (status !== "todo" ? 1 : 0),
@@ -253,7 +251,7 @@ export default function FocusMode({ open, prospects, states, initialIndex, onClo
             ref={noteRef}
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
-            onBlur={() => current && onUpdateNote(current.maps_url, noteDraft)}
+            onBlur={() => current && onUpdateNote(current.id, noteDraft)}
             placeholder="Disponibilités, infos clés, prochaine étape…"
             rows={3}
             className="w-full px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-violet-500/60 text-sm resize-none transition"
