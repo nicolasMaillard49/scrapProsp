@@ -75,7 +75,7 @@ export default function CartePage() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<MapProspect[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [filterNoSite, setFilterNoSite] = useState(false);
+  const [siteFilter, setSiteFilter] = useState<"all" | "no-site" | "has-site">("all");
   const [searchDone, setSearchDone] = useState(false);
 
   const doSearch = useCallback(async () => {
@@ -162,11 +162,12 @@ export default function CartePage() {
 
   // Filter displayed list
   const displayList = useMemo(() => {
-    if (!filterNoSite) return results;
-    const filtered = results.filter((p) => !p.website);
-    // Re-rank
+    if (siteFilter === "all") return results;
+    const filtered = results.filter((p) =>
+      siteFilter === "no-site" ? !p.website : !!p.website,
+    );
     return filtered.map((p, i) => ({ ...p, rank: i + 1 }));
-  }, [results, filterNoSite]);
+  }, [results, siteFilter]);
 
   const mapCenter = useMemo(() => {
     const withCoords = displayList.filter((p) => p.lat && p.lng);
@@ -177,6 +178,7 @@ export default function CartePage() {
   }, [displayList]);
 
   const noSiteCount = results.filter((p) => !p.website).length;
+  const hasSiteCount = results.length - noSiteCount;
 
   return (
     <main className="h-screen flex flex-col bg-[var(--color-background)] text-neutral-100">
@@ -196,7 +198,7 @@ export default function CartePage() {
             </h1>
             <p className="text-[10px] text-neutral-500 mt-0.5 font-mono">
               {searchDone
-                ? `${displayList.length} résultats${filterNoSite ? " sans site" : ""} · ${ville}`
+                ? `${displayList.length} résultats${siteFilter === "no-site" ? " sans site" : siteFilter === "has-site" ? " avec site" : ""} · ${ville}`
                 : "Recherchez un métier + ville"}
             </p>
           </div>
@@ -272,22 +274,31 @@ export default function CartePage() {
                 <Trophy className="w-4 h-4 text-amber-400" />
                 Classement GBP
               </div>
-              {searchDone && noSiteCount > 0 && (
-                <button
-                  onClick={() => setFilterNoSite((v) => !v)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border transition ${
-                    filterNoSite
-                      ? "bg-rose-500/15 border-rose-500/40 text-rose-300"
-                      : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-400 hover:text-neutral-200"
-                  }`}
-                >
-                  {filterNoSite ? (
-                    <GlobeOff className="w-3 h-3" />
-                  ) : (
-                    <GlobeOff className="w-3 h-3" />
-                  )}
-                  Sans site ({noSiteCount})
-                </button>
+              {searchDone && results.length > 0 && (
+                <div className="flex items-center gap-1">
+                  {([
+                    { key: "all" as const, label: "Tous", count: results.length, icon: null },
+                    { key: "no-site" as const, label: "Sans site", count: noSiteCount, icon: <GlobeOff className="w-3 h-3" /> },
+                    { key: "has-site" as const, label: "Avec site", count: hasSiteCount, icon: <Globe className="w-3 h-3" /> },
+                  ]).map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => setSiteFilter(siteFilter === f.key ? "all" : f.key)}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border transition ${
+                        siteFilter === f.key
+                          ? f.key === "no-site"
+                            ? "bg-rose-500/15 border-rose-500/40 text-rose-300"
+                            : f.key === "has-site"
+                              ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                              : "bg-violet-500/15 border-violet-500/40 text-violet-300"
+                          : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-500 hover:text-neutral-300"
+                      }`}
+                    >
+                      {f.icon}
+                      {f.count}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
             <div className="text-[10px] text-neutral-500 mt-0.5 ml-6">
@@ -322,7 +333,7 @@ export default function CartePage() {
 
             {searchDone && displayList.length === 0 && (
               <div className="py-12 text-center text-neutral-500 text-sm">
-                {filterNoSite ? "Tous ont un site web" : "Aucun résultat"}
+                {siteFilter === "no-site" ? "Tous ont un site web" : siteFilter === "has-site" ? "Aucun n'a de site web" : "Aucun résultat"}
               </div>
             )}
 
