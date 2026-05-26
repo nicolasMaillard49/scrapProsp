@@ -90,23 +90,47 @@ export default function CompetitorSection({
     analyze();
   };
 
-  // Find prospect position in competitors list
+  // Compute prospect score using same formula as API
   const prospectScore = report
     ? (() => {
         const match = report.competitors.find(
           (c) => c.name.toLowerCase() === prospectName.toLowerCase()
         );
         if (match) return match.gbp_score;
-        // Estimate from prospect data if not in list
-        const ratingScore = (prospectRating ?? 0) * 12;
-        const reviewScore = Math.min((prospectReviews ?? 0) * 0.3, 30);
+        const ratingScore = prospectRating != null ? (prospectRating / 5) * 40 : 0;
+        const reviewScore = prospectReviews != null
+          ? Math.min(Math.log10(prospectReviews + 1) / Math.log10(500), 1) * 40
+          : 0;
+        // Prospect has no website (that's why they're a prospect)
         return Math.round(ratingScore + reviewScore);
       })()
     : 0;
 
-  const prospectRank = report
-    ? report.competitors.filter((c) => c.gbp_score > prospectScore).length + 1
-    : 0;
+  // Build merged list: competitors + prospect, sorted by score
+  const rankedList = report
+    ? (() => {
+        const isInList = report.competitors.some(
+          (c) => c.name.toLowerCase() === prospectName.toLowerCase()
+        );
+        type RankedItem = { name: string; rating: number | null; reviews: number | null; website: string | null; gbp_score: number; isProspect: boolean };
+        const items: RankedItem[] = report.competitors.map((c) => ({ ...c, isProspect: false }));
+        if (!isInList) {
+          items.push({
+            name: prospectName,
+            rating: prospectRating,
+            reviews: prospectReviews,
+            website: null,
+            gbp_score: prospectScore,
+            isProspect: true,
+          });
+        } else {
+          const idx = items.findIndex((c) => c.name.toLowerCase() === prospectName.toLowerCase());
+          if (idx >= 0) items[idx].isProspect = true;
+        }
+        items.sort((a, b) => b.gbp_score - a.gbp_score);
+        return items;
+      })()
+    : [];
 
   return (
     <details className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-background)]/40 group">
@@ -196,86 +220,81 @@ export default function CompetitorSection({
               </button>
             </div>
 
-            {/* Competitor list */}
+            {/* Ranked list (competitors + prospect merged) */}
             <div className="space-y-1.5">
-              {report.competitors.map((c, i) => (
-                <div
-                  key={`${c.name}-${i}`}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-[var(--color-surface)]/60 border border-[var(--color-border)] text-[12px]"
-                >
-                  {/* Rank */}
-                  <span className="shrink-0 w-5 text-right font-mono text-neutral-500">
-                    #{i + 1}
-                  </span>
-
-                  {/* Name */}
-                  <span className="flex-1 min-w-0 font-medium text-neutral-200 truncate">
-                    {c.name}
-                  </span>
-
-                  {/* Rating */}
-                  {c.rating != null && c.rating > 0 ? (
-                    <span className="shrink-0 flex items-center gap-0.5 text-neutral-300">
-                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                      <span className="font-semibold">{c.rating}</span>
+              {rankedList.map((c, i) => {
+                const rc = c.isProspect ? rankColor(i + 1) : null;
+                return (
+                  <div
+                    key={`${c.name}-${i}`}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[12px] ${
+                      c.isProspect
+                        ? `${rc!.bg} border-2 ${rc!.border} ring-1 ring-violet-500/20`
+                        : "bg-[var(--color-surface)]/60 border border-[var(--color-border)]"
+                    }`}
+                  >
+                    {/* Rank */}
+                    <span className={`shrink-0 w-5 text-right font-mono ${c.isProspect ? rc!.text + " font-bold" : "text-neutral-500"}`}>
+                      #{i + 1}
                     </span>
-                  ) : (
-                    <span className="shrink-0 text-neutral-600">--</span>
-                  )}
 
-                  {/* Reviews */}
-                  <span className="shrink-0 w-12 text-right text-neutral-500">
-                    {c.reviews ?? 0} avis
-                  </span>
+                    {/* Prospect marker */}
+                    {c.isProspect && <MapPin className={`w-3.5 h-3.5 shrink-0 ${rc!.text}`} />}
 
-                  {/* Website badge */}
-                  {c.website ? (
-                    <span className="shrink-0 flex items-center gap-0.5 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
-                      <Globe className="w-2.5 h-2.5" />
-                      Site
+                    {/* Name */}
+                    <span className={`flex-1 min-w-0 font-medium truncate ${c.isProspect ? rc!.text : "text-neutral-200"}`}>
+                      {c.name}
+                      {c.isProspect && <span className="text-[10px] ml-1.5 opacity-70">(vous)</span>}
                     </span>
-                  ) : (
-                    <span className="shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-800/60 text-neutral-500 border border-neutral-700">
-                      Pas de site
-                    </span>
-                  )}
 
-                  {/* GBP Score bar */}
-                  <div className="shrink-0 flex items-center gap-1.5 w-24">
-                    <div className="flex-1 h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
-                      <div
-                        className={`h-full rounded-full bg-gradient-to-r ${scoreColor(c.gbp_score)}`}
-                        style={{ width: `${Math.min(c.gbp_score, 100)}%` }}
-                      />
+                    {/* Rating */}
+                    {c.rating != null && c.rating > 0 ? (
+                      <span className="shrink-0 flex items-center gap-0.5 text-neutral-300">
+                        <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                        <span className="font-semibold">{c.rating}</span>
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-neutral-600">--</span>
+                    )}
+
+                    {/* Reviews */}
+                    <span className="shrink-0 w-12 text-right text-neutral-500">
+                      {c.reviews ?? 0} avis
+                    </span>
+
+                    {/* Website badge */}
+                    {c.website ? (
+                      <span className="shrink-0 flex items-center gap-0.5 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">
+                        <Globe className="w-2.5 h-2.5" />
+                        Site
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-neutral-800/60 text-neutral-500 border border-neutral-700">
+                        Pas de site
+                      </span>
+                    )}
+
+                    {/* GBP Score bar */}
+                    <div className="shrink-0 flex items-center gap-1.5 w-24">
+                      <div className="flex-1 h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+                        <div
+                          className={`h-full rounded-full bg-gradient-to-r ${scoreColor(c.gbp_score)}`}
+                          style={{ width: `${Math.min(c.gbp_score, 100)}%` }}
+                        />
+                      </div>
+                      <span className={`font-mono text-[11px] w-5 text-right ${c.isProspect ? rc!.text : "text-neutral-400"}`}>
+                        {c.gbp_score}
+                      </span>
                     </div>
-                    <span className="font-mono text-[11px] text-neutral-400 w-5 text-right">
-                      {c.gbp_score}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
 
-            {/* Prospect position card */}
-            {(() => {
-              const rc = rankColor(prospectRank);
-              return (
-                <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg ${rc.bg} border ${rc.border}`}>
-                  <MapPin className={`w-4 h-4 shrink-0 ${rc.text}`} />
-                  <div className="flex-1 min-w-0">
-                    <span className={`text-sm font-medium ${rc.text}`}>
-                      {prospectName}
-                    </span>
-                    <span className="text-[12px] text-neutral-400 ml-2">
-                      score {prospectScore}/100 — rang #{prospectRank} sur {report.competitors.length}
-                    </span>
+                    {/* Trophy for top 3 */}
+                    {c.isProspect && i < 3 && (
+                      <Trophy className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
+                    )}
                   </div>
-                  {prospectRank <= 3 && (
-                    <Trophy className="w-4 h-4 shrink-0 text-emerald-300" />
-                  )}
-                </div>
-              );
-            })()}
+                );
+              })}
+            </div>
 
             {/* Ads budget card */}
             {report.ads_budget_est != null && (
