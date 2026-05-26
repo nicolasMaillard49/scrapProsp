@@ -331,6 +331,30 @@ export default function CompetitorSection({
             })}
           </div>
 
+          {/* Site vitrine offer */}
+          <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 overflow-hidden">
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
+              <Globe className="w-3.5 h-3.5 text-violet-300" />
+              <span className="text-[12px] font-medium text-neutral-200">Site vitrine professionnel</span>
+            </div>
+            <div className="px-3 py-3 flex items-center gap-4">
+              <div className="flex-1">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xl font-bold font-mono text-neutral-100">299{"\u20AC"}</span>
+                  <span className="text-[10px] text-neutral-500">création unique</span>
+                </div>
+                <div className="text-[10px] text-neutral-400 mt-0.5">Responsive, SEO, formulaire contact, Google Maps</div>
+              </div>
+              <div className="shrink-0 text-right">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-[14px] font-bold font-mono text-violet-300">29{"\u20AC"}</span>
+                  <span className="text-[10px] text-neutral-500">/mois</span>
+                </div>
+                <div className="text-[9px] text-neutral-500">maintenance & hébergement</div>
+              </div>
+            </div>
+          </div>
+
           {/* Ads tiers + leads estimation */}
           {(report.ads_tiers ?? []).length > 0 ? (() => {
             const leadsData = estimateLeadsPerTier(metier);
