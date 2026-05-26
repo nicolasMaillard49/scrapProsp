@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
   X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
-  Calendar, ChevronDown, MapPin, Star, Clock, History,
+  Calendar, ChevronDown, MapPin, Star, Clock, History, Palette,
 } from "lucide-react";
 import { whatsAppUrl, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import AgeBadge from "./AgeBadge";
@@ -253,6 +253,16 @@ export default function CallModal({
               className="inline-flex items-center gap-1 text-[12px] text-violet-300 hover:text-violet-200 transition"
             >
               <ExternalLink className="w-3 h-3" /> Fiche Google Maps
+            </a>
+          )}
+          {prospect && (
+            <a
+              href={`/maquette/${prospect.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-[12px] text-fuchsia-300 hover:text-fuchsia-200 transition"
+            >
+              <Palette className="w-3 h-3" /> Maquette site
             </a>
           )}
         </div>
