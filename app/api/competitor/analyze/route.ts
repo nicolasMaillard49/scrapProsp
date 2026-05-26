@@ -3,9 +3,8 @@ import { supabase } from "@/app/lib/supabase";
 import {
   CPC_PAR_METIER,
   DEFAULT_CPC,
-  CTR,
-  VOLUME_COEFF,
-  DEFAULT_VOLUME_COEFF,
+  MONTHLY_CLICKS,
+  DEFAULT_MONTHLY_CLICKS,
   SCRAPER_URL,
   REPORT_CACHE_DAYS,
 } from "@/app/lib/competitor-config";
@@ -29,9 +28,8 @@ function computeGbpScore(
 
 function estimateAdsBudget(metier: string): number {
   const cpc = CPC_PAR_METIER[metier] ?? DEFAULT_CPC;
-  const volumeCoeff = VOLUME_COEFF[metier] ?? DEFAULT_VOLUME_COEFF;
-  const estimatedVolume = (20000 / 10000) * volumeCoeff;
-  return Math.round(cpc * estimatedVolume * CTR);
+  const clicks = MONTHLY_CLICKS[metier] ?? DEFAULT_MONTHLY_CLICKS;
+  return Math.round(cpc * clicks);
 }
 
 /* ---------- POST handler ---------- */
