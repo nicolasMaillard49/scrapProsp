@@ -34,6 +34,7 @@ export function useProspects() {
 
   // ── Realtime subscriptions ──────────────────────────────────────────
   useEffect(() => {
+    if (!supabaseConfigured) return;
     const channel = supabase
       .channel("prospects-realtime")
       .on(
