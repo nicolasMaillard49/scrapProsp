@@ -58,6 +58,61 @@ export function estimateAdsTiers(metier: string): { key: string; label: string; 
   }));
 }
 
+// Taux de conversion clic → demande de devis (%) par métier
+// Source : benchmarks Google Ads artisans locaux 2025-2026
+export const CONVERSION_RATE_PAR_METIER: Record<string, number> = {
+  plombier: 0.12,
+  chauffagiste: 0.11,
+  electricien: 0.10,
+  paysagiste: 0.08,
+  couvreur: 0.10,
+  maçon: 0.09,
+  serrurier: 0.15,
+  menuisier: 0.09,
+  carreleur: 0.08,
+  peintre: 0.08,
+};
+
+export const DEFAULT_CONVERSION_RATE = 0.10;
+
+// Panier moyen par devis signé (€ HT)
+export const PANIER_MOYEN_PAR_METIER: Record<string, number> = {
+  plombier: 350,
+  chauffagiste: 800,
+  electricien: 450,
+  paysagiste: 600,
+  couvreur: 1200,
+  maçon: 1500,
+  serrurier: 200,
+  menuisier: 700,
+  carreleur: 500,
+  peintre: 400,
+};
+
+export const DEFAULT_PANIER_MOYEN = 500;
+
+// Taux de signature devis (devis → chantier signé)
+export const TAUX_SIGNATURE = 0.35;
+
+export function estimateLeadsPerTier(metier: string) {
+  const conv = CONVERSION_RATE_PAR_METIER[metier] ?? DEFAULT_CONVERSION_RATE;
+  const panier = PANIER_MOYEN_PAR_METIER[metier] ?? DEFAULT_PANIER_MOYEN;
+  return ADS_TIERS.map((tier) => {
+    const leads = Math.round(tier.clicksPerMonth * conv);
+    const signedDevis = Math.round(leads * TAUX_SIGNATURE);
+    const revenueMensuel = signedDevis * panier;
+    return {
+      key: tier.key,
+      label: tier.label,
+      clicksPerMonth: tier.clicksPerMonth,
+      leads,
+      signedDevis,
+      revenueMensuel,
+      panier,
+    };
+  });
+}
+
 export const SCRAPER_URL = process.env.SCRAPER_URL || "http://51.255.200.169:8001";
 
 export const REPORT_CACHE_DAYS = 7;

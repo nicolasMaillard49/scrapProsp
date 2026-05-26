@@ -16,12 +16,12 @@ import {
   Check,
   MessageSquareQuote,
   Receipt,
-  Tag,
 } from "lucide-react";
 import type { CompetitorReport } from "../lib/types";
 import { generateSalesArgs } from "../lib/gbp";
 import { generateProspectReport } from "../lib/generateReport";
 import { whatsAppUrl, salesWhatsAppMsg } from "../lib/links";
+import { estimateLeadsPerTier } from "../lib/competitor-config";
 
 interface Props {
   prospectId: string;
@@ -331,51 +331,101 @@ export default function CompetitorSection({
             })}
           </div>
 
-          {/* Ads tiers */}
-          {(report.ads_tiers ?? []).length > 0 ? (
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 px-1">
-                <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
-                <span className="text-[12px] font-medium text-neutral-200">
-                  Forfaits Google Ads
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                {report.ads_tiers!.map((tier) => {
-                  const isTop = tier.key === "top1";
-                  const isMid = tier.key === "performance";
-                  return (
-                    <div
-                      key={tier.key}
-                      className={`relative rounded-lg px-2.5 py-3 text-center border ${
-                        isTop
-                          ? "border-violet-500/50 bg-violet-500/10"
-                          : isMid
-                            ? "border-amber-500/30 bg-amber-500/5"
-                            : "border-[var(--color-border)] bg-[var(--color-surface)]/40"
-                      }`}
-                    >
-                      {isTop && (
-                        <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-violet-500 text-[9px] font-bold text-white uppercase tracking-wider">
-                          Populaire
+          {/* Ads tiers + leads estimation */}
+          {(report.ads_tiers ?? []).length > 0 ? (() => {
+            const leadsData = estimateLeadsPerTier(metier);
+            return (
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-1.5 px-1">
+                  <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
+                  <span className="text-[12px] font-medium text-neutral-200">
+                    Forfaits Google Ads
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {report.ads_tiers!.map((tier) => {
+                    const isTop = tier.key === "top1";
+                    const isMid = tier.key === "performance";
+                    const ld = leadsData.find((l) => l.key === tier.key);
+                    return (
+                      <div
+                        key={tier.key}
+                        className={`relative rounded-lg px-2.5 py-3 text-center border ${
+                          isTop
+                            ? "border-violet-500/50 bg-violet-500/10"
+                            : isMid
+                              ? "border-amber-500/30 bg-amber-500/5"
+                              : "border-[var(--color-border)] bg-[var(--color-surface)]/40"
+                        }`}
+                      >
+                        {isTop && (
+                          <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-violet-500 text-[9px] font-bold text-white uppercase tracking-wider">
+                            Populaire
+                          </div>
+                        )}
+                        <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                          isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-400"
+                        }`}>
+                          {tier.label}
                         </div>
-                      )}
-                      <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${
-                        isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-400"
-                      }`}>
-                        {tier.label}
+                        <div className="text-lg font-bold text-neutral-100 font-mono leading-tight">
+                          {tier.budget}{"\u20AC"}
+                        </div>
+                        <div className="text-[9px] text-neutral-500">/ mois</div>
+                        <div className="text-[10px] text-neutral-400 mt-1 leading-tight">{tier.desc}</div>
                       </div>
-                      <div className="text-lg font-bold text-neutral-100 font-mono leading-tight">
-                        {tier.budget}{"\u20AC"}
-                      </div>
-                      <div className="text-[9px] text-neutral-500">/ mois</div>
-                      <div className="text-[10px] text-neutral-400 mt-1 leading-tight">{tier.desc}</div>
+                    );
+                  })}
+                </div>
+
+                {/* Estimation devis par forfait */}
+                <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 overflow-hidden">
+                  <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
+                    <Receipt className="w-3.5 h-3.5 text-emerald-300" />
+                    <span className="text-[12px] font-medium text-neutral-200">
+                      Devis estimés pour {prospectName}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-[var(--color-border)]">
+                    {leadsData.map((ld) => {
+                      const tierInfo = report.ads_tiers!.find((t) => t.key === ld.key);
+                      const isTop = ld.key === "top1";
+                      const isMid = ld.key === "performance";
+                      return (
+                        <div key={ld.key} className="px-3 py-2.5 flex items-center gap-3">
+                          <div className={`shrink-0 w-16 text-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                            isTop ? "bg-violet-500/15 text-violet-300" : isMid ? "bg-amber-500/10 text-amber-300" : "bg-neutral-800 text-neutral-400"
+                          }`}>
+                            {ld.label}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-[15px] font-bold font-mono text-emerald-300">{ld.leads}</span>
+                              <span className="text-[11px] text-neutral-400">demandes de devis / mois</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-0.5">
+                              <span className="text-[10px] text-neutral-500">
+                                {ld.clicksPerMonth} clics × {Math.round((ld.leads / ld.clicksPerMonth) * 100)}% conversion
+                              </span>
+                              <span className="text-[10px] text-neutral-600">|</span>
+                              <span className="text-[10px] text-neutral-500">
+                                ~{ld.signedDevis} signés → <span className="text-emerald-400 font-semibold">{ld.revenueMensuel.toLocaleString("fr-FR")}{"\u20AC"}</span> CA/mois
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="px-3 py-2 bg-[var(--color-surface)]/60 border-t border-[var(--color-border)]">
+                    <div className="text-[9px] text-neutral-500 leading-relaxed">
+                      Basé sur un taux de conversion de {Math.round((leadsData[0]?.leads / leadsData[0]?.clicksPerMonth) * 100)}% (moyenne {metier}) et un panier moyen de {leadsData[0]?.panier}{"\u20AC"} HT, taux de signature 35%.
                     </div>
-                  );
-                })}
+                  </div>
+                </div>
               </div>
-            </div>
-          ) : report.ads_budget_est != null ? (
+            );
+          })() : report.ads_budget_est != null ? (
             <div className="px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40">
               <div className="flex items-center gap-1.5 mb-1">
                 <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
@@ -388,17 +438,6 @@ export default function CompetitorSection({
               </div>
             </div>
           ) : null}
-
-          {/* Devis estimation */}
-          <DevisEstimation
-            prospectName={prospectName}
-            prospectScore={prospectScore}
-            prospectRank={rankedList.findIndex((c) => c.isProspect) + 1}
-            totalCompetitors={rankedList.length}
-            hasWebsite={!!report.competitors.find(
-              (c) => c.name.toLowerCase() === prospectName.toLowerCase()
-            )?.website}
-          />
 
           {/* Sales arguments */}
           <SalesArguments
@@ -514,92 +553,3 @@ function SalesArguments({
   );
 }
 
-/* ---------- Devis Estimation sub-component ---------- */
-
-const DEVIS_ITEMS = [
-  { label: "Site vitrine professionnel", desc: "Responsive, SEO, formulaire, Google Maps", prix: 990 },
-  { label: "Optimisation Google Business", desc: "Audit, photos, catégories, posts 3 mois", prix: 290 },
-  { label: "Formation & accompagnement", desc: "Gestion site, avis, réseaux sociaux (2h)", prix: 190 },
-];
-
-const PACK_DISCOUNT = 0.15;
-
-function DevisEstimation({
-  prospectName,
-  prospectScore,
-  prospectRank,
-  totalCompetitors,
-  hasWebsite,
-}: {
-  prospectName: string;
-  prospectScore: number;
-  prospectRank: number;
-  totalCompetitors: number;
-  hasWebsite: boolean;
-}) {
-  const totalHT = DEVIS_ITEMS.reduce((s, i) => s + i.prix, 0);
-  const packPrice = Math.round(totalHT * (1 - PACK_DISCOUNT));
-
-  // Adapt items: if prospect already has a website, reduce site price
-  const items = hasWebsite
-    ? DEVIS_ITEMS.filter((i) => !i.label.includes("Site vitrine"))
-    : DEVIS_ITEMS;
-  const adaptedTotal = items.reduce((s, i) => s + i.prix, 0);
-  const adaptedPack = Math.round(adaptedTotal * (1 - PACK_DISCOUNT));
-
-  // Priority label based on rank
-  const priority =
-    prospectRank > totalCompetitors * 0.6
-      ? { label: "Priorité haute", cls: "text-rose-300 bg-rose-500/10 border-rose-500/30" }
-      : prospectRank > totalCompetitors * 0.3
-        ? { label: "Recommandé", cls: "text-amber-300 bg-amber-500/10 border-amber-500/30" }
-        : { label: "Optimisation", cls: "text-emerald-300 bg-emerald-500/10 border-emerald-500/30" };
-
-  return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
-        <div className="flex items-center gap-1.5">
-          <Receipt className="w-3.5 h-3.5 text-violet-300" />
-          <span className="text-[12px] font-medium text-neutral-200">Estimation devis</span>
-        </div>
-        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${priority.cls}`}>
-          {priority.label}
-        </span>
-      </div>
-
-      <div className="px-3 py-2.5 space-y-1.5">
-        {items.map((item) => (
-          <div key={item.label} className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="text-[11px] text-neutral-200 font-medium">{item.label}</div>
-              <div className="text-[10px] text-neutral-500 leading-tight">{item.desc}</div>
-            </div>
-            <span className="shrink-0 text-[12px] font-mono font-semibold text-neutral-300">{item.prix}{"\u20AC"}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Pack */}
-      <div className="mx-3 mb-3 mt-1 px-3 py-2.5 rounded-lg bg-violet-500/8 border border-dashed border-violet-500/30">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Tag className="w-3.5 h-3.5 text-violet-400" />
-            <span className="text-[12px] font-semibold text-violet-200">
-              {hasWebsite ? "Pack GBP + Formation" : "Pack Complet"}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-neutral-500 line-through font-mono">{adaptedTotal}{"\u20AC"}</span>
-            <span className="text-[14px] font-bold font-mono text-violet-200">{adaptedPack}{"\u20AC"}</span>
-          </div>
-        </div>
-        <div className="flex items-center justify-between mt-1">
-          <span className="text-[10px] text-neutral-500">
-            {hasWebsite ? "Optimisation GBP + formation incluse" : "Site + GBP + formation — tout inclus"}
-          </span>
-          <span className="text-[10px] font-bold text-violet-400">-{Math.round(PACK_DISCOUNT * 100)}%</span>
-        </div>
-      </div>
-    </div>
-  );
-}
