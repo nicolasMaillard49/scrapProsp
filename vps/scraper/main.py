@@ -7,6 +7,7 @@ Endpoints:
 """
 
 import asyncio
+import logging
 import re
 from contextlib import asynccontextmanager
 
@@ -14,6 +15,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from playwright.async_api import async_playwright
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("scraper")
 
 # ---------------------------------------------------------------------------
 # Globals
@@ -260,6 +264,22 @@ async def scrape(req: ScrapeRequest):
     )
 
 
+async def _go_back_to_feed(page) -> bool:
+    """Navigate back to the results feed and wait for it to be ready."""
+    try:
+        back = page.locator('button[aria-label="Retour"]')
+        if await back.count() > 0:
+            await back.first.click()
+        else:
+            await page.go_back()
+        # Wait for feed to reappear
+        await page.wait_for_selector('div[role="feed"]', timeout=10000)
+        await page.wait_for_timeout(2000)
+        return True
+    except Exception:
+        return False
+
+
 async def _do_scrape(url: str, limit: int) -> list[Competitor]:
     """Core scraping logic — runs inside the timeout wrapper."""
     context = await _browser.new_context(
@@ -276,44 +296,59 @@ async def _do_scrape(url: str, limit: int) -> list[Competitor]:
         page.set_default_timeout(15000)
 
         # Navigate to Maps search
+        log.info(f"Navigating to {url}")
         await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(4000)
         await accept_cookies(page)
 
         # Wait for the feed
         try:
             await page.wait_for_selector('div[role="feed"]', timeout=15000)
+            log.info("Feed found")
         except Exception:
-            # Might be a single result (no feed) — return empty
+            log.warning("No feed found — page title: %s", await page.title())
+            # Take screenshot for debugging
             return []
 
+        await page.wait_for_timeout(2000)
         total = await scroll_feed(page, limit)
+        log.info(f"Feed has {total} items after scrolling (target: {limit})")
         competitors: list[Competitor] = []
         seen: set[str] = set()
+        consecutive_errors = 0
 
-        for i in range(min(total, limit + 10)):
+        for i in range(min(total, limit + 15)):
             if len(competitors) >= limit:
+                break
+            if consecutive_errors >= 3:
                 break
 
             try:
+                # Re-query links each iteration (DOM changes after back nav)
                 links = page.locator('div[role="feed"] > div > div > a')
-                if i >= await links.count():
+                count = await links.count()
+                if i >= count:
                     break
 
                 aria = (
                     await links.nth(i).get_attribute("aria-label") or ""
                 ).strip()
-                if aria in seen:
+                if not aria or aria in seen:
                     continue
 
+                # Click into the place
+                log.info(f"[{i+1}/{total}] Clicking: {aria[:50]}")
                 await links.nth(i).click()
-                await page.wait_for_timeout(2500)
+                await page.wait_for_timeout(3000)
                 try:
-                    await page.wait_for_selector("h1", timeout=5000)
+                    await page.wait_for_selector("h1", timeout=8000)
                 except Exception:
-                    pass
+                    log.warning(f"[{i+1}] No h1 found, skipping")
+                    await _go_back_to_feed(page)
+                    continue
 
                 comp = await extract_place(page)
+                log.info(f"[{i+1}] Extracted: {comp.name} | {comp.rating} | {comp.reviews} avis")
 
                 if comp.name and comp.name not in seen:
                     seen.add(aria)
@@ -323,21 +358,23 @@ async def _do_scrape(url: str, limit: int) -> list[Competitor]:
                     seen.add(aria)
 
                 # Navigate back to the feed
-                back = page.locator('button[aria-label="Retour"]')
-                if await back.count() > 0:
-                    await back.first.click()
-                    await page.wait_for_timeout(1500)
-                else:
-                    await page.go_back()
-                    await page.wait_for_timeout(2000)
+                if not await _go_back_to_feed(page):
+                    # If we can't go back, try reloading the search
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    await page.wait_for_timeout(3000)
+                    await accept_cookies(page)
+                    try:
+                        await page.wait_for_selector('div[role="feed"]', timeout=15000)
+                    except Exception:
+                        break
 
-            except Exception:
-                # Try to go back on error
+                consecutive_errors = 0
+
+            except Exception as exc:
+                consecutive_errors += 1
+                log.error(f"[{i+1}] Error: {str(exc)[:100]}")
                 try:
-                    back = page.locator('button[aria-label="Retour"]')
-                    if await back.count() > 0:
-                        await back.first.click()
-                        await page.wait_for_timeout(1500)
+                    await _go_back_to_feed(page)
                 except Exception:
                     pass
 
