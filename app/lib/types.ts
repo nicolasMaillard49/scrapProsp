@@ -35,3 +35,26 @@ export interface Call {
   note: string | null;
   created_at: string;
 }
+
+export interface CompetitorResult {
+  name: string;
+  rating: number | null;
+  reviews: number | null;
+  address: string | null;
+  phone: string | null;
+  website: string | null;
+  maps_url: string | null;
+  category: string | null;
+  gbp_score: number;
+}
+
+export interface CompetitorReport {
+  id: string;
+  prospect_id: string;
+  ville: string;
+  metier: string;
+  competitors: CompetitorResult[];
+  ads_budget_est: number | null;
+  limit_used: number;
+  created_at: string;
+}
