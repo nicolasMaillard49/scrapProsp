@@ -475,25 +475,27 @@ export default function CartePage() {
 
         {/* Map */}
         <div className="flex-1 relative">
-          {loading && (
-            <div className="absolute inset-0 z-10 bg-[var(--color-background)]/80 flex items-center justify-center">
-              <div className="flex items-center gap-3 text-neutral-300">
-                <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
-                <span className="text-sm">Scraping en cours...</span>
+          <div className="absolute inset-0" style={{ zIndex: 0 }}>
+            {loading && (
+              <div className="absolute inset-0 bg-[var(--color-background)]/80 flex items-center justify-center" style={{ zIndex: 1 }}>
+                <div className="flex items-center gap-3 text-neutral-300">
+                  <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
+                  <span className="text-sm">Scraping en cours...</span>
+                </div>
               </div>
-            </div>
-          )}
-          <MapView
-            prospects={displayList}
-            center={mapCenter}
-            hoveredId={hoveredId}
-            onHover={setHoveredId}
-            onSelect={(id) => setSelectedId(selectedId === id ? null : id)}
-          />
+            )}
+            <MapView
+              prospects={displayList}
+              center={mapCenter}
+              hoveredId={hoveredId}
+              onHover={setHoveredId}
+              onSelect={(id) => setSelectedId(selectedId === id ? null : id)}
+            />
+          </div>
 
           {/* Detail panel */}
           {selectedProspect && (
-            <div className="absolute top-3 right-3 bottom-3 w-[340px] bg-[#111114]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden" style={{ zIndex: 1000 }}>
+            <div className="absolute top-3 right-3 bottom-3 w-[340px] bg-[#111114]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden" style={{ zIndex: 1 }}>
               {/* Header */}
               <div className="px-4 pt-4 pb-3 border-b border-[var(--color-border)]">
                 <div className="flex items-start justify-between gap-2">
