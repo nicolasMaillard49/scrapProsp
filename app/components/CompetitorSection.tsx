@@ -16,6 +16,8 @@ import {
   Check,
   MessageSquareQuote,
   Receipt,
+  ArrowRight,
+  Zap,
 } from "lucide-react";
 import type { CompetitorReport } from "../lib/types";
 import { generateSalesArgs } from "../lib/gbp";
@@ -462,6 +464,152 @@ export default function CompetitorSection({
               </div>
             </div>
           ) : null}
+
+          {/* Ranking projection — site + ads impact */}
+          {report && (() => {
+            const adsBonus: Record<string, number> = { eco: 5, performance: 10, top1: 15 };
+            const siteBonus = 20;
+
+            // Current prospect rank
+            const currentRank = rankedList.findIndex((c) => c.isProspect) + 1;
+            const currentScore = prospectScore;
+            const totalCompetitors = rankedList.length;
+
+            // Helper: compute new rank given a bonus
+            const computeNewRank = (bonus: number) => {
+              const newScore = Math.min(currentScore + bonus, 100);
+              let rank = 1;
+              for (const c of rankedList) {
+                if (!c.isProspect && c.gbp_score > newScore) rank++;
+              }
+              return { rank, score: newScore };
+            };
+
+            const withSite = computeNewRank(siteBonus);
+            const projections = (report.ads_tiers ?? []).map((tier) => {
+              const result = computeNewRank(siteBonus + (adsBonus[tier.key] ?? 0));
+              return { key: tier.key, label: tier.label, ...result };
+            });
+
+            const rankBadge = (rank: number, total: number) => {
+              const rc = rankColor(rank);
+              return (
+                <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[13px] font-bold font-mono ${rc.bg} ${rc.border} ${rc.text} border`}>
+                  #{rank}<span className="text-[10px] font-normal opacity-60">/{total}</span>
+                </span>
+              );
+            };
+
+            const scoreBar = (score: number, label?: string) => (
+              <div className="flex items-center gap-1.5 w-full">
+                <div className="flex-1 h-2 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full bg-gradient-to-r ${scoreColor(score)} transition-all duration-500`}
+                    style={{ width: `${Math.min(score, 100)}%` }}
+                  />
+                </div>
+                <span className="text-[11px] font-mono text-neutral-300 w-6 text-right">{score}</span>
+              </div>
+            );
+
+            return (
+              <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 overflow-hidden">
+                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-violet-500/20 bg-violet-500/10">
+                  <Zap className="w-3.5 h-3.5 text-violet-300" />
+                  <span className="text-[12px] font-medium text-violet-200">
+                    Projection de classement pour {prospectName}
+                  </span>
+                </div>
+
+                <div className="px-3 py-3 space-y-3">
+                  {/* Current state */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-medium">Actuellement</span>
+                      {rankBadge(currentRank, totalCompetitors)}
+                    </div>
+                    {scoreBar(currentScore)}
+                    <p className="text-[10px] text-neutral-500">Sans site web — score plafonné à 80/100</p>
+                  </div>
+
+                  <div className="border-t border-[var(--color-border)] my-1" />
+
+                  {/* With site only */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Globe className="w-3 h-3 text-emerald-400" />
+                        <span className="text-[11px] text-emerald-300 font-medium">Avec site vitrine</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {rankBadge(currentRank, totalCompetitors)}
+                        <ArrowRight className="w-3 h-3 text-neutral-500" />
+                        {rankBadge(withSite.rank, totalCompetitors)}
+                        {withSite.rank < currentRank && (
+                          <span className="text-[10px] text-emerald-400 font-bold">+{currentRank - withSite.rank}</span>
+                        )}
+                      </div>
+                    </div>
+                    {scoreBar(withSite.score)}
+                    <p className="text-[10px] text-neutral-500">+{siteBonus} pts (site web = 20% du score GBP)</p>
+                  </div>
+
+                  {/* With site + each ads tier */}
+                  {projections.length > 0 && (
+                    <>
+                      <div className="border-t border-[var(--color-border)] my-1" />
+                      <div className="space-y-2.5">
+                        {projections.map((proj) => {
+                          const bonus = siteBonus + (adsBonus[proj.key] ?? 0);
+                          const isTop = proj.key === "top1";
+                          const isMid = proj.key === "performance";
+                          return (
+                            <div key={proj.key} className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <TrendingUp className={`w-3 h-3 ${isTop ? "text-violet-400" : isMid ? "text-amber-400" : "text-neutral-400"}`} />
+                                  <span className={`text-[11px] font-medium ${isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-300"}`}>
+                                    Site + {proj.label}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  {rankBadge(currentRank, totalCompetitors)}
+                                  <ArrowRight className="w-3 h-3 text-neutral-500" />
+                                  {rankBadge(proj.rank, totalCompetitors)}
+                                  {proj.rank < currentRank && (
+                                    <span className={`text-[10px] font-bold ${isTop ? "text-violet-400" : isMid ? "text-amber-400" : "text-emerald-400"}`}>
+                                      +{currentRank - proj.rank}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              {scoreBar(proj.score)}
+                              <p className="text-[10px] text-neutral-500">+{bonus} pts (site +{siteBonus} / ads +{adsBonus[proj.key]})</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
+                  {/* Summary line */}
+                  {projections.length > 0 && (() => {
+                    const best = projections[projections.length - 1];
+                    if (best && best.rank < currentRank) {
+                      return (
+                        <div className="mt-2 px-2.5 py-2 rounded-md bg-violet-500/10 border border-violet-500/25">
+                          <p className="text-[11px] text-violet-200 font-medium text-center">
+                            {prospectName} passerait de <span className="font-bold font-mono">#{currentRank}</span> à <span className="font-bold font-mono">#{best.rank}</span> avec un site + {best.label}
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Sales arguments */}
           <SalesArguments
