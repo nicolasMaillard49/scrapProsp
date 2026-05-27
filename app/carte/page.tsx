@@ -151,14 +151,15 @@ export default function CartePage() {
       const scored = competitors.map((c, i) => {
         const rating = c.rating ? parseFloat(c.rating.replace(",", ".")) : null;
         const reviews = c.reviews ? parseInt(c.reviews, 10) : null;
-        const hasWebsite = !!c.website && c.website.length > 0;
+        const rawSite = c.website && /^https?:\/\/.+\..+/.test(c.website) ? c.website : null;
+        const hasWebsite = !!rawSite;
         return {
           id: `search-${i}`,
           name: c.name,
           rating: rating && !isNaN(rating) ? rating : null,
           reviews: reviews && !isNaN(reviews) ? reviews : null,
           phone: c.phone || "",
-          website: c.website || null,
+          website: rawSite,
           address: c.address || null,
           maps_url: c.maps_url || null,
           gbp_score: computeGbpScoreFull(
