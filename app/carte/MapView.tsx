@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -14,6 +14,8 @@ export interface MapProspect {
   reviews: number | null;
   phone: string;
   website?: string | null;
+  address?: string | null;
+  maps_url?: string | null;
   lat?: number;
   lng?: number;
 }
@@ -23,6 +25,7 @@ interface Props {
   center: { lat: number; lng: number };
   hoveredId: string | null;
   onHover: (id: string | null) => void;
+  onSelect?: (id: string) => void;
 }
 
 /* -- Pin-shaped SVG marker -- */
@@ -75,7 +78,7 @@ function RecenterMap({ center }: { center: { lat: number; lng: number } }) {
   return null;
 }
 
-export default function MapView({ prospects, center, hoveredId, onHover }: Props) {
+export default function MapView({ prospects, center, hoveredId, onHover, onSelect }: Props) {
   const withCoords = prospects.filter((p) => p.lat != null && p.lng != null);
 
   return (
@@ -99,48 +102,9 @@ export default function MapView({ prospects, center, hoveredId, onHover }: Props
           eventHandlers={{
             mouseover: () => onHover(p.id),
             mouseout: () => onHover(null),
+            click: () => onSelect?.(p.id),
           }}
-        >
-          <Popup>
-            <div style={{
-              background: "#1a1a1f",
-              color: "#e5e5e5",
-              padding: "12px 14px",
-              borderRadius: "10px",
-              border: "1px solid #2a2a30",
-              minWidth: "200px",
-              fontFamily: "system-ui, sans-serif",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                <div style={{
-                  width: "24px", height: "24px", borderRadius: "50%",
-                  background: p.rank <= 3 ? "#10b981" : "#8b5cf6",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#fff", fontWeight: 700, fontSize: "11px",
-                }}>
-                  {p.rank}
-                </div>
-                <div style={{ fontWeight: 600, fontSize: "13px", flex: 1 }}>{p.name}</div>
-              </div>
-              {p.rating != null && (
-                <div style={{ fontSize: "12px", color: "#a0a0a0", marginBottom: "4px" }}>
-                  {"⭐"} {p.rating} ({p.reviews ?? 0} avis)
-                </div>
-              )}
-              <div style={{ fontSize: "12px", color: "#a0a0a0", marginBottom: "4px" }}>
-                Score GBP: <span style={{ color: p.gbp_score >= 70 ? "#10b981" : p.gbp_score >= 40 ? "#f59e0b" : "#ef4444", fontWeight: 700 }}>{p.gbp_score}/100</span>
-              </div>
-              <div style={{ fontSize: "11px", color: p.website ? "#6b7280" : "#ef4444", marginBottom: "4px" }}>
-                {p.website ? "Site web" : "Pas de site web"}
-              </div>
-              {p.phone && (
-                <a href={`tel:${p.phone.replace(/\s/g, "")}`} style={{ fontSize: "12px", color: "#8b5cf6", textDecoration: "none" }}>
-                  {p.phone}
-                </a>
-              )}
-            </div>
-          </Popup>
-        </Marker>
+        />
       ))}
     </MapContainer>
   );

@@ -13,6 +13,11 @@ import {
   Trophy,
   Loader2,
   SlidersHorizontal,
+  Phone,
+  ExternalLink,
+  X,
+  Copy,
+  Check,
 } from "lucide-react";
 import type { MapProspect } from "./MapView";
 
@@ -66,6 +71,36 @@ function rankText(rank: number): string {
   return "text-neutral-400";
 }
 
+/* -- Detail helpers -- */
+function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="px-3 py-2 rounded-xl bg-[var(--color-surface)]/40 border border-[var(--color-border)]">
+      <div className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium mb-1">{label}</div>
+      <div className="flex items-center gap-2">
+        <span className="text-neutral-500">{icon}</span>
+        <span className="text-sm text-neutral-200">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className="p-1.5 rounded-lg hover:bg-[var(--color-surface)] text-neutral-500 hover:text-neutral-200 transition"
+    >
+      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
 /* -- Main -- */
 export default function CartePage() {
   const [metier, setMetier] = useState("");
@@ -77,12 +112,14 @@ export default function CartePage() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [siteFilter, setSiteFilter] = useState<"all" | "no-site" | "has-site">("all");
   const [searchDone, setSearchDone] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const doSearch = useCallback(async () => {
     if (!metier.trim() || !ville.trim()) return;
     setLoading(true);
     setError(null);
     setSearchDone(false);
+    setSelectedId(null);
 
     try {
       const res = await fetch("/api/carte/search", {
@@ -168,6 +205,11 @@ export default function CartePage() {
     );
     return filtered.map((p, i) => ({ ...p, rank: i + 1 }));
   }, [results, siteFilter]);
+
+  const selectedProspect = useMemo(
+    () => displayList.find((p) => p.id === selectedId) ?? null,
+    [selectedId, displayList],
+  );
 
   const mapCenter = useMemo(() => {
     const withCoords = displayList.filter((p) => p.lat && p.lng);
@@ -341,12 +383,15 @@ export default function CartePage() {
               {displayList.map((p) => (
                 <button
                   key={p.id}
+                  onClick={() => setSelectedId(selectedId === p.id ? null : p.id)}
                   onMouseEnter={() => setHoveredId(p.id)}
                   onMouseLeave={() => setHoveredId(null)}
                   className={`w-full text-left px-3 py-2.5 transition-colors ${
-                    hoveredId === p.id
-                      ? "bg-violet-500/10"
-                      : "hover:bg-[var(--color-surface)]/60"
+                    selectedId === p.id
+                      ? "bg-violet-500/15 border-l-2 border-l-violet-500"
+                      : hoveredId === p.id
+                        ? "bg-violet-500/10"
+                        : "hover:bg-[var(--color-surface)]/60"
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -443,7 +488,154 @@ export default function CartePage() {
             center={mapCenter}
             hoveredId={hoveredId}
             onHover={setHoveredId}
+            onSelect={(id) => setSelectedId(selectedId === id ? null : id)}
           />
+
+          {/* Detail panel */}
+          {selectedProspect && (
+            <div className="absolute top-3 right-3 bottom-3 w-[340px] z-20 bg-[#111114]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden animate-in slide-in-from-right-4 duration-200">
+              {/* Header */}
+              <div className="px-4 pt-4 pb-3 border-b border-[var(--color-border)]">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold border ${rankBg(selectedProspect.rank)} ${rankText(selectedProspect.rank)}`}
+                    >
+                      {selectedProspect.rank}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-[15px] font-bold text-neutral-50 truncate">
+                        {selectedProspect.name}
+                      </h3>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        {selectedProspect.rating ? (
+                          <span className="flex items-center gap-0.5 text-xs text-neutral-300">
+                            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                            {selectedProspect.rating}
+                            <span className="text-neutral-500">({selectedProspect.reviews ?? 0})</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-neutral-600">Pas de note</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedId(null)}
+                    className="p-1.5 rounded-lg hover:bg-[var(--color-surface)] text-neutral-500 hover:text-neutral-200 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                {/* Score */}
+                <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[var(--color-surface)]/60 border border-[var(--color-border)]">
+                  <span className="text-xs text-neutral-400 font-medium">Score GBP</span>
+                  <span
+                    className={`text-lg font-mono font-bold ${
+                      selectedProspect.gbp_score >= 70
+                        ? "text-emerald-300"
+                        : selectedProspect.gbp_score >= 40
+                          ? "text-amber-300"
+                          : "text-rose-300"
+                    }`}
+                  >
+                    {selectedProspect.gbp_score}/100
+                  </span>
+                </div>
+
+                {/* Website status */}
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+                  selectedProspect.website
+                    ? "bg-emerald-500/8 border-emerald-500/25"
+                    : "bg-rose-500/8 border-rose-500/25"
+                }`}>
+                  {selectedProspect.website ? (
+                    <>
+                      <Globe className="w-4 h-4 text-emerald-400" />
+                      <span className="text-xs text-emerald-300 font-medium truncate flex-1">
+                        {selectedProspect.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                      </span>
+                      <a
+                        href={selectedProspect.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 hover:bg-emerald-500/20 rounded transition"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <GlobeOff className="w-4 h-4 text-rose-400" />
+                      <span className="text-xs text-rose-300 font-medium">Pas de site web — Prospect idéal</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Address */}
+                {selectedProspect.address && (
+                  <DetailRow
+                    icon={<MapPin className="w-4 h-4" />}
+                    label="Adresse"
+                    value={selectedProspect.address}
+                  />
+                )}
+
+                {/* Phone */}
+                {selectedProspect.phone && (
+                  <div className="px-3 py-2 rounded-xl bg-[var(--color-surface)]/40 border border-[var(--color-border)]">
+                    <div className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium mb-1">Téléphone</div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-neutral-200 font-mono">{selectedProspect.phone}</span>
+                      <CopyButton text={selectedProspect.phone} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Maps link */}
+                {selectedProspect.maps_url && (
+                  <a
+                    href={selectedProspect.maps_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-surface)]/40 border border-[var(--color-border)] hover:border-violet-500/40 transition group"
+                  >
+                    <MapPin className="w-4 h-4 text-neutral-500 group-hover:text-violet-400 transition" />
+                    <span className="text-xs text-neutral-400 group-hover:text-violet-300 transition">Voir sur Google Maps</span>
+                    <ExternalLink className="w-3 h-3 text-neutral-600 ml-auto group-hover:text-violet-400 transition" />
+                  </a>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="px-4 py-3 border-t border-[var(--color-border)] space-y-2">
+                {selectedProspect.phone && (
+                  <div className="flex gap-2">
+                    <a
+                      href={`tel:${selectedProspect.phone.replace(/\s/g, "")}`}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Appeler
+                    </a>
+                    <a
+                      href={`https://wa.me/33${selectedProspect.phone.replace(/\s/g, "").replace(/^0/, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition"
+                    >
+                      <Phone className="w-4 h-4" />
+                      WhatsApp
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>
