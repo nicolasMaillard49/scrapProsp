@@ -562,7 +562,7 @@ export default function CartePage() {
                         {selectedProspect.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
                       </span>
                       <a
-                        href={selectedProspect.website}
+                        href={selectedProspect.website.match(/^https?:\/\//) ? selectedProspect.website : `https://${selectedProspect.website}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="p-1 hover:bg-emerald-500/20 rounded transition"
