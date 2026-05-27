@@ -493,7 +493,7 @@ export default function CartePage() {
 
           {/* Detail panel */}
           {selectedProspect && (
-            <div className="absolute top-3 right-3 bottom-3 w-[340px] z-20 bg-[#111114]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden animate-in slide-in-from-right-4 duration-200">
+            <div className="absolute top-3 right-3 bottom-3 w-[340px] bg-[#111114]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden" style={{ zIndex: 1000 }}>
               {/* Header */}
               <div className="px-4 pt-4 pb-3 border-b border-[var(--color-border)]">
                 <div className="flex items-start justify-between gap-2">
