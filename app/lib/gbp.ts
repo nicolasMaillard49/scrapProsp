@@ -1,17 +1,18 @@
 import type { CompetitorResult } from "./types";
 
-/** Compute a GBP score (0-100) for a prospect without a website */
+/** Compute a GBP score (0-100): rating 40% + reviews 40% + website 20% */
 export function computeGbpScore(
   rating: number | null,
   reviews: number | null,
+  hasWebsite = false,
 ): number {
   const ratingScore = rating != null ? (rating / 5) * 40 : 0;
   const reviewsScore =
     reviews != null
       ? Math.min(Math.log10(reviews + 1) / Math.log10(500), 1) * 40
       : 0;
-  // No website score (prospects don't have one)
-  return Math.round(ratingScore + reviewsScore);
+  const websiteScore = hasWebsite ? 20 : 0;
+  return Math.round(ratingScore + reviewsScore + websiteScore);
 }
 
 /** Badge color based on GBP strength (= lead quality) */
@@ -21,9 +22,9 @@ export function gbpBadge(rating: number | null, reviews: number | null): {
   label: string;
 } {
   const score = computeGbpScore(rating, reviews);
-  if (score >= 55)
+  if (score >= 70)
     return { color: "text-emerald-400", bg: "bg-emerald-500/15", label: "Fort" };
-  if (score >= 35)
+  if (score >= 40)
     return { color: "text-amber-400", bg: "bg-amber-500/15", label: "Moyen" };
   return { color: "text-rose-400", bg: "bg-rose-500/15", label: "Faible" };
 }

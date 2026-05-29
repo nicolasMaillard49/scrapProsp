@@ -1,15 +1,25 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { createClient } from "@supabase/supabase-js";
 import html2canvas from "html2canvas";
+import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import ProTemplate from "../templates/ProTemplate";
 import CorporateTemplate from "../templates/CorporateTemplate";
+import MinimalTemplate from "../templates/MinimalTemplate";
+import ElectricTemplate from "../templates/ElectricTemplate";
+import ForestTemplate from "../templates/ForestTemplate";
+import LuxeTemplate from "../templates/LuxeTemplate";
+import TerraTemplate from "../templates/TerraTemplate";
 import type { TemplateProps } from "../templates/data";
 
 const TEMPLATES = {
-  pro: { label: "Pro (JT Plomberie)", component: ProTemplate },
-  corporate: { label: "Corporate (EP Renov)", component: CorporateTemplate },
+  pro: { label: "Pro", component: ProTemplate },
+  corporate: { label: "Corporate", component: CorporateTemplate },
+  minimal: { label: "Minimal", component: MinimalTemplate },
+  electric: { label: "Electric", component: ElectricTemplate },
+  forest: { label: "Forest", component: ForestTemplate },
+  luxe: { label: "Luxe", component: LuxeTemplate },
+  terra: { label: "Terra", component: TerraTemplate },
 } as const;
 
 type TemplateKey = keyof typeof TEMPLATES;
@@ -24,20 +34,17 @@ export default function MaquettePage({ params }: { params: Promise<{ id: string 
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    params.then((p) => setProspectId(p.id));
+    params.then((p) => setProspectId(p.id)).catch(() => {});
   }, [params]);
 
   useEffect(() => {
     if (!prospectId) return;
 
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    if (!url || !key) {
+    if (!supabaseConfigured) {
       setLoading(false);
       return;
     }
 
-    const supabase = createClient(url, key);
     supabase
       .from("prospects")
       .select("name, metier, phone, ville, rating, reviews, address")
@@ -110,70 +117,76 @@ export default function MaquettePage({ params }: { params: Promise<{ id: string 
           transform: "translateX(-50%)",
           zIndex: 9999,
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
-          gap: 12,
+          gap: 8,
           background: "rgba(17,24,39,0.95)",
           backdropFilter: "blur(12px)",
-          padding: "12px 20px",
+          padding: "14px 20px",
           borderRadius: 16,
           boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
           border: "1px solid rgba(255,255,255,0.1)",
           fontFamily: "system-ui",
+          maxWidth: "95vw",
         }}>
-          <span style={{ color: "#9ca3af", fontSize: 13, fontWeight: 600 }}>Template :</span>
-          {(Object.keys(TEMPLATES) as TemplateKey[]).map((k) => (
+          {/* Template selector row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+            <span style={{ color: "#9ca3af", fontSize: 12, fontWeight: 600, marginRight: 4 }}>Style :</span>
+            {(Object.keys(TEMPLATES) as TemplateKey[]).map((k) => (
+              <button
+                key={k}
+                onClick={() => setTemplate(k)}
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: 6,
+                  border: "none",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: template === k ? "#7c3aed" : "rgba(255,255,255,0.08)",
+                  color: template === k ? "#fff" : "#d1d5db",
+                  transition: "all 0.15s",
+                }}
+              >
+                {TEMPLATES[k].label}
+              </button>
+            ))}
+          </div>
+          {/* Actions row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
-              key={k}
-              onClick={() => setTemplate(k)}
+              onClick={() => capture("hero")}
+              disabled={capturing}
               style={{
-                padding: "8px 16px",
-                borderRadius: 8,
-                border: "none",
-                fontSize: 13,
+                padding: "7px 14px",
+                borderRadius: 6,
+                border: "1px solid rgba(124,58,237,0.5)",
+                background: "rgba(124,58,237,0.15)",
+                color: "#c4b5fd",
+                fontSize: 12,
                 fontWeight: 600,
-                cursor: "pointer",
-                background: template === k ? "#7c3aed" : "rgba(255,255,255,0.08)",
-                color: template === k ? "#fff" : "#d1d5db",
+                cursor: capturing ? "wait" : "pointer",
               }}
             >
-              {TEMPLATES[k].label}
+              Hero
             </button>
-          ))}
-
-          <div style={{ width: 1, height: 28, background: "rgba(255,255,255,0.15)", margin: "0 4px" }} />
-
-          <button
-            onClick={() => capture("hero")}
-            disabled={capturing}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "1px solid rgba(124,58,237,0.5)",
-              background: "rgba(124,58,237,0.15)",
-              color: "#c4b5fd",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: capturing ? "wait" : "pointer",
-            }}
-          >
-            📷 Hero
-          </button>
-          <button
-            onClick={() => capture("full")}
-            disabled={capturing}
-            style={{
-              padding: "8px 16px",
-              borderRadius: 8,
-              border: "none",
-              background: "#7c3aed",
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: capturing ? "wait" : "pointer",
-            }}
-          >
-            📸 Page complète
-          </button>
+            <button
+              onClick={() => capture("full")}
+              disabled={capturing}
+              style={{
+                padding: "7px 14px",
+                borderRadius: 6,
+                border: "none",
+                background: "#7c3aed",
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: capturing ? "wait" : "pointer",
+              }}
+            >
+              Page complete
+            </button>
+          </div>
         </div>
       )}
 

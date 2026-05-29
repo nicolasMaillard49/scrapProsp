@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -14,24 +14,36 @@ import {
   Loader2,
   SlidersHorizontal,
   Phone,
+  MessageCircle,
   ExternalLink,
   X,
   Copy,
   Check,
+  Menu,
 } from "lucide-react";
 import type { MapProspect } from "./MapView";
+import { computeGbpScore } from "@/app/lib/gbp";
+import { phoneForWhatsApp } from "@/app/lib/links";
 
-const MapView = dynamic(() => import("./MapView"), { ssr: false });
+const MapView = dynamic(() => import("./MapView"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full w-full flex items-center justify-center bg-[#111114]">
+      <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
+    </div>
+  ),
+});
 
 /* -- Geocode cache -- */
-const geoCache = new Map<string, { lat: number; lng: number } | null>();
+const geoCache = new Map<string, { lat: number; lng: number }>();
 
 async function geocodeVille(ville: string): Promise<{ lat: number; lng: number } | null> {
-  if (geoCache.has(ville)) return geoCache.get(ville)!;
+  const cached = geoCache.get(ville);
+  if (cached) return cached;
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(ville + ", France")}&format=json&limit=1`,
-      { headers: { "User-Agent": "ProspectsTracker/1.0" } },
+      { headers: { "User-Agent": "ProspectsTracker/1.0" }, signal: AbortSignal.timeout(5000) },
     );
     const data = await res.json();
     if (data.length > 0) {
@@ -39,24 +51,10 @@ async function geocodeVille(ville: string): Promise<{ lat: number; lng: number }
       geoCache.set(ville, result);
       return result;
     }
-  } catch {}
-  geoCache.set(ville, null);
+  } catch {
+    /* Don't cache failures -- allow retries on next search */
+  }
   return null;
-}
-
-/* -- GBP score (with website factor) -- */
-function computeGbpScoreFull(
-  rating: number | null,
-  reviews: number | null,
-  hasWebsite: boolean,
-): number {
-  const ratingScore = rating != null ? (rating / 5) * 40 : 0;
-  const reviewsScore =
-    reviews != null
-      ? Math.min(Math.log10(reviews + 1) / Math.log10(500), 1) * 40
-      : 0;
-  const websiteScore = hasWebsite ? 20 : 0;
-  return Math.round(ratingScore + reviewsScore + websiteScore);
 }
 
 /* -- Rank helpers -- */
@@ -113,6 +111,12 @@ export default function CartePage() {
   const [siteFilter, setSiteFilter] = useState<"all" | "no-site" | "has-site">("all");
   const [searchDone, setSearchDone] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  /* Default: sidebar closed on mobile */
+  useEffect(() => {
+    if (window.innerWidth < 768) setSidebarOpen(false);
+  }, []);
 
   const doSearch = useCallback(async () => {
     if (!metier.trim() || !ville.trim()) return;
@@ -162,7 +166,7 @@ export default function CartePage() {
           website: rawSite,
           address: c.address || null,
           maps_url: c.maps_url || null,
-          gbp_score: computeGbpScoreFull(
+          gbp_score: computeGbpScore(
             rating && !isNaN(rating) ? rating : null,
             reviews && !isNaN(reviews) ? reviews : null,
             hasWebsite,
@@ -198,13 +202,12 @@ export default function CartePage() {
     }
   }, [metier, ville, limit]);
 
-  // Filter displayed list
+  // Filter displayed list -- keep original ranks
   const displayList = useMemo(() => {
     if (siteFilter === "all") return results;
-    const filtered = results.filter((p) =>
+    return results.filter((p) =>
       siteFilter === "no-site" ? !p.website : !!p.website,
     );
-    return filtered.map((p, i) => ({ ...p, rank: i + 1 }));
   }, [results, siteFilter]);
 
   const selectedProspect = useMemo(
@@ -226,14 +229,22 @@ export default function CartePage() {
   return (
     <main className="h-screen flex flex-col bg-[var(--color-background)] text-neutral-100">
       {/* Top bar */}
-      <div className="shrink-0 bg-[#111114] border-b border-[var(--color-border)] px-4 py-3">
-        <div className="flex items-center gap-4 flex-wrap">
+      <div className="shrink-0 bg-[#111114] border-b border-[var(--color-border)] px-3 md:px-4 py-3">
+        <div className="flex items-center gap-2 md:gap-4 flex-wrap">
           <Link
             href="/"
             className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
+
+          {/* Mobile sidebar toggle */}
+          <button
+            onClick={() => setSidebarOpen((v) => !v)}
+            className="md:hidden p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
 
           <div className="shrink-0">
             <h1 className="font-display italic text-[22px] leading-none tracking-tight text-neutral-50">
@@ -248,13 +259,13 @@ export default function CartePage() {
 
           {/* Search form */}
           <form
-            className="flex items-center gap-2 flex-1 min-w-0"
+            className="flex items-center gap-2 flex-1 min-w-0 flex-wrap md:flex-nowrap"
             onSubmit={(e) => {
               e.preventDefault();
               doSearch();
             }}
           >
-            <div className="relative flex-1 min-w-0 max-w-[200px]">
+            <div className="relative flex-1 min-w-[120px] max-w-full md:max-w-[200px]">
               <input
                 type="text"
                 placeholder="Métier (ex: electricien)"
@@ -264,7 +275,7 @@ export default function CartePage() {
               />
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
             </div>
-            <div className="relative flex-1 min-w-0 max-w-[240px]">
+            <div className="relative flex-1 min-w-[120px] max-w-full md:max-w-[240px]">
               <input
                 type="text"
                 placeholder="Ville (ex: Brissac Loire Aubance)"
@@ -300,22 +311,40 @@ export default function CartePage() {
               ) : (
                 <Search className="w-4 h-4" />
               )}
-              {loading ? "Scraping..." : "Rechercher"}
+              <span className="hidden sm:inline">{loading ? "Scraping..." : "Rechercher"}</span>
             </button>
           </form>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile sidebar backdrop */}
+        {sidebarOpen && (
+          <div
+            className="md:hidden fixed inset-0 bg-black/60 z-20"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
         {/* Left sidebar */}
-        <div className="w-[360px] shrink-0 border-r border-[var(--color-border)] bg-[var(--color-surface)]/30 flex flex-col overflow-hidden">
+        <div
+          className={`fixed inset-0 z-30 md:relative md:z-auto w-full md:w-[360px] md:shrink-0 border-r border-[var(--color-border)] bg-[#111114] md:bg-[var(--color-surface)]/30 flex flex-col overflow-hidden transition-transform duration-200 ease-in-out ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          }`}
+        >
           {/* Sidebar header */}
           <div className="px-3 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-[12px] font-medium text-neutral-300">
                 <Trophy className="w-4 h-4 text-amber-400" />
                 Classement GBP
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="md:hidden ml-2 p-1 rounded-lg hover:bg-[var(--color-surface)] text-neutral-500 hover:text-neutral-200 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
               {searchDone && results.length > 0 && (
                 <div className="flex items-center gap-1">
@@ -384,7 +413,10 @@ export default function CartePage() {
               {displayList.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setSelectedId(selectedId === p.id ? null : p.id)}
+                  onClick={() => {
+                    setSelectedId(selectedId === p.id ? null : p.id);
+                    if (window.innerWidth < 768) setSidebarOpen(false);
+                  }}
                   onMouseEnter={() => setHoveredId(p.id)}
                   onMouseLeave={() => setHoveredId(null)}
                   className={`w-full text-left px-3 py-2.5 transition-colors ${
@@ -489,14 +521,22 @@ export default function CartePage() {
               prospects={displayList}
               center={mapCenter}
               hoveredId={hoveredId}
+              selectedId={selectedId}
               onHover={setHoveredId}
-              onSelect={(id) => setSelectedId(selectedId === id ? null : id)}
+              onSelect={(id) => setSelectedId(id)}
             />
           </div>
 
+          {/* Approximate positions disclaimer */}
+          {searchDone && displayList.length > 0 && (
+            <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-[#111114]/80 border border-[var(--color-border)] text-[10px] text-neutral-500 backdrop-blur-sm" style={{ zIndex: 1 }}>
+              Positions approximatives
+            </div>
+          )}
+
           {/* Detail panel */}
           {selectedProspect && (
-            <div className="absolute top-3 right-3 bottom-3 w-[340px] bg-[#111114]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden" style={{ zIndex: 1 }}>
+            <div className="absolute inset-x-0 bottom-0 max-h-[70vh] md:inset-x-auto md:top-3 md:right-3 md:bottom-3 md:max-h-none md:w-[340px] bg-[#111114]/95 backdrop-blur-xl border border-[var(--color-border)] rounded-t-2xl md:rounded-2xl shadow-2xl shadow-black/60 flex flex-col overflow-hidden" style={{ zIndex: 1 }}>
               {/* Header */}
               <div className="px-4 pt-4 pb-3 border-b border-[var(--color-border)]">
                 <div className="flex items-start justify-between gap-2">
@@ -574,7 +614,7 @@ export default function CartePage() {
                   ) : (
                     <>
                       <GlobeOff className="w-4 h-4 text-rose-400" />
-                      <span className="text-xs text-rose-300 font-medium">Pas de site web — Prospect idéal</span>
+                      <span className="text-xs text-rose-300 font-medium">Pas de site web -- Prospect idéal</span>
                     </>
                   )}
                 </div>
@@ -626,12 +666,12 @@ export default function CartePage() {
                       Appeler
                     </a>
                     <a
-                      href={`https://wa.me/33${selectedProspect.phone.replace(/\s/g, "").replace(/^0/, "")}`}
+                      href={`https://wa.me/${phoneForWhatsApp(selectedProspect.phone)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition"
                     >
-                      <Phone className="w-4 h-4" />
+                      <MessageCircle className="w-4 h-4" />
                       WhatsApp
                     </a>
                   </div>

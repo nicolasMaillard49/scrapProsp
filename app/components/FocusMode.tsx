@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Phone, X, ChevronLeft, ChevronRight, MapPin, Star,
   CheckCircle2, XCircle, PhoneOff, PhoneCall, SkipForward, Pause, Play, ExternalLink,

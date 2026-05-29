@@ -1,13 +1,11 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase, supabaseConfigured } from "./supabase";
 import type { Call, Prospect, Status } from "./types";
 
 export function useProspects() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const prospectsRef = useRef<Prospect[]>(prospects);
-  prospectsRef.current = prospects;
 
   // ── Initial fetch ───────────────────────────────────────────────────
   useEffect(() => {
@@ -123,10 +121,13 @@ export function useProspects() {
 
   const updateStatus = useCallback(
     async (prospectId: string, status: Status, duration?: number) => {
-      // Optimistic: update prospect status
-      setProspects((prev) =>
-        prev.map((p) => (p.id === prospectId ? { ...p, status } : p)),
-      );
+      // Save previous status for rollback
+      let previousStatus: Status | undefined;
+      setProspects((prev) => {
+        const found = prev.find((p) => p.id === prospectId);
+        if (found) previousStatus = found.status;
+        return prev.map((p) => (p.id === prospectId ? { ...p, status } : p));
+      });
 
       // DB: update prospect status
       const { error } = await supabase
@@ -134,7 +135,16 @@ export function useProspects() {
         .update({ status })
         .eq("id", prospectId);
 
-      if (error) console.error("updateStatus prospect error:", error);
+      if (error) {
+        console.error("updateStatus prospect error:", error);
+        // Rollback optimistic update
+        if (previousStatus !== undefined) {
+          setProspects((prev) =>
+            prev.map((p) => (p.id === prospectId ? { ...p, status: previousStatus! } : p)),
+          );
+        }
+        return;
+      }
 
       // If not "todo", also insert a call record
       if (status !== "todo") {

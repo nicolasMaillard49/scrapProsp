@@ -5,23 +5,8 @@ import {
   SCRAPER_URL,
   REPORT_CACHE_DAYS,
 } from "@/app/lib/competitor-config";
+import { computeGbpScore } from "@/app/lib/gbp";
 import type { CompetitorResult } from "@/app/lib/types";
-
-function computeGbpScore(
-  rating: number | null,
-  reviews: number | null,
-  hasWebsite: boolean,
-): number {
-  const ratingScore = rating != null ? (rating / 5) * 40 : 0;
-  const reviewsScore =
-    reviews != null
-      ? Math.min(Math.log10(reviews + 1) / Math.log10(500), 1) * 40
-      : 0;
-  const websiteScore = hasWebsite ? 20 : 0;
-  return Math.round(ratingScore + reviewsScore + websiteScore);
-}
-
-// Removed: single budget → now using estimateAdsTiers from config
 
 /**
  * POST /api/competitor/batch

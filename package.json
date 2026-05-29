@@ -9,6 +9,7 @@
     "enrich:sirene": "node scripts/enrich-sirene.mjs"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.106.2",
     "@types/leaflet": "^1.9.21",
     "@types/qrcode": "^1.5.6",

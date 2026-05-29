@@ -9,12 +9,7 @@
   --color-text-primary: #ededf2;
   --color-text-secondary: #a0a0aa;
   --color-text-muted: #6b6b75;
-  --color-accent: #7B4FE0;
   --color-accent-soft: #2a1f4a;
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-  --color-info: #60a5fa;
   --font-display: var(--font-display);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -56,8 +51,9 @@ body > * { position: relative; z-index: 1; }
 ::-webkit-scrollbar-thumb { background: #2e2e36; border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: #3e3e46; }
 
-input:focus, select:focus, button:focus, textarea:focus {
-  outline: none;
+input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-visible {
+  outline: 2px solid rgba(123, 79, 224, 0.5);
+  outline-offset: 2px;
 }
 
 .font-display { font-family: var(--font-display), Georgia, serif; }

@@ -89,6 +89,9 @@ export function openLabel(
 export function parseScrapeDate(raw?: string): Date {
   if (!raw) return new Date();
   const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-  if (!m) return new Date(raw) || new Date();
+  if (!m) {
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
   return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
 }

@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
+export const dynamic = "force-dynamic";
+
 async function login(formData: FormData) {
   "use server";
   const password = String(formData.get("password") || "");

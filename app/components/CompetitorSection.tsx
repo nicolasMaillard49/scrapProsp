@@ -187,7 +187,7 @@ export default function CompetitorSection({
 
   // Expanded: side panel with results
   return (
-    <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-5 w-full min-w-[340px] max-w-lg shadow-2xl overflow-y-auto max-h-[85vh]">
+    <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-5 w-full min-w-[340px] max-w-lg shadow-2xl overflow-y-auto overflow-x-hidden max-h-[85vh]">
       {/* Loading state */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -376,7 +376,7 @@ export default function CompetitorSection({
                     return (
                       <div
                         key={tier.key}
-                        className={`relative rounded-lg px-2.5 py-3 text-center border ${
+                        className={`relative rounded-lg px-2.5 py-3 text-center border overflow-hidden ${
                           isTop
                             ? "border-violet-500/50 bg-violet-500/10"
                             : isMid
@@ -385,20 +385,20 @@ export default function CompetitorSection({
                         }`}
                       >
                         {isTop && (
-                          <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-violet-500 text-[9px] font-bold text-white uppercase tracking-wider">
+                          <div className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-violet-500 text-[9px] font-bold text-white uppercase tracking-wider whitespace-nowrap">
                             Populaire
                           </div>
                         )}
-                        <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                        <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 truncate ${
                           isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-400"
                         }`}>
                           {tier.label}
                         </div>
-                        <div className="text-lg font-bold text-neutral-100 font-mono leading-tight">
+                        <div className="text-lg font-bold text-neutral-100 font-mono leading-tight truncate">
                           {tier.budget}{"\u20AC"}
                         </div>
                         <div className="text-[9px] text-neutral-500">/ mois</div>
-                        <div className="text-[10px] text-neutral-400 mt-1 leading-tight">{tier.desc}</div>
+                        <div className="text-[10px] text-neutral-400 mt-1 leading-tight break-words">{tier.desc}</div>
                       </div>
                     );
                   })}
@@ -407,8 +407,8 @@ export default function CompetitorSection({
                 {/* Estimation devis par forfait */}
                 <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 overflow-hidden">
                   <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
-                    <Receipt className="w-3.5 h-3.5 text-emerald-300" />
-                    <span className="text-[12px] font-medium text-neutral-200">
+                    <Receipt className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
+                    <span className="text-[12px] font-medium text-neutral-200 min-w-0 truncate">
                       Devis estimés pour {prospectName}
                     </span>
                   </div>
@@ -419,21 +419,21 @@ export default function CompetitorSection({
                       const isMid = ld.key === "performance";
                       return (
                         <div key={ld.key} className="px-3 py-2.5 flex items-center gap-3">
-                          <div className={`shrink-0 w-16 text-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                          <div className={`shrink-0 min-w-[4rem] w-16 text-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider truncate ${
                             isTop ? "bg-violet-500/15 text-violet-300" : isMid ? "bg-amber-500/10 text-amber-300" : "bg-neutral-800 text-neutral-400"
                           }`}>
                             {ld.label}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-1.5">
-                              <span className="text-[15px] font-bold font-mono text-emerald-300">{ld.leads}</span>
-                              <span className="text-[11px] text-neutral-400">demandes de devis / mois</span>
+                            <div className="flex items-baseline gap-1.5 min-w-0">
+                              <span className="shrink-0 text-[15px] font-bold font-mono text-emerald-300">{ld.leads}</span>
+                              <span className="text-[11px] text-neutral-400 truncate">demandes de devis / mois</span>
                             </div>
-                            <div className="flex items-center gap-3 mt-0.5">
+                            <div className="flex items-center gap-3 mt-0.5 flex-wrap min-w-0">
                               <span className="text-[10px] text-neutral-500">
                                 {ld.clicksPerMonth} clics × {Math.round((ld.leads / ld.clicksPerMonth) * 100)}% conversion
                               </span>
-                              <span className="text-[10px] text-neutral-600">|</span>
+                              <span className="text-[10px] text-neutral-600 hidden sm:inline">|</span>
                               <span className="text-[10px] text-neutral-500">
                                 ~{ld.signedDevis} signés → <span className="text-emerald-400 font-semibold">{ld.revenueMensuel.toLocaleString("fr-FR")}{"\u20AC"}</span> CA/mois
                               </span>
@@ -515,8 +515,8 @@ export default function CompetitorSection({
             return (
               <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 overflow-hidden">
                 <div className="flex items-center gap-1.5 px-3 py-2 border-b border-violet-500/20 bg-violet-500/10">
-                  <Zap className="w-3.5 h-3.5 text-violet-300" />
-                  <span className="text-[12px] font-medium text-violet-200">
+                  <Zap className="w-3.5 h-3.5 shrink-0 text-violet-300" />
+                  <span className="text-[12px] font-medium text-violet-200 min-w-0 truncate">
                     Projection de classement pour {prospectName}
                   </span>
                 </div>
@@ -524,7 +524,7 @@ export default function CompetitorSection({
                 <div className="px-3 py-3 space-y-3">
                   {/* Current state */}
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-medium">Actuellement</span>
                       {rankBadge(currentRank, totalCompetitors)}
                     </div>
@@ -536,12 +536,12 @@ export default function CompetitorSection({
 
                   {/* With site only */}
                   <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Globe className="w-3 h-3 text-emerald-400" />
-                        <span className="text-[11px] text-emerald-300 font-medium">Avec site vitrine</span>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Globe className="w-3 h-3 shrink-0 text-emerald-400" />
+                        <span className="text-[11px] text-emerald-300 font-medium truncate">Avec site vitrine</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {rankBadge(currentRank, totalCompetitors)}
                         <ArrowRight className="w-3 h-3 text-neutral-500" />
                         {rankBadge(withSite.rank, totalCompetitors)}
@@ -565,14 +565,14 @@ export default function CompetitorSection({
                           const isMid = proj.key === "performance";
                           return (
                             <div key={proj.key} className="space-y-1">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <TrendingUp className={`w-3 h-3 ${isTop ? "text-violet-400" : isMid ? "text-amber-400" : "text-neutral-400"}`} />
-                                  <span className={`text-[11px] font-medium ${isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-300"}`}>
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <TrendingUp className={`w-3 h-3 shrink-0 ${isTop ? "text-violet-400" : isMid ? "text-amber-400" : "text-neutral-400"}`} />
+                                  <span className={`text-[11px] font-medium truncate ${isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-300"}`}>
                                     Site + {proj.label}
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                   {rankBadge(currentRank, totalCompetitors)}
                                   <ArrowRight className="w-3 h-3 text-neutral-500" />
                                   {rankBadge(proj.rank, totalCompetitors)}
@@ -615,16 +615,16 @@ export default function CompetitorSection({
           <SalesArguments
             prospectName={prospectName}
             prospectScore={prospectScore}
-            competitors={report.competitors}
+            competitors={rankedList as unknown as import("../lib/types").CompetitorResult[]}
             adsBudget={report.ads_tiers?.[1]?.budget ?? report.ads_budget_est}
           />
 
           {/* Actions */}
           <div className="flex gap-2">
             <button
-              onClick={() => {
+              onClick={async () => {
                 const prospectRank = rankedList.findIndex((c) => c.isProspect) + 1;
-                generateProspectReport({
+                await generateProspectReport({
                   report,
                   prospectName,
                   prospectRating,

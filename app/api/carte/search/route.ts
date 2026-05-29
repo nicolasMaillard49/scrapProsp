@@ -16,10 +16,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const safeLimit = Math.min(Math.max(1, Number(limit) || 20), 50);
+
     const scraperRes = await fetch(SCRAPER_URL + "/scrape", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ metier, ville, limit }),
+      body: JSON.stringify({ metier, ville, limit: safeLimit }),
       signal: AbortSignal.timeout(120_000),
     });
 
