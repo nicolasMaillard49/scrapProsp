@@ -220,18 +220,19 @@ async def extract_feed_items(page, limit: int) -> list[dict]:
                 reviews = reviewMatch[1].replace(/[\s\u202f.,]/g, '');
             }
 
-            // Check for website link
-            let hasWebsite = false;
+            // Check for website link and extract actual URL
+            let websiteUrl = '';
             if (card) {
                 const siteLink = card.querySelector('a[data-value="Site Web"], a[data-value="Website"]');
-                hasWebsite = !!siteLink;
-                // Also check for "Site Web" or "Website" text in buttons/links
-                if (!hasWebsite) {
+                if (siteLink) {
+                    websiteUrl = siteLink.getAttribute('href') || 'yes';
+                }
+                if (!websiteUrl) {
                     const allLinks = card.querySelectorAll('a');
                     for (const a of allLinks) {
                         const t = (a.textContent || '').trim().toLowerCase();
                         if (t === 'site web' || t === 'website') {
-                            hasWebsite = true;
+                            websiteUrl = a.getAttribute('href') || 'yes';
                             break;
                         }
                     }
@@ -260,7 +261,7 @@ async def extract_feed_items(page, limit: int) -> list[dict]:
                 name,
                 rating,
                 reviews,
-                website: hasWebsite ? 'yes' : '',
+                website: websiteUrl,
                 maps_url: href.startsWith('http') ? href : 'https://www.google.com' + href,
                 category,
             });
