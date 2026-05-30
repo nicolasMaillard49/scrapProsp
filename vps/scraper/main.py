@@ -10,6 +10,8 @@ import asyncio
 import logging
 import re
 import time
+import urllib.request
+import json
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -34,6 +36,33 @@ CACHE_TTL = 86400  # 24 hours in seconds
 
 # Names that are clearly not real businesses (page artifacts)
 BLACKLISTED_NAMES = {"résultats", "results", "rechercher", "search", "plus de résultats"}
+
+# Geocode cache (city name -> lat, lng)
+_geo_cache: dict[str, tuple[float, float] | None] = {}
+
+
+async def geocode_ville(ville: str) -> tuple[float, float] | None:
+    """Geocode a French city via Nominatim. Returns (lat, lng) or None."""
+    key = ville.lower().strip()
+    if key in _geo_cache:
+        return _geo_cache[key]
+
+    try:
+        q = urllib.request.quote(f"{ville}, France")
+        url = f"https://nominatim.openstreetmap.org/search?q={q}&format=json&limit=1"
+        req = urllib.request.Request(url, headers={"User-Agent": "ScrapProspVPS/1.0"})
+        resp = urllib.request.urlopen(req, timeout=5)
+        data = json.loads(resp.read().decode())
+        if data:
+            result = (float(data[0]["lat"]), float(data[0]["lon"]))
+            _geo_cache[key] = result
+            log.info(f"Geocoded {ville} -> {result}")
+            return result
+    except Exception as exc:
+        log.warning(f"Geocode failed for {ville}: {exc}")
+
+    _geo_cache[key] = None
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -396,7 +425,15 @@ async def scrape(req: ScrapeRequest):
     log.info(f"Cache miss for {req.metier} {req.ville} (quick={req.quick})")
 
     query = f"{req.metier}+{req.ville}"
-    url = f"https://www.google.com/maps/search/{query}"
+    # Geocode the city to force Google Maps to center on the right location
+    coords = await geocode_ville(req.ville)
+    if coords:
+        lat, lng = coords
+        url = f"https://www.google.com/maps/search/{query}/@{lat},{lng},13z"
+        log.info(f"Search URL with coords: {url}")
+    else:
+        url = f"https://www.google.com/maps/search/{query}"
+        log.info(f"Search URL without coords (geocode failed): {url}")
 
     try:
         competitors: list[Competitor] = await asyncio.wait_for(
