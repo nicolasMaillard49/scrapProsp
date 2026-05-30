@@ -427,6 +427,101 @@ async def scrape(req: ScrapeRequest):
     return response
 
 
+class EnrichRequest(BaseModel):
+    maps_url: str = Field(..., min_length=1)
+
+
+class EnrichResponse(BaseModel):
+    phone: str = ""
+    address: str = ""
+    website: str = ""
+
+
+@app.post("/enrich", response_model=EnrichResponse)
+async def enrich(req: EnrichRequest):
+    """Navigate directly to a Google Maps place URL and extract phone/address/website."""
+    log.info(f"Enrich request for {req.maps_url[:80]}")
+    try:
+        result = await asyncio.wait_for(
+            _do_enrich(req.maps_url),
+            timeout=REQUEST_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Enrich timed out")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return result
+
+
+async def _do_enrich(maps_url: str) -> EnrichResponse:
+    """Core enrichment logic — open a place page and extract details."""
+    context = await _browser.new_context(
+        locale="fr-FR",
+        viewport={"width": 1280, "height": 900},
+        user_agent=(
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/125.0.0.0 Safari/537.36"
+        ),
+    )
+    try:
+        page = await context.new_page()
+        page.set_default_timeout(15000)
+
+        await page.goto(maps_url, wait_until="domcontentloaded", timeout=30000)
+        await page.wait_for_timeout(4000)
+        await accept_cookies(page)
+
+        try:
+            await page.wait_for_selector("h1", timeout=10000)
+        except Exception:
+            pass
+
+        phone = ""
+        address = ""
+        website = ""
+
+        # Phone
+        try:
+            phone_btn = page.locator(
+                'button[data-tooltip="Copier le numéro de téléphone"]'
+            ).first
+            phone_label = await phone_btn.get_attribute("aria-label", timeout=3000)
+            if phone_label and ":" in phone_label:
+                phone = phone_label.split(":")[-1].strip()
+        except Exception:
+            pass
+
+        # Address
+        try:
+            addr_btn = page.locator(
+                "button[data-tooltip=\"Copier l'adresse\"]"
+            ).first
+            addr_label = await addr_btn.get_attribute("aria-label", timeout=3000)
+            if addr_label:
+                address = (
+                    addr_label.split(":", 1)[-1].strip()
+                    if ":" in addr_label
+                    else addr_label
+                )
+        except Exception:
+            pass
+
+        # Website
+        try:
+            auth = page.locator('a[data-item-id="authority"]')
+            if await auth.count() > 0:
+                href = await auth.first.get_attribute("href", timeout=3000)
+                website = href or ""
+        except Exception:
+            pass
+
+        log.info(f"Enriched: phone={phone} addr={address[:40] if address else ''} site={bool(website)}")
+        return EnrichResponse(phone=phone, address=address, website=website)
+    finally:
+        await context.close()
+
+
 async def _do_scrape(url: str, limit: int, quick: bool = False) -> list[Competitor]:
     """Core scraping logic — runs inside the timeout wrapper."""
     context = await _browser.new_context(

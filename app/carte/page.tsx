@@ -20,6 +20,8 @@ import {
   Copy,
   Check,
   Menu,
+  UserPlus,
+  CheckCircle,
 } from "lucide-react";
 import type { MapProspect } from "./MapView";
 import { computeGbpScore } from "@/app/lib/gbp";
@@ -112,6 +114,8 @@ export default function CartePage() {
   const [searchDone, setSearchDone] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
 
   /* Default: sidebar closed on mobile */
   useEffect(() => {
@@ -201,6 +205,56 @@ export default function CartePage() {
       setLoading(false);
     }
   }, [metier, ville, limit]);
+
+  const handleAddProspect = useCallback(async (prospect: MapProspect) => {
+    if (addingId || addedIds.has(prospect.id)) return;
+    setAddingId(prospect.id);
+
+    try {
+      const res = await fetch("/api/carte/add-prospect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: prospect.name,
+          metier: metier.trim(),
+          ville: ville.trim(),
+          rating: prospect.rating,
+          reviews: prospect.reviews,
+          website: prospect.website || null,
+          maps_url: prospect.maps_url || "",
+        }),
+      });
+
+      const json = await res.json();
+
+      if (res.status === 409) {
+        // Already exists
+        setAddedIds((prev) => new Set(prev).add(prospect.id));
+      } else if (!res.ok) {
+        setError(json.error || "Erreur lors de l'ajout");
+      } else {
+        setAddedIds((prev) => new Set(prev).add(prospect.id));
+        // Update phone/address in local results if enriched
+        if (json.prospect) {
+          setResults((prev) =>
+            prev.map((p) =>
+              p.id === prospect.id
+                ? {
+                    ...p,
+                    phone: json.prospect.phone || p.phone,
+                    address: json.prospect.address || p.address,
+                  }
+                : p,
+            ),
+          );
+        }
+      }
+    } catch {
+      setError("Erreur réseau lors de l'ajout");
+    } finally {
+      setAddingId(null);
+    }
+  }, [addingId, addedIds, metier, ville]);
 
   // Filter displayed list -- keep original ranks
   const displayList = useMemo(() => {
@@ -656,11 +710,41 @@ export default function CartePage() {
 
               {/* Actions */}
               <div className="px-4 py-3 border-t border-[var(--color-border)] space-y-2">
+                {/* Add to prospects */}
+                <button
+                  onClick={() => handleAddProspect(selectedProspect)}
+                  disabled={addingId === selectedProspect.id || addedIds.has(selectedProspect.id)}
+                  className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
+                    addedIds.has(selectedProspect.id)
+                      ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 cursor-default"
+                      : addingId === selectedProspect.id
+                        ? "bg-violet-600/50 text-white/60 cursor-wait"
+                        : "bg-violet-600 hover:bg-violet-500 text-white"
+                  }`}
+                >
+                  {addedIds.has(selectedProspect.id) ? (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Ajouté à ma liste
+                    </>
+                  ) : addingId === selectedProspect.id ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Enrichissement...
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      Ajouter aux prospects
+                    </>
+                  )}
+                </button>
+
                 {selectedProspect.phone && (
                   <div className="flex gap-2">
                     <a
                       href={`tel:${selectedProspect.phone.replace(/\s/g, "")}`}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-200 hover:text-violet-300 text-sm font-medium transition"
                     >
                       <Phone className="w-4 h-4" />
                       Appeler
@@ -669,7 +753,7 @@ export default function CartePage() {
                       href={`https://wa.me/${phoneForWhatsApp(selectedProspect.phone)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-emerald-500/50 text-neutral-200 hover:text-emerald-300 text-sm font-medium transition"
                     >
                       <MessageCircle className="w-4 h-4" />
                       WhatsApp
