@@ -424,18 +424,10 @@ async def scrape(req: ScrapeRequest):
 
     log.info(f"Cache miss for {req.metier} {req.ville} (quick={req.quick})")
 
-    # URL-encode the query properly (spaces -> +)
+    # URL-encode spaces properly, let Google decide the search radius naturally
     query = f"{req.metier}+{req.ville}".replace(" ", "+")
-    # Geocode the city to force Google Maps to center on the right location
-    # Use zoom 11 for broad coverage (covers ~50km radius)
-    coords = await geocode_ville(req.ville)
-    if coords:
-        lat, lng = coords
-        url = f"https://www.google.com/maps/search/{query}/@{lat},{lng},11z"
-        log.info(f"Search URL with coords: {url}")
-    else:
-        url = f"https://www.google.com/maps/search/{query}"
-        log.info(f"Search URL without coords (geocode failed): {url}")
+    url = f"https://www.google.com/maps/search/{query}"
+    log.info(f"Search URL: {url}")
 
     try:
         competitors: list[Competitor] = await asyncio.wait_for(
