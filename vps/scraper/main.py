@@ -424,12 +424,14 @@ async def scrape(req: ScrapeRequest):
 
     log.info(f"Cache miss for {req.metier} {req.ville} (quick={req.quick})")
 
-    query = f"{req.metier}+{req.ville}"
+    # URL-encode the query properly (spaces -> +)
+    query = f"{req.metier}+{req.ville}".replace(" ", "+")
     # Geocode the city to force Google Maps to center on the right location
+    # Use zoom 11 for broad coverage (covers ~50km radius)
     coords = await geocode_ville(req.ville)
     if coords:
         lat, lng = coords
-        url = f"https://www.google.com/maps/search/{query}/@{lat},{lng},13z"
+        url = f"https://www.google.com/maps/search/{query}/@{lat},{lng},11z"
         log.info(f"Search URL with coords: {url}")
     else:
         url = f"https://www.google.com/maps/search/{query}"
