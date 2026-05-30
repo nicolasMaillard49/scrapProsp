@@ -9,6 +9,7 @@ Endpoints:
 import asyncio
 import logging
 import re
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -26,6 +27,10 @@ _playwright = None
 _browser = None
 
 REQUEST_TIMEOUT = 120  # seconds
+
+# In-memory cache: key -> {"data": ScrapeResponse, "ts": float}
+_cache: dict[tuple, dict] = {}
+CACHE_TTL = 86400  # 24 hours in seconds
 
 # Names that are clearly not real businesses (page artifacts)
 BLACKLISTED_NAMES = {"résultats", "results", "rechercher", "search", "plus de résultats"}
@@ -61,6 +66,7 @@ class ScrapeRequest(BaseModel):
     ville: str = Field(..., min_length=1, examples=["Limoges"])
     metier: str = Field(..., min_length=1, examples=["plombier"])
     limit: int = Field(default=10, ge=1, le=50)
+    quick: bool = Field(default=False, description="Skip enrichment (phone/address) for faster results")
 
 
 class Competitor(BaseModel):
@@ -342,14 +348,59 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/cache/stats")
+async def cache_stats():
+    """Return cache size, keys, and per-entry age."""
+    now = time.time()
+    keys = []
+    for key, entry in _cache.items():
+        metier, ville, limit, quick = key
+        age_s = int(now - entry["ts"])
+        keys.append({
+            "metier": metier,
+            "ville": ville,
+            "limit": limit,
+            "quick": quick,
+            "age_seconds": age_s,
+            "competitors_count": len(entry["data"].competitors),
+        })
+    return {"size": len(_cache), "entries": keys}
+
+
+@app.delete("/cache")
+async def cache_clear():
+    """Clear the entire in-memory cache."""
+    count = len(_cache)
+    _cache.clear()
+    log.info(f"Cache cleared ({count} entries removed)")
+    return {"cleared": count}
+
+
 @app.post("/scrape", response_model=ScrapeResponse)
 async def scrape(req: ScrapeRequest):
+    # Build cache key (normalized to lowercase for better hit rate)
+    cache_key = (req.metier.lower(), req.ville.lower(), req.limit, req.quick)
+
+    # Check cache
+    now = time.time()
+    if cache_key in _cache:
+        entry = _cache[cache_key]
+        if now - entry["ts"] < CACHE_TTL:
+            log.info(f"Cache hit for {req.metier} {req.ville} (quick={req.quick})")
+            return entry["data"]
+        else:
+            # Expired entry — remove it
+            del _cache[cache_key]
+            log.info(f"Cache expired for {req.metier} {req.ville} (quick={req.quick})")
+
+    log.info(f"Cache miss for {req.metier} {req.ville} (quick={req.quick})")
+
     query = f"{req.metier}+{req.ville}"
     url = f"https://www.google.com/maps/search/{query}"
 
     try:
         competitors: list[Competitor] = await asyncio.wait_for(
-            _do_scrape(url, req.limit),
+            _do_scrape(url, req.limit, req.quick),
             timeout=REQUEST_TIMEOUT,
         )
     except asyncio.TimeoutError:
@@ -362,15 +413,21 @@ async def scrape(req: ScrapeRequest):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return ScrapeResponse(
+    response = ScrapeResponse(
         competitors=competitors,
         query=f"{req.metier} {req.ville}",
         ville=req.ville,
         metier=req.metier,
     )
 
+    # Store in cache
+    _cache[cache_key] = {"data": response, "ts": now}
+    log.info(f"Cached result for {req.metier} {req.ville} (quick={req.quick}, {len(competitors)} competitors)")
 
-async def _do_scrape(url: str, limit: int) -> list[Competitor]:
+    return response
+
+
+async def _do_scrape(url: str, limit: int, quick: bool = False) -> list[Competitor]:
     """Core scraping logic — runs inside the timeout wrapper."""
     context = await _browser.new_context(
         locale="fr-FR",
@@ -423,8 +480,25 @@ async def _do_scrape(url: str, limit: int) -> list[Competitor]:
         if not valid_items:
             return []
 
-        # Phase 2: Enrich with phone/address by clicking into each place
-        competitors = await enrich_with_details(page, valid_items[:limit], url)
+        if quick:
+            # Quick mode: skip enrichment, return feed data directly
+            log.info("Quick mode — skipping enrichment")
+            competitors = [
+                Competitor(
+                    name=item.get("name", ""),
+                    rating=item.get("rating", ""),
+                    reviews=item.get("reviews", ""),
+                    website=item.get("website", ""),
+                    maps_url=item.get("maps_url", ""),
+                    category=item.get("category", ""),
+                    phone="",
+                    address="",
+                )
+                for item in valid_items[:limit]
+            ]
+        else:
+            # Phase 2: Enrich with phone/address by clicking into each place
+            competitors = await enrich_with_details(page, valid_items[:limit], url)
 
         log.info(f"Final result: {len(competitors)} competitors")
         return competitors
