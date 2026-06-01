@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "enrich:sirene": "node scripts/enrich-sirene.mjs"
+    "enrich:sirene": "node scripts/enrich-sirene.mjs",
+    "push:sirene": "node scripts/apply-sirene-extended.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.5.1",
@@ -31,6 +32,7 @@
     "@types/papaparse": "5.3.15",
     "@types/react": "19.0.1",
     "@types/react-dom": "19.0.1",
+    "pg": "^8.21.0",
     "postcss": "8.4.49",
     "tailwindcss": "4.0.0-beta.7",
     "typescript": "5.7.2"

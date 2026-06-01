@@ -9,6 +9,7 @@ import {
 import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import AgeBadge from "./AgeBadge";
 import CompetitorSection from "./CompetitorSection";
+import CompanyInfo from "./CompanyInfo";
 import type { Call, Prospect, Status } from "../lib/types";
 
 interface Props {
@@ -270,6 +271,8 @@ export default function CallModal({
             </a>
           )}
         </div>
+
+        {prospect && <CompanyInfo prospect={prospect} />}
 
         {lastCall && (
           <div className="mb-3 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-[12px] text-amber-200/80">

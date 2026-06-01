@@ -242,10 +242,22 @@ export function useProspects() {
         address: r.address || null,
         maps_url: r.maps_url ?? "",
         siret: r.siret || null,
-        company_created_at: r.company_created_at || null,
+        company_created_at: r.company_created_at || r.created_at || null,
         age_years: r.age_years ? parseFloat(r.age_years) : null,
         legal_status: r.legal_status || null,
         naf_code: r.naf_code || null,
+        dirigeant_nom: r.dirigeant_nom || null,
+        dirigeant_prenom: r.dirigeant_prenom || null,
+        dirigeant_annee_naissance: r.dirigeant_annee_naissance
+          ? parseInt(r.dirigeant_annee_naissance, 10)
+          : null,
+        tranche_effectif: r.tranche_effectif || null,
+        effectif_label: r.effectif_label || null,
+        latitude: r.latitude ? parseFloat(r.latitude.replace(",", ".")) : null,
+        longitude: r.longitude ? parseFloat(r.longitude.replace(",", ".")) : null,
+        est_rge: r.est_rge === "true" ? true : r.est_rge === "false" ? false : null,
+        nature_juridique: r.nature_juridique || null,
+        categorie: r.categorie || null,
       }));
 
       const { data, error } = await supabase

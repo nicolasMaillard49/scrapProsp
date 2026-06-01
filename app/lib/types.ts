@@ -19,6 +19,17 @@ export interface Prospect {
   age_years: number | null;
   legal_status: string | null;
   naf_code: string | null;
+  // Champs SIRENE élargis (recherche-entreprises)
+  dirigeant_nom: string | null;
+  dirigeant_prenom: string | null;
+  dirigeant_annee_naissance: number | null;
+  tranche_effectif: string | null;
+  effectif_label: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  est_rge: boolean | null;
+  nature_juridique: string | null;
+  categorie: string | null;
   status: Status;
   notes: string;
   created_at: string;

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
-  CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2,
+  CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2, User,
   Filter, ArrowUpDown, Clock, Globe,
   ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
 } from "lucide-react";
@@ -21,6 +21,7 @@ import { ToastProvider, useToast } from "./components/Toast";
 import type { Prospect, Status } from "./lib/types";
 import { useProspects } from "./lib/useProspects";
 import { gbpBadge, computeGbpScore } from "./lib/gbp";
+import { opportunityScore, opportunityBadge } from "./lib/opportunity";
 
 const statusConfig: Record<Status, { label: string; ring: string; rowBg: string; text: string }> = {
   todo: { label: "À appeler", ring: "ring-neutral-700", rowBg: "", text: "text-neutral-400" },
@@ -51,7 +52,7 @@ function HomeInner() {
   const [openNowOnly, setOpenNowOnly] = useState(false);
   const [hideRadie, setHideRadie] = useState(true);
   const [jeuneOnly, setJeuneOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp">("reviews");
+  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity">("opportunity");
   const [tourneeMode, setTourneeMode] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
@@ -91,7 +92,13 @@ function HomeInner() {
   };
 
   const enriched = useMemo(
-    () => prospects.map((p) => ({ p, _age: ageYears(p), _radie: isRadie(p), _jeune: isJeune(p) })),
+    () => prospects.map((p) => ({
+      p,
+      _age: ageYears(p),
+      _radie: isRadie(p),
+      _jeune: isJeune(p),
+      _opp: opportunityScore(p).score,
+    })),
     [prospects],
   );
 
@@ -135,6 +142,7 @@ function HomeInner() {
         return true;
       })
       .sort((a, b) => {
+        if (sortBy === "opportunity") return b._opp - a._opp;
         if (sortBy === "reviews") return (b.p.reviews ?? 0) - (a.p.reviews ?? 0);
         if (sortBy === "reviews-asc") return (a.p.reviews ?? 0) - (b.p.reviews ?? 0);
         if (sortBy === "rating") return (b.p.rating ?? 0) - (a.p.rating ?? 0);
@@ -356,6 +364,7 @@ function HomeInner() {
           </SelectIcon>
           <SelectIcon icon={<ArrowUpDown className="w-3.5 h-3.5" />}>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="bg-transparent text-sm outline-none cursor-pointer">
+              <option value="opportunity">🔥 Opportunité ↓</option>
               <option value="reviews">Avis ↓</option>
               <option value="reviews-asc">Avis ↑</option>
               <option value="rating">Note ↓</option>
@@ -488,19 +497,37 @@ function HomeInner() {
                         {p.metier}
                       </span>
                       <AgeBadge prospect={p} size="sm" />
+                      {(() => {
+                        const opp = opportunityScore(p);
+                        const b = opportunityBadge(opp.score);
+                        return (
+                          <span
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded font-semibold ${b.bg} ${b.color}`}
+                            title={opp.reasons.join(" · ") || "Score d'opportunité"}
+                          >
+                            🔥 {opp.score} · {b.label}
+                          </span>
+                        );
+                      })()}
                       <span className="flex items-center gap-1 text-neutral-500">
                         <MapPin className="w-3 h-3" /> {p.ville}
                       </span>
                     </div>
+                    {(p.dirigeant_nom || p.dirigeant_prenom) && (
+                      <div className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
+                        <User className="w-3 h-3 text-neutral-600 shrink-0" />
+                        <span className="truncate">{[p.dirigeant_prenom, p.dirigeant_nom].filter(Boolean).join(" ")}</span>
+                      </div>
+                    )}
                     {p.address && (
                       <div className="text-xs text-neutral-600 mt-1 break-words" title={p.address}>
                         {p.address}
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <a href={p.maps_url} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-500 hover:text-violet-400 transition" title="Fiche Google Maps">
-                      <ExternalLink className="w-4 h-4" />
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
+                      <ExternalLink className="w-3.5 h-3.5" /> Google
                     </a>
                     <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-600 hover:text-fuchsia-400 transition" title="Maquette site">
                       <Sparkles className="w-4 h-4" />
@@ -622,6 +649,18 @@ function HomeInner() {
                           {p.metier}
                         </span>
                         <AgeBadge prospect={p} size="md" />
+                        {(() => {
+                          const opp = opportunityScore(p);
+                          const b = opportunityBadge(opp.score);
+                          return (
+                            <span
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${b.bg} ${b.color}`}
+                              title={opp.reasons.join(" · ") || "Score d'opportunité"}
+                            >
+                              🔥 {opp.score} · {b.label}
+                            </span>
+                          );
+                        })()}
                         <span className="flex items-center gap-1 text-neutral-300 font-medium">
                           <MapPin className="w-4 h-4 text-neutral-500" /> {p.ville}
                         </span>
@@ -629,6 +668,12 @@ function HomeInner() {
                           <span className="text-neutral-400">· {p.region_label}</span>
                         )}
                       </div>
+                      {(p.dirigeant_nom || p.dirigeant_prenom) && (
+                        <div className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
+                          <User className="w-3 h-3 text-neutral-600 shrink-0" />
+                          <span className="truncate max-w-[280px]">{[p.dirigeant_prenom, p.dirigeant_nom].filter(Boolean).join(" ")}</span>
+                        </div>
+                      )}
                       {p.address && (
                         <div className="text-xs text-neutral-600 mt-1 truncate max-w-[300px]" title={p.address}>
                           {p.address}
@@ -704,10 +749,10 @@ function HomeInner() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <a href={p.maps_url} target="_blank" rel="noreferrer" className="text-neutral-500 hover:text-violet-400 transition inline-flex" title="Fiche Google Maps">
-                          <ExternalLink className="w-4 h-4" />
+                        <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
+                          <ExternalLink className="w-3.5 h-3.5" /> Google
                         </a>
-                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="text-neutral-600 hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
+                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1 text-neutral-600 hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
                           <Sparkles className="w-4 h-4" />
                         </a>
                       </div>
