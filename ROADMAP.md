@@ -71,11 +71,16 @@ Explorer l'écosystème **API data.gouv** pour de l'enrichissement complémentai
 
 ## Checklist
 
-- [ ] **Sites démo live** `/demo/{id}` (pivot central — quick win #1)
-- [ ] **Relance WhatsApp auto** avec lien démo (quick win #2)
-- [ ] **Footer NMF** sur les templates de démo (quick win #3)
-- [ ] **Tunnel inversé** : génération batch + blast SMS (Brevo / Twilio)
+- [x] **Sites démo live** `/demo/[id]` ✅ 2026-06-02 — template auto par métier (`app/lib/demoTemplate.ts`)
+- [x] **Footer NMF** sur les démos ✅ 2026-06-02 — prop `nmfCredit` (démos uniquement)
+- [x] Score d'opportunité ✅ 2026-06-01
+- [~] **Tunnel inversé SMS Twilio** — socle codé 2026-06-02 (`app/lib/sms.ts`, `twilio.ts`, `POST /api/sms` + dryRun, webhook `/api/sms/incoming`). **Attente : numéro FR validé + déploiement.**
+  - [ ] Bouton « Envoyer SMS démo » dans l'app → `POST /api/sms`
+  - [ ] Bouton « Blast » sur une sélection
+  - [ ] Messaging Service Twilio (expéditeur + STOP)
+  - [ ] Webhook `…/api/sms/incoming` configuré dans Twilio (post-déploiement)
+  - [ ] (optim coût) domaine court pour repasser à 1 SMS/message
 - [ ] **Script d'appel IA** (Claude Haiku) dans la CallModal
 - [ ] **Transcription d'appel** (Whisper) — priorité basse
 - [ ] Explorer les API **data.gouv** pour enrichissement complémentaire
-- [x] Score d'opportunité ✅ 2026-06-01
+- [ ] **Déploiement** (Vercel + sous-domaine `prospects.nmf-agence.com`)
