@@ -6,11 +6,12 @@ const COOKIE_NAME = "prospects-auth";
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Routes ouvertes (page de login + assets statiques)
+  // Routes ouvertes (page de login + démos publiques + assets statiques)
   if (
     pathname === "/login" ||
     pathname === "/icon.svg" ||
     pathname === "/favicon.ico" ||
+    pathname.startsWith("/demo/") ||
     pathname.startsWith("/_next/")
   ) {
     return NextResponse.next();

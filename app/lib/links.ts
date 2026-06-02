@@ -10,6 +10,18 @@ export function phoneForWhatsApp(phone: string): string {
   return digits;
 }
 
+/**
+ * URL publique de la démo live d'un prospect (cf. roadmap quick win #1).
+ * Base configurable via NEXT_PUBLIC_DEMO_BASE_URL (ex. https://prospects.nmf-agence.com),
+ * sinon l'origine courante côté client (utile en dev sur localhost).
+ */
+export function demoUrl(id: string): string {
+  const base =
+    process.env.NEXT_PUBLIC_DEMO_BASE_URL ??
+    (typeof window !== "undefined" ? window.location.origin : "");
+  return `${base.replace(/\/$/, "")}/demo/${id}`;
+}
+
 export function whatsAppUrl(phone: string, text?: string): string {
   const num = phoneForWhatsApp(phone);
   const base = `https://wa.me/${num}`;

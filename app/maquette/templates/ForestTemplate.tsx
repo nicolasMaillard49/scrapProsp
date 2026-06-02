@@ -22,6 +22,6 @@ const theme: TemplateTheme = {
   heroFade: "linear-gradient(to top, #0c1a0f, transparent)",
 };
 
-export default function ForestTemplate(props: TemplateProps) {
+export default function ForestTemplate(props: TemplateProps & { nmfCredit?: boolean }) {
   return <BaseTemplate {...props} theme={theme} />;
 }

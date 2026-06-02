@@ -22,6 +22,6 @@ const theme: TemplateTheme = {
   heroFade: "linear-gradient(to top, #1c1412, transparent)",
 };
 
-export default function TerraTemplate(props: TemplateProps) {
+export default function TerraTemplate(props: TemplateProps & { nmfCredit?: boolean }) {
   return <BaseTemplate {...props} theme={theme} />;
 }

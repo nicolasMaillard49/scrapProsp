@@ -54,7 +54,8 @@ export default function BaseTemplate({
   reviews,
   address,
   theme: C,
-}: TemplateProps & { theme: TemplateTheme }) {
+  nmfCredit = false,
+}: TemplateProps & { theme: TemplateTheme; nmfCredit?: boolean }) {
   const services = getServices(metier);
   const label = metierLabel(metier);
   const mainIcon = services[0]?.icon || "🔧";
@@ -507,6 +508,17 @@ export default function BaseTemplate({
           </div>
         </div>
       </footer>
+
+      {/* ── Crédit NMF Agence (démos publiques uniquement) ── */}
+      {nmfCredit && (
+        <div style={{ background: "#000", padding: "14px 24px", textAlign: "center", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
+          Site créé par{" "}
+          <a href="https://www.nmf-agence.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa", textDecoration: "none", fontWeight: 700 }}>
+            NMF Agence
+          </a>
+          {process.env.NEXT_PUBLIC_NMF_PHONE ? ` · ${process.env.NEXT_PUBLIC_NMF_PHONE}` : ""}
+        </div>
+      )}
     </div>
   );
 }

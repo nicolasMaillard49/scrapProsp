@@ -22,6 +22,6 @@ const theme: TemplateTheme = {
   heroFade: "linear-gradient(to top, #030712, transparent)",
 };
 
-export default function ElectricTemplate(props: TemplateProps) {
+export default function ElectricTemplate(props: TemplateProps & { nmfCredit?: boolean }) {
   return <BaseTemplate {...props} theme={theme} />;
 }

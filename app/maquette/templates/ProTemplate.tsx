@@ -22,6 +22,6 @@ const theme: TemplateTheme = {
   heroFade: "linear-gradient(to top, #0f172a, transparent)",
 };
 
-export default function ProTemplate(props: TemplateProps) {
+export default function ProTemplate(props: TemplateProps & { nmfCredit?: boolean }) {
   return <BaseTemplate {...props} theme={theme} />;
 }
