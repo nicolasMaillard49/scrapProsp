@@ -84,8 +84,8 @@ export function salesSmsMsg(p: SmsProspect, demoLink: string): string {
   const greeting = owner ? `${owner}, ` : "Bonjour, ";
   return (
     `${greeting}c'est Nicolas de NMF Agence (agence web FR). ` +
-    `Voici un aperçu gratuit de votre futur site : ${demoLink} ` +
-    `Sans engagement, agence vérifiable sur nmf-agence.com. ` +
+    `Je vous ai préparé un aperçu de votre futur site : ${demoLink} ` +
+    `C'est 100% gratuit et sans engagement, agence vérifiable sur nmf-agence.com. ` +
     `Intéressé ? OUI. STOP pour arrêter.`
   );
 }
