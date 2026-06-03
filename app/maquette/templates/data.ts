@@ -17,7 +17,7 @@ export interface ServiceItem {
 
 /* ── Images Unsplash par métier pour la section À propos ── */
 export const ABOUT_IMAGES: Record<string, string> = {
-  plombier: "/templates/plombier-hero.jpg",
+  plombier: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=800&h=1000&fit=crop&q=80",
   chauffagiste: "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?w=800&h=1000&fit=crop&q=80",
   electricien: "/templates/electricien-hero.jpg",
   paysagiste: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&h=1000&fit=crop&q=80",
@@ -93,7 +93,7 @@ export const SERVICES: Record<string, ServiceItem[]> = {
       title: "Installation électrique",
       desc: "Câblage, tableaux et prises pour neuf et rénovation, conforme NF C 15-100.",
       icon: "⚡",
-      image: "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=600&h=400&fit=crop&q=80",
+      image: "/templates/electricien-hero.jpg",
     },
     {
       title: "Mise aux normes",
