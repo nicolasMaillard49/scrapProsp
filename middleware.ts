@@ -13,6 +13,7 @@ export function middleware(req: NextRequest) {
     pathname === "/favicon.ico" ||
     pathname.startsWith("/demo/") ||
     pathname.startsWith("/d/") ||
+    pathname.startsWith("/templates/") ||
     pathname === "/api/sms/incoming" ||
     pathname.startsWith("/_next/")
   ) {
