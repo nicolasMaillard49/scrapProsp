@@ -45,13 +45,54 @@ export interface SmsProspect {
   name: string;
   metier: string;
   ville: string;
+  /** Champs dirigeant SIRENE (optionnels) pour personnaliser la salutation. */
+  dirigeant_prenom?: string | null;
+  dirigeant_nom?: string | null;
+}
+
+/** Retire les accents (é -> e) pour rester en GSM-7 (sinon SMS x2/x3). */
+function deburr(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/** "Bonvalet" / "alexis bernard" -> "Bonvalet" / "Alexis Bernard" (gère les tirets). */
+function frTitleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/(^|[\s-])([a-z])/g, (_, sep: string, c: string) => sep + c.toUpperCase());
+}
+
+/**
+ * Salutation à partir du dirigeant SIRENE : "Bonjour Alexis Bonvalet".
+ * Prend uniquement le 1er prénom, déburré (GSM-7). Null si pas de nom.
+ * Pas de civilité (pas de champ genre en base) -> neutre.
+ */
+export function ownerSalutation(
+  prenom?: string | null,
+  nom?: string | null,
+): string | null {
+  const lastName = (nom ?? "").trim();
+  if (!lastName) return null;
+  const firstName = (prenom ?? "").trim().split(/\s+/)[0] ?? "";
+  const parts = [firstName, lastName].filter(Boolean).map((w) => frTitleCase(deburr(w)));
+  return `Bonjour ${parts.join(" ")}`;
 }
 
 /**
  * Message de prospection SMS (tunnel inversé).
- * Volontairement SANS accents pour rester en GSM-7 (1 SMS si possible) et
- * avec la mention de désabonnement obligatoire (prospection B2B FR).
+ * - SANS accents (GSM-7) + mention STOP obligatoire (prospection B2B FR).
+ * - Personnalisé "Monsieur Prénom Nom" si le dirigeant est connu, MAIS on
+ *   retombe sur "Bonjour," si la version personnalisée dépasse 1 segment
+ *   (nom long ou non-GSM7) -> garantit 1 SMS quand c'est possible.
  */
 export function salesSmsMsg(p: SmsProspect, demoLink: string): string {
-  return `Bonjour, NMF Agence a prepare un site web pour ${p.metier} ${p.ville}. Apercu : ${demoLink} Interesse ? Repondez OUI. STOP pour ne plus etre contacte.`;
+  const build = (greeting: string) =>
+    `${greeting}NMF Agence vous a fait un apercu de site : ${demoLink} Interesse ? OUI. STOP pour arreter.`;
+
+  const owner = ownerSalutation(p.dirigeant_prenom, p.dirigeant_nom);
+  if (owner) {
+    const personalized = build(`${owner}, `);
+    if (smsSegments(personalized) <= 1) return personalized;
+  }
+  return build("Bonjour, ");
 }

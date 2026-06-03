@@ -65,7 +65,7 @@ export default function BaseTemplate({
   return (
     <div style={{ fontFamily: "'Outfit', sans-serif", color: C.text, margin: 0, background: C.bg }}>
 
-      {/* Animations for hero polish */}
+      {/* Animations for hero polish + responsive overrides (mobile-first phones) */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes hero-shimmer {
           0% { background-position: -200% center; }
@@ -74,6 +74,31 @@ export default function BaseTemplate({
         @keyframes hero-pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: 0.5; transform: scale(1.3); }
+        }
+        @media (max-width: 768px) {
+          .nav-inner { padding: 12px 16px !important; }
+          .nav-menu { display: none !important; }
+          .nav-brand { font-size: 15px !important; }
+          .nav-cta { padding: 8px 14px !important; font-size: 13px !important; }
+          .hero-inner { padding: 116px 20px 72px !important; }
+          .hero-title { font-size: 42px !important; }
+          .hero-sub { font-size: 18px !important; }
+          .hero-cta-row { flex-direction: column !important; gap: 12px !important; }
+          .hero-cta-row a { width: 100% !important; justify-content: center !important; padding: 14px 24px !important; box-sizing: border-box !important; }
+          .section-pad { padding: 56px 20px !important; }
+          .section-head { margin-bottom: 40px !important; }
+          .section-h2 { font-size: 30px !important; }
+          .services-grid { grid-template-columns: 1fr !important; }
+          .about-grid { grid-template-columns: 1fr !important; gap: 40px !important; }
+          .about-badge { position: static !important; display: inline-block !important; margin-top: 16px !important; font-size: 22px !important; padding: 12px 18px !important; }
+          .about-stats { gap: 20px !important; }
+          .contact-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+          .contact-form { padding: 24px !important; }
+          .footer-inner { flex-direction: column !important; gap: 14px !important; text-align: center !important; }
+        }
+        @media (max-width: 420px) {
+          .hero-title { font-size: 34px !important; }
+          .section-h2 { font-size: 26px !important; }
         }
       `}} />
 
@@ -86,25 +111,27 @@ export default function BaseTemplate({
         top: 0,
         zIndex: 50,
       }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="nav-inner" style={{ maxWidth: 1280, margin: "0 auto", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, background: C.accent, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+            <div style={{ width: 40, height: 40, background: C.accent, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>
               {mainIcon}
             </div>
-            <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.025em" }}>{name.toUpperCase()}</span>
+            <span className="nav-brand" style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.025em" }}>{name.toUpperCase()}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 32 }}>
-            {["Services", "À propos", "Contact"].map((l) => (
-              <a key={l} href={`#${l.toLowerCase().replace(/ /g, "")}`} style={{
-                fontFamily: "'Space Mono', monospace",
-                fontSize: 12,
-                textTransform: "uppercase" as const,
-                letterSpacing: "0.1em",
-                color: C.muted,
-                textDecoration: "none",
-              }}>{l}</a>
-            ))}
-            <a href={`tel:${phone.replace(/\s/g, "")}`} style={{
+            <div className="nav-menu" style={{ display: "flex", alignItems: "center", gap: 32 }}>
+              {["Services", "À propos", "Contact"].map((l) => (
+                <a key={l} href={`#${l.toLowerCase().replace(/ /g, "")}`} style={{
+                  fontFamily: "'Space Mono', monospace",
+                  fontSize: 12,
+                  textTransform: "uppercase" as const,
+                  letterSpacing: "0.1em",
+                  color: C.muted,
+                  textDecoration: "none",
+                }}>{l}</a>
+              ))}
+            </div>
+            <a className="nav-cta" href={`tel:${phone.replace(/\s/g, "")}`} style={{
               background: C.accent,
               color: C.accentFg,
               fontWeight: 700,
@@ -113,6 +140,7 @@ export default function BaseTemplate({
               textDecoration: "none",
               fontSize: 14,
               letterSpacing: "0.05em",
+              whiteSpace: "nowrap" as const,
             }}>{phone}</a>
           </div>
         </div>
@@ -135,7 +163,7 @@ export default function BaseTemplate({
         <div style={{ position: "absolute", inset: 0, background: C.heroOverlay }} />
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 128, background: C.heroFade }} />
 
-        <div style={{ position: "relative", maxWidth: 1280, margin: "0 auto", padding: "176px 24px 128px", textAlign: "center", width: "100%" }}>
+        <div className="hero-inner" style={{ position: "relative", maxWidth: 1280, margin: "0 auto", padding: "176px 24px 128px", textAlign: "center", width: "100%", boxSizing: "border-box" }}>
           {/* Status badge */}
           <div style={{
             display: "inline-flex",
@@ -151,7 +179,7 @@ export default function BaseTemplate({
             <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: "#4ade80" }}>Disponible</span>
           </div>
 
-          <h1 style={{
+          <h1 className="hero-title" style={{
             fontSize: 80,
             fontWeight: 900,
             lineHeight: 1,
@@ -172,14 +200,14 @@ export default function BaseTemplate({
             <div style={{ height: 1, width: 64, background: C.accent }} />
           </div>
 
-          <p style={{ fontSize: 24, color: C.subtle, fontWeight: 500, margin: "0 0 8px" }}>
+          <p className="hero-sub" style={{ fontSize: 24, color: C.subtle, fontWeight: 500, margin: "0 0 8px" }}>
             {label} professionnel
           </p>
           <p style={{ fontFamily: "'Space Mono', monospace", color: C.dim, fontSize: 14, letterSpacing: "0.05em", margin: "0 0 56px" }}>
             {ville}
           </p>
 
-          <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
+          <div className="hero-cta-row" style={{ display: "flex", gap: 16, justifyContent: "center" }}>
             <a href="#contact" style={{
               display: "inline-flex",
               alignItems: "center",
@@ -212,14 +240,14 @@ export default function BaseTemplate({
       </section>
 
       {/* ── Services ── */}
-      <section id="services" style={{ padding: "96px 24px", background: C.bg }}>
+      <section id="services" className="section-pad" style={{ padding: "96px 24px", background: C.bg }}>
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 80 }}>
+          <div className="section-head" style={{ textAlign: "center", marginBottom: 80 }}>
             <span style={{ ...monoStyle, display: "block", marginBottom: 16 }}>Ce que nous faisons</span>
-            <h2 style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", margin: 0 }}>Nos Services</h2>
+            <h2 className="section-h2" style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", margin: 0 }}>Nos Services</h2>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
+          <div className="services-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 24 }}>
             {services.map((s) => (
               <div key={s.title} style={{
                 position: "relative",
@@ -271,9 +299,9 @@ export default function BaseTemplate({
       </section>
 
       {/* ── About ── */}
-      <section id="apropos" style={{ padding: "96px 24px", background: C.bgAlt }}>
+      <section id="apropos" className="section-pad" style={{ padding: "96px 24px", background: C.bgAlt }}>
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
+          <div className="about-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center" }}>
             {/* About image — adapted to prospect's métier */}
             <div style={{ position: "relative" }}>
               <div style={{
@@ -289,7 +317,7 @@ export default function BaseTemplate({
                   style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }}
                 />
               </div>
-              <div style={{
+              <div className="about-badge" style={{
                 position: "absolute",
                 bottom: -24,
                 right: -24,
@@ -305,7 +333,7 @@ export default function BaseTemplate({
             {/* Text */}
             <div>
               <span style={{ ...monoStyle, display: "block", marginBottom: 16 }}>À propos</span>
-              <h2 style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 32px" }}>
+              <h2 className="section-h2" style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: "0 0 32px" }}>
                 Votre {label.toLowerCase()}<br />de confiance
               </h2>
               <p style={{ fontSize: 18, color: C.muted, lineHeight: 1.7, margin: "0 0 24px" }}>
@@ -315,7 +343,7 @@ export default function BaseTemplate({
                 Notre priorité : un travail soigné, dans le respect des normes en vigueur, avec des tarifs transparents et sans surprise.
               </p>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+              <div className="about-stats" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
                 <div style={{ borderLeft: `2px solid ${C.accent}`, paddingLeft: 24 }}>
                   <div style={{ fontSize: 30, fontWeight: 900, marginBottom: 4 }}>Devis</div>
                   <div style={{ fontFamily: "'Space Mono', monospace", color: C.dim, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em" }}>Gratuit</div>
@@ -338,16 +366,16 @@ export default function BaseTemplate({
       </section>
 
       {/* ── Contact ── */}
-      <section id="contact" style={{ padding: "96px 24px", background: C.bg }}>
+      <section id="contact" className="section-pad" style={{ padding: "96px 24px", background: C.bg }}>
         <div style={{ maxWidth: 1280, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 80 }}>
+          <div className="section-head" style={{ textAlign: "center", marginBottom: 80 }}>
             <span style={{ ...monoStyle, display: "block", marginBottom: 16 }}>Contact</span>
-            <h2 style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", margin: 0 }}>Demandez votre devis</h2>
+            <h2 className="section-h2" style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", margin: 0 }}>Demandez votre devis</h2>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>
+          <div className="contact-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 48 }}>
             {/* Form */}
-            <div style={{ background: C.bgAlt, border: `1px solid ${C.border}`, borderRadius: 2, padding: 40 }}>
+            <div className="contact-form" style={{ background: C.bgAlt, border: `1px solid ${C.border}`, borderRadius: 2, padding: 40 }}>
               {[
                 { label: "Nom complet", type: "text", placeholder: "Votre nom" },
                 { label: "Email", type: "email", placeholder: "votre@email.fr" },
@@ -493,7 +521,7 @@ export default function BaseTemplate({
 
       {/* ── Footer ── */}
       <footer style={{ background: C.bg, borderTop: `1px solid ${C.border}`, padding: "40px 24px" }}>
-        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="footer-inner" style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 32, height: 32, background: C.accent, borderRadius: 2, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
               {mainIcon}

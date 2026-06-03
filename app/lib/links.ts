@@ -11,15 +11,29 @@ export function phoneForWhatsApp(phone: string): string {
 }
 
 /**
- * URL publique de la démo live d'un prospect (cf. roadmap quick win #1).
+ * Code court d'une démo = 8 premiers caractères de l'UUID.
+ * Sans collision sur la base actuelle (953 prospects, vérifié). Sert à la
+ * route courte /d/{code} qui raccourcit l'URL (SMS en 1 segment).
+ */
+export function shortCode(id: string): string {
+  return id.slice(0, 8);
+}
+
+/** Base publique des liens démo (env > origine courante côté client). */
+function demoBase(): string {
+  const base =
+    process.env.NEXT_PUBLIC_DEMO_BASE_URL ??
+    (typeof window !== "undefined" ? window.location.origin : "");
+  return base.replace(/\/$/, "");
+}
+
+/**
+ * URL publique COURTE de la démo live d'un prospect (cf. roadmap quick win #1).
  * Base configurable via NEXT_PUBLIC_DEMO_BASE_URL (ex. https://prospects.nmf-agence.com),
  * sinon l'origine courante côté client (utile en dev sur localhost).
  */
 export function demoUrl(id: string): string {
-  const base =
-    process.env.NEXT_PUBLIC_DEMO_BASE_URL ??
-    (typeof window !== "undefined" ? window.location.origin : "");
-  return `${base.replace(/\/$/, "")}/demo/${id}`;
+  return `${demoBase()}/d/${shortCode(id)}`;
 }
 
 export function whatsAppUrl(phone: string, text?: string): string {

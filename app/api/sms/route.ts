@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { twilioClient, twilioConfigured, messagingServiceSid } from "@/app/lib/twilio";
 import { toE164, salesSmsMsg, smsSegments } from "@/app/lib/sms";
+import { shortCode } from "@/app/lib/links";
 
 interface SendResult {
   id: string;
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("prospects")
-    .select("id, name, metier, ville, phone")
+    .select("id, name, metier, ville, phone, dirigeant_prenom, dirigeant_nom")
     .in("id", ids);
 
   if (error) {
@@ -65,8 +66,17 @@ export async function POST(req: NextRequest) {
 
   for (const p of data ?? []) {
     const to = toE164(p.phone);
-    const link = `${base}/demo/${p.id}`;
-    const message = salesSmsMsg({ name: p.name, metier: p.metier, ville: p.ville }, link);
+    const link = `${base}/d/${shortCode(p.id)}`;
+    const message = salesSmsMsg(
+      {
+        name: p.name,
+        metier: p.metier,
+        ville: p.ville,
+        dirigeant_prenom: p.dirigeant_prenom,
+        dirigeant_nom: p.dirigeant_nom,
+      },
+      link,
+    );
     const segments = smsSegments(message);
 
     if (!to) {
