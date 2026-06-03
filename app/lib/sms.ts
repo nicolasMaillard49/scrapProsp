@@ -1,4 +1,5 @@
 import { phoneForWhatsApp } from "./links";
+import { metierLabel } from "@/app/maquette/templates/data";
 
 /**
  * Numéro au format E.164 attendu par Twilio (ex. "+33612345678").
@@ -58,34 +59,38 @@ function frTitleCase(s: string): string {
 }
 
 /**
- * Salutation à partir du dirigeant SIRENE : "Bonjour Alexis Bonvalet".
- * 1er prénom + nom, accents conservés. Null si pas de nom -> "Bonjour," générique.
- * Pas de civilité (pas de champ genre en base) -> neutre.
+ * Salutation à partir du dirigeant SIRENE : "Bonjour Alexis".
+ * 1er prénom seulement (ton plus personnel, moins "fichage"), accents conservés.
+ * Null si pas de prénom -> "Bonjour," générique. Pas de civilité (pas de genre en base).
  */
 export function ownerSalutation(
   prenom?: string | null,
   nom?: string | null,
 ): string | null {
-  const lastName = (nom ?? "").trim();
-  if (!lastName) return null;
   const firstName = (prenom ?? "").trim().split(/\s+/)[0] ?? "";
-  const parts = [firstName, lastName].filter(Boolean).map(frTitleCase);
-  return `Bonjour ${parts.join(" ")}`;
+  if (!firstName) return null;
+  return `Bonjour ${frTitleCase(firstName)}`;
 }
 
 /**
  * Message de prospection SMS (tunnel inversé).
- * AVEC accents (rendu pro, plus crédible) -> SMS en UCS-2, donc plusieurs
- * segments assumés. Inclut un nom humain + une mention vérifiable (nmf-agence.com)
- * et "sans engagement" pour rassurer (anti-scam), + STOP obligatoire (B2B FR).
+ * Ton volontairement humain/personnel (et non commercial) pour éviter l'effet
+ * spam : on explique pourquoi on écrit (pas de site repéré) et on offre la démo
+ * déjà faite. AVEC accents -> UCS-2 (plusieurs segments assumés).
+ * Garde le minimum : "gratuit/sans engagement" pour rassurer + STOP (légal B2B FR).
  */
 export function salesSmsMsg(p: SmsProspect, demoLink: string): string {
   const owner = ownerSalutation(p.dirigeant_prenom, p.dirigeant_nom);
   const greeting = owner ? `${owner}, ` : "Bonjour, ";
+  // "votre activité de paysagiste" / "d'électricien" (élision sur voyelle)
+  const label = p.metier ? metierLabel(p.metier).toLowerCase() : "";
+  const activite = label
+    ? ` ${/^[aeiouyhàâäéèêëïîôöùûü]/i.test(label) ? `d'${label}` : `de ${label}`}`
+    : "";
   return (
-    `${greeting}c'est Nicolas de NMF Agence (agence web FR). ` +
-    `Je vous ai préparé un aperçu de votre futur site : ${demoLink} ` +
-    `C'est 100% gratuit et sans engagement, agence vérifiable sur nmf-agence.com. ` +
-    `Intéressé ? OUI. STOP pour arrêter.`
+    `${greeting}c'est Nicolas de NMF Agence. ` +
+    `J'ai vu que vous n'aviez pas de site internet pour votre activité${activite}, ` +
+    `alors j'ai pris la liberté de vous en créer un : ${demoLink} ` +
+    `C'est gratuit et sans engagement, dites-moi juste ce que vous en pensez ! STOP pour ne plus recevoir.`
   );
 }
