@@ -17,7 +17,7 @@ const theme: TemplateTheme = {
   dim: "#6b7280",
   subtle: "#d1d5db",
   accentFg: "#030712",
-  heroImage: "/templates/electricien-depannage.jpg",
+  heroImage: "/templates/electricien-mise-aux-normes.jpg",
   heroOverlay: "linear-gradient(to top, #030712, rgba(3,7,18,0.7), transparent)",
   heroFade: "linear-gradient(to top, #030712, transparent)",
 };
