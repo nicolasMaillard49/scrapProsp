@@ -632,7 +632,14 @@ export default function BaseTemplate({
           <a href="https://www.nmf-agence.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa", textDecoration: "none", fontWeight: 700 }}>
             NMF Agence
           </a>
-          {process.env.NEXT_PUBLIC_NMF_PHONE ? ` · ${process.env.NEXT_PUBLIC_NMF_PHONE}` : ""}
+          {process.env.NEXT_PUBLIC_NMF_PHONE ? (
+            <>
+              {" · "}
+              <a href={`tel:${process.env.NEXT_PUBLIC_NMF_PHONE.replace(/\s/g, "")}`} style={{ color: "#a78bfa", textDecoration: "none", fontWeight: 700 }}>
+                {process.env.NEXT_PUBLIC_NMF_PHONE}
+              </a>
+            </>
+          ) : ""}
           <br />
           <span style={{ color: "rgba(255,255,255,0.4)" }}>
             Aperçu gratuit et sans engagement — entièrement personnalisable à votre demande.
