@@ -17,7 +17,7 @@ const theme: TemplateTheme = {
   dim: "#64748b",
   subtle: "#cbd5e1",
   accentFg: "#fff",
-  heroImage: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=1600&q=80",
+  heroImage: "/templates/plombier-hero.jpg",
   heroOverlay: "linear-gradient(to top, #0f172a, rgba(15,23,42,0.6), transparent)",
   heroFade: "linear-gradient(to top, #0f172a, transparent)",
 };
