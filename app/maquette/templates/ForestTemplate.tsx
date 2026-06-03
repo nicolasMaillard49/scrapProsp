@@ -17,7 +17,7 @@ const theme: TemplateTheme = {
   dim: "#4ade80",
   subtle: "#bbf7d0",
   accentFg: "#0c1a0f",
-  heroImage: "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=1600&q=80",
+  heroImage: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=1600&q=80",
   heroOverlay: "linear-gradient(to top, #0c1a0f, rgba(12,26,15,0.65), transparent)",
   heroFade: "linear-gradient(to top, #0c1a0f, transparent)",
 };

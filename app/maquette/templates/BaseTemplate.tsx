@@ -95,12 +95,60 @@ export default function BaseTemplate({
           .contact-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
           .contact-form { padding: 24px !important; }
           .footer-inner { flex-direction: column !important; gap: 14px !important; text-align: center !important; }
+          .demo-banner { font-size: 11px !important; padding: 9px 16px !important; letter-spacing: 0 !important; }
+          .demo-why-grid { grid-template-columns: 1fr !important; gap: 20px !important; }
+          .demo-watermark { display: none !important; }
         }
         @media (max-width: 420px) {
           .hero-title { font-size: 34px !important; }
           .section-h2 { font-size: 26px !important; }
         }
       `}} />
+
+      {/* ── Bandeau démo (démos publiques uniquement) ── */}
+      {nmfCredit && (
+        <div className="demo-banner" style={{
+          background: "#000",
+          color: "rgba(255,255,255,0.85)",
+          textAlign: "center",
+          padding: "11px 24px",
+          fontFamily: "'Space Mono', monospace",
+          fontSize: 13,
+          letterSpacing: "0.02em",
+          lineHeight: 1.5,
+        }}>
+          ✨ Démo gratuite — ce site est{" "}
+          <strong style={{ color: "#a78bfa" }}>entièrement modifiable à votre demande</strong>{" "}
+          (textes, photos, couleurs). Dites-nous ce qu&apos;on change.
+        </div>
+      )}
+
+      {/* ── Watermark démo (fixe, n'intercepte pas les clics) ── */}
+      {nmfCredit && (
+        <div className="demo-watermark" style={{
+          position: "fixed",
+          bottom: 18,
+          left: 18,
+          zIndex: 60,
+          pointerEvents: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: "rgba(0,0,0,0.55)",
+          backdropFilter: "blur(6px)",
+          border: "1px solid rgba(167,139,250,0.4)",
+          borderRadius: 999,
+          padding: "7px 14px",
+          fontFamily: "'Space Mono', monospace",
+          fontSize: 11,
+          textTransform: "uppercase",
+          letterSpacing: "0.18em",
+          color: "rgba(255,255,255,0.75)",
+        }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#a78bfa", display: "inline-block" }} />
+          Démo · personnalisable
+        </div>
+      )}
 
       {/* ── Nav ── */}
       <nav style={{
@@ -519,6 +567,46 @@ export default function BaseTemplate({
         </div>
       </section>
 
+      {/* ── Pourquoi un site est important (démos publiques uniquement) ── */}
+      {nmfCredit && (
+        <section className="section-pad" style={{ padding: "96px 24px", background: C.bgAlt, borderTop: `1px solid ${C.accentBorder}` }}>
+          <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+            <div className="section-head" style={{ textAlign: "center", marginBottom: 56 }}>
+              <span style={{ ...monoStyle, display: "block", marginBottom: 16 }}>Pourquoi un site est important</span>
+              <h2 className="section-h2" style={{ fontSize: 48, fontWeight: 900, letterSpacing: "-0.025em", lineHeight: 1.1, margin: 0 }}>
+                Un site qui travaille<br />pour vous, jour et nuit
+              </h2>
+            </div>
+
+            <div className="demo-why-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 32, marginBottom: 48 }}>
+              {[
+                { num: "~200", label: "visites par mois en moyenne" },
+                { num: "+3", label: "demandes de devis supplémentaires / mois minimum" },
+                { num: "1", label: "seul chantier suffit à le rentabiliser" },
+              ].map((stat) => (
+                <div key={stat.label} style={{
+                  background: C.bg,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 2,
+                  padding: "36px 28px",
+                  textAlign: "center",
+                }}>
+                  <div style={{ fontSize: 56, fontWeight: 900, color: C.accent, lineHeight: 1, marginBottom: 12, textShadow: `0 0 24px ${C.accent}30` }}>{stat.num}</div>
+                  <div style={{ color: C.muted, fontSize: 15, lineHeight: 1.6 }}>{stat.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <p style={{ textAlign: "center", maxWidth: 720, margin: "0 auto", color: C.subtle, fontSize: 18, lineHeight: 1.7 }}>
+              Sur les artisans que NMF Agence a accompagnés, un site bien référencé attire en moyenne
+              près de <strong style={{ color: C.text }}>200 visites par mois</strong> et génère au minimum
+              <strong style={{ color: C.text }}> 3 demandes de devis supplémentaires</strong>. Autrement dit :
+              il est <strong style={{ color: C.accent }}>rentabilisé dès le premier chantier signé</strong>.
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* ── Footer ── */}
       <footer style={{ background: C.bg, borderTop: `1px solid ${C.border}`, padding: "40px 24px" }}>
         <div className="footer-inner" style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -539,12 +627,16 @@ export default function BaseTemplate({
 
       {/* ── Crédit NMF Agence (démos publiques uniquement) ── */}
       {nmfCredit && (
-        <div style={{ background: "#000", padding: "14px 24px", textAlign: "center", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-          Site créé par{" "}
+        <div style={{ background: "#000", padding: "14px 24px", textAlign: "center", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.7 }}>
+          Démo créée par{" "}
           <a href="https://www.nmf-agence.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#a78bfa", textDecoration: "none", fontWeight: 700 }}>
             NMF Agence
           </a>
           {process.env.NEXT_PUBLIC_NMF_PHONE ? ` · ${process.env.NEXT_PUBLIC_NMF_PHONE}` : ""}
+          <br />
+          <span style={{ color: "rgba(255,255,255,0.4)" }}>
+            Aperçu gratuit et sans engagement — entièrement personnalisable à votre demande.
+          </span>
         </div>
       )}
     </div>
