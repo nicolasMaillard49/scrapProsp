@@ -9,17 +9,22 @@ const theme: TemplateTheme = {
   bgAlt: "#f1ebdc",     // crème chaud (sections alternées)
   border: "#e4dcc8",    // beige doux
   borderLight: "#d3c8ad",
-  accent: "#3c4a1e",    // vert olive très foncé
-  accentBg: "rgba(60,74,30,0.08)",
-  accentBorder: "rgba(60,74,30,0.22)",
+  accent: "#54672a",    // vert olive foncé (un peu moins sombre)
+  accentBg: "rgba(84,103,42,0.08)",
+  accentBorder: "rgba(84,103,42,0.22)",
   text: "#2a2e1b",      // encre olive sombre
   muted: "#5e6247",     // olive moyen
   dim: "#84876e",       // olive grisé
   subtle: "#3f4426",    // sous-titres sur crème
   accentFg: "#faf7ef",  // texte crème sur fond olive
   heroImage: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=1600&q=80",
-  heroOverlay: "linear-gradient(to top, #faf7ef, rgba(250,247,239,0.6), rgba(250,247,239,0.2))",
+  // Hero assombri : image présente + voile vert olive sombre, texte crème.
+  heroImageOpacity: 0.9,
+  heroOverlay: "linear-gradient(to top, rgba(24,30,15,0.92), rgba(24,30,15,0.55), rgba(24,30,15,0.4))",
   heroFade: "linear-gradient(to top, #faf7ef, transparent)",
+  heroText: "#faf7ef",
+  heroSubtle: "#e8e3d4",
+  heroDim: "#c2bda6",
 };
 
 export default function ForestTemplate(props: TemplateProps & { nmfCredit?: boolean }) {

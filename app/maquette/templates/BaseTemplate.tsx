@@ -18,6 +18,12 @@ export interface TemplateTheme {
   heroImage: string;
   heroOverlay: string;
   heroFade: string;
+  /** Overrides hero (optionnels) — pour un hero au traitement différent du corps
+   *  (ex. thème clair avec hero sombre). Fallback sur les couleurs principales. */
+  heroText?: string;
+  heroSubtle?: string;
+  heroDim?: string;
+  heroImageOpacity?: number;
 }
 
 const mono = (accent: string): React.CSSProperties => ({
@@ -61,6 +67,11 @@ export default function BaseTemplate({
   const mainIcon = services[0]?.icon || "🔧";
   const monoStyle = mono(C.accent);
   const nameWords = name.trim().split(/\s+/);
+  // Hero : couleurs/opacité éventuellement spécifiques (fallback sur le thème)
+  const heroText = C.heroText ?? C.text;
+  const heroSub = C.heroSubtle ?? C.subtle;
+  const heroDim = C.heroDim ?? C.dim;
+  const heroImgOpacity = C.heroImageOpacity ?? 0.3;
 
   return (
     <div style={{ fontFamily: "'Outfit', sans-serif", color: C.text, margin: 0, background: C.bg }}>
@@ -206,7 +217,7 @@ export default function BaseTemplate({
         <img
           src={C.heroImage}
           alt=""
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.3 }}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: heroImgOpacity }}
         />
         <div style={{ position: "absolute", inset: 0, background: C.heroOverlay }} />
         <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 128, background: C.heroFade }} />
@@ -236,6 +247,7 @@ export default function BaseTemplate({
             wordSpacing: nameWords.length > 3 ? "0.15em" : undefined,
             wordBreak: "break-word" as const,
             overflowWrap: "break-word" as const,
+            color: heroText,
             textShadow: "0 2px 30px rgba(0,0,0,0.3)",
           }}>
             <HeroName name={name} />
@@ -248,10 +260,10 @@ export default function BaseTemplate({
             <div style={{ height: 1, width: 64, background: C.accent }} />
           </div>
 
-          <p className="hero-sub" style={{ fontSize: 24, color: C.subtle, fontWeight: 500, margin: "0 0 8px" }}>
+          <p className="hero-sub" style={{ fontSize: 24, color: heroSub, fontWeight: 500, margin: "0 0 8px" }}>
             {label} professionnel
           </p>
-          <p style={{ fontFamily: "'Space Mono', monospace", color: C.dim, fontSize: 14, letterSpacing: "0.05em", margin: "0 0 56px" }}>
+          <p style={{ fontFamily: "'Space Mono', monospace", color: heroDim, fontSize: 14, letterSpacing: "0.05em", margin: "0 0 56px" }}>
             {ville}
           </p>
 
@@ -275,8 +287,8 @@ export default function BaseTemplate({
               display: "inline-flex",
               alignItems: "center",
               gap: 12,
-              border: `1px solid ${C.dim}`,
-              color: C.text,
+              border: `1px solid ${heroDim}`,
+              color: heroText,
               fontWeight: 600,
               padding: "16px 40px",
               borderRadius: 2,
