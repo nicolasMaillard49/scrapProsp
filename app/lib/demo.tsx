@@ -34,14 +34,29 @@ export async function getProspectByCode(code: string): Promise<TemplateProps | n
   return (data?.[0] as TemplateProps) ?? null;
 }
 
-/** Métadonnées SEO partagées (noindex : ce sont des démos privées de prospection). */
+/** Base absolue pour les URLs de métadonnées (og:image doit être absolue pour WhatsApp/social). */
+const METADATA_BASE = new URL(
+  process.env.NEXT_PUBLIC_DEMO_BASE_URL ?? "https://prospects.nmf-agence.com",
+);
+
+/**
+ * Métadonnées partagées : noindex (démos privées de prospection) MAIS Open Graph
+ * + Twitter Card complets -> carte d'aperçu avec image quand le lien est partagé
+ * (WhatsApp, iMessage, réseaux). L'image elle-même vient du fichier
+ * opengraph-image.tsx du segment (injecté automatiquement par Next).
+ */
 export function demoMetadata(prospect: TemplateProps | null): Metadata {
-  if (!prospect) return { title: "Démo" };
+  if (!prospect) return { title: "Démo", metadataBase: METADATA_BASE };
   const label = metierLabel(prospect.metier);
+  const title = `${prospect.name} — ${label} à ${prospect.ville}`;
+  const description = `Aperçu du site web de ${prospect.name}, ${label} à ${prospect.ville}. Réalisé par NMF Agence — gratuit, sans engagement.`;
   return {
-    title: `${prospect.name} — ${label} à ${prospect.ville}`,
-    description: `Aperçu du site web de ${prospect.name}, ${label} à ${prospect.ville}. Démo réalisée par NMF Agence.`,
+    metadataBase: METADATA_BASE,
+    title,
+    description,
     robots: { index: false, follow: false },
+    openGraph: { title, description, type: "website", siteName: "NMF Agence" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 

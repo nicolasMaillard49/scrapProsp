@@ -50,21 +50,16 @@ export interface SmsProspect {
   dirigeant_nom?: string | null;
 }
 
-/** Retire les accents (é -> e) pour rester en GSM-7 (sinon SMS x2/x3). */
-function deburr(s: string): string {
-  return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-
-/** "Bonvalet" / "alexis bernard" -> "Bonvalet" / "Alexis Bernard" (gère les tirets). */
+/** "BONVALET" / "alexis bernard" -> "Bonvalet" / "Alexis Bernard" (gère tirets + accents). */
 function frTitleCase(s: string): string {
   return s
     .toLowerCase()
-    .replace(/(^|[\s-])([a-z])/g, (_, sep: string, c: string) => sep + c.toUpperCase());
+    .replace(/(^|[\s-])([a-zà-ÿ])/g, (_, sep: string, c: string) => sep + c.toUpperCase());
 }
 
 /**
  * Salutation à partir du dirigeant SIRENE : "Bonjour Alexis Bonvalet".
- * Prend uniquement le 1er prénom, déburré (GSM-7). Null si pas de nom.
+ * 1er prénom + nom, accents conservés. Null si pas de nom -> "Bonjour," générique.
  * Pas de civilité (pas de champ genre en base) -> neutre.
  */
 export function ownerSalutation(
@@ -74,25 +69,23 @@ export function ownerSalutation(
   const lastName = (nom ?? "").trim();
   if (!lastName) return null;
   const firstName = (prenom ?? "").trim().split(/\s+/)[0] ?? "";
-  const parts = [firstName, lastName].filter(Boolean).map((w) => frTitleCase(deburr(w)));
+  const parts = [firstName, lastName].filter(Boolean).map(frTitleCase);
   return `Bonjour ${parts.join(" ")}`;
 }
 
 /**
  * Message de prospection SMS (tunnel inversé).
- * - SANS accents (GSM-7) + mention STOP obligatoire (prospection B2B FR).
- * - Personnalisé "Monsieur Prénom Nom" si le dirigeant est connu, MAIS on
- *   retombe sur "Bonjour," si la version personnalisée dépasse 1 segment
- *   (nom long ou non-GSM7) -> garantit 1 SMS quand c'est possible.
+ * AVEC accents (rendu pro, plus crédible) -> SMS en UCS-2, donc plusieurs
+ * segments assumés. Inclut un nom humain + une mention vérifiable (nmf-agence.com)
+ * et "sans engagement" pour rassurer (anti-scam), + STOP obligatoire (B2B FR).
  */
 export function salesSmsMsg(p: SmsProspect, demoLink: string): string {
-  const build = (greeting: string) =>
-    `${greeting}NMF Agence vous a fait un apercu de site : ${demoLink} Interesse ? OUI. STOP pour arreter.`;
-
   const owner = ownerSalutation(p.dirigeant_prenom, p.dirigeant_nom);
-  if (owner) {
-    const personalized = build(`${owner}, `);
-    if (smsSegments(personalized) <= 1) return personalized;
-  }
-  return build("Bonjour, ");
+  const greeting = owner ? `${owner}, ` : "Bonjour, ";
+  return (
+    `${greeting}c'est Nicolas de NMF Agence (agence web FR). ` +
+    `Voici un aperçu gratuit de votre futur site : ${demoLink} ` +
+    `Sans engagement, agence vérifiable sur nmf-agence.com. ` +
+    `Intéressé ? OUI. STOP pour arrêter.`
+  );
 }
