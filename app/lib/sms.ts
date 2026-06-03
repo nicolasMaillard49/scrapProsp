@@ -9,8 +9,9 @@ import { metierLabel } from "@/app/maquette/templates/data";
 export function toE164(phone: string | null | undefined): string | null {
   if (!phone) return null;
   const digits = phoneForWhatsApp(phone); // "33XXXXXXXXX"
-  // FR : 33 + 9 chiffres = 11 ; on veut surtout des mobiles (6/7) pour le SMS
-  if (!/^33\d{9}$/.test(digits)) return null;
+  // SMS FR : mobiles uniquement (06/07 -> 336/337). On rejette fixes (01-05),
+  // VoIP (09) et spéciaux : ils ne reçoivent pas de SMS -> évite le gaspillage.
+  if (!/^33[67]\d{8}$/.test(digits)) return null;
   return `+${digits}`;
 }
 
