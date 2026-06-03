@@ -603,6 +603,29 @@ export default function BaseTemplate({
               <strong style={{ color: C.text }}> 3 demandes de devis supplémentaires</strong>. Autrement dit :
               il est <strong style={{ color: C.accent }}>rentabilisé dès le premier chantier signé</strong>.
             </p>
+
+            {/* Offre / prix NMF */}
+            <div style={{ marginTop: 48, display: "flex", justifyContent: "center" }}>
+              <div style={{
+                display: "inline-flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 8,
+                background: C.accentBg,
+                border: `1px solid ${C.accentBorder}`,
+                borderRadius: 4,
+                padding: "32px 48px",
+                textAlign: "center",
+              }}>
+                <span style={{ ...monoStyle, color: C.accent }}>Votre site clé en main</span>
+                <div style={{ fontSize: 46, fontWeight: 900, color: C.text, lineHeight: 1.1 }}>
+                  à partir de 299€
+                </div>
+                <div style={{ color: C.muted, fontSize: 15, lineHeight: 1.6 }}>
+                  puis 29€/mois — hébergement, maintenance &amp; mises à jour incluses
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       )}

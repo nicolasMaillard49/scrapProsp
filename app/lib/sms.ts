@@ -77,20 +77,18 @@ export function ownerSalutation(
  * Ton volontairement humain/personnel (et non commercial) pour éviter l'effet
  * spam : on explique pourquoi on écrit (pas de site repéré) et on offre la démo
  * déjà faite. AVEC accents -> UCS-2 (plusieurs segments assumés).
- * Garde le minimum : "gratuit/sans engagement" pour rassurer + STOP (légal B2B FR).
+ * Opt-out : ligne "répondez STOP" en fin de message (+ interception STOP/ARRET
+ * par le Messaging Service Twilio).
  */
 export function salesSmsMsg(p: SmsProspect, demoLink: string): string {
   const owner = ownerSalutation(p.dirigeant_prenom, p.dirigeant_nom);
   const greeting = owner ? `${owner}, ` : "Bonjour, ";
-  // "votre activité de paysagiste" / "d'électricien" (élision sur voyelle)
-  const label = p.metier ? metierLabel(p.metier).toLowerCase() : "";
-  const activite = label
-    ? ` ${/^[aeiouyhàâäéèêëïîôöùûü]/i.test(label) ? `d'${label}` : `de ${label}`}`
-    : "";
+  const metier = p.metier ? metierLabel(p.metier).toLowerCase() : "professionnel";
   return (
     `${greeting}c'est Nicolas de NMF Agence. ` +
-    `J'ai vu que vous n'aviez pas de site internet pour votre activité${activite}, ` +
-    `alors j'ai pris la liberté de vous en créer un : ${demoLink} ` +
-    `C'est gratuit et sans engagement, dites-moi juste ce que vous en pensez ! STOP pour ne plus recevoir.`
+    `En cherchant un ${metier} dans votre secteur, j'ai remarqué que vous n'aviez pas encore de site web.\n\n` +
+    `J'ai pris le temps de vous préparer un aperçu de ce qu'on pourrait faire pour vous : ${demoLink}\n\n` +
+    `N'hésitez pas à me dire ce que vous en pensez, c'est sans engagement !\n\n` +
+    `Si vous ne souhaitez plus être contacté, répondez STOP.`
   );
 }
