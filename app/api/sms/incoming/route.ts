@@ -10,17 +10,19 @@ function xml(body = TWIML_EMPTY) {
 
 /**
  * Webhook Twilio (POST x-www-form-urlencoded) appelé quand un prospect répond.
- * - "OUI" / "OK" / "INTERESSE"  -> statut positive + note
- * - "STOP" (Twilio gère déjà l'opt-out côté Messaging Service) -> note
- * Nécessite une URL publique (donc l'app déployée) configurée dans Twilio.
+ * - "STOP/ARRET/..." -> note d'opt-out (Twilio gère déjà la désinscription).
+ * - TOUTE autre réponse -> statut `positive` + note avec le texte exact
+ *   (un humain qui répond = lead à traiter ; on ne rate aucune intention,
+ *    même "d'accord ça m'intéresse", "c'est combien ?", "rappelez-moi"...).
+ * Nécessite une URL publique (app déployée) configurée dans Twilio.
  */
 export async function POST(req: NextRequest) {
   if (!supabaseConfigured) return xml();
 
   const form = await req.formData();
   const from = String(form.get("From") ?? "");
-  const text = String(form.get("Body") ?? "").trim().toUpperCase();
-  if (!from) return xml();
+  const body = String(form.get("Body") ?? "").trim();
+  if (!from || !body) return xml();
 
   // Retrouve le prospect dont le numéro normalisé == From (E.164)
   const { data } = await supabase.from("prospects").select("id, phone, notes, status");
@@ -28,17 +30,17 @@ export async function POST(req: NextRequest) {
   if (!prospect) return xml();
 
   const stamp = new Date().toISOString().slice(0, 10);
-  const isYes = /\b(OUI|OK|INTERESSE|INTÉRESSÉ|YES)\b/.test(text);
-  const isStop = /\b(STOP|ARRET|ARRÊT|DESABONNER)\b/.test(text);
+  const isStop = /\b(STOP|ARRET|ARRÊT|DESABONNER|UNSUBSCRIBE)\b/i.test(body);
 
-  if (!isYes && !isStop) return xml();
-
-  const tag = isYes ? `[SMS ${stamp}] Réponse OUI: "${text}"` : `[SMS ${stamp}] STOP`;
+  const tag = isStop
+    ? `[SMS ${stamp}] STOP (opt-out)`
+    : `[SMS ${stamp}] Réponse: "${body}"`;
   const notes = prospect.notes ? `${prospect.notes}\n${tag}` : tag;
 
+  // STOP : on logue sans marquer positif. Sinon : tout répondeur -> positive.
   await supabase
     .from("prospects")
-    .update(isYes ? { status: "positive", notes } : { notes })
+    .update(isStop ? { notes } : { status: "positive", notes })
     .eq("id", prospect.id);
 
   return xml();
