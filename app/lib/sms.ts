@@ -1,5 +1,4 @@
 import { phoneForWhatsApp } from "./links";
-import { metierLabel } from "@/app/maquette/templates/data";
 
 /**
  * Numéro au format E.164 attendu par Twilio (ex. "+33612345678").
@@ -83,12 +82,10 @@ export function ownerSalutation(
 export function salesSmsMsg(p: SmsProspect, demoLink: string): string {
   const owner = ownerSalutation(p.dirigeant_prenom, p.dirigeant_nom);
   const greeting = owner ? `${owner}, ` : "Bonjour, ";
-  const metier = p.metier ? metierLabel(p.metier).toLowerCase() : "professionnel";
   return (
     `${greeting}c'est Nicolas de NMF Agence. ` +
-    `En cherchant un ${metier} dans votre secteur, j'ai remarqué que vous n'aviez pas encore de site web.\n\n` +
-    `J'ai pris le temps de vous préparer un aperçu de ce qu'on pourrait faire pour vous : ${demoLink}\n\n` +
-    `N'hésitez pas à me dire ce que vous en pensez, c'est sans engagement !\n\n` +
-    `Si vous ne souhaitez plus être contacté, répondez STOP.`
+    `Vous n'avez pas de site web pour votre activité — ` +
+    `j'ai créé un aperçu gratuit pour vous : ${demoLink}\n` +
+    `Qu'en pensez-vous ? Répondez STOP pour ne plus être contacté.`
   );
 }
