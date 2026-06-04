@@ -3,6 +3,7 @@ import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { twilioClient, twilioConfigured, messagingServiceSid } from "@/app/lib/twilio";
 import { toE164, salesSmsMsg, smsSegments } from "@/app/lib/sms";
 import { shortCode } from "@/app/lib/links";
+import { logOutboundSms } from "@/app/lib/smsLog";
 
 interface SendResult {
   id: string;
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const msg = await client!.messages.create({ messagingServiceSid, to, body: message });
+      await logOutboundSms({ prospectId: p.id, to, body: message, segments, sid: msg.sid });
       results.push({ id: p.id, name: p.name, ok: true, to, segments, sid: msg.sid });
     } catch (e) {
       results.push({ id: p.id, name: p.name, ok: false, to, error: e instanceof Error ? e.message : String(e) });
