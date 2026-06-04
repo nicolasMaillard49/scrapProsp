@@ -129,6 +129,7 @@ export default function SmsPage() {
   const [classifying, setClassifying] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [view, setView] = useState<"convos" | "sent">("convos");
 
   const toggleExpand = useCallback((key: string) => {
     setExpanded((prev) => {
@@ -234,6 +235,15 @@ export default function SmsPage() {
     }
   }, [convos, filter]);
 
+  /* Tous les SMS envoyés, à plat, du plus récent au plus ancien. */
+  const sentList = useMemo(
+    () =>
+      rows
+        .filter((r) => r.direction === "outbound")
+        .sort((a, b) => (b.sent_at ?? "").localeCompare(a.sent_at ?? "")),
+    [rows],
+  );
+
   const runClassify = useCallback(async () => {
     setClassifying(true);
     setInfo(null);
@@ -322,7 +332,28 @@ export default function SmsPage() {
       {info && <div className="mb-3 text-xs px-3 py-2 rounded-lg border border-violet-900/40 bg-violet-950/20 text-violet-200">{info}</div>}
       {error && <div className="mb-3 text-xs px-3 py-2 rounded-lg border border-rose-900/40 bg-rose-950/20 text-rose-200">{error}</div>}
 
-      {/* Filtres */}
+      {/* Onglets de vue */}
+      <div className="flex items-center gap-1 mb-4 p-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] w-fit">
+        <button
+          onClick={() => setView("convos")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition ${
+            view === "convos" ? "bg-violet-600/30 text-violet-100" : "text-neutral-400 hover:text-neutral-200"
+          }`}
+        >
+          <Inbox className="w-3.5 h-3.5" /> Conversations <span className="opacity-60">{convos.length}</span>
+        </button>
+        <button
+          onClick={() => setView("sent")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition ${
+            view === "sent" ? "bg-violet-600/30 text-violet-100" : "text-neutral-400 hover:text-neutral-200"
+          }`}
+        >
+          <Send className="w-3.5 h-3.5" /> Messages envoyés <span className="opacity-60">{sentList.length}</span>
+        </button>
+      </div>
+
+      {/* Filtres (vue conversations uniquement) */}
+      {view === "convos" && (
       <div className="flex flex-wrap gap-1.5 mb-4">
         {FILTERS.map((f) => (
           <button
@@ -338,9 +369,46 @@ export default function SmsPage() {
           </button>
         ))}
       </div>
+      )}
 
-      {/* Liste */}
-      {loading ? (
+      {/* Vue : liste à plat des messages envoyés */}
+      {view === "sent" ? (
+        loading ? (
+          <div className="flex items-center justify-center py-20 text-neutral-500"><Loader2 className="w-6 h-6 animate-spin" /></div>
+        ) : sentList.length === 0 ? (
+          <div className="text-center py-20 text-neutral-500 text-sm">Aucun message envoyé.</div>
+        ) : (
+          <div className="space-y-2">
+            {sentList.map((m) => {
+              const name = m.prospect_id ? names.get(m.prospect_id) : null;
+              const phone = prettyPhone(normFr(m.to_phone));
+              return (
+                <div key={m.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5">
+                  <div className="flex items-center justify-between gap-3 flex-wrap mb-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Send className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                      {m.prospect_id ? (
+                        <Link href={`/?focus=${m.prospect_id}`} className="font-medium text-neutral-100 hover:text-violet-300 transition truncate">
+                          {name || "Prospect"}
+                        </Link>
+                      ) : (
+                        <span className="font-medium text-neutral-300">{phone}</span>
+                      )}
+                      {m.prospect_id && <span className="text-xs text-neutral-500">{phone}</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={m.status} />
+                      <span className="text-[11px] text-neutral-500">{fmtDate(m.sent_at)}</span>
+                    </div>
+                  </div>
+                  <div className="text-sm text-neutral-200 whitespace-pre-wrap break-words">{m.body}</div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : /* Vue : conversations */
+      loading ? (
         <div className="flex items-center justify-center py-20 text-neutral-500"><Loader2 className="w-6 h-6 animate-spin" /></div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 text-neutral-500 text-sm">Aucun SMS pour ce filtre.</div>
