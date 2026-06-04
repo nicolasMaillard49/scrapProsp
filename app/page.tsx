@@ -26,6 +26,7 @@ import { opportunityScore, opportunityBadge } from "./lib/opportunity";
 const statusConfig: Record<Status, { label: string; ring: string; rowBg: string; text: string }> = {
   todo: { label: "À appeler", ring: "ring-neutral-700", rowBg: "", text: "text-neutral-400" },
   called: { label: "Appelé", ring: "ring-amber-600/60", rowBg: "bg-amber-950/20", text: "text-amber-300" },
+  sms_sent: { label: "SMS envoyé", ring: "ring-violet-500/70", rowBg: "bg-violet-950/20", text: "text-violet-300" },
   positive: { label: "Positif", ring: "ring-emerald-500/70", rowBg: "bg-emerald-950/25", text: "text-emerald-300" },
   negative: { label: "Négatif", ring: "ring-rose-600/60", rowBg: "bg-rose-950/15", text: "text-rose-300" },
   no_answer: { label: "Pas de réponse", ring: "ring-sky-600/60", rowBg: "bg-sky-950/15", text: "text-sky-300" },
@@ -104,7 +105,7 @@ function HomeInner() {
 
   const stats = useMemo(() => {
     const pool = regionFilter === "all" ? enriched : enriched.filter((e) => e.p.region === regionFilter);
-    const s = { total: pool.length, todo: 0, called: 0, positive: 0, negative: 0, no_answer: 0, jeunes: 0, radie: 0 };
+    const s = { total: pool.length, todo: 0, called: 0, sms_sent: 0, positive: 0, negative: 0, no_answer: 0, jeunes: 0, radie: 0 };
     for (const e of pool) {
       const st = e.p.status;
       s[st]++;
@@ -336,9 +337,10 @@ function HomeInner() {
       </div>
 
       <div className="px-3 md:px-6 py-3 md:py-4">
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
-          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-100" />
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
+          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.sms_sent + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-100" />
           <StatCard label="À appeler" value={stats.todo} sub="non traités" active={filter === "todo"} onClick={() => setFilter("todo")} accent="text-neutral-300" iconBg="bg-neutral-800" />
+          <StatCard label="SMS envoyés" value={stats.sms_sent} sub="contactés" active={filter === "sms_sent"} onClick={() => setFilter("sms_sent")} accent="text-violet-300" iconBg="bg-violet-950/40" />
           <StatCard label="Appelés" value={stats.called} sub="en attente" active={filter === "called"} onClick={() => setFilter("called")} accent="text-amber-300" iconBg="bg-amber-950/40" />
           <StatCard label="Pas de rép." value={stats.no_answer} sub="à rappeler" active={filter === "no_answer"} onClick={() => setFilter("no_answer")} accent="text-sky-300" iconBg="bg-sky-950/40" />
           <StatCard label="Positifs" value={stats.positive} sub={`${stats.positive > 0 && stats.called + stats.positive + stats.negative > 0 ? Math.round((stats.positive / (stats.called + stats.positive + stats.negative)) * 100) : 0} %`} active={filter === "positive"} onClick={() => setFilter("positive")} accent="text-emerald-300" iconBg="bg-emerald-950/40" />

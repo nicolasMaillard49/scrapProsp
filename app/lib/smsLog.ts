@@ -33,6 +33,25 @@ export async function logOutboundSms(m: OutboundLog): Promise<void> {
   }
 }
 
+/**
+ * Bascule un prospect de `todo` vers `sms_sent` après l'envoi réussi d'un SMS,
+ * pour qu'il sorte de la liste « à appeler » et ne soit pas recontacté.
+ * Garde-fou `.eq("status","todo")` : on n'écrase jamais un statut déjà qualifié
+ * (positive/negative/called/no_answer). Non bloquant.
+ */
+export async function markProspectSmsSent(prospectId: string | null): Promise<void> {
+  if (!prospectId) return;
+  try {
+    await supabase
+      .from("prospects")
+      .update({ status: "sms_sent" })
+      .eq("id", prospectId)
+      .eq("status", "todo");
+  } catch (e) {
+    console.error("[smsLog] mark sms_sent failed:", e);
+  }
+}
+
 export interface InboundLog {
   prospectId: string | null;
   from: string;

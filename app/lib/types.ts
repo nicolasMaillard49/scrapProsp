@@ -1,4 +1,4 @@
-export type Status = "todo" | "called" | "positive" | "negative" | "no_answer";
+export type Status = "todo" | "called" | "sms_sent" | "positive" | "negative" | "no_answer";
 
 export interface Prospect {
   id: string;

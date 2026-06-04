@@ -28,6 +28,7 @@ interface Props {
 const statusLabel: Record<Status, { label: string; cls: string }> = {
   todo: { label: "À appeler", cls: "bg-neutral-700/40 text-neutral-300 border-neutral-600/50" },
   called: { label: "Déjà appelé", cls: "bg-amber-500/15 text-amber-200 border-amber-500/40" },
+  sms_sent: { label: "SMS envoyé", cls: "bg-violet-500/15 text-violet-200 border-violet-500/40" },
   positive: { label: "Positif", cls: "bg-emerald-500/15 text-emerald-200 border-emerald-500/40" },
   negative: { label: "Négatif", cls: "bg-rose-500/15 text-rose-200 border-rose-500/40" },
   no_answer: { label: "Pas de réponse", cls: "bg-sky-500/15 text-sky-200 border-sky-500/40" },
