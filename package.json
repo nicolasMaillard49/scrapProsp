@@ -8,7 +8,8 @@
     "start": "next start",
     "enrich:sirene": "node scripts/enrich-sirene.mjs",
     "push:sirene": "node scripts/apply-sirene-extended.mjs",
-    "import:twilio": "node scripts/import-twilio-sms.mjs"
+    "import:twilio": "node scripts/import-twilio-sms.mjs",
+    "migrate:005": "node scripts/apply-migration-005.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
