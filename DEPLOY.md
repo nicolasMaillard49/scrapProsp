@@ -69,4 +69,4 @@ Permet de programmer un envoi SMS depuis `/sms` (heure + nombre de prospects) qu
    ```
 3. Test : `curl -i -X POST https://prospects.nmf-agence.com/api/cron/run-blasts` → **401** (pas de secret).
    Avec le bon en-tête → `{ "ran": [...], "count": n }`.
-4. Les envois se créent depuis `/sms` → « Programmer un envoi ». Le cron exécute ceux dont l'heure est passée (sélection `status=todo`, mobiles uniques, garde-fou légal 8h-20h hors dimanche).
+4. Les envois se créent depuis `/sms` → « Programmer un envoi ». Le cron exécute les jobs `scheduled_blasts` en `status=pending` dont l'heure est passée ; chaque job envoie aux prospects `status=todo` (mobiles uniques), avec garde-fou légal 8h-20h hors dimanche (un job hors créneau est remis en attente, pas perdu).

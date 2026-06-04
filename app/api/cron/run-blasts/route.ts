@@ -49,6 +49,13 @@ export async function POST(req: NextRequest) {
         .eq("id", job.id);
       ran.push({ id: job.id, sent: r.sent, failed: r.failed });
     } catch (e) {
+      // Hors créneau légal : on ne marque PAS failed — on remet pending pour
+      // que le job reparte au prochain tick valide (8h-20h, hors dimanche).
+      if (e instanceof BlastError && e.code === "OUT_OF_WINDOW") {
+        await supabase.from("scheduled_blasts").update({ status: "pending" }).eq("id", job.id);
+        ran.push({ id: job.id, error: "différé (hors créneau)" });
+        continue;
+      }
       const msg = e instanceof BlastError ? e.message : e instanceof Error ? e.message : String(e);
       await supabase
         .from("scheduled_blasts")

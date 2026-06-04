@@ -17,6 +17,7 @@ export interface BlastResult {
 export class BlastError extends Error {
   constructor(public code: "OUT_OF_WINDOW" | "TWILIO_UNCONFIGURED", message: string) {
     super(message);
+    this.name = "BlastError";
   }
 }
 
