@@ -67,10 +67,11 @@ function frTitleCase(s: string): string {
 export function ownerSalutation(
   prenom?: string | null,
   nom?: string | null,
+  greeting = "Bonjour",
 ): string | null {
   const firstName = (prenom ?? "").trim().split(/\s+/)[0] ?? "";
   if (!firstName) return null;
-  return `Bonjour ${frTitleCase(firstName)}`;
+  return `${greeting} ${frTitleCase(firstName)}`;
 }
 
 /**
@@ -91,5 +92,21 @@ export function salesSmsMsg(p: SmsProspect, demoLink: string): string {
     `En cherchant un ${metier} ${loc}, j'ai remarqué que vous n'aviez pas de site web — ` +
     `j'ai pris le temps de vous créer un aperçu gratuit : ${demoLink}\n` +
     `Qu'en pensez-vous ? Répondez STOP pour ne plus être contacté.`
+  );
+}
+
+/**
+ * Message « livraison du site » — envoi unitaire depuis la fiche prospect, à un
+ * contact avec qui l'accord de contact existe déjà. Ton chaleureux (tutoiement
+ * léger « Salut »), sans mention STOP (l'opt-out reste géré par le Messaging
+ * Service Twilio si le contact répond STOP). Avec accents (coût négligeable en unitaire).
+ */
+export function deliverySmsMsg(p: SmsProspect, demoLink: string): string {
+  const owner = ownerSalutation(p.dirigeant_prenom, p.dirigeant_nom, "Salut");
+  const greeting = owner ? `${owner}, ` : "Bonjour, ";
+  return (
+    `${greeting}c'est Nicolas de NMF Agence. ` +
+    `Voici le site que je vous ai préparé : ${demoLink} — ` +
+    `dites-moi ce que vous en pensez !`
   );
 }

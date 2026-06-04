@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
   X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
-  Calendar, ChevronDown, MapPin, Star, Clock, History, Palette,
+  Calendar, ChevronDown, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2,
 } from "lucide-react";
 import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import AgeBadge from "./AgeBadge";
@@ -69,6 +69,10 @@ export default function CallModal({
   const [pushError, setPushError] = useState<string | null>(null);
   const [rdvOpen, setRdvOpen] = useState(initialTab === "rdv");
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Envoi « livraison du site » par SMS depuis la fiche
+  const [smsState, setSmsState] = useState<"idle" | "preview" | "sending" | "sent" | "error">("idle");
+  const [smsPreview, setSmsPreview] = useState<{ message: string; segments: number } | null>(null);
+  const [smsError, setSmsError] = useState<string | null>(null);
 
   const name = prospect?.name || "";
   const phone = prospect?.phone || "";
@@ -91,6 +95,59 @@ export default function CallModal({
   useEffect(() => {
     if (open) setRdvOpen(initialTab === "rdv");
   }, [open, initialTab]);
+
+  // Réinitialise l'état d'envoi SMS quand on change de prospect / ferme la fiche
+  useEffect(() => {
+    setSmsState("idle");
+    setSmsPreview(null);
+    setSmsError(null);
+  }, [prospect?.id, open]);
+
+  const loadSmsPreview = async () => {
+    if (!prospect) return;
+    setSmsState("sending");
+    setSmsError(null);
+    try {
+      const res = await fetch("/api/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [prospect.id], template: "delivery", dryRun: true }),
+      });
+      const json = await res.json();
+      const r = json.results?.[0];
+      if (!res.ok) return setSmsErr(json.error || `Erreur ${res.status}`);
+      if (!r?.ok) return setSmsErr(r?.error || "Numéro non mobile (pas de SMS possible)");
+      setSmsPreview({ message: r.message, segments: r.segments });
+      setSmsState("preview");
+    } catch (e) {
+      setSmsErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const sendSms = async () => {
+    if (!prospect) return;
+    setSmsState("sending");
+    setSmsError(null);
+    try {
+      const res = await fetch("/api/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [prospect.id], template: "delivery" }),
+      });
+      const json = await res.json();
+      const r = json.results?.[0];
+      if (!res.ok) return setSmsErr(json.error || `Erreur ${res.status}`);
+      if (!r?.ok) return setSmsErr(r?.error || "Échec de l'envoi");
+      setSmsState("sent");
+    } catch (e) {
+      setSmsErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  function setSmsErr(msg: string) {
+    setSmsError(msg);
+    setSmsState("error");
+  }
 
   useEffect(() => {
     try {
@@ -369,6 +426,53 @@ export default function CallModal({
             <span className="font-medium text-sm">Tel direct</span>
           </a>
         </div>
+
+        {/* Envoyer le site par SMS (message « livraison », aperçu + confirmation) */}
+        {prospect && (
+          <div className="mb-4">
+            {smsState === "sent" ? (
+              <div className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600/80 text-white font-medium">
+                <CheckCircle2 className="w-5 h-5" /> Site envoyé par SMS
+              </div>
+            ) : smsState === "preview" && smsPreview ? (
+              <div className="rounded-xl border border-violet-700/50 bg-violet-500/5 p-3">
+                <div className="text-[11px] text-neutral-400 mb-1.5 flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-violet-300" />
+                  Aperçu — {smsPreview.segments} SMS (~{(smsPreview.segments * 0.075).toFixed(2)} €)
+                </div>
+                <div className="text-sm text-neutral-200 whitespace-pre-wrap mb-3">{smsPreview.message}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSmsState("idle")}
+                    className="py-2 rounded-lg border border-[var(--color-border)] text-neutral-300 hover:text-neutral-100 text-sm transition"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={sendSms}
+                    className="py-2 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Send className="w-4 h-4" /> Envoyer
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={loadSmsPreview}
+                disabled={smsState === "sending"}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-700/10 border border-violet-700/50 hover:from-violet-500/30 hover:to-fuchsia-700/20 text-violet-100 font-medium transition disabled:opacity-50"
+              >
+                {smsState === "sending" ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageSquare className="w-5 h-5" />}
+                Envoyer le site par SMS
+              </button>
+            )}
+            {smsState === "error" && smsError && (
+              <div className="mt-1.5 px-3 py-1.5 rounded text-[11px] text-rose-300 bg-rose-500/5 border border-rose-500/20 break-words">
+                {smsError}
+              </div>
+            )}
+          </div>
+        )}
 
         {ntfyTopic && !ntfyEditing && (
           <div className="mb-4">
