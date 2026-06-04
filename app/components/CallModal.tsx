@@ -7,6 +7,7 @@ import {
   Calendar, ChevronDown, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2,
 } from "lucide-react";
 import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
+import { supabase } from "../lib/supabase";
 import AgeBadge from "./AgeBadge";
 import CompetitorSection from "./CompetitorSection";
 import CompanyInfo from "./CompanyInfo";
@@ -47,6 +48,14 @@ function formatRelativeTime(iso: string): string {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+/** "2026-06-04T16:30:00Z" -> "le 04/06 à 18h30" (heure locale). */
+function fmtSmsDate(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }).replace(":", "h");
+  return `le ${date} à ${time}`;
+}
+
 function formatDuration(s?: number | null): string {
   if (!s) return "";
   if (s < 60) return `${s}s`;
@@ -73,6 +82,7 @@ export default function CallModal({
   const [smsState, setSmsState] = useState<"idle" | "preview" | "sending" | "sent" | "error">("idle");
   const [smsPreview, setSmsPreview] = useState<{ message: string; segments: number } | null>(null);
   const [smsError, setSmsError] = useState<string | null>(null);
+  const [lastSmsAt, setLastSmsAt] = useState<string | null>(null);
 
   const name = prospect?.name || "";
   const phone = prospect?.phone || "";
@@ -102,6 +112,28 @@ export default function CallModal({
     setSmsPreview(null);
     setSmsError(null);
   }, [prospect?.id, open]);
+
+  // Charge la date du dernier SMS envoyé à ce prospect (pour la mention « SMS envoyé »)
+  useEffect(() => {
+    if (!open || !prospect?.id) {
+      setLastSmsAt(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("sms_messages")
+        .select("sent_at")
+        .eq("prospect_id", prospect.id)
+        .eq("direction", "outbound")
+        .order("sent_at", { ascending: false })
+        .limit(1);
+      if (!cancelled) setLastSmsAt(data?.[0]?.sent_at ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, prospect?.id]);
 
   const loadSmsPreview = async () => {
     if (!prospect) return;
@@ -139,6 +171,7 @@ export default function CallModal({
       if (!res.ok) return setSmsErr(json.error || `Erreur ${res.status}`);
       if (!r?.ok) return setSmsErr(r?.error || "Échec de l'envoi");
       setSmsState("sent");
+      setLastSmsAt(new Date().toISOString());
     } catch (e) {
       setSmsErr(e instanceof Error ? e.message : String(e));
     }
@@ -277,6 +310,11 @@ export default function CallModal({
                 </span>
               )}
               {prospect && <AgeBadge prospect={prospect} size="xs" showSiret />}
+              {lastSmsAt && (
+                <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30">
+                  <MessageSquare className="w-3 h-3" /> SMS envoyé {fmtSmsDate(lastSmsAt)}
+                </span>
+              )}
             </div>
             <div className="text-lg font-bold text-neutral-100 leading-tight break-words">{name}</div>
           </div>
