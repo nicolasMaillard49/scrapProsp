@@ -16,6 +16,8 @@ import {
   ThumbsDown,
   Minus,
   RefreshCw,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 
@@ -45,6 +47,7 @@ interface Convo {
   name: string | null;
   sent: SmsRow[];
   replies: SmsRow[];
+  thread: SmsRow[]; // sent + replies, tri chronologique
   lastAt: string;
   lastStatus: string | null;
   sentiment: Sentiment; // sentiment de la dernière réponse
@@ -125,6 +128,16 @@ export default function SmsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [classifying, setClassifying] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpand = useCallback((key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
 
   const load = useCallback(async () => {
     if (!supabaseConfigured) {
@@ -165,7 +178,7 @@ export default function SmsPage() {
       if (!key) continue;
       let c = map.get(key);
       if (!c) {
-        c = { key, phone: key, prospectId: null, name: null, sent: [], replies: [], lastAt: "", lastStatus: null, sentiment: null, lastReply: null };
+        c = { key, phone: key, prospectId: null, name: null, sent: [], replies: [], thread: [], lastAt: "", lastStatus: null, sentiment: null, lastReply: null };
         map.set(key, c);
       }
       if (r.prospect_id && !c.prospectId) {
@@ -181,6 +194,8 @@ export default function SmsPage() {
     }
     for (const c of map.values()) {
       c.replies.sort((a, b) => (a.sent_at ?? "").localeCompare(b.sent_at ?? ""));
+      c.sent.sort((a, b) => (a.sent_at ?? "").localeCompare(b.sent_at ?? ""));
+      c.thread = [...c.sent, ...c.replies].sort((a, b) => (a.sent_at ?? "").localeCompare(b.sent_at ?? ""));
       c.lastReply = c.replies[c.replies.length - 1] ?? null;
       c.sentiment = c.lastReply?.sentiment ?? null;
     }
@@ -346,11 +361,16 @@ export default function SmsPage() {
                     {c.prospectId && <span className="text-xs text-neutral-500">{prettyPhone(c.phone)}</span>}
                     <StatusBadge status={c.lastStatus} />
                   </div>
-                  <div className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2">
+                  <button
+                    onClick={() => toggleExpand(c.key)}
+                    className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2 hover:text-neutral-300 transition"
+                    title={expanded.has(c.key) ? "Masquer les messages" : "Voir les messages envoyés"}
+                  >
+                    {expanded.has(c.key) ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                     <Send className="w-3 h-3" /> {c.sent.length} envoyé{c.sent.length > 1 ? "s" : ""}
                     {c.replies.length > 0 && (<><Inbox className="w-3 h-3 ml-1" /> {c.replies.length} réponse{c.replies.length > 1 ? "s" : ""}</>)}
                     <span className="ml-1">· {fmtDate(c.lastAt)}</span>
-                  </div>
+                  </button>
                 </div>
 
                 {/* Sentiment + bascule manuelle (si réponse) */}
@@ -366,12 +386,37 @@ export default function SmsPage() {
                 )}
               </div>
 
-              {/* Dernière réponse */}
-              {c.lastReply && (
-                <div className="mt-2.5 pl-3 border-l-2 border-violet-800/40 text-sm text-neutral-200">
-                  <span className="text-[11px] text-neutral-500 mr-2">Réponse :</span>
-                  {c.lastReply.body}
+              {/* Fil complet déplié : liste des messages envoyés + réponses */}
+              {expanded.has(c.key) ? (
+                <div className="mt-3 space-y-1.5">
+                  {c.thread.map((m) => {
+                    const out = m.direction === "outbound";
+                    return (
+                      <div key={m.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
+                        <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
+                          out
+                            ? "bg-violet-950/40 border border-violet-900/40 text-neutral-100"
+                            : "bg-neutral-800/50 border border-neutral-700/50 text-neutral-200"
+                        }`}>
+                          <div className="flex items-center gap-2 mb-1 text-[10px] text-neutral-500">
+                            {out ? <Send className="w-3 h-3" /> : <Inbox className="w-3 h-3" />}
+                            <span>{out ? "Envoyé" : "Réponse"}</span>
+                            <span>· {fmtDate(m.sent_at)}</span>
+                            {out ? <StatusBadge status={m.status} /> : <SentimentBadge s={m.sentiment} />}
+                          </div>
+                          <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+              ) : (
+                c.lastReply && (
+                  <div className="mt-2.5 pl-3 border-l-2 border-violet-800/40 text-sm text-neutral-200">
+                    <span className="text-[11px] text-neutral-500 mr-2">Réponse :</span>
+                    {c.lastReply.body}
+                  </div>
+                )
               )}
             </div>
           ))}
