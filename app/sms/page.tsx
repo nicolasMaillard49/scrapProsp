@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
+import ScheduleBlastPanel from "./ScheduleBlastPanel";
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
 type Direction = "outbound" | "inbound";
@@ -328,6 +329,8 @@ export default function SmsPage() {
         <Stat label="Positifs" value={stats.positive} accent="text-emerald-300" />
         <Stat label="Négatifs" value={stats.negative} accent="text-rose-300" />
       </div>
+
+      <ScheduleBlastPanel />
 
       {info && <div className="mb-3 text-xs px-3 py-2 rounded-lg border border-violet-900/40 bg-violet-950/20 text-violet-200">{info}</div>}
       {error && <div className="mb-3 text-xs px-3 py-2 rounded-lg border border-rose-900/40 bg-rose-950/20 text-rose-200">{error}</div>}
