@@ -5,7 +5,7 @@ import Papa from "papaparse";
 import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
   CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2, User,
-  Filter, ArrowUpDown, Clock, Globe,
+  Filter, ArrowUpDown, Clock, Globe, MessageSquare,
   ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
 } from "lucide-react";
 import Link from "next/link";
@@ -278,6 +278,14 @@ function HomeInner() {
             >
               <MapPin className="w-4 h-4" />
               <span className="hidden md:inline">Carte</span>
+            </Link>
+            <Link
+              href="/sms"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+              title="Suivi des SMS"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden md:inline">SMS</span>
             </Link>
             <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-400 hover:text-neutral-100 transition" title="Raccourcis (?)">
               <Keyboard className="w-4 h-4" />
