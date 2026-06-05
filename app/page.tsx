@@ -327,7 +327,7 @@ function HomeInner() {
               className={`shrink-0 px-3 py-1.5 text-xs rounded-full border transition ${
                 regionFilter === "all"
                   ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
-                  : "bg-[var(--color-surface)]/50 border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                  : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
               }`}
             >
               <Globe className="w-3 h-3 inline mr-1" />
@@ -342,7 +342,7 @@ function HomeInner() {
                   className={`shrink-0 px-3 py-1.5 text-xs rounded-full border transition ${
                     regionFilter === r.key
                       ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
-                      : "bg-[var(--color-surface)]/50 border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                      : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
                   }`}
                 >
                   {r.label} <span className="text-neutral-400 dark:text-neutral-600">({count})</span>
@@ -505,7 +505,7 @@ function HomeInner() {
           </div>
         )}
         {!loaded && (
-          <div className="stagger-3 hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]/40">
+          <div className="stagger-3 hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="skeleton h-[64px] m-2" />
             ))}
@@ -521,7 +521,7 @@ function HomeInner() {
             return (
               <div
                 key={p.id}
-                className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/60 ${cfg.row} p-3.5`}
+                className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] ${cfg.row} p-3.5`}
               >
                 <div className="flex items-start gap-2.5 mb-2.5">
                   <button
@@ -640,7 +640,7 @@ function HomeInner() {
                   value={p.notes}
                   onChange={(e) => setLocalNotes(p.id, e.target.value)}
                   onBlur={(e) => updateNotes(p.id, e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--color-background)]/60 border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--color-background)] border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
                 />
               </div>
             );
@@ -657,9 +657,9 @@ function HomeInner() {
         </div>
 
         {/* DESKTOP : vue table */}
-        <div className="hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]/70 stagger-3">
+        <div className="hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)] stagger-3">
           <table className="w-full text-base">
-            <thead className="bg-[var(--color-surface)]/80 backdrop-blur text-left text-xs uppercase tracking-wider text-neutral-500 border-b border-[var(--color-border)]">
+            <thead className="bg-[var(--color-surface-2)] text-left text-xs uppercase tracking-wider text-[var(--color-text-muted)] border-b border-[var(--color-border)]">
               <tr>
                 <th className="px-4 py-3 font-medium w-10"></th>
                 <th className="px-4 py-3 font-medium">Prospect</th>
@@ -677,7 +677,7 @@ function HomeInner() {
                 const cfg = statusConfig[p.status];
                 const isOpen = isOpenNow(p, now, now);
                 return (
-                  <tr key={p.id} className={`border-t border-[var(--color-border)] ${cfg.row} hover:bg-[var(--color-surface)]/60 transition`}>
+                  <tr key={p.id} className={`border-t border-[var(--color-border)] ${cfg.row} hover:bg-[var(--color-surface)] transition`}>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => { setFocusStart(idx); setFocusOpen(true); }}
@@ -794,7 +794,7 @@ function HomeInner() {
                         value={p.notes}
                         onChange={(e) => setLocalNotes(p.id, e.target.value)}
                         onBlur={(e) => updateNotes(p.id, e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-sm rounded bg-[var(--color-background)]/50 border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
+                        className="w-full px-2.5 py-1.5 text-sm rounded bg-[var(--color-background)] border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -916,7 +916,7 @@ function StatCard({ label, value, sub, active, onClick, accent, iconBg }: { labe
       className={`text-left px-2.5 md:px-3 py-2 md:py-2.5 rounded-xl border transition-all duration-200 group relative overflow-hidden ${
         active
           ? "bg-[var(--color-surface-2)] border-violet-500/50 shadow-lg shadow-violet-900/20 ring-1 ring-violet-500/20"
-          : "bg-[var(--color-surface)]/50 border-[var(--color-border)] hover:border-[var(--color-border-strong)] hover:-translate-y-px"
+          : "bg-[var(--color-surface)] border-[var(--color-border)] hover:border-[var(--color-border-strong)] hover:-translate-y-px"
       }`}
     >
       {active && (
