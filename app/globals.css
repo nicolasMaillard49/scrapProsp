@@ -1,6 +1,24 @@
 @import "tailwindcss";
 
+/* ── Light theme (default) ── */
 @theme {
+  --color-background: #f8f9fb;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f3f5;
+  --color-border: #e2e4e9;
+  --color-border-strong: #cdd0d5;
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #9ca3af;
+  --color-accent: #7c3aed;
+  --color-accent-soft: #ede9fe;
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+/* ── Dark theme ── */
+.dark {
   --color-background: #0a0a0c;
   --color-surface: #111114;
   --color-surface-2: #17171c;
@@ -9,10 +27,8 @@
   --color-text-primary: #ededf2;
   --color-text-secondary: #a0a0aa;
   --color-text-muted: #6b6b75;
+  --color-accent: #7c3aed;
   --color-accent-soft: #2a1f4a;
-  --font-display: var(--font-display);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
 }
 
 html, body {
@@ -23,16 +39,20 @@ html, body {
 }
 
 body {
+  position: relative;
+}
+
+/* subtle gradient — only in dark mode */
+.dark body {
   background-image:
     radial-gradient(at 8% 0%, rgba(123, 79, 224, 0.12) 0px, transparent 45%),
     radial-gradient(at 100% 8%, rgba(96, 165, 250, 0.06) 0px, transparent 50%),
     radial-gradient(at 50% 100%, rgba(123, 79, 224, 0.04) 0px, transparent 60%);
   background-attachment: fixed;
-  position: relative;
 }
 
-/* tactile noise overlay — adds depth without slowing render */
-body::before {
+/* tactile noise overlay — dark mode only */
+.dark body::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -48,8 +68,8 @@ body > * { position: relative; z-index: 1; }
 
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2e2e36; border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: #3e3e46; }
+::-webkit-scrollbar-thumb { background: var(--color-border-strong); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
 
 input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-visible {
   outline: 2px solid rgba(123, 79, 224, 0.5);
@@ -103,9 +123,9 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(35, 35, 41, 0.4) 0%,
-    rgba(46, 46, 54, 0.7) 50%,
-    rgba(35, 35, 41, 0.4) 100%
+    var(--color-surface-2) 0%,
+    var(--color-border) 50%,
+    var(--color-surface-2) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
@@ -113,9 +133,12 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 }
 
 .glass {
-  background: rgba(17, 17, 20, 0.7);
+  background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
+}
+.dark .glass {
+  background: rgba(17, 17, 20, 0.7);
 }
 
 /* Leaflet dark popup overrides */
@@ -129,20 +152,24 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
   margin: 0 !important;
 }
 .leaflet-popup-tip {
-  background: #1a1a1f !important;
-  border: 1px solid #2a2a30 !important;
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
 }
 .leaflet-popup-close-button {
-  color: #666 !important;
+  color: var(--color-text-muted) !important;
 }
 .leaflet-popup-close-button:hover {
-  color: #aaa !important;
+  color: var(--color-text-secondary) !important;
 }
 .leaflet-control-attribution {
-  background: rgba(17, 17, 20, 0.8) !important;
-  color: #555 !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: #888 !important;
   font-size: 9px !important;
 }
+.dark .leaflet-control-attribution {
+  background: rgba(17, 17, 20, 0.8) !important;
+  color: #555 !important;
+}
 .leaflet-control-attribution a {
-  color: #666 !important;
+  color: var(--color-text-muted) !important;
 }
