@@ -1,0 +1,133 @@
+import { NextRequest, NextResponse } from "next/server";
+import { supabase, supabaseConfigured } from "@/app/lib/supabase";
+import { apifyConfigured, fetchHashtagUsernames, fetchProfiles } from "@/app/lib/apify";
+import { isProspect, detectMetier, detectVille } from "@/app/lib/instagram";
+
+export const dynamic = "force-dynamic";
+export const maxDuration = 300; // Vercel : laisse le temps aux runs Apify
+
+const PROFILE_BATCH = 30; // usernames par appel profile-scraper (borne le temps de run-sync)
+const SCAN_CAP = 600; // plafond dur de profils scannés / run (borne le coût Apify)
+
+interface DiscoverBody {
+  hashtag?: string;
+  target?: number;
+  dryRun?: boolean;
+}
+
+/**
+ * POST /api/instagram/discover  { hashtag, target?=100, dryRun? }
+ * Découvre ~target comptes Instagram SANS site web pour un hashtag, via Apify.
+ * Sur-récupère et scanne par lots jusqu'à atteindre la cible ou le plafond.
+ */
+export async function POST(req: NextRequest) {
+  if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
+  if (!apifyConfigured) return NextResponse.json({ error: "APIFY_TOKEN manquant" }, { status: 503 });
+
+  let body: DiscoverBody;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
+  }
+
+  const hashtag = (body.hashtag ?? "").replace(/^#/, "").trim();
+  if (!hashtag) return NextResponse.json({ error: "hashtag requis" }, { status: 400 });
+  const target = Math.min(Math.max(Number(body.target) || 100, 1), 300);
+  const dryRun = body.dryRun === true;
+
+  // 1) Sur-récupération des usernames depuis le hashtag.
+  const overfetch = Math.min(target * 5, 500);
+  let usernames: string[];
+  try {
+    usernames = await fetchHashtagUsernames(hashtag, overfetch);
+  } catch (e) {
+    return NextResponse.json({ error: `Hashtag scraper: ${e instanceof Error ? e.message : String(e)}` }, { status: 502 });
+  }
+  if (!usernames.length) {
+    return NextResponse.json({ hashtag, target, scanned: 0, qualified: 0, inserted: 0, results: [], note: "Aucun compte trouvé pour ce hashtag." });
+  }
+
+  // 2) Dédup contre la base (on ne re-scanne/ré-insère pas un compte déjà connu).
+  const { data: existingRows } = await supabase
+    .from("instagram_prospects")
+    .select("username")
+    .in("username", usernames);
+  const known = new Set((existingRows ?? []).map((r) => r.username as string));
+  const candidates = usernames.filter((u) => !known.has(u));
+
+  // 3) Profile-scrape par lots jusqu'à la cible / plafond.
+  interface QualRow {
+    username: string;
+    full_name: string | null;
+    bio: string | null;
+    external_url: string | null;
+    followers: number | null;
+    category: string | null;
+    metier: string;
+    ville: string;
+    hashtag_source: string;
+  }
+  const qualified: QualRow[] = [];
+  const insertedRows: Record<string, unknown>[] = [];
+  let scanned = 0;
+
+  for (let i = 0; i < candidates.length && qualified.length < target && scanned < SCAN_CAP; i += PROFILE_BATCH) {
+    const batch = candidates.slice(i, i + PROFILE_BATCH);
+    let profiles;
+    try {
+      profiles = await fetchProfiles(batch);
+    } catch (e) {
+      // Un lot qui échoue ne tue pas le run : on continue avec les suivants.
+      console.error("profile batch failed:", e instanceof Error ? e.message : e);
+      scanned += batch.length;
+      continue;
+    }
+    scanned += batch.length;
+
+    const batchRows: QualRow[] = [];
+    for (const p of profiles) {
+      if (qualified.length + batchRows.length >= target) break;
+      if (!isProspect(p)) continue; // a un vrai site -> écarté
+      batchRows.push({
+        username: p.username,
+        full_name: p.fullName ?? null,
+        bio: p.biography ?? null,
+        external_url: p.externalUrl ?? null,
+        followers: typeof p.followersCount === "number" ? p.followersCount : null,
+        category: p.businessCategoryName ?? null,
+        metier: detectMetier(p.businessCategoryName, p.biography),
+        ville: detectVille(hashtag, p.biography),
+        hashtag_source: hashtag,
+      });
+    }
+    qualified.push(...batchRows);
+
+    // Insertion incrémentale par lot : le progrès persiste même si le run est
+    // interrompu (timeout fonction). dryRun -> aucune écriture.
+    if (!dryRun && batchRows.length) {
+      const { data, error } = await supabase
+        .from("instagram_prospects")
+        .upsert(batchRows, { onConflict: "username", ignoreDuplicates: true })
+        .select("id, username, full_name, bio, followers, category, metier, ville, status");
+      if (error) {
+        console.error("insert batch failed:", error.message);
+      } else {
+        insertedRows.push(...((data ?? []) as Record<string, unknown>[]));
+      }
+    }
+  }
+
+  const capHit = scanned >= SCAN_CAP && qualified.length < target;
+
+  return NextResponse.json({
+    hashtag,
+    target,
+    dryRun,
+    scanned,
+    qualified: qualified.length,
+    inserted: dryRun ? 0 : insertedRows.length,
+    capHit,
+    results: dryRun ? qualified : insertedRows,
+  });
+}

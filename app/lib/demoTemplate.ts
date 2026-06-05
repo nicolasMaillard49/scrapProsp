@@ -37,17 +37,24 @@ const METIER_TEMPLATE: Record<string, TemplateKey> = {
   serrurier: "minimal",
   menuisier: "luxe",
   peintre: "luxe",
-  // Beauté / bien-être → template éditorial "Salon"
+  // Niches Instagram → template éditorial "Salon" (kit adapté par métier)
   coiffeur: "salon",
   coiffure: "salon",
   barbier: "salon",
   esthéticienne: "salon",
   esthéticien: "salon",
+  estheticienne: "salon",
   esthetique: "salon",
   institut: "salon",
   "institut-de-beaute": "salon",
   onglerie: "salon",
   manucure: "salon",
+  restaurant: "salon",
+  restaurateur: "salon",
+  traiteur: "salon",
+  pizzeria: "salon",
+  fleuriste: "salon",
+  tatoueur: "salon",
 };
 
 export function templateForMetier(metier: string | null | undefined): TemplateKey {
