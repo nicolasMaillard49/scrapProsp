@@ -10,6 +10,7 @@ import ElectricTemplate from "../templates/ElectricTemplate";
 import ForestTemplate from "../templates/ForestTemplate";
 import LuxeTemplate from "../templates/LuxeTemplate";
 import TerraTemplate from "../templates/TerraTemplate";
+import SalonTemplate from "../templates/SalonTemplate";
 import type { TemplateProps } from "../templates/data";
 
 const TEMPLATES = {
@@ -20,6 +21,7 @@ const TEMPLATES = {
   forest: { label: "Forest", component: ForestTemplate },
   luxe: { label: "Luxe", component: LuxeTemplate },
   terra: { label: "Terra", component: TerraTemplate },
+  salon: { label: "Salon", component: SalonTemplate },
 } as const;
 
 type TemplateKey = keyof typeof TEMPLATES;

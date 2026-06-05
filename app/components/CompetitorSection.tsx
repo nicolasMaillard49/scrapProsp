@@ -156,7 +156,7 @@ export default function CompetitorSection({
   // Collapsed: show button inside the modal area
   if (!isExpanded && !error) {
     return (
-      <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-5 w-full max-w-xs shadow-2xl flex flex-col items-center justify-center gap-4">
+      <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-5 w-full sm:max-w-xs shadow-2xl flex flex-col items-center justify-center gap-4">
         <BarChart3 className="w-8 h-8 text-violet-300" />
         <h3 className="text-sm font-medium text-neutral-200 text-center">Analyse concurrentielle</h3>
         <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
@@ -187,7 +187,7 @@ export default function CompetitorSection({
 
   // Expanded: side panel with results
   return (
-    <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-5 w-full min-w-[340px] max-w-lg shadow-2xl overflow-y-auto overflow-x-hidden max-h-[85vh]">
+    <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-4 sm:p-5 w-full sm:min-w-[340px] max-w-lg shadow-2xl overflow-y-auto overflow-x-hidden max-h-[85vh]">
       {/* Loading state */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 gap-3">

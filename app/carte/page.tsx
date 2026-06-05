@@ -36,27 +36,71 @@ const MapView = dynamic(() => import("./MapView"), {
   ),
 });
 
-/* -- Geocode cache -- */
-const geoCache = new Map<string, { lat: number; lng: number }>();
+/* -- Geocodage via la Base Adresse Nationale (api-adresse.data.gouv.fr) --
+   Gratuit, sans clé, optimisé France. Remplace Nominatim/OSM. */
+type GeoHit = { lat: number; lng: number; score: number };
+const geoCache = new Map<string, GeoHit | null>();
 
-async function geocodeVille(ville: string): Promise<{ lat: number; lng: number } | null> {
-  const cached = geoCache.get(ville);
-  if (cached) return cached;
+async function banGeocode(query: string, params = ""): Promise<GeoHit | null> {
+  const q = query.trim();
+  if (!q) return null;
+  const cacheKey = params + "|" + q;
+  if (geoCache.has(cacheKey)) return geoCache.get(cacheKey)!;
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(ville + ", France")}&format=json&limit=1`,
-      { headers: { "User-Agent": "ProspectsTracker/1.0" }, signal: AbortSignal.timeout(5000) },
+      `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1&autocomplete=0${params}`,
+      { signal: AbortSignal.timeout(6000) },
     );
+    if (!res.ok) return null;
     const data = await res.json();
-    if (data.length > 0) {
-      const result = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-      geoCache.set(ville, result);
-      return result;
+    const f = data.features?.[0];
+    const coords = f?.geometry?.coordinates;
+    if (Array.isArray(coords) && coords.length === 2) {
+      const hit: GeoHit = { lat: coords[1], lng: coords[0], score: f.properties?.score ?? 0 };
+      geoCache.set(cacheKey, hit);
+      return hit;
     }
   } catch {
     /* Don't cache failures -- allow retries on next search */
   }
   return null;
+}
+
+/* Centre-ville (fallback + recentrage de la carte) */
+async function geocodeVille(ville: string): Promise<{ lat: number; lng: number } | null> {
+  const hit = await banGeocode(ville, "&type=municipality");
+  return hit ? { lat: hit.lat, lng: hit.lng } : null;
+}
+
+/* Adresse précise d'un prospect — on rejette les matchs trop faibles */
+async function geocodeAddress(address: string): Promise<GeoHit | null> {
+  const hit = await banGeocode(address);
+  return hit && hit.score >= 0.4 ? hit : null;
+}
+
+/* map() avec concurrence bornée (évite de saturer l'API en parallèle) */
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const i = cursor++;
+      // Un échec isolé ne doit jamais casser le rendu de toute la carte.
+      try {
+        results[i] = await fn(items[i], i);
+      } catch {
+        results[i] = null as R;
+      }
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, () => worker()),
+  );
+  return results;
 }
 
 /* -- Rank helpers -- */
@@ -182,19 +226,29 @@ export default function CartePage() {
       scored.sort((a, b) => b.gbp_score - a.gbp_score);
       scored.forEach((p, i) => (p.rank = i + 1));
 
-      // Geocode & spread markers
+      // Geocode : vraie adresse (BAN) en priorité, sinon dispersion autour du centre-ville
       const center = await geocodeVille(ville.trim());
+      const geoHits = await mapWithConcurrency(scored, 6, (p) =>
+        p.address ? geocodeAddress(p.address) : Promise.resolve(null),
+      );
+
       const withCoords: MapProspect[] = scored.map((p, i) => {
+        const hit = geoHits[i];
+        if (hit) {
+          return { ...p, lat: hit.lat, lng: hit.lng, precise: true };
+        }
         if (center) {
+          // Dispersion déterministe en cercle (positions approximatives)
           const angle = (2 * Math.PI * i) / Math.max(scored.length, 1);
-          const radius = 0.004 + Math.random() * 0.007;
+          const radius = 0.004 + ((i * 37) % 100) / 100 * 0.007;
           return {
             ...p,
             lat: center.lat + Math.cos(angle) * radius,
             lng: center.lng + Math.sin(angle) * radius,
+            precise: false,
           };
         }
-        return p;
+        return { ...p, precise: false };
       });
 
       setResults(withCoords);
@@ -279,6 +333,7 @@ export default function CartePage() {
 
   const noSiteCount = results.filter((p) => !p.website).length;
   const hasSiteCount = results.length - noSiteCount;
+  const approxCount = displayList.filter((p) => p.lat != null && !p.precise).length;
 
   return (
     <main className="h-screen flex flex-col bg-[var(--color-background)] text-neutral-100">
@@ -581,10 +636,12 @@ export default function CartePage() {
             />
           </div>
 
-          {/* Approximate positions disclaimer */}
+          {/* Positions disclaimer (BAN) */}
           {searchDone && displayList.length > 0 && (
             <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-[#111114]/80 border border-[var(--color-border)] text-[10px] text-neutral-500 backdrop-blur-sm" style={{ zIndex: 1 }}>
-              Positions approximatives
+              {approxCount === 0
+                ? "Positions géocodées · BAN"
+                : `${approxCount} approximative${approxCount > 1 ? "s" : ""} · BAN`}
             </div>
           )}
 

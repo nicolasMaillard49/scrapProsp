@@ -55,6 +55,24 @@ function parseAge(raw) {
   return Number.isNaN(n) ? null : n;
 }
 
+function parseIntField(raw) {
+  if (!raw || raw === "") return null;
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+function parseFloatField(raw) {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const n = Number(String(raw).replace(",", "."));
+  return Number.isNaN(n) ? null : n;
+}
+
+function parseBool(raw) {
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  return null;
+}
+
 // ── load manifest ───────────────────────────────────────────────────────
 const manifestPath = resolve(PUBLIC_DIR, "manifest.json");
 if (!existsSync(manifestPath)) {
@@ -122,6 +140,16 @@ for (const region of manifest.regions) {
       company_created_at: parseDate(row.created_at),
       age_years: parseAge(row.age_years),
       legal_status: row.legal_status || null,
+      dirigeant_nom: row.dirigeant_nom || null,
+      dirigeant_prenom: row.dirigeant_prenom || null,
+      dirigeant_annee_naissance: parseIntField(row.dirigeant_annee_naissance),
+      tranche_effectif: row.tranche_effectif || null,
+      effectif_label: row.effectif_label || null,
+      latitude: parseFloatField(row.latitude),
+      longitude: parseFloatField(row.longitude),
+      est_rge: parseBool(row.est_rge),
+      nature_juridique: row.nature_juridique || null,
+      categorie: row.categorie || null,
       status: state.status || "todo",
       notes: state.notes || "",
     });

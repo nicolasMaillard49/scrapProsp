@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
   X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
-  Calendar, ChevronDown, MapPin, Star, Clock, History, Palette,
+  Calendar, ChevronDown, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2,
 } from "lucide-react";
 import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
+import { supabase } from "../lib/supabase";
 import AgeBadge from "./AgeBadge";
 import CompetitorSection from "./CompetitorSection";
+import CompanyInfo from "./CompanyInfo";
 import type { Call, Prospect, Status } from "../lib/types";
 
 interface Props {
@@ -27,6 +29,7 @@ interface Props {
 const statusLabel: Record<Status, { label: string; cls: string }> = {
   todo: { label: "À appeler", cls: "bg-neutral-700/40 text-neutral-300 border-neutral-600/50" },
   called: { label: "Déjà appelé", cls: "bg-amber-500/15 text-amber-200 border-amber-500/40" },
+  sms_sent: { label: "SMS envoyé", cls: "bg-violet-500/15 text-violet-200 border-violet-500/40" },
   positive: { label: "Positif", cls: "bg-emerald-500/15 text-emerald-200 border-emerald-500/40" },
   negative: { label: "Négatif", cls: "bg-rose-500/15 text-rose-200 border-rose-500/40" },
   no_answer: { label: "Pas de réponse", cls: "bg-sky-500/15 text-sky-200 border-sky-500/40" },
@@ -43,6 +46,14 @@ function formatRelativeTime(iso: string): string {
   const j = Math.round(h / 24);
   if (j < 30) return `il y a ${j} j`;
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/** "2026-06-04T16:30:00Z" -> "le 04/06 à 18h30" (heure locale). */
+function fmtSmsDate(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+  const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }).replace(":", "h");
+  return `le ${date} à ${time}`;
 }
 
 function formatDuration(s?: number | null): string {
@@ -67,6 +78,11 @@ export default function CallModal({
   const [pushError, setPushError] = useState<string | null>(null);
   const [rdvOpen, setRdvOpen] = useState(initialTab === "rdv");
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Envoi « livraison du site » par SMS depuis la fiche
+  const [smsState, setSmsState] = useState<"idle" | "preview" | "sending" | "sent" | "error">("idle");
+  const [smsPreview, setSmsPreview] = useState<{ message: string; segments: number } | null>(null);
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [lastSmsAt, setLastSmsAt] = useState<string | null>(null);
 
   const name = prospect?.name || "";
   const phone = prospect?.phone || "";
@@ -89,6 +105,82 @@ export default function CallModal({
   useEffect(() => {
     if (open) setRdvOpen(initialTab === "rdv");
   }, [open, initialTab]);
+
+  // Réinitialise l'état d'envoi SMS quand on change de prospect / ferme la fiche
+  useEffect(() => {
+    setSmsState("idle");
+    setSmsPreview(null);
+    setSmsError(null);
+  }, [prospect?.id, open]);
+
+  // Charge la date du dernier SMS envoyé à ce prospect (pour la mention « SMS envoyé »)
+  useEffect(() => {
+    if (!open || !prospect?.id) {
+      setLastSmsAt(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("sms_messages")
+        .select("sent_at")
+        .eq("prospect_id", prospect.id)
+        .eq("direction", "outbound")
+        .order("sent_at", { ascending: false })
+        .limit(1);
+      if (!cancelled) setLastSmsAt(data?.[0]?.sent_at ?? null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, prospect?.id]);
+
+  const loadSmsPreview = async () => {
+    if (!prospect) return;
+    setSmsState("sending");
+    setSmsError(null);
+    try {
+      const res = await fetch("/api/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [prospect.id], template: "delivery", dryRun: true }),
+      });
+      const json = await res.json();
+      const r = json.results?.[0];
+      if (!res.ok) return setSmsErr(json.error || `Erreur ${res.status}`);
+      if (!r?.ok) return setSmsErr(r?.error || "Numéro non mobile (pas de SMS possible)");
+      setSmsPreview({ message: r.message, segments: r.segments });
+      setSmsState("preview");
+    } catch (e) {
+      setSmsErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const sendSms = async () => {
+    if (!prospect) return;
+    setSmsState("sending");
+    setSmsError(null);
+    try {
+      const res = await fetch("/api/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [prospect.id], template: "delivery" }),
+      });
+      const json = await res.json();
+      const r = json.results?.[0];
+      if (!res.ok) return setSmsErr(json.error || `Erreur ${res.status}`);
+      if (!r?.ok) return setSmsErr(r?.error || "Échec de l'envoi");
+      setSmsState("sent");
+      setLastSmsAt(new Date().toISOString());
+    } catch (e) {
+      setSmsErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  function setSmsErr(msg: string) {
+    setSmsError(msg);
+    setSmsState("error");
+  }
 
   useEffect(() => {
     try {
@@ -186,15 +278,15 @@ export default function CallModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-y-auto"
+      className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 animate-fade-in overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className={`flex flex-col md:flex-row gap-4 my-4 animate-slide-up ${competitorOpen ? "md:max-w-5xl" : "max-w-md"} w-full transition-all duration-300`}
+        className={`flex flex-col md:flex-row gap-4 my-2 sm:my-4 animate-slide-up ${competitorOpen ? "md:max-w-5xl" : "max-w-md"} w-full transition-all duration-300`}
         onClick={(e) => e.stopPropagation()}
       >
       <div
-        className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-6 shadow-2xl shrink-0 max-h-[90vh] overflow-y-auto"
+        className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl shrink-0 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden"
       >
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0 flex-1">
@@ -218,6 +310,11 @@ export default function CallModal({
                 </span>
               )}
               {prospect && <AgeBadge prospect={prospect} size="xs" showSiret />}
+              {lastSmsAt && (
+                <span className="flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300 border border-violet-500/30">
+                  <MessageSquare className="w-3 h-3" /> SMS envoyé {fmtSmsDate(lastSmsAt)}
+                </span>
+              )}
             </div>
             <div className="text-lg font-bold text-neutral-100 leading-tight break-words">{name}</div>
           </div>
@@ -271,6 +368,8 @@ export default function CallModal({
           )}
         </div>
 
+        {prospect && <CompanyInfo prospect={prospect} />}
+
         {lastCall && (
           <div className="mb-3 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/20 text-[12px] text-amber-200/80">
             Dernier appel <span className="font-medium text-amber-200">{formatRelativeTime(lastCall.called_at)}</span>
@@ -323,7 +422,7 @@ export default function CallModal({
 
         <a
           href={telUri}
-          className="block text-center mb-4 font-mono text-3xl font-bold text-neutral-50 tracking-wider hover:text-violet-300 transition"
+          className="block text-center mb-4 font-mono text-2xl sm:text-3xl font-bold text-neutral-50 tracking-wide sm:tracking-wider hover:text-violet-300 transition break-words"
         >
           {phone}
         </a>
@@ -365,6 +464,53 @@ export default function CallModal({
             <span className="font-medium text-sm">Tel direct</span>
           </a>
         </div>
+
+        {/* Envoyer le site par SMS (message « livraison », aperçu + confirmation) */}
+        {prospect && (
+          <div className="mb-4">
+            {smsState === "sent" ? (
+              <div className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600/80 text-white font-medium">
+                <CheckCircle2 className="w-5 h-5" /> Site envoyé par SMS
+              </div>
+            ) : smsState === "preview" && smsPreview ? (
+              <div className="rounded-xl border border-violet-700/50 bg-violet-500/5 p-3">
+                <div className="text-[11px] text-neutral-400 mb-1.5 flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-violet-300" />
+                  Aperçu — {smsPreview.segments} SMS (~{(smsPreview.segments * 0.075).toFixed(2)} €)
+                </div>
+                <div className="text-sm text-neutral-200 whitespace-pre-wrap mb-3">{smsPreview.message}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSmsState("idle")}
+                    className="py-2 rounded-lg border border-[var(--color-border)] text-neutral-300 hover:text-neutral-100 text-sm transition"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={sendSms}
+                    className="py-2 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Send className="w-4 h-4" /> Envoyer
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={loadSmsPreview}
+                disabled={smsState === "sending"}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-br from-violet-500/20 to-fuchsia-700/10 border border-violet-700/50 hover:from-violet-500/30 hover:to-fuchsia-700/20 text-violet-100 font-medium transition disabled:opacity-50"
+              >
+                {smsState === "sending" ? <Loader2 className="w-5 h-5 animate-spin" /> : <MessageSquare className="w-5 h-5" />}
+                Envoyer le site par SMS
+              </button>
+            )}
+            {smsState === "error" && smsError && (
+              <div className="mt-1.5 px-3 py-1.5 rounded text-[11px] text-rose-300 bg-rose-500/5 border border-rose-500/20 break-words">
+                {smsError}
+              </div>
+            )}
+          </div>
+        )}
 
         {ntfyTopic && !ntfyEditing && (
           <div className="mb-4">
@@ -553,7 +699,7 @@ function RdvForm({ name, phone, notes, address, onCreated }: { name: string; pho
 
   return (
     <div className="space-y-2.5">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <div>
           <label className="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Date</label>
           <input

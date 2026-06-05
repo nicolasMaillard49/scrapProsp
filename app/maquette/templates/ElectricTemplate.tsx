@@ -17,11 +17,11 @@ const theme: TemplateTheme = {
   dim: "#6b7280",
   subtle: "#d1d5db",
   accentFg: "#030712",
-  heroImage: "https://images.unsplash.com/photo-1621905252507-b35492cc74b4?w=1600&q=80",
+  heroImage: "/templates/electricien-mise-aux-normes.jpg",
   heroOverlay: "linear-gradient(to top, #030712, rgba(3,7,18,0.7), transparent)",
   heroFade: "linear-gradient(to top, #030712, transparent)",
 };
 
-export default function ElectricTemplate(props: TemplateProps) {
+export default function ElectricTemplate(props: TemplateProps & { nmfCredit?: boolean }) {
   return <BaseTemplate {...props} theme={theme} />;
 }

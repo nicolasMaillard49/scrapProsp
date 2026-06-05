@@ -22,6 +22,6 @@ const theme: TemplateTheme = {
   heroFade: "linear-gradient(to top, #0a0a0a, transparent)",
 };
 
-export default function CorporateTemplate(props: TemplateProps) {
+export default function CorporateTemplate(props: TemplateProps & { nmfCredit?: boolean }) {
   return <BaseTemplate {...props} theme={theme} />;
 }

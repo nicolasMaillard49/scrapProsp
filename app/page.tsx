@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Papa from "papaparse";
 import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
-  CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2,
-  Filter, ArrowUpDown, Clock, Globe,
+  CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2, User,
+  Filter, ArrowUpDown, Clock, Globe, MessageSquare,
   ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
 } from "lucide-react";
 import Link from "next/link";
@@ -21,10 +21,12 @@ import { ToastProvider, useToast } from "./components/Toast";
 import type { Prospect, Status } from "./lib/types";
 import { useProspects } from "./lib/useProspects";
 import { gbpBadge, computeGbpScore } from "./lib/gbp";
+import { opportunityScore, opportunityBadge } from "./lib/opportunity";
 
 const statusConfig: Record<Status, { label: string; ring: string; rowBg: string; text: string }> = {
   todo: { label: "À appeler", ring: "ring-neutral-700", rowBg: "", text: "text-neutral-400" },
   called: { label: "Appelé", ring: "ring-amber-600/60", rowBg: "bg-amber-950/20", text: "text-amber-300" },
+  sms_sent: { label: "SMS envoyé", ring: "ring-violet-500/70", rowBg: "bg-violet-950/20", text: "text-violet-300" },
   positive: { label: "Positif", ring: "ring-emerald-500/70", rowBg: "bg-emerald-950/25", text: "text-emerald-300" },
   negative: { label: "Négatif", ring: "ring-rose-600/60", rowBg: "bg-rose-950/15", text: "text-rose-300" },
   no_answer: { label: "Pas de réponse", ring: "ring-sky-600/60", rowBg: "bg-sky-950/15", text: "text-sky-300" },
@@ -51,7 +53,7 @@ function HomeInner() {
   const [openNowOnly, setOpenNowOnly] = useState(false);
   const [hideRadie, setHideRadie] = useState(true);
   const [jeuneOnly, setJeuneOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp">("reviews");
+  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity">("opportunity");
   const [tourneeMode, setTourneeMode] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
@@ -91,13 +93,19 @@ function HomeInner() {
   };
 
   const enriched = useMemo(
-    () => prospects.map((p) => ({ p, _age: ageYears(p), _radie: isRadie(p), _jeune: isJeune(p) })),
+    () => prospects.map((p) => ({
+      p,
+      _age: ageYears(p),
+      _radie: isRadie(p),
+      _jeune: isJeune(p),
+      _opp: opportunityScore(p).score,
+    })),
     [prospects],
   );
 
   const stats = useMemo(() => {
     const pool = regionFilter === "all" ? enriched : enriched.filter((e) => e.p.region === regionFilter);
-    const s = { total: pool.length, todo: 0, called: 0, positive: 0, negative: 0, no_answer: 0, jeunes: 0, radie: 0 };
+    const s = { total: pool.length, todo: 0, called: 0, sms_sent: 0, positive: 0, negative: 0, no_answer: 0, jeunes: 0, radie: 0 };
     for (const e of pool) {
       const st = e.p.status;
       s[st]++;
@@ -135,6 +143,7 @@ function HomeInner() {
         return true;
       })
       .sort((a, b) => {
+        if (sortBy === "opportunity") return b._opp - a._opp;
         if (sortBy === "reviews") return (b.p.reviews ?? 0) - (a.p.reviews ?? 0);
         if (sortBy === "reviews-asc") return (a.p.reviews ?? 0) - (b.p.reviews ?? 0);
         if (sortBy === "rating") return (b.p.rating ?? 0) - (a.p.rating ?? 0);
@@ -271,6 +280,22 @@ function HomeInner() {
               <MapPin className="w-4 h-4" />
               <span className="hidden md:inline">Carte</span>
             </Link>
+            <Link
+              href="/sms"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+              title="Suivi des SMS"
+            >
+              <MessageSquare className="w-4 h-4" />
+              <span className="hidden md:inline">SMS</span>
+            </Link>
+            <Link
+              href="/instagram"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+              title="Prospection Instagram"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden md:inline">Instagram</span>
+            </Link>
             <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-400 hover:text-neutral-100 transition" title="Raccourcis (?)">
               <Keyboard className="w-4 h-4" />
             </button>
@@ -320,9 +345,10 @@ function HomeInner() {
       </div>
 
       <div className="px-3 md:px-6 py-3 md:py-4">
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
-          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-100" />
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
+          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.sms_sent + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-100" />
           <StatCard label="À appeler" value={stats.todo} sub="non traités" active={filter === "todo"} onClick={() => setFilter("todo")} accent="text-neutral-300" iconBg="bg-neutral-800" />
+          <StatCard label="SMS envoyés" value={stats.sms_sent} sub="contactés" active={filter === "sms_sent"} onClick={() => setFilter("sms_sent")} accent="text-violet-300" iconBg="bg-violet-950/40" />
           <StatCard label="Appelés" value={stats.called} sub="en attente" active={filter === "called"} onClick={() => setFilter("called")} accent="text-amber-300" iconBg="bg-amber-950/40" />
           <StatCard label="Pas de rép." value={stats.no_answer} sub="à rappeler" active={filter === "no_answer"} onClick={() => setFilter("no_answer")} accent="text-sky-300" iconBg="bg-sky-950/40" />
           <StatCard label="Positifs" value={stats.positive} sub={`${stats.positive > 0 && stats.called + stats.positive + stats.negative > 0 ? Math.round((stats.positive / (stats.called + stats.positive + stats.negative)) * 100) : 0} %`} active={filter === "positive"} onClick={() => setFilter("positive")} accent="text-emerald-300" iconBg="bg-emerald-950/40" />
@@ -356,6 +382,7 @@ function HomeInner() {
           </SelectIcon>
           <SelectIcon icon={<ArrowUpDown className="w-3.5 h-3.5" />}>
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)} className="bg-transparent text-sm outline-none cursor-pointer">
+              <option value="opportunity">🔥 Opportunité ↓</option>
               <option value="reviews">Avis ↓</option>
               <option value="reviews-asc">Avis ↑</option>
               <option value="rating">Note ↓</option>
@@ -488,19 +515,37 @@ function HomeInner() {
                         {p.metier}
                       </span>
                       <AgeBadge prospect={p} size="sm" />
+                      {(() => {
+                        const opp = opportunityScore(p);
+                        const b = opportunityBadge(opp.score);
+                        return (
+                          <span
+                            className={`flex items-center gap-1 px-2 py-0.5 rounded font-semibold ${b.bg} ${b.color}`}
+                            title={opp.reasons.join(" · ") || "Score d'opportunité"}
+                          >
+                            🔥 {opp.score} · {b.label}
+                          </span>
+                        );
+                      })()}
                       <span className="flex items-center gap-1 text-neutral-500">
                         <MapPin className="w-3 h-3" /> {p.ville}
                       </span>
                     </div>
+                    {(p.dirigeant_nom || p.dirigeant_prenom) && (
+                      <div className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
+                        <User className="w-3 h-3 text-neutral-600 shrink-0" />
+                        <span className="truncate">{[p.dirigeant_prenom, p.dirigeant_nom].filter(Boolean).join(" ")}</span>
+                      </div>
+                    )}
                     {p.address && (
                       <div className="text-xs text-neutral-600 mt-1 break-words" title={p.address}>
                         {p.address}
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <a href={p.maps_url} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-500 hover:text-violet-400 transition" title="Fiche Google Maps">
-                      <ExternalLink className="w-4 h-4" />
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
+                      <ExternalLink className="w-3.5 h-3.5" /> Google
                     </a>
                     <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-600 hover:text-fuchsia-400 transition" title="Maquette site">
                       <Sparkles className="w-4 h-4" />
@@ -622,6 +667,18 @@ function HomeInner() {
                           {p.metier}
                         </span>
                         <AgeBadge prospect={p} size="md" />
+                        {(() => {
+                          const opp = opportunityScore(p);
+                          const b = opportunityBadge(opp.score);
+                          return (
+                            <span
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${b.bg} ${b.color}`}
+                              title={opp.reasons.join(" · ") || "Score d'opportunité"}
+                            >
+                              🔥 {opp.score} · {b.label}
+                            </span>
+                          );
+                        })()}
                         <span className="flex items-center gap-1 text-neutral-300 font-medium">
                           <MapPin className="w-4 h-4 text-neutral-500" /> {p.ville}
                         </span>
@@ -629,6 +686,12 @@ function HomeInner() {
                           <span className="text-neutral-400">· {p.region_label}</span>
                         )}
                       </div>
+                      {(p.dirigeant_nom || p.dirigeant_prenom) && (
+                        <div className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
+                          <User className="w-3 h-3 text-neutral-600 shrink-0" />
+                          <span className="truncate max-w-[280px]">{[p.dirigeant_prenom, p.dirigeant_nom].filter(Boolean).join(" ")}</span>
+                        </div>
+                      )}
                       {p.address && (
                         <div className="text-xs text-neutral-600 mt-1 truncate max-w-[300px]" title={p.address}>
                           {p.address}
@@ -704,10 +767,10 @@ function HomeInner() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <a href={p.maps_url} target="_blank" rel="noreferrer" className="text-neutral-500 hover:text-violet-400 transition inline-flex" title="Fiche Google Maps">
-                          <ExternalLink className="w-4 h-4" />
+                        <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
+                          <ExternalLink className="w-3.5 h-3.5" /> Google
                         </a>
-                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="text-neutral-600 hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
+                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1 text-neutral-600 hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
                           <Sparkles className="w-4 h-4" />
                         </a>
                       </div>

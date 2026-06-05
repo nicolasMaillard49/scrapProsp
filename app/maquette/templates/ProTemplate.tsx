@@ -17,11 +17,11 @@ const theme: TemplateTheme = {
   dim: "#64748b",
   subtle: "#cbd5e1",
   accentFg: "#fff",
-  heroImage: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=1600&q=80",
+  heroImage: "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?w=1600&q=80",
   heroOverlay: "linear-gradient(to top, #0f172a, rgba(15,23,42,0.6), transparent)",
   heroFade: "linear-gradient(to top, #0f172a, transparent)",
 };
 
-export default function ProTemplate(props: TemplateProps) {
+export default function ProTemplate(props: TemplateProps & { nmfCredit?: boolean }) {
   return <BaseTemplate {...props} theme={theme} />;
 }

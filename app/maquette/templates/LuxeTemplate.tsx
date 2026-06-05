@@ -22,6 +22,6 @@ const theme: TemplateTheme = {
   heroFade: "linear-gradient(to top, #000000, transparent)",
 };
 
-export default function LuxeTemplate(props: TemplateProps) {
+export default function LuxeTemplate(props: TemplateProps & { nmfCredit?: boolean }) {
   return <BaseTemplate {...props} theme={theme} />;
 }

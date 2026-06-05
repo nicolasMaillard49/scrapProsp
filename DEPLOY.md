@@ -56,3 +56,17 @@ git push
 ```
 
 Vercel redéploie tout seul après le push.
+
+## Blast programmé (cron VPS)
+
+Permet de programmer un envoi SMS depuis `/sms` (heure + nombre de prospects) qui part automatiquement même app/PC fermés.
+
+1. Définir un secret partagé **identique** dans **Vercel** (Production → Environment Variables) et sur le **VPS** :
+   - Vercel : `CRON_SECRET=<valeur-aléatoire-longue>` (puis redeploy).
+2. Sur le VPS, ajouter au crontab (`crontab -e`) — déclenche le moteur chaque minute :
+   ```cron
+   * * * * * curl -s -X POST https://prospects.nmf-agence.com/api/cron/run-blasts -H "x-cron-secret: VOTRE_CRON_SECRET" >> /var/log/blast-cron.log 2>&1
+   ```
+3. Test : `curl -i -X POST https://prospects.nmf-agence.com/api/cron/run-blasts` → **401** (pas de secret).
+   Avec le bon en-tête → `{ "ran": [...], "count": n }`.
+4. Les envois se créent depuis `/sms` → « Programmer un envoi ». Le cron exécute les jobs `scheduled_blasts` en `status=pending` dont l'heure est passée ; chaque job envoie aux prospects `status=todo` (mobiles uniques), avec garde-fou légal 8h-20h hors dimanche (un job hors créneau est remis en attente, pas perdu).

@@ -18,6 +18,7 @@ export interface MapProspect {
   maps_url?: string | null;
   lat?: number;
   lng?: number;
+  precise?: boolean;
 }
 
 interface Props {

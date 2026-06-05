@@ -1,5 +1,6 @@
 // Enrich prospects-tracker CSVs with SIRENE data
-// (date_creation, siret, age, statut, NAF)
+// (siret, date_creation, age, statut, NAF, dirigeant, effectif,
+//  lat/lon, RGE, nature juridique, catégorie entreprise)
 // Source : https://recherche-entreprises.api.gouv.fr — gratuit, sans auth.
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -113,6 +114,41 @@ function yearsSince(dateStr) {
   return Math.floor(ms / (365.25 * 24 * 3600 * 1000));
 }
 
+// INSEE — tranche d'effectif salarié (code → libellé lisible)
+const EFFECTIF_LABELS = {
+  NN: "Non renseigné",
+  "00": "0 salarié",
+  "01": "1-2 salariés",
+  "02": "3-5 salariés",
+  "03": "6-9 salariés",
+  "11": "10-19 salariés",
+  "12": "20-49 salariés",
+  "21": "50-99 salariés",
+  "22": "100-199 salariés",
+  "31": "200-249 salariés",
+  "32": "250-499 salariés",
+  "41": "500-999 salariés",
+  "42": "1000-1999 salariés",
+  "51": "2000-4999 salariés",
+  "52": "5000-9999 salariés",
+  "53": "10000+ salariés",
+};
+
+// L'API renvoie parfois le nom dupliqué entre parenthèses : "DUPONT (DUPONT)".
+function cleanDirigeantNom(nom) {
+  if (!nom) return "";
+  return String(nom).replace(/\s*\(.*\)\s*$/, "").trim();
+}
+
+// Sélectionne le dirigeant le plus pertinent (personne physique en priorité).
+function pickDirigeant(dirigeants) {
+  if (!Array.isArray(dirigeants) || dirigeants.length === 0) return null;
+  return (
+    dirigeants.find((d) => d.type_dirigeant === "personne physique") ||
+    dirigeants[0]
+  );
+}
+
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
 async function enrichRegion(regionEntry) {
@@ -143,13 +179,32 @@ async function enrichRegion(regionEntry) {
     const best = pickBest(json?.results || [], p.name, p.ville);
 
     if (best) {
-      const dateC = best.date_creation || best.siege?.date_creation || "";
+      const siege = best.siege || {};
+      const dateC = best.date_creation || siege.date_creation || "";
       const age = yearsSince(dateC);
-      p.siret = best.siege?.siret || best.matching_etablissements?.[0]?.siret || "";
+      p.siret = siege.siret || best.matching_etablissements?.[0]?.siret || "";
       p.created_at = dateC;
       p.age_years = age != null ? String(age) : "";
       p.legal_status = best.etat_administratif === "A" ? "actif" : "radie";
       p.naf_code = best.activite_principale || "";
+
+      // — Champs élargis —
+      const dir = pickDirigeant(best.dirigeants);
+      p.dirigeant_nom = dir ? cleanDirigeantNom(dir.nom) : "";
+      p.dirigeant_prenom = dir?.prenoms || "";
+      p.dirigeant_annee_naissance = dir?.annee_de_naissance || "";
+
+      const effCode = best.tranche_effectif_salarie || siege.tranche_effectif_salarie || "";
+      p.tranche_effectif = effCode;
+      p.effectif_label = EFFECTIF_LABELS[effCode] || "";
+
+      p.latitude = siege.latitude || "";
+      p.longitude = siege.longitude || "";
+
+      p.est_rge = best.complements?.est_rge ? "true" : "false";
+      p.nature_juridique = best.nature_juridique || "";
+      p.categorie = best.categorie_entreprise || "";
+
       matched++;
       if (p.legal_status === "radie") radie++;
       if (age != null && age < 5) jeune++;
@@ -159,6 +214,17 @@ async function enrichRegion(regionEntry) {
       p.age_years = p.age_years || "";
       p.legal_status = p.legal_status || "inconnu";
       p.naf_code = p.naf_code || "";
+
+      p.dirigeant_nom = p.dirigeant_nom || "";
+      p.dirigeant_prenom = p.dirigeant_prenom || "";
+      p.dirigeant_annee_naissance = p.dirigeant_annee_naissance || "";
+      p.tranche_effectif = p.tranche_effectif || "";
+      p.effectif_label = p.effectif_label || "";
+      p.latitude = p.latitude || "";
+      p.longitude = p.longitude || "";
+      p.est_rge = p.est_rge || "";
+      p.nature_juridique = p.nature_juridique || "";
+      p.categorie = p.categorie || "";
     }
 
     await sleep(REQ_DELAY_MS);
@@ -171,6 +237,9 @@ async function enrichRegion(regionEntry) {
     "name", "metier", "phone", "ville", "departement", "region", "region_label",
     "rating", "reviews", "hours_status", "is_open_now", "address", "maps_url",
     "siret", "created_at", "age_years", "legal_status", "naf_code",
+    "dirigeant_nom", "dirigeant_prenom", "dirigeant_annee_naissance",
+    "tranche_effectif", "effectif_label", "latitude", "longitude",
+    "est_rge", "nature_juridique", "categorie",
   ];
   const newCsv = Papa.unparse(rows, { columns });
   writeFileSync(csvPath, "﻿" + newCsv + "\n", "utf8");

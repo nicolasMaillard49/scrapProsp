@@ -6,9 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "enrich:sirene": "node scripts/enrich-sirene.mjs"
+    "enrich:sirene": "node scripts/enrich-sirene.mjs",
+    "push:sirene": "node scripts/apply-sirene-extended.mjs",
+    "import:twilio": "node scripts/import-twilio-sms.mjs",
+    "migrate:005": "node scripts/apply-migration-005.mjs",
+    "migrate:006": "node scripts/apply-migration-006.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@react-pdf/renderer": "^4.5.1",
     "@supabase/supabase-js": "^2.106.2",
     "@types/leaflet": "^1.9.21",
@@ -23,7 +28,8 @@
     "qrcode": "^1.5.4",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "react-leaflet": "^5.0.0"
+    "react-leaflet": "^5.0.0",
+    "twilio": "^6.0.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.0.0-beta.7",
@@ -31,6 +37,7 @@
     "@types/papaparse": "5.3.15",
     "@types/react": "19.0.1",
     "@types/react-dom": "19.0.1",
+    "pg": "^8.21.0",
     "postcss": "8.4.49",
     "tailwindcss": "4.0.0-beta.7",
     "typescript": "5.7.2"
