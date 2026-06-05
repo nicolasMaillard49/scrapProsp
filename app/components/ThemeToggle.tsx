@@ -28,7 +28,7 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       aria-label={dark ? "Passer en mode clair" : "Passer en mode sombre"}
-      className="fixed bottom-4 right-4 z-50 p-2.5 rounded-full bg-[var(--color-surface)] border border-[var(--color-border)] shadow-lg hover:border-[var(--color-border-strong)] transition-all cursor-pointer"
+      className="fixed bottom-4 right-4 z-50 p-2.5 rounded-full glass cursor-pointer hover:scale-105 transition-transform"
     >
       {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-[var(--color-text-secondary)]" />}
     </button>

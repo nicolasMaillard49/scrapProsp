@@ -165,13 +165,13 @@ export default function InstagramPage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Search bar */}
-        <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 sm:p-5">
+        <div className="glass-card rounded-2xl p-4 sm:p-5">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">
                 Hashtag
               </label>
-              <div className="flex items-center border border-[var(--color-border)] rounded-lg bg-[var(--color-background)] px-3 focus-within:border-[var(--color-accent)] transition-colors">
+              <div className="flex items-center glass-input rounded-lg px-3">
                 <Hash className="w-4 h-4 text-[var(--color-text-muted)] shrink-0" />
                 <input
                   value={hashtag}
@@ -192,7 +192,7 @@ export default function InstagramPage() {
                 max={300}
                 value={target}
                 onChange={(e) => setTarget(Math.max(1, Math.min(300, Number(e.target.value) || 1)))}
-                className="w-full border border-[var(--color-border)] rounded-lg bg-[var(--color-background)] px-3 py-2.5 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-accent)] outline-none transition-colors"
+                className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
               />
             </div>
             <div className="flex items-end">
@@ -251,7 +251,7 @@ export default function InstagramPage() {
 
         {/* Leads list */}
         {shown.length === 0 ? (
-          <div className="text-center py-16 border border-dashed border-[var(--color-border)] rounded-xl">
+          <div className="text-center py-16 glass-card rounded-2xl border-dashed">
             <Search className="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
             <p className="text-[var(--color-text-muted)] text-sm">
               Aucun lead. Lance une recherche par hashtag ci-dessus.
@@ -268,7 +268,7 @@ export default function InstagramPage() {
               return (
                 <div
                   key={l.id}
-                  className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-xl p-4 sm:p-5 transition-shadow hover:shadow-sm animate-fade-in"
+                  className="glass-card rounded-2xl p-4 sm:p-5 animate-fade-in"
                 >
                   {/* Top row: username + status */}
                   <div className="flex items-start justify-between gap-3 mb-2">
@@ -324,7 +324,7 @@ export default function InstagramPage() {
                   {dmExpanded && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 animate-slide-up">
                       {([["Avec lien", dm.withLink, `${l.id}-w`], ["Tease", dm.tease, `${l.id}-t`]] as const).map(([title, text, key]) => (
-                        <div key={key} className="border border-[var(--color-border)] rounded-lg p-3 bg-[var(--color-surface-2)]">
+                        <div key={key} className="glass-input rounded-lg p-3">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
                               {title}
