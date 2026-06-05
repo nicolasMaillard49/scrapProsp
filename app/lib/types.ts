@@ -30,6 +30,8 @@ export interface Prospect {
   est_rge: boolean | null;
   nature_juridique: string | null;
   categorie: string | null;
+  source: string | null;
+  radar_detected_at: string | null;
   status: Status;
   notes: string;
   created_at: string;

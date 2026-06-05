@@ -53,7 +53,8 @@ function HomeInner() {
   const [openNowOnly, setOpenNowOnly] = useState(false);
   const [hideRadie, setHideRadie] = useState(true);
   const [jeuneOnly, setJeuneOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity">("opportunity");
+  const [radarOnly, setRadarOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity" | "radar">("opportunity");
   const [tourneeMode, setTourneeMode] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
@@ -135,6 +136,7 @@ function HomeInner() {
         if (effectiveNow && !isOpenNow(p, effectiveNow, now)) return false;
         if (hideRadie && _radie) return false;
         if (jeuneOnly && !_jeune) return false;
+        if (radarOnly && p.source !== "radar") return false;
         if (q) {
           const matchesText = `${p.name} ${p.ville} ${p.metier} ${p.address || ""}`.toLowerCase().includes(q);
           const matchesPhone = qDigits.length >= 2 && p.phone.replace(/\D/g, "").includes(qDigits);
@@ -158,15 +160,22 @@ function HomeInner() {
           if (bb === null) return -1;
           return sortBy === "age-asc" ? aa - bb : bb - aa;
         }
+        if (sortBy === "radar") {
+          const ra = a.p.radar_detected_at ?? "";
+          const rb = b.p.radar_detected_at ?? "";
+          if (ra && !rb) return -1;
+          if (!ra && rb) return 1;
+          return rb.localeCompare(ra);
+        }
         return a.p.name.localeCompare(b.p.name);
       })
       .map((e) => e.p);
-  }, [enriched, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, jeuneOnly, sortBy, effectiveNow, now]);
+  }, [enriched, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, jeuneOnly, radarOnly, sortBy, effectiveNow, now]);
 
   // Auto-reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, hideRadie, jeuneOnly, sortBy, pageSize]);
+  }, [search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, hideRadie, jeuneOnly, radarOnly, sortBy, pageSize]);
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -175,7 +184,7 @@ function HomeInner() {
 
   const hasActiveFilters =
     filter !== "all" || regionFilter !== "all" || metierFilter !== "all" ||
-    villeFilter !== "all" || openNowOnly || jeuneOnly || !hideRadie || !!search;
+    villeFilter !== "all" || openNowOnly || jeuneOnly || radarOnly || !hideRadie || !!search;
 
   const resetFilters = () => {
     setSearch("");
@@ -389,6 +398,7 @@ function HomeInner() {
               <option value="age-asc">Âge ↑ (jeunes)</option>
               <option value="age-desc">Âge ↓ (anciens)</option>
               <option value="gbp">Score GBP ↓</option>
+              <option value="radar">Radar (recents)</option>
               <option value="name">A→Z</option>
             </select>
           </SelectIcon>
@@ -415,6 +425,18 @@ function HomeInner() {
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span className="hidden min-[420px]:inline">Jeunes</span>
+          </button>
+          <button
+            onClick={() => { setRadarOnly((v) => !v); if (!radarOnly) setSortBy("radar"); }}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
+              radarOnly
+                ? "bg-violet-500/15 border-violet-500/40 text-violet-200"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+            }`}
+            title="N'afficher que les prospects detectes par le Radar"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><line x1="12" y1="2" x2="12" y2="4"/></svg>
+            <span className="hidden min-[420px]:inline">Radar</span>
           </button>
           <button
             onClick={() => setHideRadie((v) => !v)}
@@ -509,7 +531,12 @@ function HomeInner() {
                     {idx + 1}
                   </button>
                   <div className="flex-1 min-w-0">
-                    <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-100 leading-tight text-[15px] break-words text-left hover:text-violet-300 transition cursor-pointer">{p.name}</button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-100 leading-tight text-[15px] break-words text-left hover:text-violet-300 transition cursor-pointer">{p.name}</button>
+                      {p.source === "radar" && p.radar_detected_at && (Date.now() - new Date(p.radar_detected_at).getTime() < 48 * 3600_000) && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-300 uppercase tracking-wider">Nouveau</span>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5 mt-1 text-xs flex-wrap">
                       <span className={`px-2 py-0.5 rounded ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
                         {p.metier}
@@ -661,7 +688,12 @@ function HomeInner() {
                       </button>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-100 leading-tight text-base text-left hover:text-violet-300 transition cursor-pointer">{p.name}</button>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-100 leading-tight text-base text-left hover:text-violet-300 transition cursor-pointer">{p.name}</button>
+                        {p.source === "radar" && p.radar_detected_at && (Date.now() - new Date(p.radar_detected_at).getTime() < 48 * 3600_000) && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-300 uppercase tracking-wider">Nouveau</span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-1.5 text-sm flex-wrap">
                         <span className={`px-2 py-0.5 rounded text-xs ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
                           {p.metier}
