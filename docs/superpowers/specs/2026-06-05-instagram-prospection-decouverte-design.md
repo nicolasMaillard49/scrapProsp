@@ -20,7 +20,9 @@ Principe directeur du pipeline existant conservé : **« pas de site web = prosp
 - Découverte à la demande par hashtag via Apify.
 - Filtre obligatoire « pas de site web ».
 - Stockage dans une table dédiée `instagram_prospects`.
-- Générateur de message DM niche-adapté (2 variantes).
+- Déduction `metier` (→ template) + `ville` à la découverte.
+- **Aperçu de site sur-mesure par lead** (réutilise les templates de démo existants).
+- Générateur de message DM niche-adapté (2 variantes), avec lien d'aperçu personnalisé.
 - UI de recherche + revue + suivi de statut.
 
 **Hors périmètre (YAGNI pour le MVP)**
@@ -45,6 +47,18 @@ Principe directeur du pipeline existant conservé : **« pas de site web = prosp
 
 Appel via REST (`run-sync-get-dataset-items`) ou SDK `apify-client`. Token dans
 `APIFY_TOKEN` (`.env.local`, déjà enregistré).
+
+### Déduction `metier` + `ville` (pour l'aperçu sur-mesure)
+Pour rendre un aperçu de site cohérent, chaque lead retenu reçoit :
+- **`metier`** : code mappé vers un template (`templateForMetier`). Déduit de
+  `businessCategoryName` + mots-clés de la bio. Si inconnu → code générique
+  (template `pro` par défaut, comme pour les prospects Maps non mappés).
+- **`ville`** : extraite **du hashtag** (ex. `coiffeurbordeaux` → `Bordeaux`) en priorité,
+  sinon d'un nom de ville détecté dans la bio. Si introuvable → vide (l'aperçu et le
+  message basculent sur une formulation neutre « dans ta région »).
+- **`name`** : `fullName` du compte, sinon `@username`.
+
+La même déduction de niche sert à l'adaptation du message (§5) — une seule logique.
 
 ### Sur-récupération + plafond
 Beaucoup de comptes ont un site → écartés. Le bot **sur-récupère** par lots jusqu'à
@@ -82,6 +96,8 @@ n'est ni réinséré ni réécrasé ; il ne compte pas dans la cible du run en c
 | `external_url`   | text NULL   | lien du profil (sert au filtre ; conservé pour audit)        |
 | `followers`      | int NULL    | nombre d'abonnés                                             |
 | `category`       | text NULL   | catégorie business Instagram si dispo                       |
+| `metier`         | text NULL   | code métier déduit (→ template d'aperçu)                     |
+| `ville`          | text NULL   | ville déduite (hashtag/bio) — pour l'aperçu + le message     |
 | `hashtag_source` | text        | hashtag qui a remonté le compte (traçabilité)               |
 | `status`         | text        | `todo` \| `contacted` \| `positive` \| `negative` (défaut `todo`) |
 | `notes`          | text        | annotations libres (défaut `''`)                            |
@@ -111,9 +127,10 @@ Fonction `instagramDmMsg(prospect, link)` (façon `salesSmsMsg`), retournant **2
 | Artisanat/BTP  | « beau travail »             | galerie de réalisations + devis       |
 | *(défaut)*     | « j'ai bien aimé ton compte »| présence pro + contact facile         |
 
-Le lien démo réutilise la mécanique existante d'aperçu si applicable ; sinon lien de
-démo générique NMF. (À préciser au moment du plan : un aperçu par prospect Insta n'est
-pas auto-généré dans le MVP — option V2.)
+**Lien d'aperçu (V2 — sur-mesure par lead).** Chaque lead a son propre aperçu de site,
+rendu par les templates existants à partir de `name`/`metier`/`ville` (route §7). Le lien
+injecté dans les messages est l'URL courte de cet aperçu (`/di/<code>`). Comportement
+identique à la démo Maps (`/d/<code>`), mais alimenté par `instagram_prospects`.
 
 ### Exemple (coiffeur)
 **withLink**
@@ -150,7 +167,14 @@ Pour chaque lead :
 - **API route** `PATCH /api/instagram/[id]` (ou route de statut) — met à jour `status`/`notes`.
 - **Lib** `app/lib/apify.ts` — client/appels Apify (actors, run-sync, parsing).
 - **Lib** `app/lib/instagram.ts` — filtre « pas de site » (+ liste agrégateurs),
-  déduction niche, `instagramDmMsg`.
+  déduction niche/`metier`/`ville`, `instagramDmMsg`.
+- **Route d'aperçu** `app/di/[code]/page.tsx` — aperçu sur-mesure d'un lead Insta.
+  Réutilise `DemoView` / `TEMPLATES`. Un `getInstagramProspectByCode(code)` lit
+  `instagram_prospects` (même technique de préfixe d'UUID que `getProspectByCode`) et
+  mappe la ligne vers `TemplateProps` (`name`=`full_name`/`@username`, `metier`, `ville`,
+  `phone`/`rating`/`reviews`/`address` = null). Métadonnées OG comme la démo Maps.
+- **Lib** `app/lib/instagramLinks.ts` (ou extension de `links.ts`) — `instagramDemoUrl(id)`
+  → `/di/<shortCode(id)>`.
 - **Page** `app/instagram/page.tsx` + composants de liste/ligne.
 - **Migration** `supabase/migration-006-instagram-prospects.sql`.
 
@@ -176,5 +200,6 @@ Pour chaque lead :
    « plafond atteint » si la niche est trop pourvue en sites).
 2. Aucun doublon de `username` en base.
 3. Chaque lead affiche 2 variantes de message cohérentes avec sa niche, copiables.
-4. Le statut d'un lead se met à jour et persiste.
-5. Coût d'un run borné par le plafond de profils.
+4. Le lien d'aperçu (`/di/<code>`) ouvre un site sur-mesure cohérent avec le métier/la ville du lead.
+5. Le statut d'un lead se met à jour et persiste.
+6. Coût d'un run borné par le plafond de profils.
