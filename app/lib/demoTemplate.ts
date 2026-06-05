@@ -5,6 +5,7 @@ import ElectricTemplate from "@/app/maquette/templates/ElectricTemplate";
 import ForestTemplate from "@/app/maquette/templates/ForestTemplate";
 import LuxeTemplate from "@/app/maquette/templates/LuxeTemplate";
 import TerraTemplate from "@/app/maquette/templates/TerraTemplate";
+import SalonTemplate from "@/app/maquette/templates/SalonTemplate";
 import type { TemplateProps } from "@/app/maquette/templates/data";
 import type { ComponentType } from "react";
 
@@ -16,6 +17,7 @@ export const TEMPLATES = {
   forest: ForestTemplate,
   luxe: LuxeTemplate,
   terra: TerraTemplate,
+  salon: SalonTemplate,
 } as const satisfies Record<string, ComponentType<TemplateProps & { nmfCredit?: boolean }>>;
 
 export type TemplateKey = keyof typeof TEMPLATES;
@@ -35,6 +37,17 @@ const METIER_TEMPLATE: Record<string, TemplateKey> = {
   serrurier: "minimal",
   menuisier: "luxe",
   peintre: "luxe",
+  // Beauté / bien-être → template éditorial "Salon"
+  coiffeur: "salon",
+  coiffure: "salon",
+  barbier: "salon",
+  esthéticienne: "salon",
+  esthéticien: "salon",
+  esthetique: "salon",
+  institut: "salon",
+  "institut-de-beaute": "salon",
+  onglerie: "salon",
+  manucure: "salon",
 };
 
 export function templateForMetier(metier: string | null | undefined): TemplateKey {
