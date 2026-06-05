@@ -15,6 +15,7 @@ interface IgLead {
   category: string | null;
   metier: string | null;
   ville: string | null;
+  booking_platform: string | null;
   hashtag_source: string | null;
   status: string;
   notes: string;
@@ -189,7 +190,7 @@ export default function InstagramPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {shown.map((l) => {
             const link = origin ? `${origin}/di/${shortCode(l.id)}` : "";
-            const dm = instagramDmMsg({ metier: l.metier ?? "", ville: l.ville ?? "" }, link);
+            const dm = instagramDmMsg({ metier: l.metier ?? "", ville: l.ville ?? "", bookingPlatform: l.booking_platform }, link);
             return (
               <div key={l.id} style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 16, background: "#fff" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
@@ -203,6 +204,7 @@ export default function InstagramPage() {
                       {l.category ? ` · ${l.category}` : ""}
                       {l.metier ? ` · ${l.metier}` : ""}
                       {l.ville ? ` · ${l.ville}` : ""}
+                      {l.booking_platform && <span style={{ color: "#d97706", fontWeight: 600 }}> · {l.booking_platform}</span>}
                       {l.hashtag_source ? ` · #${l.hashtag_source}` : ""}
                     </div>
                   </div>

@@ -11,7 +11,7 @@ import type { IgProfile } from "./apify";
  * ce ne sont PAS de vrais sites, c'est même un argument de vente.
  * ──────────────────────────────────────────────────────────── */
 const AGGREGATOR_HOSTS = [
-  "linktr.ee", "linktree", "beacons.ai", "beacons.page", "taplink", "lnk.bio",
+  "beacons.ai", "beacons.page", "taplink", "lnk.bio",
   "linkin.bio", "linktw.in", "campsite.bio", "bio.link", "msha.ke", "withkoji",
   "planity.com", "treatwell", "fresha.com", "booksy.com", "kiute", "flowkey",
   "wa.me", "whatsapp.com", "instagram.com", "facebook.com", "fb.me", "fb.com",
@@ -36,9 +36,21 @@ export function hasRealWebsite(externalUrl: string | null | undefined): boolean 
   return !AGGREGATOR_HOSTS.some((agg) => host === agg || host.endsWith(`.${agg}`) || host.includes(agg));
 }
 
+/** Extrait les URLs présentes dans un texte libre (bio). */
+const URL_RE = /https?:\/\/[^\s),]+|(?:www\.)[^\s),]+|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.(?:fr|com|net|org|io|co|shop|pro|site|online|store|beauty|hair|ink|studio|art|salon|eu|be|ch|de|es|it|pt|uk|re|gp|mq|nc|pf|yt)(?:\/[^\s),]*)?/gi;
+
+function extractUrlsFromText(text: string | null | undefined): string[] {
+  if (!text) return [];
+  return [...text.matchAll(URL_RE)].map((m) => m[0]);
+}
+
 /** Vrai si le profil est un prospect (pas de vrai site). */
 export function isProspect(profile: IgProfile): boolean {
-  return !hasRealWebsite(profile.externalUrl);
+  // Vérifie le lien officiel du profil
+  if (hasRealWebsite(profile.externalUrl)) return false;
+  // Vérifie aussi les URLs mentionnées dans la bio
+  const bioUrls = extractUrlsFromText(profile.biography);
+  return !bioUrls.some((url) => hasRealWebsite(url));
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -103,9 +115,34 @@ const NICHE_COPY: Record<string, { intro: (loc: string) => string; hook: string;
   "": { intro: (l) => `Je suis tombé sur ton compte ${l}`, hook: "j'ai bien aimé ce que tu fais", value: "une vraie présence en ligne" },
 };
 
+/* ────────────────────────────────────────────────────────────
+ * Détection booking platform (Planity, Treatwell, Fresha…)
+ * ──────────────────────────────────────────────────────────── */
+const BOOKING_HOSTS = ["planity.com", "treatwell", "fresha.com", "booksy.com", "kiute", "flowkey"];
+
+/** Détecte si le profil utilise une plateforme de réservation (lien profil + bio). */
+export function detectBookingPlatform(externalUrl: string | null | undefined, bio: string | null | undefined): string | null {
+  const urls = [externalUrl, ...extractUrlsFromText(bio)].filter(Boolean) as string[];
+  for (const url of urls) {
+    const host = hostOf(url);
+    if (!host) continue;
+    for (const bk of BOOKING_HOSTS) {
+      if (host === bk || host.endsWith(`.${bk}`) || host.includes(bk)) {
+        if (bk.includes("planity")) return "Planity";
+        if (bk.includes("treatwell")) return "Treatwell";
+        if (bk.includes("fresha")) return "Fresha";
+        if (bk.includes("booksy")) return "Booksy";
+        return bk;
+      }
+    }
+  }
+  return null;
+}
+
 export interface IgDmInput {
   metier: string;
   ville: string;
+  bookingPlatform?: string | null;
 }
 
 export interface IgDmVariants {
@@ -118,6 +155,24 @@ export function instagramDmMsg(p: IgDmInput, demoLink: string): IgDmVariants {
   const copy = NICHE_COPY[p.metier] ?? NICHE_COPY[""];
   const loc = p.ville && p.ville.trim() ? `à ${p.ville.trim()}` : "dans le coin";
   const intro = copy.intro(loc);
+  const bk = p.bookingPlatform;
+
+  if (bk) {
+    // Variante "déjà sur une plateforme de réservation"
+    return {
+      withLink:
+        `Salut 👋 ${intro}, ${copy.hook} ! J'ai vu que tu passais par ${bk} — ` +
+        `c'est bien pour la résa mais tu paies une commission sur chaque client. ` +
+        `Je t'ai préparé un aperçu de ton propre site avec ${copy.value}, sans commission et pour moins cher que ton abo ${bk} : ` +
+        `${demoLink}\nDis-moi ce que t'en penses ! — Nicolas, NMF`,
+      tease:
+        `Salut 👋 ${intro}, ${copy.hook} ! J'ai vu que tu utilisais ${bk} — ` +
+        `c'est pratique mais entre l'abo et les commissions ça chiffre vite. ` +
+        `Je t'ai préparé un aperçu gratuit de ton propre site avec ${copy.value}, même efficacité mais bien moins cher. ` +
+        `Je te l'envoie ? 🙂`,
+    };
+  }
+
   return {
     withLink:
       `Salut 👋 ${intro}, ${copy.hook} ! J'ai vu que t'avais pas de site — ` +

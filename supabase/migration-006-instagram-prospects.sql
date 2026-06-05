@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS instagram_prospects (
   category       text,                              -- businessCategoryName Instagram si dispo
   metier         text,                              -- code métier déduit (→ template d'aperçu)
   ville          text,                              -- ville déduite (hashtag/bio)
+  booking_platform text,                             -- 'Planity' | 'Treatwell' | 'Fresha' | null
   hashtag_source text,                              -- hashtag qui a remonté le compte (traçabilité)
   status         text NOT NULL DEFAULT 'todo',      -- 'todo' | 'contacted' | 'positive' | 'negative'
   notes          text NOT NULL DEFAULT '',

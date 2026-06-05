@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { apifyConfigured, fetchHashtagUsernames, fetchProfiles } from "@/app/lib/apify";
-import { isProspect, detectMetier, detectVille } from "@/app/lib/instagram";
+import { isProspect, detectMetier, detectVille, detectBookingPlatform } from "@/app/lib/instagram";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel : laisse le temps aux runs Apify
@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
     category: string | null;
     metier: string;
     ville: string;
+    booking_platform: string | null;
     hashtag_source: string;
   }
   const qualified: QualRow[] = [];
@@ -98,6 +99,7 @@ export async function POST(req: NextRequest) {
         category: p.businessCategoryName ?? null,
         metier: detectMetier(p.businessCategoryName, p.biography),
         ville: detectVille(hashtag, p.biography),
+        booking_platform: detectBookingPlatform(p.externalUrl, p.biography),
         hashtag_source: hashtag,
       });
     }
@@ -109,7 +111,7 @@ export async function POST(req: NextRequest) {
       const { data, error } = await supabase
         .from("instagram_prospects")
         .upsert(batchRows, { onConflict: "username", ignoreDuplicates: true })
-        .select("id, username, full_name, bio, followers, category, metier, ville, status");
+        .select("id, username, full_name, bio, followers, category, metier, ville, booking_platform, status");
       if (error) {
         console.error("insert batch failed:", error.message);
       } else {
