@@ -248,7 +248,7 @@ function HomeInner() {
 
   return (
     <main className="min-h-screen">
-      <div className={`sticky top-0 z-20 border-b border-[var(--color-border)] px-3 md:px-6 py-2.5 md:py-3 transition-all duration-300 ${scrolled ? "bg-white/90 dark:bg-[#111114] backdrop-blur-xl shadow-lg shadow-black/5 dark:shadow-black/30" : "glass"}`}>
+      <div className={`sticky top-0 z-20 border-b border-[var(--color-border)] px-3 md:px-6 py-2.5 md:py-3 transition-all duration-300 ${scrolled ? "bg-white dark:bg-[#111114] shadow-sm dark:shadow-lg dark:shadow-black/30" : "bg-white dark:bg-transparent glass"}`}>
         <div className="flex items-center justify-between flex-wrap gap-2 md:gap-3">
           <div className="flex items-center gap-3 md:gap-4 min-w-0">
             <div className="hidden sm:block">
