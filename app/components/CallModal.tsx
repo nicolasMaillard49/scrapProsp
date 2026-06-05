@@ -278,15 +278,15 @@ export default function CallModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in overflow-y-auto"
+      className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 animate-fade-in overflow-y-auto"
       onClick={onClose}
     >
       <div
-        className={`flex flex-col md:flex-row gap-4 my-4 animate-slide-up ${competitorOpen ? "md:max-w-5xl" : "max-w-md"} w-full transition-all duration-300`}
+        className={`flex flex-col md:flex-row gap-4 my-2 sm:my-4 animate-slide-up ${competitorOpen ? "md:max-w-5xl" : "max-w-md"} w-full transition-all duration-300`}
         onClick={(e) => e.stopPropagation()}
       >
       <div
-        className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-6 shadow-2xl shrink-0 max-h-[90vh] overflow-y-auto"
+        className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl shrink-0 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden"
       >
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0 flex-1">
@@ -422,7 +422,7 @@ export default function CallModal({
 
         <a
           href={telUri}
-          className="block text-center mb-4 font-mono text-3xl font-bold text-neutral-50 tracking-wider hover:text-violet-300 transition"
+          className="block text-center mb-4 font-mono text-2xl sm:text-3xl font-bold text-neutral-50 tracking-wide sm:tracking-wider hover:text-violet-300 transition break-words"
         >
           {phone}
         </a>
@@ -699,7 +699,7 @@ function RdvForm({ name, phone, notes, address, onCreated }: { name: string; pho
 
   return (
     <div className="space-y-2.5">
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <div>
           <label className="block text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Date</label>
           <input
