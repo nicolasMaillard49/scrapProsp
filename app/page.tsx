@@ -23,13 +23,13 @@ import { useProspects } from "./lib/useProspects";
 import { gbpBadge, computeGbpScore } from "./lib/gbp";
 import { opportunityScore, opportunityBadge } from "./lib/opportunity";
 
-const statusConfig: Record<Status, { label: string; ring: string; rowBg: string; text: string }> = {
-  todo: { label: "À appeler", ring: "ring-neutral-700", rowBg: "", text: "text-neutral-400" },
-  called: { label: "Appelé", ring: "ring-amber-600/60", rowBg: "bg-amber-950/20", text: "text-amber-300" },
-  sms_sent: { label: "SMS envoyé", ring: "ring-violet-500/70", rowBg: "bg-violet-950/20", text: "text-violet-300" },
-  positive: { label: "Positif", ring: "ring-emerald-500/70", rowBg: "bg-emerald-950/25", text: "text-emerald-300" },
-  negative: { label: "Négatif", ring: "ring-rose-600/60", rowBg: "bg-rose-950/15", text: "text-rose-300" },
-  no_answer: { label: "Pas de réponse", ring: "ring-sky-600/60", rowBg: "bg-sky-950/15", text: "text-sky-300" },
+const statusConfig: Record<Status, { label: string; ring: string; border: string; text: string }> = {
+  todo: { label: "À appeler", ring: "ring-neutral-400 dark:ring-neutral-700", border: "border-l-neutral-300 dark:border-l-neutral-600", text: "text-neutral-500 dark:text-neutral-400" },
+  called: { label: "Appelé", ring: "ring-amber-500/60 dark:ring-amber-600/60", border: "border-l-amber-400 dark:border-l-amber-500", text: "text-amber-600 dark:text-amber-300" },
+  sms_sent: { label: "SMS envoyé", ring: "ring-violet-500/70", border: "border-l-violet-500 dark:border-l-violet-400", text: "text-violet-600 dark:text-violet-300" },
+  positive: { label: "Positif", ring: "ring-emerald-500/70", border: "border-l-emerald-500 dark:border-l-emerald-400", text: "text-emerald-600 dark:text-emerald-300" },
+  negative: { label: "Négatif", ring: "ring-rose-500/60 dark:ring-rose-600/60", border: "border-l-rose-500 dark:border-l-rose-400", text: "text-rose-600 dark:text-rose-300" },
+  no_answer: { label: "Pas de réponse", ring: "ring-sky-500/60 dark:ring-sky-600/60", border: "border-l-sky-500 dark:border-l-sky-400", text: "text-sky-600 dark:text-sky-300" },
 };
 
 function HomeInner() {
@@ -248,7 +248,7 @@ function HomeInner() {
 
   return (
     <main className="min-h-screen">
-      <div className={`sticky top-0 z-20 border-b border-[var(--color-border)] px-3 md:px-6 py-2.5 md:py-3 transition-all duration-300 ${scrolled ? "bg-[#111114] shadow-lg shadow-black/30" : "glass"}`}>
+      <div className={`sticky top-0 z-20 border-b border-[var(--color-border)] px-3 md:px-6 py-2.5 md:py-3 transition-all duration-300 ${scrolled ? "bg-white/90 dark:bg-[#111114] backdrop-blur-xl shadow-lg shadow-black/5 dark:shadow-black/30" : "glass"}`}>
         <div className="flex items-center justify-between flex-wrap gap-2 md:gap-3">
           <div className="flex items-center gap-3 md:gap-4 min-w-0">
             <div className="hidden sm:block">
@@ -258,10 +258,10 @@ function HomeInner() {
               <ProgressRing positive={stats.positive} called={stats.called} negative={stats.negative} total={stats.total} size={44} />
             </div>
             <div className="min-w-0">
-              <h1 className="font-display italic text-[22px] md:text-[28px] leading-none tracking-tight text-neutral-50 truncate">
-                Prospects <span className="text-violet-300">Tracker</span>
+              <h1 className="font-display italic text-[22px] md:text-[28px] leading-none tracking-tight text-neutral-900 dark:text-neutral-50 truncate">
+                Prospects <span className="text-violet-600 dark:text-violet-300">Tracker</span>
               </h1>
-              <p className="text-[10px] md:text-[11px] text-neutral-500 truncate mt-1 font-mono-num">
+              <p className="text-[10px] md:text-[11px] text-neutral-500 dark:text-neutral-500 truncate mt-1 font-mono-num">
                 {regions.length > 0 ? `${regions.length} régions` : ""} · {stats.total} prospects {regionFilter !== "all" ? `(${regions.find(r => r.key === regionFilter)?.label ?? ""})` : ""}
               </p>
             </div>
@@ -283,7 +283,7 @@ function HomeInner() {
             </button>
             <Link
               href="/carte"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
               title="Carte des prospects"
             >
               <MapPin className="w-4 h-4" />
@@ -291,7 +291,7 @@ function HomeInner() {
             </Link>
             <Link
               href="/sms"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
               title="Suivi des SMS"
             >
               <MessageSquare className="w-4 h-4" />
@@ -299,13 +299,13 @@ function HomeInner() {
             </Link>
             <Link
               href="/instagram"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
               title="Prospection Instagram"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
               <span className="hidden md:inline">Instagram</span>
             </Link>
-            <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-400 hover:text-neutral-100 transition" title="Raccourcis (?)">
+            <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition" title="Raccourcis (?)">
               <Keyboard className="w-4 h-4" />
             </button>
             <label className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] cursor-pointer transition">
@@ -326,8 +326,8 @@ function HomeInner() {
               onClick={() => { setRegionFilter("all"); setVilleFilter("all"); }}
               className={`shrink-0 px-3 py-1.5 text-xs rounded-full border transition ${
                 regionFilter === "all"
-                  ? "bg-violet-500/15 border-violet-500/40 text-violet-200"
-                  : "bg-[var(--color-surface)]/50 border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+                  ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
+                  : "bg-[var(--color-surface)]/50 border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
               }`}
             >
               <Globe className="w-3 h-3 inline mr-1" />
@@ -341,11 +341,11 @@ function HomeInner() {
                   onClick={() => { setRegionFilter(r.key); setVilleFilter("all"); }}
                   className={`shrink-0 px-3 py-1.5 text-xs rounded-full border transition ${
                     regionFilter === r.key
-                      ? "bg-violet-500/15 border-violet-500/40 text-violet-200"
-                      : "bg-[var(--color-surface)]/50 border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+                      ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
+                      : "bg-[var(--color-surface)]/50 border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
                   }`}
                 >
-                  {r.label} <span className="text-neutral-600">({count})</span>
+                  {r.label} <span className="text-neutral-400 dark:text-neutral-600">({count})</span>
                 </button>
               );
             })}
@@ -355,13 +355,13 @@ function HomeInner() {
 
       <div className="px-3 md:px-6 py-3 md:py-4">
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
-          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.sms_sent + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-100" />
-          <StatCard label="À appeler" value={stats.todo} sub="non traités" active={filter === "todo"} onClick={() => setFilter("todo")} accent="text-neutral-300" iconBg="bg-neutral-800" />
-          <StatCard label="SMS envoyés" value={stats.sms_sent} sub="contactés" active={filter === "sms_sent"} onClick={() => setFilter("sms_sent")} accent="text-violet-300" iconBg="bg-violet-950/40" />
-          <StatCard label="Appelés" value={stats.called} sub="en attente" active={filter === "called"} onClick={() => setFilter("called")} accent="text-amber-300" iconBg="bg-amber-950/40" />
-          <StatCard label="Pas de rép." value={stats.no_answer} sub="à rappeler" active={filter === "no_answer"} onClick={() => setFilter("no_answer")} accent="text-sky-300" iconBg="bg-sky-950/40" />
-          <StatCard label="Positifs" value={stats.positive} sub={`${stats.positive > 0 && stats.called + stats.positive + stats.negative > 0 ? Math.round((stats.positive / (stats.called + stats.positive + stats.negative)) * 100) : 0} %`} active={filter === "positive"} onClick={() => setFilter("positive")} accent="text-emerald-300" iconBg="bg-emerald-950/40" />
-          <StatCard label="Négatifs" value={stats.negative} sub="exclus" active={filter === "negative"} onClick={() => setFilter("negative")} accent="text-rose-300" iconBg="bg-rose-950/40" />
+          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.sms_sent + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-800 dark:text-neutral-100" />
+          <StatCard label="À appeler" value={stats.todo} sub="non traités" active={filter === "todo"} onClick={() => setFilter("todo")} accent="text-neutral-700 dark:text-neutral-300" iconBg="bg-neutral-300 dark:bg-neutral-800" />
+          <StatCard label="SMS envoyés" value={stats.sms_sent} sub="contactés" active={filter === "sms_sent"} onClick={() => setFilter("sms_sent")} accent="text-violet-600 dark:text-violet-300" iconBg="bg-violet-200 dark:bg-violet-950/40" />
+          <StatCard label="Appelés" value={stats.called} sub="en attente" active={filter === "called"} onClick={() => setFilter("called")} accent="text-amber-600 dark:text-amber-300" iconBg="bg-amber-200 dark:bg-amber-950/40" />
+          <StatCard label="Pas de rép." value={stats.no_answer} sub="à rappeler" active={filter === "no_answer"} onClick={() => setFilter("no_answer")} accent="text-sky-600 dark:text-sky-300" iconBg="bg-sky-200 dark:bg-sky-950/40" />
+          <StatCard label="Positifs" value={stats.positive} sub={`${stats.positive > 0 && stats.called + stats.positive + stats.negative > 0 ? Math.round((stats.positive / (stats.called + stats.positive + stats.negative)) * 100) : 0} %`} active={filter === "positive"} onClick={() => setFilter("positive")} accent="text-emerald-600 dark:text-emerald-300" iconBg="bg-emerald-200 dark:bg-emerald-950/40" />
+          <StatCard label="Négatifs" value={stats.negative} sub="exclus" active={filter === "negative"} onClick={() => setFilter("negative")} accent="text-rose-600 dark:text-rose-300" iconBg="bg-rose-200 dark:bg-rose-950/40" />
         </div>
 
         <div className="flex flex-wrap gap-1.5 md:gap-2 items-stretch mb-3 stagger-2">
@@ -406,8 +406,8 @@ function HomeInner() {
             onClick={() => setOpenNowOnly((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               openNowOnly
-                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-200"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
             }`}
             title="N'afficher que les ouverts maintenant"
           >
@@ -418,8 +418,8 @@ function HomeInner() {
             onClick={() => setJeuneOnly((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               jeuneOnly
-                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-200"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
             }`}
             title="N'afficher que les entreprises jeunes (< 5 ans)"
           >
@@ -430,8 +430,8 @@ function HomeInner() {
             onClick={() => { setRadarOnly((v) => !v); if (!radarOnly) setSortBy("radar"); }}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               radarOnly
-                ? "bg-violet-500/15 border-violet-500/40 text-violet-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+                ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
             }`}
             title="N'afficher que les prospects detectes par le Radar"
           >
@@ -442,8 +442,8 @@ function HomeInner() {
             onClick={() => setHideRadie((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               hideRadie
-                ? "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
-                : "bg-rose-500/15 border-rose-500/40 text-rose-200"
+                ? "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                : "bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-200"
             }`}
             title={hideRadie ? "Les entreprises radiées sont masquées (cliquer pour afficher)" : "Les radiées sont visibles (cliquer pour masquer)"}
           >
@@ -461,8 +461,8 @@ function HomeInner() {
             }}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               tourneeMode
-                ? "bg-violet-500/15 border-violet-500/40 text-violet-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)]"
+                ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
             }`}
             title="Mode Tournée : prospects triés par potentiel GBP, filtrés à appeler"
           >
@@ -476,14 +476,14 @@ function HomeInner() {
           {stats.jeunes > 0 && (
             <button
               onClick={() => setJeuneOnly((v) => !v)}
-              className={`flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded transition ${jeuneOnly ? "bg-emerald-500/20 text-emerald-200" : "bg-emerald-500/10 text-emerald-300/80 hover:bg-emerald-500/15"}`}
+              className={`flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded transition ${jeuneOnly ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-200" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300/80 hover:bg-emerald-500/15"}`}
               title="Entreprises de moins de 5 ans (les plus chaudes pour le pitch)"
             >
               🌱 {stats.jeunes} jeune{stats.jeunes > 1 ? "s" : ""}
             </button>
           )}
           {stats.radie > 0 && (
-            <span className="text-[11px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-300/80" title={hideRadie ? "Masquées" : "Visibles"}>
+            <span className="text-[11px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-600 dark:text-rose-300/80" title={hideRadie ? "Masquées" : "Visibles"}>
               ⛔ {stats.radie} radiée{stats.radie > 1 ? "s" : ""}
             </span>
           )}
@@ -521,24 +521,24 @@ function HomeInner() {
             return (
               <div
                 key={p.id}
-                className={`rounded-xl border border-[var(--color-border)] ${cfg.rowBg || "bg-[var(--color-surface)]/40"} p-3.5`}
+                className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 border-l-[3px] ${cfg.border} p-3.5`}
               >
                 <div className="flex items-start gap-2.5 mb-2.5">
                   <button
                     onClick={() => { setFocusStart(idx); setFocusOpen(true); }}
-                    className={`shrink-0 w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center ring-2 ${cfg.ring} text-neutral-500 hover:text-violet-300 transition`}
+                    className={`shrink-0 w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center ring-2 ${cfg.ring} text-neutral-500 hover:text-violet-600 dark:hover:text-violet-300 transition`}
                   >
                     {idx + 1}
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-100 leading-tight text-[15px] break-words text-left hover:text-violet-300 transition cursor-pointer">{p.name}</button>
+                      <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-900 dark:text-neutral-100 leading-tight text-[15px] break-words text-left hover:text-violet-600 dark:hover:text-violet-300 transition cursor-pointer">{p.name}</button>
                       {p.source === "radar" && p.radar_detected_at && (Date.now() - new Date(p.radar_detected_at).getTime() < 48 * 3600_000) && (
-                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-300 uppercase tracking-wider">Nouveau</span>
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-700 dark:text-violet-300 uppercase tracking-wider">Nouveau</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-1 text-xs flex-wrap">
-                      <span className={`px-2 py-0.5 rounded ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
+                      <span className={`px-2 py-0.5 rounded ${p.metier === "plombier" ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300" : "bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300"}`}>
                         {p.metier}
                       </span>
                       <AgeBadge prospect={p} size="sm" />
@@ -554,7 +554,7 @@ function HomeInner() {
                           </span>
                         );
                       })()}
-                      <span className="flex items-center gap-1 text-neutral-500">
+                      <span className="flex items-center gap-1 text-neutral-600 dark:text-neutral-500">
                         <MapPin className="w-3 h-3" /> {p.ville}
                       </span>
                     </div>
@@ -565,16 +565,16 @@ function HomeInner() {
                       </div>
                     )}
                     {p.address && (
-                      <div className="text-xs text-neutral-600 mt-1 break-words" title={p.address}>
+                      <div className="text-xs text-neutral-500 dark:text-neutral-600 mt-1 break-words" title={p.address}>
                         {p.address}
                       </div>
                     )}
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
+                    <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-600 dark:text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
                       <ExternalLink className="w-3.5 h-3.5" /> Google
                     </a>
-                    <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-600 hover:text-fuchsia-400 transition" title="Maquette site">
+                    <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-400 dark:text-neutral-600 hover:text-fuchsia-500 dark:hover:text-fuchsia-400 transition" title="Maquette site">
                       <Sparkles className="w-4 h-4" />
                     </a>
                   </div>
@@ -584,19 +584,19 @@ function HomeInner() {
                   {(() => {
                     const badge = gbpBadge(p.rating, p.reviews);
                     return p.rating ? (
-                      <div className="flex items-center gap-1 text-neutral-300">
+                      <div className="flex items-center gap-1 text-neutral-700 dark:text-neutral-300">
                         <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                         <span className="font-semibold">{p.rating}</span>
-                        <span className="text-neutral-600">({p.reviews})</span>
+                        <span className="text-neutral-500 dark:text-neutral-600">({p.reviews})</span>
                         <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.bg} ${badge.color}`}>{badge.label}</span>
                       </div>
                     ) : (
-                      <span className="text-neutral-700">— pas de note —</span>
+                      <span className="text-neutral-400 dark:text-neutral-700">— pas de note —</span>
                     );
                   })()}
                   <div className="flex items-center gap-1.5">
                     <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
-                    <span className={`${isOpen ? "text-emerald-300" : "text-neutral-500"} truncate max-w-[160px]`}>
+                    <span className={`${isOpen ? "text-emerald-600 dark:text-emerald-300" : "text-neutral-500"} truncate max-w-[160px]`}>
                       {openLabel(p, now, now)}
                     </span>
                   </div>
@@ -607,14 +607,14 @@ function HomeInner() {
                     href={whatsAppUrl(p.phone)}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex-1 group flex items-center justify-center gap-2 px-3 py-3 rounded-lg bg-gradient-to-br from-emerald-600/30 to-emerald-700/15 border border-emerald-700/50 hover:from-emerald-500/40 active:from-emerald-500/50 text-emerald-100 font-mono font-bold text-[15px] transition shadow-sm"
+                    className="flex-1 group flex items-center justify-center gap-2 px-3 py-3 rounded-lg bg-gradient-to-br from-emerald-600/30 to-emerald-700/15 border border-emerald-700/50 hover:from-emerald-500/40 active:from-emerald-500/50 text-emerald-800 dark:text-emerald-100 font-mono font-bold text-[15px] transition shadow-sm"
                   >
                     <WhatsAppIcon className="w-5 h-5" />
                     {p.phone}
                   </a>
                   <a
                     href={`tel:${p.phone.replace(/\s/g, "")}`}
-                    className="flex items-center justify-center px-3 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 active:bg-violet-500/10 text-neutral-400 hover:text-violet-300 transition"
+                    className="flex items-center justify-center px-3 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 active:bg-violet-500/10 text-neutral-500 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
                     title="Appeler directement"
                   >
                     <Phone className="w-5 h-5" />
@@ -627,7 +627,7 @@ function HomeInner() {
                   <StatusBtn active={p.status === "no_answer"} onClick={() => updateStatus(p.id, p.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
                   <StatusBtn active={p.status === "negative"} onClick={() => updateStatus(p.id, p.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
                   {p.status !== "todo" && (
-                    <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-neutral-600 hover:text-neutral-300 transition" title="Reset">
+                    <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-neutral-400 dark:text-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 transition" title="Reset">
                       <Undo2 className="w-4 h-4" />
                     </button>
                   )}
@@ -640,14 +640,14 @@ function HomeInner() {
                   value={p.notes}
                   onChange={(e) => setLocalNotes(p.id, e.target.value)}
                   onBlur={(e) => updateNotes(p.id, e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--color-background)]/60 border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-700"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--color-background)]/60 border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
                 />
               </div>
             );
           })}
           {loaded && paginated.length === 0 && (
             <div className="py-12 text-center text-neutral-500 flex flex-col items-center gap-2">
-              <Search className="w-8 h-8 text-neutral-700" />
+              <Search className="w-8 h-8 text-neutral-400 dark:text-neutral-700" />
               <div>Aucun prospect avec ces filtres</div>
               <button onClick={resetFilters} className="text-xs text-violet-400 hover:text-violet-300">
                 Réinitialiser les filtres
@@ -677,7 +677,7 @@ function HomeInner() {
                 const cfg = statusConfig[p.status];
                 const isOpen = isOpenNow(p, now, now);
                 return (
-                  <tr key={p.id} className={`border-t border-[var(--color-border)] ${cfg.rowBg} hover:bg-[var(--color-surface)]/60 transition`}>
+                  <tr key={p.id} className={`border-t border-[var(--color-border)] border-l-[3px] ${cfg.border} hover:bg-[var(--color-surface)]/60 transition`}>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => { setFocusStart(idx); setFocusOpen(true); }}
@@ -689,13 +689,13 @@ function HomeInner() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-100 leading-tight text-base text-left hover:text-violet-300 transition cursor-pointer">{p.name}</button>
+                        <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-900 dark:text-neutral-100 leading-tight text-base text-left hover:text-violet-600 dark:hover:text-violet-300 transition cursor-pointer">{p.name}</button>
                         {p.source === "radar" && p.radar_detected_at && (Date.now() - new Date(p.radar_detected_at).getTime() < 48 * 3600_000) && (
-                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-300 uppercase tracking-wider">Nouveau</span>
+                          <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-700 dark:text-violet-300 uppercase tracking-wider">Nouveau</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-1.5 text-sm flex-wrap">
-                        <span className={`px-2 py-0.5 rounded text-xs ${p.metier === "plombier" ? "bg-blue-950/60 text-blue-300" : "bg-yellow-950/60 text-yellow-300"}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs ${p.metier === "plombier" ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300" : "bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300"}`}>
                           {p.metier}
                         </span>
                         <AgeBadge prospect={p} size="md" />
@@ -711,11 +711,11 @@ function HomeInner() {
                             </span>
                           );
                         })()}
-                        <span className="flex items-center gap-1 text-neutral-300 font-medium">
+                        <span className="flex items-center gap-1 text-neutral-700 dark:text-neutral-300 font-medium">
                           <MapPin className="w-4 h-4 text-neutral-500" /> {p.ville}
                         </span>
                         {p.region_label && p.region_label !== p.ville && (
-                          <span className="text-neutral-400">· {p.region_label}</span>
+                          <span className="text-neutral-500 dark:text-neutral-400">· {p.region_label}</span>
                         )}
                       </div>
                       {(p.dirigeant_nom || p.dirigeant_prenom) && (
@@ -725,7 +725,7 @@ function HomeInner() {
                         </div>
                       )}
                       {p.address && (
-                        <div className="text-xs text-neutral-600 mt-1 truncate max-w-[300px]" title={p.address}>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-600 mt-1 truncate max-w-[300px]" title={p.address}>
                           {p.address}
                         </div>
                       )}
@@ -736,7 +736,7 @@ function HomeInner() {
                           href={whatsAppUrl(p.phone)}
                           target="_blank"
                           rel="noreferrer"
-                          className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-br from-emerald-600/25 to-emerald-700/10 border border-emerald-700/40 hover:from-emerald-500/35 hover:to-emerald-600/20 hover:border-emerald-500/60 text-emerald-100 font-mono font-semibold text-base transition shadow-sm"
+                          className="group flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-br from-emerald-600/25 to-emerald-700/10 border border-emerald-700/40 hover:from-emerald-500/35 hover:to-emerald-600/20 hover:border-emerald-500/60 text-emerald-800 dark:text-emerald-100 font-mono font-semibold text-base transition shadow-sm"
                           title="Ouvrir WhatsApp"
                         >
                           <WhatsAppIcon className="w-4 h-4 group-hover:scale-110 transition" />
@@ -744,7 +744,7 @@ function HomeInner() {
                         </a>
                         <a
                           href={`tel:${p.phone.replace(/\s/g, "")}`}
-                          className="flex items-center justify-center px-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 hover:bg-violet-500/10 text-neutral-400 hover:text-violet-300 transition"
+                          className="flex items-center justify-center px-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 hover:bg-violet-500/10 text-neutral-500 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
                           title="Appeler directement"
                         >
                           <Phone className="w-4 h-4" />
@@ -754,7 +754,7 @@ function HomeInner() {
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-1.5">
                         <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
-                        <span className={`text-sm leading-tight ${isOpen ? "text-emerald-300" : "text-neutral-500"}`}>
+                        <span className={`text-sm leading-tight ${isOpen ? "text-emerald-600 dark:text-emerald-300" : "text-neutral-500"}`}>
                           {openLabel(p, now, now)}
                         </span>
                       </div>
@@ -763,14 +763,14 @@ function HomeInner() {
                       {(() => {
                         const badge = gbpBadge(p.rating, p.reviews);
                         return p.rating ? (
-                          <div className="flex items-center gap-1 text-neutral-300">
+                          <div className="flex items-center gap-1 text-neutral-700 dark:text-neutral-300">
                             <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
                             <span className="font-semibold text-base">{p.rating}</span>
-                            <span className="text-neutral-600 text-sm">({p.reviews})</span>
+                            <span className="text-neutral-500 dark:text-neutral-600 text-sm">({p.reviews})</span>
                             <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.bg} ${badge.color}`}>{badge.label}</span>
                           </div>
                         ) : (
-                          <span className="text-neutral-700">—</span>
+                          <span className="text-neutral-400 dark:text-neutral-700">—</span>
                         );
                       })()}
                     </td>
@@ -781,7 +781,7 @@ function HomeInner() {
                         <StatusBtn active={p.status === "no_answer"} onClick={() => updateStatus(p.id, p.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
                         <StatusBtn active={p.status === "negative"} onClick={() => updateStatus(p.id, p.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
                         {p.status !== "todo" && (
-                          <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-neutral-600 hover:text-neutral-300 transition" title="Reset">
+                          <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-neutral-400 dark:text-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 transition" title="Reset">
                             <Undo2 className="w-4 h-4" />
                           </button>
                         )}
@@ -794,15 +794,15 @@ function HomeInner() {
                         value={p.notes}
                         onChange={(e) => setLocalNotes(p.id, e.target.value)}
                         onBlur={(e) => updateNotes(p.id, e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-sm rounded bg-[var(--color-background)]/50 border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-700"
+                        className="w-full px-2.5 py-1.5 text-sm rounded bg-[var(--color-background)]/50 border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
                       />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
+                        <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-600 dark:text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
                           <ExternalLink className="w-3.5 h-3.5" /> Google
                         </a>
-                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1 text-neutral-600 hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
+                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1 text-neutral-400 dark:text-neutral-600 hover:text-fuchsia-500 dark:hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
                           <Sparkles className="w-4 h-4" />
                         </a>
                       </div>
@@ -814,7 +814,7 @@ function HomeInner() {
                 <tr>
                   <td colSpan={8} className="px-3 py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-neutral-500">
-                      <Search className="w-8 h-8 text-neutral-700" />
+                      <Search className="w-8 h-8 text-neutral-400 dark:text-neutral-700" />
                       <div>Aucun prospect avec ces filtres</div>
                       <button onClick={resetFilters} className="text-xs text-violet-400 hover:text-violet-300">
                         Réinitialiser les filtres
@@ -838,7 +838,7 @@ function HomeInner() {
           />
         )}
 
-        <footer className="mt-6 flex items-center justify-between text-xs text-neutral-600">
+        <footer className="mt-6 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-600">
           <span>Supabase · {prospects.filter(p => p.status !== "todo").length} interactions enregistrées</span>
           <button
             onClick={() => {
@@ -932,14 +932,14 @@ function StatCard({ label, value, sub, active, onClick, accent, iconBg }: { labe
       >
         {value}
       </div>
-      {sub && <div className="hidden md:block text-[10px] text-neutral-600 mt-1 font-mono-num">{sub}</div>}
+      {sub && <div className="hidden md:block text-[10px] text-neutral-500 dark:text-neutral-600 mt-1 font-mono-num">{sub}</div>}
     </button>
   );
 }
 
 function SelectIcon({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-neutral-400 hover:border-[var(--color-border-strong)] transition">
+    <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)] transition">
       <span className="text-neutral-500">{icon}</span>
       {children}
     </div>
@@ -971,16 +971,16 @@ function Pagination({ page, totalPages, pageSize, total, onPage, onPageSize }: {
     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 md:gap-3 px-1">
       <div className="flex items-center gap-1.5 md:gap-2 text-xs text-neutral-500">
         <span>
-          <span className="text-neutral-300 font-medium tabular-nums">{from}–{to}</span>
+          <span className="text-neutral-700 dark:text-neutral-300 font-medium tabular-nums">{from}–{to}</span>
           <span className="mx-1">/</span>
-          <span className="text-neutral-400 tabular-nums">{total}</span>
+          <span className="text-neutral-500 dark:text-neutral-400 tabular-nums">{total}</span>
         </span>
-        <span className="text-neutral-700 hidden sm:inline">·</span>
+        <span className="text-neutral-400 dark:text-neutral-700 hidden sm:inline">·</span>
         <span className="hidden sm:inline">
           <select
             value={pageSize}
             onChange={(e) => onPageSize(Number(e.target.value))}
-            className="bg-transparent border-none outline-none text-xs text-neutral-300 hover:text-violet-300 cursor-pointer"
+            className="bg-transparent border-none outline-none text-xs text-neutral-700 dark:text-neutral-300 hover:text-violet-600 dark:hover:text-violet-300 cursor-pointer"
           >
             <option value={20}>20 / page</option>
             <option value={50}>50 / page</option>
@@ -1000,24 +1000,24 @@ function Pagination({ page, totalPages, pageSize, total, onPage, onPageSize }: {
             <ChevronLeft className="w-3.5 h-3.5" />
           </PageBtn>
           {/* mobile : compteur compact */}
-          <span className="md:hidden px-2 py-1 text-xs text-neutral-400 tabular-nums">
-            <span className="text-violet-300 font-medium">{page}</span>
-            <span className="text-neutral-700"> / </span>
+          <span className="md:hidden px-2 py-1 text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">
+            <span className="text-violet-600 dark:text-violet-300 font-medium">{page}</span>
+            <span className="text-neutral-400 dark:text-neutral-700"> / </span>
             <span>{totalPages}</span>
           </span>
           {/* desktop : numéros */}
           <div className="hidden md:flex items-center gap-0.5 mx-1">
             {range.map((r, i) =>
               r === "…" ? (
-                <span key={`e-${i}`} className="px-1.5 text-xs text-neutral-600">…</span>
+                <span key={`e-${i}`} className="px-1.5 text-xs text-neutral-400 dark:text-neutral-600">…</span>
               ) : (
                 <button
                   key={r}
                   onClick={() => onPage(r)}
                   className={`min-w-[28px] px-1.5 py-1 text-xs rounded transition tabular-nums ${
                     r === page
-                      ? "bg-violet-500/20 text-violet-200 border border-violet-500/40"
-                      : "text-neutral-400 hover:text-neutral-100 hover:bg-[var(--color-surface)]"
+                      ? "bg-violet-500/20 text-violet-700 dark:text-violet-200 border border-violet-500/40"
+                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-[var(--color-surface)]"
                   }`}
                 >
                   {r}
@@ -1043,7 +1043,7 @@ function PageBtn({ children, onClick, disabled, title }: { children: React.React
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="p-1.5 rounded border border-[var(--color-border)] text-neutral-400 hover:text-neutral-100 hover:border-[var(--color-border-strong)] disabled:opacity-30 disabled:cursor-not-allowed transition"
+      className="p-1.5 rounded border border-[var(--color-border)] text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:border-[var(--color-border-strong)] disabled:opacity-30 disabled:cursor-not-allowed transition"
     >
       {children}
     </button>
@@ -1056,7 +1056,7 @@ function StatusBtn({ active, onClick, color, icon, title }: { active: boolean; o
     amber: "bg-amber-500/15 border-amber-500/50 text-amber-300",
     rose: "bg-rose-500/15 border-rose-500/50 text-rose-300",
     sky: "bg-sky-500/15 border-sky-500/50 text-sky-300",
-  }[color] : "border-[var(--color-border)] text-neutral-500 hover:border-neutral-600 hover:text-neutral-300";
+  }[color] : "border-[var(--color-border)] text-neutral-400 dark:text-neutral-500 hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300";
   return (
     <button onClick={onClick} title={title} className={`p-1.5 rounded border transition ${styles}`}>
       {icon}
