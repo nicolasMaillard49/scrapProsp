@@ -22,15 +22,20 @@ export default function ThemeToggle() {
     localStorage.setItem("theme", next ? "dark" : "light");
   };
 
-  if (!mounted) return <div className="w-9 h-9" />;
+  if (!mounted) return null;
 
   return (
     <button
       onClick={toggle}
       aria-label={dark ? "Passer en mode clair" : "Passer en mode sombre"}
-      className="fixed bottom-4 right-4 z-50 p-2.5 rounded-full glass cursor-pointer hover:scale-105 transition-transform"
+      style={{ position: "fixed", bottom: 16, right: 16, zIndex: 9999 }}
+      className="p-3 rounded-full glass cursor-pointer hover:scale-110 active:scale-95 transition-transform shadow-lg"
     >
-      {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-[var(--color-text-secondary)]" />}
+      {dark ? (
+        <Sun className="w-5 h-5 text-amber-400" />
+      ) : (
+        <Moon className="w-5 h-5 text-[var(--color-text-secondary)]" />
+      )}
     </button>
   );
 }
