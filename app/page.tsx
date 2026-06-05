@@ -23,13 +23,13 @@ import { useProspects } from "./lib/useProspects";
 import { gbpBadge, computeGbpScore } from "./lib/gbp";
 import { opportunityScore, opportunityBadge } from "./lib/opportunity";
 
-const statusConfig: Record<Status, { label: string; ring: string; border: string; text: string }> = {
-  todo: { label: "À appeler", ring: "ring-neutral-400 dark:ring-neutral-700", border: "border-l-neutral-300 dark:border-l-neutral-600", text: "text-neutral-500 dark:text-neutral-400" },
-  called: { label: "Appelé", ring: "ring-amber-500/60 dark:ring-amber-600/60", border: "border-l-amber-400 dark:border-l-amber-500", text: "text-amber-600 dark:text-amber-300" },
-  sms_sent: { label: "SMS envoyé", ring: "ring-violet-500/70", border: "border-l-violet-500 dark:border-l-violet-400", text: "text-violet-600 dark:text-violet-300" },
-  positive: { label: "Positif", ring: "ring-emerald-500/70", border: "border-l-emerald-500 dark:border-l-emerald-400", text: "text-emerald-600 dark:text-emerald-300" },
-  negative: { label: "Négatif", ring: "ring-rose-500/60 dark:ring-rose-600/60", border: "border-l-rose-500 dark:border-l-rose-400", text: "text-rose-600 dark:text-rose-300" },
-  no_answer: { label: "Pas de réponse", ring: "ring-sky-500/60 dark:ring-sky-600/60", border: "border-l-sky-500 dark:border-l-sky-400", text: "text-sky-600 dark:text-sky-300" },
+const statusConfig: Record<Status, { label: string; ring: string; row: string; text: string }> = {
+  todo: { label: "À appeler", ring: "ring-neutral-400 dark:ring-neutral-700", row: "border-l-[3px] border-l-neutral-300 dark:border-l-transparent dark:bg-neutral-500/5", text: "text-neutral-500 dark:text-neutral-400" },
+  called: { label: "Appelé", ring: "ring-amber-500/60 dark:ring-amber-600/60", row: "border-l-[3px] border-l-amber-400 dark:border-l-transparent dark:bg-amber-500/10", text: "text-amber-600 dark:text-amber-300" },
+  sms_sent: { label: "SMS envoyé", ring: "ring-violet-500/70", row: "border-l-[3px] border-l-violet-500 dark:border-l-transparent dark:bg-violet-500/10", text: "text-violet-600 dark:text-violet-300" },
+  positive: { label: "Positif", ring: "ring-emerald-500/70", row: "border-l-[3px] border-l-emerald-500 dark:border-l-transparent dark:bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-300" },
+  negative: { label: "Négatif", ring: "ring-rose-500/60 dark:ring-rose-600/60", row: "border-l-[3px] border-l-rose-400 dark:border-l-transparent dark:bg-rose-500/10", text: "text-rose-600 dark:text-rose-300" },
+  no_answer: { label: "Pas de réponse", ring: "ring-sky-500/60 dark:ring-sky-600/60", row: "border-l-[3px] border-l-sky-400 dark:border-l-transparent dark:bg-sky-500/10", text: "text-sky-600 dark:text-sky-300" },
 };
 
 function HomeInner() {
@@ -521,7 +521,7 @@ function HomeInner() {
             return (
               <div
                 key={p.id}
-                className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/40 border-l-[3px] ${cfg.border} p-3.5`}
+                className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/60 ${cfg.row} p-3.5`}
               >
                 <div className="flex items-start gap-2.5 mb-2.5">
                   <button
@@ -657,7 +657,7 @@ function HomeInner() {
         </div>
 
         {/* DESKTOP : vue table */}
-        <div className="hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]/40 stagger-3">
+        <div className="hidden md:block rounded-xl border border-[var(--color-border)] overflow-hidden bg-[var(--color-surface)]/70 stagger-3">
           <table className="w-full text-base">
             <thead className="bg-[var(--color-surface)]/80 backdrop-blur text-left text-xs uppercase tracking-wider text-neutral-500 border-b border-[var(--color-border)]">
               <tr>
@@ -677,7 +677,7 @@ function HomeInner() {
                 const cfg = statusConfig[p.status];
                 const isOpen = isOpenNow(p, now, now);
                 return (
-                  <tr key={p.id} className={`border-t border-[var(--color-border)] border-l-[3px] ${cfg.border} hover:bg-[var(--color-surface)]/60 transition`}>
+                  <tr key={p.id} className={`border-t border-[var(--color-border)] ${cfg.row} hover:bg-[var(--color-surface)]/60 transition`}>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => { setFocusStart(idx); setFocusOpen(true); }}
