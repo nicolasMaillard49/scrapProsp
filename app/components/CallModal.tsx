@@ -284,14 +284,14 @@ export default function CallModal({
     >
       <div
         className="flex flex-col md:flex-row md:items-start gap-4 my-2 sm:my-4 animate-slide-up w-full md:w-auto md:max-w-[96vw] justify-center transition-all duration-300"
-        onClick={(e) => e.stopPropagation()}
       >
       {prospect && (
-        <div className="order-2 md:order-1 w-full md:w-auto">
+        <div className="order-2 md:order-1 w-full md:w-auto" onClick={(e) => e.stopPropagation()}>
           <CallScript prospect={prospect} smsSent={!!lastSmsAt} />
         </div>
       )}
       <div
+        onClick={(e) => e.stopPropagation()}
         className="order-1 md:order-2 bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl shrink-0 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden"
       >
         <div className="flex items-start justify-between mb-3">
@@ -658,7 +658,7 @@ export default function CallModal({
 
       {/* Right panel: Competitor analysis */}
       {prospect && (
-        <div className="order-3 w-full md:w-auto">
+        <div className="order-3 w-full md:w-auto" onClick={(e) => e.stopPropagation()}>
           <CompetitorSection
             prospectId={prospect.id}
             ville={prospect.ville || ""}
