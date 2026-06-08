@@ -33,7 +33,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             className={`pointer-events-auto flex items-center gap-2 px-3 py-2 rounded-lg border text-sm animate-slide-up shadow-2xl ${
               t.kind === "success" ? "bg-emerald-950/90 border-emerald-700/60 text-emerald-200" :
               t.kind === "error" ? "bg-rose-950/90 border-rose-700/60 text-rose-200" :
-              "bg-neutral-900/95 border-neutral-700 text-neutral-200"
+              "bg-[var(--color-surface-2)]/95 border-[var(--color-border)] text-[var(--color-text-primary)]"
             }`}
           >
             {t.kind === "success" && <CheckCircle2 className="w-4 h-4" />}

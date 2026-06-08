@@ -43,9 +43,9 @@ export default function KeyboardHelp({ open, onClose }: { open: boolean; onClose
         <div className="space-y-1.5">
           {shortcuts.map(([scope, keys, desc]) => (
             <div key={keys} className="flex items-center gap-3 text-sm py-1">
-              <span className="text-[10px] uppercase tracking-wider text-neutral-500 w-12">{scope}</span>
+              <span className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] w-12">{scope}</span>
               <kbd className="px-2 py-0.5 text-xs font-mono bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded">{keys}</kbd>
-              <span className="text-neutral-300 flex-1">{desc}</span>
+              <span className="text-[var(--color-text-secondary)] flex-1">{desc}</span>
             </div>
           ))}
         </div>

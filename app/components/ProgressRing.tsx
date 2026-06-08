@@ -52,7 +52,7 @@ export default function ProgressRing({ positive, called, negative, total, size =
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="text-base font-bold leading-none">{Math.round(((positive + called + negative) / safeTotal) * 100)}%</div>
-        <div className="text-[9px] uppercase tracking-wider text-neutral-500 leading-none mt-0.5">traités</div>
+        <div className="text-[9px] uppercase tracking-wider text-[var(--color-text-muted)] leading-none mt-0.5">traités</div>
       </div>
     </div>
   );

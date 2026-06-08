@@ -56,9 +56,9 @@ function scoreColor(score: number): string {
 }
 
 function rankColor(rank: number): { text: string; bg: string; border: string } {
-  if (rank <= 3) return { text: "text-emerald-200", bg: "bg-emerald-500/10", border: "border-emerald-500/30" };
-  if (rank <= 7) return { text: "text-amber-200", bg: "bg-amber-500/10", border: "border-amber-500/30" };
-  return { text: "text-rose-200", bg: "bg-rose-500/10", border: "border-rose-500/30" };
+  if (rank <= 3) return { text: "text-emerald-700 dark:text-emerald-200", bg: "bg-emerald-100 dark:bg-emerald-500/10", border: "border-emerald-300 dark:border-emerald-500/30" };
+  if (rank <= 7) return { text: "text-amber-700 dark:text-amber-200", bg: "bg-amber-100 dark:bg-amber-500/10", border: "border-amber-300 dark:border-amber-500/30" };
+  return { text: "text-rose-700 dark:text-rose-200", bg: "bg-rose-100 dark:bg-rose-500/10", border: "border-rose-300 dark:border-rose-500/30" };
 }
 
 export default function CompetitorSection({
@@ -157,8 +157,8 @@ export default function CompetitorSection({
   if (!isExpanded && !error) {
     return (
       <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl p-5 w-full sm:max-w-xs shadow-2xl flex flex-col items-center justify-center gap-4">
-        <BarChart3 className="w-8 h-8 text-violet-300" />
-        <h3 className="text-sm font-medium text-neutral-200 text-center">Analyse concurrentielle</h3>
+        <BarChart3 className="w-8 h-8 text-violet-700 dark:text-violet-300" />
+        <h3 className="text-sm font-medium text-[var(--color-text-primary)] text-center">Analyse concurrentielle</h3>
         <div className="flex rounded-lg border border-[var(--color-border)] overflow-hidden">
           {LIMITS.map((l) => (
             <button
@@ -166,8 +166,8 @@ export default function CompetitorSection({
               onClick={() => setLimit(l)}
               className={`px-3 py-1.5 text-xs font-mono transition ${
                 limit === l
-                  ? "bg-violet-500/20 text-violet-200"
-                  : "bg-[var(--color-surface)] text-neutral-400 hover:text-neutral-200"
+                  ? "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-200"
+                  : "bg-[var(--color-surface)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
               } ${l !== LIMITS[0] ? "border-l border-[var(--color-border)]" : ""}`}
             >
               {l}
@@ -191,8 +191,8 @@ export default function CompetitorSection({
       {/* Loading state */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 gap-3">
-          <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
-          <p className="text-sm text-neutral-400">Analyse en cours... (~15-30s)</p>
+          <Loader2 className="w-6 h-6 text-violet-600 dark:text-violet-400 animate-spin" />
+          <p className="text-sm text-[var(--color-text-secondary)]">Analyse en cours... (~15-30s)</p>
           <div className="w-32 h-1 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
             <div className="h-full w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 animate-pulse rounded-full" />
           </div>
@@ -202,12 +202,12 @@ export default function CompetitorSection({
       {/* Error state */}
       {error && (
         <div className="space-y-3">
-          <div className="px-3 py-2.5 rounded-lg bg-rose-500/5 border border-rose-500/20 text-[12px] text-rose-300 break-words">
+          <div className="px-3 py-2.5 rounded-lg bg-rose-50 dark:bg-rose-500/5 border border-rose-200 dark:border-rose-500/20 text-[12px] text-rose-700 dark:text-rose-300 break-words">
             {error}
           </div>
           <button
             onClick={() => { setError(null); setReport(null); }}
-            className="text-xs text-neutral-400 hover:text-violet-300 transition"
+            className="text-xs text-[var(--color-text-secondary)] hover:text-violet-700 dark:hover:text-violet-300 transition"
           >
             Retour
           </button>
@@ -220,17 +220,17 @@ export default function CompetitorSection({
           {/* Header */}
           <div className="flex items-center justify-between mb-1">
             <div>
-              <h3 className="text-sm font-medium text-neutral-200 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-violet-300" />
+              <h3 className="text-sm font-medium text-[var(--color-text-primary)] flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-violet-700 dark:text-violet-300" />
                 Concurrents {"\u00E0"} {report.ville}
               </h3>
-              <p className="text-[11px] text-neutral-500 mt-0.5 ml-6">
+              <p className="text-[11px] text-[var(--color-text-muted)] mt-0.5 ml-6">
                 {formatDate(report.created_at)} · {rankedList.length} r{"\u00E9"}sultats
               </p>
             </div>
             <button
               onClick={reAnalyze}
-              className="flex items-center gap-1.5 text-[11px] text-neutral-400 hover:text-violet-300 transition"
+              className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-secondary)] hover:text-violet-700 dark:hover:text-violet-300 transition"
             >
               <RefreshCw className="w-3 h-3" />
               Relancer
@@ -238,7 +238,7 @@ export default function CompetitorSection({
           </div>
 
           {/* Score legend */}
-          <div className="text-[10px] text-neutral-500 px-1">
+          <div className="text-[10px] text-[var(--color-text-muted)] px-1">
             Score = note (40%) + avis (40%) + site web (20%)
           </div>
 
@@ -257,7 +257,7 @@ export default function CompetitorSection({
                   }`}
                 >
                   {/* Rank */}
-                  <span className={`shrink-0 w-5 text-right font-mono ${c.isProspect ? rc!.text + " font-bold" : "text-neutral-500"}`}>
+                  <span className={`shrink-0 w-5 text-right font-mono ${c.isProspect ? rc!.text + " font-bold" : "text-[var(--color-text-muted)]"}`}>
                     #{i + 1}
                   </span>
 
@@ -266,7 +266,7 @@ export default function CompetitorSection({
 
                   {/* Name */}
                   <div className="flex-1 min-w-0">
-                    <span className={`font-medium truncate block ${c.isProspect ? rc!.text : "text-neutral-200"}`}>
+                    <span className={`font-medium truncate block ${c.isProspect ? rc!.text : "text-[var(--color-text-primary)]"}`}>
                       {c.name}
                       {c.isProspect && <span className="text-[10px] ml-1 opacity-70">(vous)</span>}
                     </span>
@@ -274,22 +274,22 @@ export default function CompetitorSection({
 
                   {/* Rating */}
                   {c.rating != null && c.rating > 0 ? (
-                    <span className="shrink-0 flex items-center gap-0.5 text-neutral-300">
+                    <span className="shrink-0 flex items-center gap-0.5 text-[var(--color-text-secondary)]">
                       <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
                       <span className="font-semibold">{c.rating}</span>
                     </span>
                   ) : (
-                    <span className="shrink-0 text-neutral-600 text-[11px]">--</span>
+                    <span className="shrink-0 text-[var(--color-text-muted)] text-[11px]">--</span>
                   )}
 
                   {/* Reviews */}
-                  <span className="shrink-0 text-right text-neutral-500 tabular-nums">
+                  <span className="shrink-0 text-right text-[var(--color-text-muted)] tabular-nums">
                     {c.reviews ?? 0}
                   </span>
 
                   {/* Website badge */}
                   {c.website ? (
-                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-200">
+                    <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-200">
                       <Globe className="w-2.5 h-2.5 inline" />
                     </span>
                   ) : (
@@ -304,7 +304,7 @@ export default function CompetitorSection({
                         style={{ width: `${Math.min(c.gbp_score, 100)}%` }}
                       />
                     </div>
-                    <span className={`font-mono text-[10px] w-5 text-right ${c.isProspect ? rc!.text : "text-neutral-400"}`}>
+                    <span className={`font-mono text-[10px] w-5 text-right ${c.isProspect ? rc!.text : "text-[var(--color-text-secondary)]"}`}>
                       {c.gbp_score}
                     </span>
                   </div>
@@ -315,7 +315,7 @@ export default function CompetitorSection({
                       href={mapsUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="shrink-0 text-violet-300 hover:text-violet-200 transition"
+                      className="shrink-0 text-violet-700 dark:text-violet-300 hover:text-violet-900 dark:hover:text-violet-200 transition"
                       title="Voir sur Google Maps"
                     >
                       <ExternalLink className="w-3 h-3" />
@@ -326,7 +326,7 @@ export default function CompetitorSection({
 
                   {/* Trophy for top 3 prospects */}
                   {c.isProspect && i < 3 && (
-                    <Trophy className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
+                    <Trophy className="w-3.5 h-3.5 shrink-0 text-emerald-700 dark:text-emerald-300" />
                   )}
                 </div>
               );
@@ -336,23 +336,23 @@ export default function CompetitorSection({
           {/* Site vitrine offer */}
           <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 overflow-hidden">
             <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
-              <Globe className="w-3.5 h-3.5 text-violet-300" />
-              <span className="text-[12px] font-medium text-neutral-200">Site vitrine professionnel</span>
+              <Globe className="w-3.5 h-3.5 text-violet-700 dark:text-violet-300" />
+              <span className="text-[12px] font-medium text-[var(--color-text-primary)]">Site vitrine professionnel</span>
             </div>
             <div className="px-3 py-3 flex items-center gap-4">
               <div className="flex-1">
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-xl font-bold font-mono text-neutral-100">299{"\u20AC"}</span>
-                  <span className="text-[10px] text-neutral-500">création unique</span>
+                  <span className="text-xl font-bold font-mono text-[var(--color-text-primary)]">299{"\u20AC"}</span>
+                  <span className="text-[10px] text-[var(--color-text-muted)]">création unique</span>
                 </div>
-                <div className="text-[10px] text-neutral-400 mt-0.5">Responsive, SEO, formulaire contact, Google Maps</div>
+                <div className="text-[10px] text-[var(--color-text-secondary)] mt-0.5">Responsive, SEO, formulaire contact, Google Maps</div>
               </div>
               <div className="shrink-0 text-right">
                 <div className="flex items-baseline gap-1">
-                  <span className="text-[14px] font-bold font-mono text-violet-300">29{"\u20AC"}</span>
-                  <span className="text-[10px] text-neutral-500">/mois</span>
+                  <span className="text-[14px] font-bold font-mono text-violet-700 dark:text-violet-300">29{"\u20AC"}</span>
+                  <span className="text-[10px] text-[var(--color-text-muted)]">/mois</span>
                 </div>
-                <div className="text-[9px] text-neutral-500">maintenance & hébergement</div>
+                <div className="text-[9px] text-[var(--color-text-muted)]">maintenance & hébergement</div>
               </div>
             </div>
           </div>
@@ -363,8 +363,8 @@ export default function CompetitorSection({
             return (
               <div className="space-y-2.5">
                 <div className="flex items-center gap-1.5 px-1">
-                  <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
-                  <span className="text-[12px] font-medium text-neutral-200">
+                  <TrendingUp className="w-3.5 h-3.5 text-violet-700 dark:text-violet-300" />
+                  <span className="text-[12px] font-medium text-[var(--color-text-primary)]">
                     Forfaits Google Ads
                   </span>
                 </div>
@@ -378,9 +378,9 @@ export default function CompetitorSection({
                         key={tier.key}
                         className={`relative rounded-lg px-2.5 py-3 text-center border overflow-hidden ${
                           isTop
-                            ? "border-violet-500/50 bg-violet-500/10"
+                            ? "border-violet-300 dark:border-violet-500/50 bg-violet-100 dark:bg-violet-500/10"
                             : isMid
-                              ? "border-amber-500/30 bg-amber-500/5"
+                              ? "border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5"
                               : "border-[var(--color-border)] bg-[var(--color-surface)]/40"
                         }`}
                       >
@@ -390,15 +390,15 @@ export default function CompetitorSection({
                           </div>
                         )}
                         <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 truncate ${
-                          isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-400"
+                          isTop ? "text-violet-700 dark:text-violet-300" : isMid ? "text-amber-700 dark:text-amber-300" : "text-[var(--color-text-secondary)]"
                         }`}>
                           {tier.label}
                         </div>
-                        <div className="text-lg font-bold text-neutral-100 font-mono leading-tight truncate">
+                        <div className="text-lg font-bold text-[var(--color-text-primary)] font-mono leading-tight truncate">
                           {tier.budget}{"\u20AC"}
                         </div>
-                        <div className="text-[9px] text-neutral-500">/ mois</div>
-                        <div className="text-[10px] text-neutral-400 mt-1 leading-tight break-words">{tier.desc}</div>
+                        <div className="text-[9px] text-[var(--color-text-muted)]">/ mois</div>
+                        <div className="text-[10px] text-[var(--color-text-secondary)] mt-1 leading-tight break-words">{tier.desc}</div>
                       </div>
                     );
                   })}
@@ -407,8 +407,8 @@ export default function CompetitorSection({
                 {/* Estimation devis par forfait */}
                 <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 overflow-hidden">
                   <div className="flex items-center gap-1.5 px-3 py-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
-                    <Receipt className="w-3.5 h-3.5 shrink-0 text-emerald-300" />
-                    <span className="text-[12px] font-medium text-neutral-200 min-w-0 truncate">
+                    <Receipt className="w-3.5 h-3.5 shrink-0 text-emerald-700 dark:text-emerald-300" />
+                    <span className="text-[12px] font-medium text-[var(--color-text-primary)] min-w-0 truncate">
                       Devis estimés pour {prospectName}
                     </span>
                   </div>
@@ -420,22 +420,22 @@ export default function CompetitorSection({
                       return (
                         <div key={ld.key} className="px-3 py-2.5 flex items-center gap-3">
                           <div className={`shrink-0 min-w-[4rem] w-16 text-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider truncate ${
-                            isTop ? "bg-violet-500/15 text-violet-300" : isMid ? "bg-amber-500/10 text-amber-300" : "bg-neutral-800 text-neutral-400"
+                            isTop ? "bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300" : isMid ? "bg-amber-100 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)]"
                           }`}>
                             {ld.label}
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-baseline gap-1.5 min-w-0">
-                              <span className="shrink-0 text-[15px] font-bold font-mono text-emerald-300">{ld.leads}</span>
-                              <span className="text-[11px] text-neutral-400 truncate">demandes de devis / mois</span>
+                              <span className="shrink-0 text-[15px] font-bold font-mono text-emerald-700 dark:text-emerald-300">{ld.leads}</span>
+                              <span className="text-[11px] text-[var(--color-text-secondary)] truncate">demandes de devis / mois</span>
                             </div>
                             <div className="flex items-center gap-3 mt-0.5 flex-wrap min-w-0">
-                              <span className="text-[10px] text-neutral-500">
+                              <span className="text-[10px] text-[var(--color-text-muted)]">
                                 {ld.clicksPerMonth} clics × {Math.round((ld.leads / ld.clicksPerMonth) * 100)}% conversion
                               </span>
-                              <span className="text-[10px] text-neutral-600 hidden sm:inline">|</span>
-                              <span className="text-[10px] text-neutral-500">
-                                ~{ld.signedDevis} signés → <span className="text-emerald-400 font-semibold">{ld.revenueMensuel.toLocaleString("fr-FR")}{"\u20AC"}</span> CA/mois
+                              <span className="text-[10px] text-[var(--color-text-muted)] hidden sm:inline">|</span>
+                              <span className="text-[10px] text-[var(--color-text-muted)]">
+                                ~{ld.signedDevis} signés → <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{ld.revenueMensuel.toLocaleString("fr-FR")}{"\u20AC"}</span> CA/mois
                               </span>
                             </div>
                           </div>
@@ -444,7 +444,7 @@ export default function CompetitorSection({
                     })}
                   </div>
                   <div className="px-3 py-2 bg-[var(--color-surface)]/60 border-t border-[var(--color-border)]">
-                    <div className="text-[9px] text-neutral-500 leading-relaxed">
+                    <div className="text-[9px] text-[var(--color-text-muted)] leading-relaxed">
                       Basé sur un taux de conversion de {Math.round((leadsData[0]?.leads / leadsData[0]?.clicksPerMonth) * 100)}% (moyenne {metier}) et un panier moyen de {leadsData[0]?.panier}{"\u20AC"} HT, taux de signature 35%.
                     </div>
                   </div>
@@ -454,13 +454,13 @@ export default function CompetitorSection({
           })() : report.ads_budget_est != null ? (
             <div className="px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40">
               <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="w-3.5 h-3.5 text-violet-300" />
-                <span className="text-[12px] font-medium text-neutral-200">
+                <TrendingUp className="w-3.5 h-3.5 text-violet-700 dark:text-violet-300" />
+                <span className="text-[12px] font-medium text-[var(--color-text-primary)]">
                   Budget Google Ads
                 </span>
               </div>
-              <div className="text-lg font-bold text-neutral-100 font-mono">
-                {report.ads_budget_est}{"\u20AC"} <span className="text-sm font-normal text-neutral-500">/ mois</span>
+              <div className="text-lg font-bold text-[var(--color-text-primary)] font-mono">
+                {report.ads_budget_est}{"\u20AC"} <span className="text-sm font-normal text-[var(--color-text-muted)]">/ mois</span>
               </div>
             </div>
           ) : null}
@@ -508,15 +508,15 @@ export default function CompetitorSection({
                     style={{ width: `${Math.min(score, 100)}%` }}
                   />
                 </div>
-                <span className="text-[11px] font-mono text-neutral-300 w-6 text-right">{score}</span>
+                <span className="text-[11px] font-mono text-[var(--color-text-secondary)] w-6 text-right">{score}</span>
               </div>
             );
 
             return (
-              <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 overflow-hidden">
-                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-violet-500/20 bg-violet-500/10">
-                  <Zap className="w-3.5 h-3.5 shrink-0 text-violet-300" />
-                  <span className="text-[12px] font-medium text-violet-200 min-w-0 truncate">
+              <div className="rounded-lg border border-violet-300 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/5 overflow-hidden">
+                <div className="flex items-center gap-1.5 px-3 py-2 border-b border-violet-200 dark:border-violet-500/20 bg-violet-100 dark:bg-violet-500/10">
+                  <Zap className="w-3.5 h-3.5 shrink-0 text-violet-700 dark:text-violet-300" />
+                  <span className="text-[12px] font-medium text-violet-700 dark:text-violet-200 min-w-0 truncate">
                     Projection de classement pour {prospectName}
                   </span>
                 </div>
@@ -525,11 +525,11 @@ export default function CompetitorSection({
                   {/* Current state */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-medium">Actuellement</span>
+                      <span className="text-[11px] text-[var(--color-text-muted)] uppercase tracking-wider font-medium">Actuellement</span>
                       {rankBadge(currentRank, totalCompetitors)}
                     </div>
                     {scoreBar(currentScore)}
-                    <p className="text-[10px] text-neutral-500">Sans site web — score plafonné à 80/100</p>
+                    <p className="text-[10px] text-[var(--color-text-muted)]">Sans site web — score plafonné à 80/100</p>
                   </div>
 
                   <div className="border-t border-[var(--color-border)] my-1" />
@@ -538,20 +538,20 @@ export default function CompetitorSection({
                   <div className="space-y-1">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <Globe className="w-3 h-3 shrink-0 text-emerald-400" />
-                        <span className="text-[11px] text-emerald-300 font-medium truncate">Avec site vitrine</span>
+                        <Globe className="w-3 h-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        <span className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium truncate">Avec site vitrine</span>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         {rankBadge(currentRank, totalCompetitors)}
-                        <ArrowRight className="w-3 h-3 text-neutral-500" />
+                        <ArrowRight className="w-3 h-3 text-[var(--color-text-muted)]" />
                         {rankBadge(withSite.rank, totalCompetitors)}
                         {withSite.rank < currentRank && (
-                          <span className="text-[10px] text-emerald-400 font-bold">+{currentRank - withSite.rank}</span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">+{currentRank - withSite.rank}</span>
                         )}
                       </div>
                     </div>
                     {scoreBar(withSite.score)}
-                    <p className="text-[10px] text-neutral-500">+{siteBonus} pts (site web = 20% du score GBP)</p>
+                    <p className="text-[10px] text-[var(--color-text-muted)]">+{siteBonus} pts (site web = 20% du score GBP)</p>
                   </div>
 
                   {/* With site + each ads tier */}
@@ -567,24 +567,24 @@ export default function CompetitorSection({
                             <div key={proj.key} className="space-y-1">
                               <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div className="flex items-center gap-1.5 min-w-0">
-                                  <TrendingUp className={`w-3 h-3 shrink-0 ${isTop ? "text-violet-400" : isMid ? "text-amber-400" : "text-neutral-400"}`} />
-                                  <span className={`text-[11px] font-medium truncate ${isTop ? "text-violet-300" : isMid ? "text-amber-300" : "text-neutral-300"}`}>
+                                  <TrendingUp className={`w-3 h-3 shrink-0 ${isTop ? "text-violet-600 dark:text-violet-400" : isMid ? "text-amber-600 dark:text-amber-400" : "text-[var(--color-text-secondary)]"}`} />
+                                  <span className={`text-[11px] font-medium truncate ${isTop ? "text-violet-700 dark:text-violet-300" : isMid ? "text-amber-700 dark:text-amber-300" : "text-[var(--color-text-secondary)]"}`}>
                                     Site + {proj.label}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   {rankBadge(currentRank, totalCompetitors)}
-                                  <ArrowRight className="w-3 h-3 text-neutral-500" />
+                                  <ArrowRight className="w-3 h-3 text-[var(--color-text-muted)]" />
                                   {rankBadge(proj.rank, totalCompetitors)}
                                   {proj.rank < currentRank && (
-                                    <span className={`text-[10px] font-bold ${isTop ? "text-violet-400" : isMid ? "text-amber-400" : "text-emerald-400"}`}>
+                                    <span className={`text-[10px] font-bold ${isTop ? "text-violet-600 dark:text-violet-400" : isMid ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                                       +{currentRank - proj.rank}
                                     </span>
                                   )}
                                 </div>
                               </div>
                               {scoreBar(proj.score)}
-                              <p className="text-[10px] text-neutral-500">+{bonus} pts (site +{siteBonus} / ads +{adsBonus[proj.key]})</p>
+                              <p className="text-[10px] text-[var(--color-text-muted)]">+{bonus} pts (site +{siteBonus} / ads +{adsBonus[proj.key]})</p>
                             </div>
                           );
                         })}
@@ -597,8 +597,8 @@ export default function CompetitorSection({
                     const best = projections[projections.length - 1];
                     if (best && best.rank < currentRank) {
                       return (
-                        <div className="mt-2 px-2.5 py-2 rounded-md bg-violet-500/10 border border-violet-500/25">
-                          <p className="text-[11px] text-violet-200 font-medium text-center">
+                        <div className="mt-2 px-2.5 py-2 rounded-md bg-violet-100 dark:bg-violet-500/10 border border-violet-300 dark:border-violet-500/25">
+                          <p className="text-[11px] text-violet-700 dark:text-violet-200 font-medium text-center">
                             {prospectName} passerait de <span className="font-bold font-mono">#{currentRank}</span> à <span className="font-bold font-mono">#{best.rank}</span> avec un site + {best.label}
                           </p>
                         </div>
@@ -633,7 +633,7 @@ export default function CompetitorSection({
                   prospectRank: prospectRank || rankedList.length,
                 });
               }}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-200 text-[12px] font-medium transition"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-violet-300 dark:border-violet-500/30 bg-violet-100 dark:bg-violet-500/10 hover:bg-violet-200 dark:hover:bg-violet-500/20 text-violet-700 dark:text-violet-200 text-[12px] font-medium transition"
             >
               <FileDown className="w-3.5 h-3.5" />
               PDF
@@ -643,7 +643,7 @@ export default function CompetitorSection({
                 href={whatsAppUrl(prospectPhone, salesWhatsAppMsg(prospectName, metier, ville))}
                 target="_blank"
                 rel="noreferrer"
-                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-200 text-[12px] font-medium transition"
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-emerald-300 dark:border-emerald-500/30 bg-emerald-100 dark:bg-emerald-500/10 hover:bg-emerald-200 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-200 text-[12px] font-medium transition"
               >
                 <MessageSquareQuote className="w-3.5 h-3.5" />
                 Pitch WhatsApp
@@ -691,14 +691,14 @@ function SalesArguments({
     <div className="px-3 py-2.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/40 space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <MessageSquareQuote className="w-3.5 h-3.5 text-violet-300" />
-          <span className="text-[12px] font-medium text-neutral-200">
+          <MessageSquareQuote className="w-3.5 h-3.5 text-violet-700 dark:text-violet-300" />
+          <span className="text-[12px] font-medium text-[var(--color-text-primary)]">
             Arguments de vente
           </span>
         </div>
         <button
           onClick={copyAll}
-          className="flex items-center gap-1 text-[10px] text-neutral-400 hover:text-violet-300 transition"
+          className="flex items-center gap-1 text-[10px] text-[var(--color-text-secondary)] hover:text-violet-700 dark:hover:text-violet-300 transition"
         >
           {copied === -1 ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
           {copied === -1 ? "Copi\u00E9" : "Tout copier"}
@@ -708,14 +708,14 @@ function SalesArguments({
         <button
           key={i}
           onClick={() => copyArg(arg, i)}
-          className="w-full text-left group flex items-start gap-2 text-[11px] text-neutral-300 hover:text-neutral-100 transition"
+          className="w-full text-left group flex items-start gap-2 text-[11px] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
           title="Cliquer pour copier"
         >
           <span className="shrink-0 mt-0.5">
             {copied === i ? (
-              <Check className="w-3 h-3 text-emerald-400" />
+              <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
             ) : (
-              <Copy className="w-3 h-3 text-neutral-600 group-hover:text-violet-400" />
+              <Copy className="w-3 h-3 text-[var(--color-text-muted)] group-hover:text-violet-600 dark:group-hover:text-violet-400" />
             )}
           </span>
           <span>{arg}</span>

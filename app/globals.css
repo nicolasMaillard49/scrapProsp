@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Branche le variant `dark:` sur la classe .dark (posée par ThemeToggle),
+   et NON sur `prefers-color-scheme` (l'OS). Sans ça, le toggle ne bascule
+   que les variables CSS et laisse tous les `dark:` figés sur le thème système. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ── Light theme (default) — LiquidGlass ── */
 @theme {
   --color-background: #f3f4f6;

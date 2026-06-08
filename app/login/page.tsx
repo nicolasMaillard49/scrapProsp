@@ -58,12 +58,12 @@ export default async function LoginPage({
           </div>
         </div>
 
-        <h1 className="font-display italic text-3xl text-center text-neutral-50 mb-1 leading-none">
+        <h1 className="font-display italic text-3xl text-center text-[var(--color-text-primary)] mb-1 leading-none">
           Prospects <span className="text-violet-300">Tracker</span>
         </h1>
-        <p className="text-sm text-neutral-500 text-center mb-6 font-mono-num">Saisis le code pour entrer</p>
+        <p className="text-sm text-[var(--color-text-muted)] text-center mb-6 font-mono-num">Saisis le code pour entrer</p>
 
-        <label className="block text-xs uppercase tracking-wider text-neutral-500 mb-2">Code d'accès</label>
+        <label className="block text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-2">Code d'accès</label>
         <input
           type="password"
           name="password"

@@ -84,14 +84,14 @@ const FAILED = new Set(["failed", "undelivered"]);
 
 /* ── Badges ───────────────────────────────────────────────────────────────── */
 function StatusBadge({ status }: { status: string | null }) {
-  if (!status) return <span className="text-neutral-600">—</span>;
+  if (!status) return <span className="text-[var(--color-text-muted)]">—</span>;
   const failed = FAILED.has(status);
   const delivered = status === "delivered";
   const cls = failed
-    ? "text-rose-300 bg-rose-950/40 border-rose-900/50"
+    ? "text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/40 border-rose-600 dark:border-rose-900/50"
     : delivered
-      ? "text-emerald-300 bg-emerald-950/30 border-emerald-900/40"
-      : "text-sky-300 bg-sky-950/30 border-sky-900/40";
+      ? "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/30 border-emerald-600 dark:border-emerald-900/40"
+      : "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/30 border-sky-600 dark:border-sky-900/40";
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border ${cls}`}>
       {failed ? <XCircle className="w-3 h-3" /> : delivered ? <CheckCircle2 className="w-3 h-3" /> : <CircleDashed className="w-3 h-3" />}
@@ -102,19 +102,19 @@ function StatusBadge({ status }: { status: string | null }) {
 
 function SentimentBadge({ s }: { s: Sentiment }) {
   if (s === "positive")
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border text-emerald-300 bg-emerald-950/30 border-emerald-900/40"><ThumbsUp className="w-3 h-3" />Positif</span>;
+    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/30 border-emerald-600 dark:border-emerald-900/40"><ThumbsUp className="w-3 h-3" />Positif</span>;
   if (s === "negative")
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border text-rose-300 bg-rose-950/40 border-rose-900/50"><ThumbsDown className="w-3 h-3" />Négatif</span>;
+    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/40 border-rose-600 dark:border-rose-900/50"><ThumbsDown className="w-3 h-3" />Négatif</span>;
   if (s === "neutral")
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border text-neutral-300 bg-neutral-800/40 border-neutral-700/50"><Minus className="w-3 h-3" />Neutre</span>;
-  return <span className="text-[11px] text-amber-300/80">à classer</span>;
+    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border text-[var(--color-text-secondary)] bg-[var(--color-surface-2)]/40 border-[var(--color-border)]/50"><Minus className="w-3 h-3" />Neutre</span>;
+  return <span className="text-[11px] text-amber-700 dark:text-amber-300/80">à classer</span>;
 }
 
 /* ── Carte stat ───────────────────────────────────────────────────────────── */
 function Stat({ label, value, accent }: { label: string; value: number; accent: string }) {
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 min-w-[110px]">
-      <div className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium mb-1">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] font-medium mb-1">{label}</div>
       <div className={`text-2xl font-semibold ${accent}`}>{value}</div>
     </div>
   );
@@ -294,19 +294,19 @@ export default function SmsPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-5">
         <div className="flex items-center gap-3">
-          <Link href="/" className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-400 hover:text-neutral-100 transition" title="Retour">
+          <Link href="/" className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition" title="Retour">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
             <h1 className="text-lg font-semibold flex items-center gap-2">
-              <MessageSquare className="w-5 h-5 text-violet-400" />
+              <MessageSquare className="w-5 h-5 text-violet-600 dark:text-violet-400" />
               Suivi SMS
             </h1>
-            <p className="text-xs text-neutral-500">{convos.length} contacts · {stats.sent} SMS envoyés</p>
+            <p className="text-xs text-[var(--color-text-muted)]">{convos.length} contacts · {stats.sent} SMS envoyés</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-400 hover:text-neutral-100 transition" title="Rafraîchir">
+          <button onClick={load} className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition" title="Rafraîchir">
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
           <button
@@ -322,25 +322,25 @@ export default function SmsPage() {
 
       {/* Stats */}
       <div className="flex flex-wrap gap-2 mb-4">
-        <Stat label="Envoyés" value={stats.sent} accent="text-neutral-100" />
-        <Stat label="Délivrés" value={stats.delivered} accent="text-emerald-300" />
-        <Stat label="Échecs" value={stats.failed} accent="text-rose-300" />
-        <Stat label="Répondu" value={stats.replied} accent="text-sky-300" />
-        <Stat label="Positifs" value={stats.positive} accent="text-emerald-300" />
-        <Stat label="Négatifs" value={stats.negative} accent="text-rose-300" />
+        <Stat label="Envoyés" value={stats.sent} accent="text-[var(--color-text-primary)]" />
+        <Stat label="Délivrés" value={stats.delivered} accent="text-emerald-700 dark:text-emerald-300" />
+        <Stat label="Échecs" value={stats.failed} accent="text-rose-700 dark:text-rose-300" />
+        <Stat label="Répondu" value={stats.replied} accent="text-sky-700 dark:text-sky-300" />
+        <Stat label="Positifs" value={stats.positive} accent="text-emerald-700 dark:text-emerald-300" />
+        <Stat label="Négatifs" value={stats.negative} accent="text-rose-700 dark:text-rose-300" />
       </div>
 
       <ScheduleBlastPanel />
 
-      {info && <div className="mb-3 text-xs px-3 py-2 rounded-lg border border-violet-900/40 bg-violet-950/20 text-violet-200">{info}</div>}
-      {error && <div className="mb-3 text-xs px-3 py-2 rounded-lg border border-rose-900/40 bg-rose-950/20 text-rose-200">{error}</div>}
+      {info && <div className="mb-3 text-xs px-3 py-2 rounded-lg border border-violet-600 dark:border-violet-900/40 bg-violet-100 dark:bg-violet-950/20 text-violet-700 dark:text-violet-200">{info}</div>}
+      {error && <div className="mb-3 text-xs px-3 py-2 rounded-lg border border-rose-600 dark:border-rose-900/40 bg-rose-100 dark:bg-rose-950/20 text-rose-700 dark:text-rose-200">{error}</div>}
 
       {/* Onglets de vue */}
       <div className="flex items-center gap-1 mb-4 p-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] w-fit">
         <button
           onClick={() => setView("convos")}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition ${
-            view === "convos" ? "bg-violet-600/30 text-violet-100" : "text-neutral-400 hover:text-neutral-200"
+            view === "convos" ? "bg-violet-600/30 text-violet-700 dark:text-violet-100" : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
           }`}
         >
           <Inbox className="w-3.5 h-3.5" /> Conversations <span className="opacity-60">{convos.length}</span>
@@ -348,7 +348,7 @@ export default function SmsPage() {
         <button
           onClick={() => setView("sent")}
           className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition ${
-            view === "sent" ? "bg-violet-600/30 text-violet-100" : "text-neutral-400 hover:text-neutral-200"
+            view === "sent" ? "bg-violet-600/30 text-violet-700 dark:text-violet-100" : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
           }`}
         >
           <Send className="w-3.5 h-3.5" /> Messages envoyés <span className="opacity-60">{sentList.length}</span>
@@ -364,8 +364,8 @@ export default function SmsPage() {
             onClick={() => setFilter(f.key)}
             className={`px-3 py-1.5 text-xs rounded-lg border transition ${
               filter === f.key
-                ? "border-violet-500/60 bg-violet-950/30 text-violet-200"
-                : "border-[var(--color-border)] text-neutral-400 hover:text-neutral-200 hover:border-[var(--color-border-strong)]"
+                ? "border-violet-300 dark:border-violet-500/60 bg-violet-100 dark:bg-violet-950/30 text-violet-700 dark:text-violet-200"
+                : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
             }`}
           >
             {f.label} <span className="opacity-60">{f.n}</span>
@@ -377,9 +377,9 @@ export default function SmsPage() {
       {/* Vue : liste à plat des messages envoyés */}
       {view === "sent" ? (
         loading ? (
-          <div className="flex items-center justify-center py-20 text-neutral-500"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          <div className="flex items-center justify-center py-20 text-[var(--color-text-muted)]"><Loader2 className="w-6 h-6 animate-spin" /></div>
         ) : sentList.length === 0 ? (
-          <div className="text-center py-20 text-neutral-500 text-sm">Aucun message envoyé.</div>
+          <div className="text-center py-20 text-[var(--color-text-muted)] text-sm">Aucun message envoyé.</div>
         ) : (
           <div className="space-y-2">
             {sentList.map((m) => {
@@ -389,22 +389,22 @@ export default function SmsPage() {
                 <div key={m.id} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5">
                   <div className="flex items-center justify-between gap-3 flex-wrap mb-1.5">
                     <div className="flex items-center gap-2 min-w-0">
-                      <Send className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                      <Send className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400 shrink-0" />
                       {m.prospect_id ? (
-                        <Link href={`/?focus=${m.prospect_id}`} className="font-medium text-neutral-100 hover:text-violet-300 transition truncate">
+                        <Link href={`/?focus=${m.prospect_id}`} className="font-medium text-[var(--color-text-primary)] hover:text-violet-700 dark:hover:text-violet-300 transition truncate">
                           {name || "Prospect"}
                         </Link>
                       ) : (
-                        <span className="font-medium text-neutral-300">{phone}</span>
+                        <span className="font-medium text-[var(--color-text-secondary)]">{phone}</span>
                       )}
-                      {m.prospect_id && <span className="text-xs text-neutral-500">{phone}</span>}
+                      {m.prospect_id && <span className="text-xs text-[var(--color-text-muted)]">{phone}</span>}
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusBadge status={m.status} />
-                      <span className="text-[11px] text-neutral-500">{fmtDate(m.sent_at)}</span>
+                      <span className="text-[11px] text-[var(--color-text-muted)]">{fmtDate(m.sent_at)}</span>
                     </div>
                   </div>
-                  <div className="text-sm text-neutral-200 whitespace-pre-wrap break-words">{m.body}</div>
+                  <div className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap break-words">{m.body}</div>
                 </div>
               );
             })}
@@ -412,9 +412,9 @@ export default function SmsPage() {
         )
       ) : /* Vue : conversations */
       loading ? (
-        <div className="flex items-center justify-center py-20 text-neutral-500"><Loader2 className="w-6 h-6 animate-spin" /></div>
+        <div className="flex items-center justify-center py-20 text-[var(--color-text-muted)]"><Loader2 className="w-6 h-6 animate-spin" /></div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 text-neutral-500 text-sm">Aucun SMS pour ce filtre.</div>
+        <div className="text-center py-20 text-[var(--color-text-muted)] text-sm">Aucun SMS pour ce filtre.</div>
       ) : (
         <div className="space-y-2">
           {filtered.map((c) => (
@@ -423,18 +423,18 @@ export default function SmsPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     {c.prospectId ? (
-                      <Link href={`/?focus=${c.prospectId}`} className="font-medium text-neutral-100 hover:text-violet-300 transition truncate">
+                      <Link href={`/?focus=${c.prospectId}`} className="font-medium text-[var(--color-text-primary)] hover:text-violet-700 dark:hover:text-violet-300 transition truncate">
                         {c.name || "Prospect"}
                       </Link>
                     ) : (
-                      <span className="font-medium text-neutral-300">{prettyPhone(c.phone)}</span>
+                      <span className="font-medium text-[var(--color-text-secondary)]">{prettyPhone(c.phone)}</span>
                     )}
-                    {c.prospectId && <span className="text-xs text-neutral-500">{prettyPhone(c.phone)}</span>}
+                    {c.prospectId && <span className="text-xs text-[var(--color-text-muted)]">{prettyPhone(c.phone)}</span>}
                     <StatusBadge status={c.lastStatus} />
                   </div>
                   <button
                     onClick={() => toggleExpand(c.key)}
-                    className="text-[11px] text-neutral-500 mt-0.5 flex items-center gap-2 hover:text-neutral-300 transition"
+                    className="text-[11px] text-[var(--color-text-muted)] mt-0.5 flex items-center gap-2 hover:text-[var(--color-text-secondary)] transition"
                     title={expanded.has(c.key) ? "Masquer les messages" : "Voir les messages envoyés"}
                   >
                     {expanded.has(c.key) ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
@@ -449,9 +449,9 @@ export default function SmsPage() {
                   <div className="flex items-center gap-1.5">
                     <SentimentBadge s={c.sentiment} />
                     <div className="flex items-center gap-0.5 ml-1">
-                      <button onClick={() => setSentiment(c, "positive")} title="Marquer positif" className={`p-1 rounded ${c.sentiment === "positive" ? "text-emerald-300" : "text-neutral-600 hover:text-emerald-300"} transition`}><ThumbsUp className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => setSentiment(c, "neutral")} title="Marquer neutre" className={`p-1 rounded ${c.sentiment === "neutral" ? "text-neutral-200" : "text-neutral-600 hover:text-neutral-200"} transition`}><Minus className="w-3.5 h-3.5" /></button>
-                      <button onClick={() => setSentiment(c, "negative")} title="Marquer négatif" className={`p-1 rounded ${c.sentiment === "negative" ? "text-rose-300" : "text-neutral-600 hover:text-rose-300"} transition`}><ThumbsDown className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setSentiment(c, "positive")} title="Marquer positif" className={`p-1 rounded ${c.sentiment === "positive" ? "text-emerald-700 dark:text-emerald-300" : "text-[var(--color-text-muted)] hover:text-emerald-700 dark:hover:text-emerald-300"} transition`}><ThumbsUp className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setSentiment(c, "neutral")} title="Marquer neutre" className={`p-1 rounded ${c.sentiment === "neutral" ? "text-[var(--color-text-primary)]" : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"} transition`}><Minus className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setSentiment(c, "negative")} title="Marquer négatif" className={`p-1 rounded ${c.sentiment === "negative" ? "text-rose-700 dark:text-rose-300" : "text-[var(--color-text-muted)] hover:text-rose-700 dark:hover:text-rose-300"} transition`}><ThumbsDown className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                 )}
@@ -466,10 +466,10 @@ export default function SmsPage() {
                       <div key={m.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[80%] rounded-xl px-3 py-2 text-sm ${
                           out
-                            ? "bg-violet-950/40 border border-violet-900/40 text-neutral-100"
-                            : "bg-neutral-800/50 border border-neutral-700/50 text-neutral-200"
+                            ? "bg-violet-100 dark:bg-violet-950/40 border border-violet-300 dark:border-violet-900/40 text-[var(--color-text-primary)]"
+                            : "bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50 text-[var(--color-text-primary)]"
                         }`}>
-                          <div className="flex items-center gap-2 mb-1 text-[10px] text-neutral-500">
+                          <div className="flex items-center gap-2 mb-1 text-[10px] text-[var(--color-text-muted)]">
                             {out ? <Send className="w-3 h-3" /> : <Inbox className="w-3 h-3" />}
                             <span>{out ? "Envoyé" : "Réponse"}</span>
                             <span>· {fmtDate(m.sent_at)}</span>
@@ -483,8 +483,8 @@ export default function SmsPage() {
                 </div>
               ) : (
                 c.lastReply && (
-                  <div className="mt-2.5 pl-3 border-l-2 border-violet-800/40 text-sm text-neutral-200">
-                    <span className="text-[11px] text-neutral-500 mr-2">Réponse :</span>
+                  <div className="mt-2.5 pl-3 border-l-2 border-violet-400 dark:border-violet-800/40 text-sm text-[var(--color-text-primary)]">
+                    <span className="text-[11px] text-[var(--color-text-muted)] mr-2">Réponse :</span>
                     {c.lastReply.body}
                   </div>
                 )

@@ -105,24 +105,24 @@ async function mapWithConcurrency<T, R>(
 
 /* -- Rank helpers -- */
 function rankBg(rank: number): string {
-  if (rank === 1) return "bg-amber-500/15 border-amber-500/40";
-  if (rank <= 3) return "bg-emerald-500/10 border-emerald-500/30";
+  if (rank === 1) return "bg-amber-100 border-amber-300 dark:bg-amber-500/15 dark:border-amber-500/40";
+  if (rank <= 3) return "bg-emerald-100 border-emerald-300 dark:bg-emerald-500/10 dark:border-emerald-500/30";
   return "bg-[var(--color-surface)]/60 border-[var(--color-border)]";
 }
 function rankText(rank: number): string {
-  if (rank === 1) return "text-amber-300";
-  if (rank <= 3) return "text-emerald-300";
-  return "text-neutral-400";
+  if (rank === 1) return "text-amber-700 dark:text-amber-300";
+  if (rank <= 3) return "text-emerald-700 dark:text-emerald-300";
+  return "text-[var(--color-text-secondary)]";
 }
 
 /* -- Detail helpers -- */
 function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="px-3 py-2 rounded-xl bg-[var(--color-surface)]/40 border border-[var(--color-border)]">
-      <div className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium mb-1">{label}</div>
+      <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] font-medium mb-1">{label}</div>
       <div className="flex items-center gap-2">
-        <span className="text-neutral-500">{icon}</span>
-        <span className="text-sm text-neutral-200">{value}</span>
+        <span className="text-[var(--color-text-muted)]">{icon}</span>
+        <span className="text-sm text-[var(--color-text-primary)]">{value}</span>
       </div>
     </div>
   );
@@ -138,9 +138,9 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
-      className="p-1.5 rounded-lg hover:bg-[var(--color-surface)] text-neutral-500 hover:text-neutral-200 transition"
+      className="p-1.5 rounded-lg hover:bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition"
     >
-      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
   );
 }
@@ -336,13 +336,13 @@ export default function CartePage() {
   const approxCount = displayList.filter((p) => p.lat != null && !p.precise).length;
 
   return (
-    <main className="h-screen flex flex-col bg-[var(--color-background)] text-neutral-100">
+    <main className="h-screen flex flex-col bg-[var(--color-background)] text-[var(--color-text-primary)]">
       {/* Top bar */}
       <div className="shrink-0 bg-[#111114] border-b border-[var(--color-border)] px-3 md:px-4 py-3">
         <div className="flex items-center gap-2 md:gap-4 flex-wrap">
           <Link
             href="/"
-            className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+            className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-300 dark:hover:border-violet-500/50 text-[var(--color-text-secondary)] hover:text-violet-700 dark:hover:text-violet-300 transition"
           >
             <ArrowLeft className="w-4 h-4" />
           </Link>
@@ -350,16 +350,16 @@ export default function CartePage() {
           {/* Mobile sidebar toggle */}
           <button
             onClick={() => setSidebarOpen((v) => !v)}
-            className="md:hidden p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-400 hover:text-violet-300 transition"
+            className="md:hidden p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-300 dark:hover:border-violet-500/50 text-[var(--color-text-secondary)] hover:text-violet-700 dark:hover:text-violet-300 transition"
           >
             <Menu className="w-4 h-4" />
           </button>
 
           <div className="shrink-0">
-            <h1 className="font-display italic text-[22px] leading-none tracking-tight text-neutral-50">
-              Carte <span className="text-violet-300">Explorer</span>
+            <h1 className="font-display italic text-[22px] leading-none tracking-tight text-[var(--color-text-primary)]">
+              Carte <span className="text-violet-700 dark:text-violet-300">Explorer</span>
             </h1>
-            <p className="text-[10px] text-neutral-500 mt-0.5 font-mono">
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 font-mono">
               {searchDone
                 ? `${displayList.length} résultats${siteFilter === "no-site" ? " sans site" : siteFilter === "has-site" ? " avec site" : ""} · ${ville}`
                 : "Recherchez un métier + ville"}
@@ -380,9 +380,9 @@ export default function CartePage() {
                 placeholder="Métier (ex: electricien)"
                 value={metier}
                 onChange={(e) => setMetier(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-violet-500/50 text-neutral-200 placeholder:text-neutral-600"
+                className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-violet-300 dark:focus:border-violet-500/50 text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
               />
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)] pointer-events-none" />
             </div>
             <div className="relative flex-1 min-w-[120px] max-w-full md:max-w-[240px]">
               <input
@@ -390,9 +390,9 @@ export default function CartePage() {
                 placeholder="Ville (ex: Brissac Loire Aubance)"
                 value={ville}
                 onChange={(e) => setVille(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-violet-500/50 text-neutral-200 placeholder:text-neutral-600"
+                className="w-full pl-8 pr-3 py-2 text-sm rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-violet-300 dark:focus:border-violet-500/50 text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
               />
-              <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
+              <MapPin className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)] pointer-events-none" />
             </div>
 
             {/* Limit */}
@@ -400,14 +400,14 @@ export default function CartePage() {
               <select
                 value={limit}
                 onChange={(e) => setLimit(Number(e.target.value))}
-                className="appearance-none pl-8 pr-7 py-2 text-sm rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-violet-500/50 text-neutral-200 cursor-pointer"
+                className="appearance-none pl-8 pr-7 py-2 text-sm rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] focus:border-violet-300 dark:focus:border-violet-500/50 text-[var(--color-text-primary)] cursor-pointer"
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>
                 <option value={30}>30</option>
                 <option value={50}>50</option>
               </select>
-              <SlidersHorizontal className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
+              <SlidersHorizontal className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)] pointer-events-none" />
             </div>
 
             <button
@@ -445,12 +445,12 @@ export default function CartePage() {
           {/* Sidebar header */}
           <div className="px-3 py-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[12px] font-medium text-neutral-300">
-                <Trophy className="w-4 h-4 text-amber-400" />
+              <div className="flex items-center gap-2 text-[12px] font-medium text-[var(--color-text-secondary)]">
+                <Trophy className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                 Classement GBP
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="md:hidden ml-2 p-1 rounded-lg hover:bg-[var(--color-surface)] text-neutral-500 hover:text-neutral-200 transition"
+                  className="md:hidden ml-2 p-1 rounded-lg hover:bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -468,11 +468,11 @@ export default function CartePage() {
                       className={`flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider border transition ${
                         siteFilter === f.key
                           ? f.key === "no-site"
-                            ? "bg-rose-500/15 border-rose-500/40 text-rose-300"
+                            ? "bg-rose-100 border-rose-300 text-rose-700 dark:bg-rose-500/15 dark:border-rose-500/40 dark:text-rose-300"
                             : f.key === "has-site"
-                              ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
-                              : "bg-violet-500/15 border-violet-500/40 text-violet-300"
-                          : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-500 hover:text-neutral-300"
+                              ? "bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/40 dark:text-emerald-300"
+                              : "bg-violet-100 border-violet-300 text-violet-700 dark:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-300"
+                          : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
                       }`}
                     >
                       {f.icon}
@@ -482,7 +482,7 @@ export default function CartePage() {
                 </div>
               )}
             </div>
-            <div className="text-[10px] text-neutral-500 mt-0.5 ml-6">
+            <div className="text-[10px] text-[var(--color-text-muted)] mt-0.5 ml-6">
               Score = note (40%) + avis (40%) + site web (20%)
             </div>
           </div>
@@ -491,8 +491,8 @@ export default function CartePage() {
           <div className="flex-1 overflow-y-auto">
             {!searchDone && !loading && (
               <div className="py-16 text-center px-6">
-                <Search className="w-8 h-8 text-neutral-700 mx-auto mb-3" />
-                <div className="text-sm text-neutral-500">
+                <Search className="w-8 h-8 text-[var(--color-text-muted)] mx-auto mb-3" />
+                <div className="text-sm text-[var(--color-text-muted)]">
                   Entrez un métier et une ville pour<br />lancer la recherche Google Maps
                 </div>
               </div>
@@ -500,20 +500,20 @@ export default function CartePage() {
 
             {loading && (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
-                <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
-                <div className="text-sm text-neutral-400">Scraping Google Maps...</div>
-                <div className="text-[10px] text-neutral-600">Cela peut prendre 30-60s</div>
+                <Loader2 className="w-6 h-6 text-violet-600 dark:text-violet-400 animate-spin" />
+                <div className="text-sm text-[var(--color-text-secondary)]">Scraping Google Maps...</div>
+                <div className="text-[10px] text-[var(--color-text-muted)]">Cela peut prendre 30-60s</div>
               </div>
             )}
 
             {error && (
-              <div className="mx-3 mt-3 px-3 py-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-sm">
+              <div className="mx-3 mt-3 px-3 py-2.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-700 dark:bg-rose-500/10 dark:border-rose-500/30 dark:text-rose-300 text-sm">
                 {error}
               </div>
             )}
 
             {searchDone && displayList.length === 0 && (
-              <div className="py-12 text-center text-neutral-500 text-sm">
+              <div className="py-12 text-center text-[var(--color-text-muted)] text-sm">
                 {siteFilter === "no-site" ? "Tous ont un site web" : siteFilter === "has-site" ? "Aucun n'a de site web" : "Aucun résultat"}
               </div>
             )}
@@ -530,9 +530,9 @@ export default function CartePage() {
                   onMouseLeave={() => setHoveredId(null)}
                   className={`w-full text-left px-3 py-2.5 transition-colors ${
                     selectedId === p.id
-                      ? "bg-violet-500/15 border-l-2 border-l-violet-500"
+                      ? "bg-violet-100 dark:bg-violet-500/15 border-l-2 border-l-violet-500"
                       : hoveredId === p.id
-                        ? "bg-violet-500/10"
+                        ? "bg-violet-100 dark:bg-violet-500/10"
                         : "hover:bg-[var(--color-surface)]/60"
                   }`}
                 >
@@ -546,27 +546,27 @@ export default function CartePage() {
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="text-[13px] font-semibold text-neutral-100 truncate">
+                      <div className="text-[13px] font-semibold text-[var(--color-text-primary)] truncate">
                         {p.name}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         {p.rating ? (
-                          <span className="flex items-center gap-0.5 text-[11px] text-neutral-300">
-                            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          <span className="flex items-center gap-0.5 text-[11px] text-[var(--color-text-secondary)]">
+                            <Star className="w-3 h-3 text-amber-600 dark:text-amber-400 fill-amber-400" />
                             {p.rating}
-                            <span className="text-neutral-600">
+                            <span className="text-[var(--color-text-muted)]">
                               ({p.reviews ?? 0})
                             </span>
                           </span>
                         ) : (
-                          <span className="text-[11px] text-neutral-600">
+                          <span className="text-[11px] text-[var(--color-text-muted)]">
                             Pas de note
                           </span>
                         )}
                         {p.phone && (
                           <a
                             href={`tel:${p.phone.replace(/\s/g, "")}`}
-                            className="text-[10px] text-neutral-500 font-mono hover:text-violet-300 transition"
+                            className="text-[10px] text-[var(--color-text-muted)] font-mono hover:text-violet-700 dark:hover:text-violet-300 transition"
                             onClick={(e) => e.stopPropagation()}
                           >
                             {p.phone}
@@ -580,18 +580,18 @@ export default function CartePage() {
                       <span
                         className={`text-[13px] font-mono font-bold ${
                           p.gbp_score >= 70
-                            ? "text-emerald-300"
+                            ? "text-emerald-700 dark:text-emerald-300"
                             : p.gbp_score >= 40
-                              ? "text-amber-300"
-                              : "text-rose-300"
+                              ? "text-amber-700 dark:text-amber-300"
+                              : "text-rose-700 dark:text-rose-300"
                         }`}
                       >
                         {p.gbp_score}
                       </span>
                       {p.website ? (
-                        <Globe className="w-3 h-3 text-neutral-600" />
+                        <Globe className="w-3 h-3 text-[var(--color-text-muted)]" />
                       ) : (
-                        <GlobeOff className="w-3 h-3 text-rose-400" />
+                        <GlobeOff className="w-3 h-3 text-rose-600 dark:text-rose-400" />
                       )}
                     </div>
                   </div>
@@ -620,8 +620,8 @@ export default function CartePage() {
           <div className="absolute inset-0" style={{ zIndex: 0 }}>
             {loading && (
               <div className="absolute inset-0 bg-[var(--color-background)]/80 flex items-center justify-center" style={{ zIndex: 1 }}>
-                <div className="flex items-center gap-3 text-neutral-300">
-                  <Loader2 className="w-5 h-5 animate-spin text-violet-400" />
+                <div className="flex items-center gap-3 text-[var(--color-text-secondary)]">
+                  <Loader2 className="w-5 h-5 animate-spin text-violet-600 dark:text-violet-400" />
                   <span className="text-sm">Scraping en cours...</span>
                 </div>
               </div>
@@ -638,7 +638,7 @@ export default function CartePage() {
 
           {/* Positions disclaimer (BAN) */}
           {searchDone && displayList.length > 0 && (
-            <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-[#111114]/80 border border-[var(--color-border)] text-[10px] text-neutral-500 backdrop-blur-sm" style={{ zIndex: 1 }}>
+            <div className="absolute bottom-2 left-2 px-2 py-1 rounded-lg bg-[#111114]/80 border border-[var(--color-border)] text-[10px] text-[var(--color-text-muted)] backdrop-blur-sm" style={{ zIndex: 1 }}>
               {approxCount === 0
                 ? "Positions géocodées · BAN"
                 : `${approxCount} approximative${approxCount > 1 ? "s" : ""} · BAN`}
@@ -658,25 +658,25 @@ export default function CartePage() {
                       {selectedProspect.rank}
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-[15px] font-bold text-neutral-50 truncate">
+                      <h3 className="text-[15px] font-bold text-[var(--color-text-primary)] truncate">
                         {selectedProspect.name}
                       </h3>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         {selectedProspect.rating ? (
-                          <span className="flex items-center gap-0.5 text-xs text-neutral-300">
-                            <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          <span className="flex items-center gap-0.5 text-xs text-[var(--color-text-secondary)]">
+                            <Star className="w-3 h-3 text-amber-600 dark:text-amber-400 fill-amber-400" />
                             {selectedProspect.rating}
-                            <span className="text-neutral-500">({selectedProspect.reviews ?? 0})</span>
+                            <span className="text-[var(--color-text-muted)]">({selectedProspect.reviews ?? 0})</span>
                           </span>
                         ) : (
-                          <span className="text-xs text-neutral-600">Pas de note</span>
+                          <span className="text-xs text-[var(--color-text-muted)]">Pas de note</span>
                         )}
                       </div>
                     </div>
                   </div>
                   <button
                     onClick={() => setSelectedId(null)}
-                    className="p-1.5 rounded-lg hover:bg-[var(--color-surface)] text-neutral-500 hover:text-neutral-200 transition"
+                    className="p-1.5 rounded-lg hover:bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -687,14 +687,14 @@ export default function CartePage() {
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                 {/* Score */}
                 <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-[var(--color-surface)]/60 border border-[var(--color-border)]">
-                  <span className="text-xs text-neutral-400 font-medium">Score GBP</span>
+                  <span className="text-xs text-[var(--color-text-secondary)] font-medium">Score GBP</span>
                   <span
                     className={`text-lg font-mono font-bold ${
                       selectedProspect.gbp_score >= 70
-                        ? "text-emerald-300"
+                        ? "text-emerald-700 dark:text-emerald-300"
                         : selectedProspect.gbp_score >= 40
-                          ? "text-amber-300"
-                          : "text-rose-300"
+                          ? "text-amber-700 dark:text-amber-300"
+                          : "text-rose-700 dark:text-rose-300"
                     }`}
                   >
                     {selectedProspect.gbp_score}/100
@@ -704,28 +704,28 @@ export default function CartePage() {
                 {/* Website status */}
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
                   selectedProspect.website
-                    ? "bg-emerald-500/8 border-emerald-500/25"
-                    : "bg-rose-500/8 border-rose-500/25"
+                    ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-500/8 dark:border-emerald-500/25"
+                    : "bg-rose-50 border-rose-200 dark:bg-rose-500/8 dark:border-rose-500/25"
                 }`}>
                   {selectedProspect.website ? (
                     <>
-                      <Globe className="w-4 h-4 text-emerald-400" />
-                      <span className="text-xs text-emerald-300 font-medium truncate flex-1">
+                      <Globe className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <span className="text-xs text-emerald-700 dark:text-emerald-300 font-medium truncate flex-1">
                         {selectedProspect.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
                       </span>
                       <a
                         href={selectedProspect.website.match(/^https?:\/\//) ? selectedProspect.website : `https://${selectedProspect.website}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1 hover:bg-emerald-500/20 rounded transition"
+                        className="p-1 hover:bg-emerald-200 dark:hover:bg-emerald-500/20 rounded transition"
                       >
-                        <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+                        <ExternalLink className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       </a>
                     </>
                   ) : (
                     <>
-                      <GlobeOff className="w-4 h-4 text-rose-400" />
-                      <span className="text-xs text-rose-300 font-medium">Pas de site web -- Prospect idéal</span>
+                      <GlobeOff className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                      <span className="text-xs text-rose-700 dark:text-rose-300 font-medium">Pas de site web -- Prospect idéal</span>
                     </>
                   )}
                 </div>
@@ -742,9 +742,9 @@ export default function CartePage() {
                 {/* Phone */}
                 {selectedProspect.phone && (
                   <div className="px-3 py-2 rounded-xl bg-[var(--color-surface)]/40 border border-[var(--color-border)]">
-                    <div className="text-[10px] uppercase tracking-wider text-neutral-500 font-medium mb-1">Téléphone</div>
+                    <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] font-medium mb-1">Téléphone</div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-neutral-200 font-mono">{selectedProspect.phone}</span>
+                      <span className="text-sm text-[var(--color-text-primary)] font-mono">{selectedProspect.phone}</span>
                       <CopyButton text={selectedProspect.phone} />
                     </div>
                   </div>
@@ -756,11 +756,11 @@ export default function CartePage() {
                     href={selectedProspect.maps_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-surface)]/40 border border-[var(--color-border)] hover:border-violet-500/40 transition group"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--color-surface)]/40 border border-[var(--color-border)] hover:border-violet-300 dark:hover:border-violet-500/40 transition group"
                   >
-                    <MapPin className="w-4 h-4 text-neutral-500 group-hover:text-violet-400 transition" />
-                    <span className="text-xs text-neutral-400 group-hover:text-violet-300 transition">Voir sur Google Maps</span>
-                    <ExternalLink className="w-3 h-3 text-neutral-600 ml-auto group-hover:text-violet-400 transition" />
+                    <MapPin className="w-4 h-4 text-[var(--color-text-muted)] group-hover:text-violet-600 dark:group-hover:text-violet-400 transition" />
+                    <span className="text-xs text-[var(--color-text-secondary)] group-hover:text-violet-700 dark:group-hover:text-violet-300 transition">Voir sur Google Maps</span>
+                    <ExternalLink className="w-3 h-3 text-[var(--color-text-muted)] ml-auto group-hover:text-violet-600 dark:group-hover:text-violet-400 transition" />
                   </a>
                 )}
               </div>
@@ -773,7 +773,7 @@ export default function CartePage() {
                   disabled={addingId === selectedProspect.id || addedIds.has(selectedProspect.id)}
                   className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition ${
                     addedIds.has(selectedProspect.id)
-                      ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 cursor-default"
+                      ? "bg-emerald-100 border border-emerald-300 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-300 cursor-default"
                       : addingId === selectedProspect.id
                         ? "bg-violet-600/50 text-white/60 cursor-wait"
                         : "bg-violet-600 hover:bg-violet-500 text-white"
@@ -801,7 +801,7 @@ export default function CartePage() {
                   <div className="flex gap-2">
                     <a
                       href={`tel:${selectedProspect.phone.replace(/\s/g, "")}`}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-200 hover:text-violet-300 text-sm font-medium transition"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-violet-300 dark:hover:border-violet-500/50 text-[var(--color-text-primary)] hover:text-violet-700 dark:hover:text-violet-300 text-sm font-medium transition"
                     >
                       <Phone className="w-4 h-4" />
                       Appeler
@@ -810,7 +810,7 @@ export default function CartePage() {
                       href={`https://wa.me/${phoneForWhatsApp(selectedProspect.phone)}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-emerald-500/50 text-neutral-200 hover:text-emerald-300 text-sm font-medium transition"
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] hover:border-emerald-300 dark:hover:border-emerald-500/50 text-[var(--color-text-primary)] hover:text-emerald-700 dark:hover:text-emerald-300 text-sm font-medium transition"
                     >
                       <MessageCircle className="w-4 h-4" />
                       WhatsApp

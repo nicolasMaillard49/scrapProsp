@@ -23,11 +23,11 @@ function fmt(iso: string): string {
 }
 
 const STATUS_CLS: Record<ScheduledBlast["status"], string> = {
-  pending: "text-sky-300 bg-sky-950/30 border-sky-900/40",
-  running: "text-violet-300 bg-violet-950/30 border-violet-900/40",
-  done: "text-emerald-300 bg-emerald-950/30 border-emerald-900/40",
-  failed: "text-rose-300 bg-rose-950/40 border-rose-900/50",
-  canceled: "text-neutral-400 bg-neutral-800/40 border-neutral-700/50",
+  pending: "text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-950/30 border-sky-600 dark:border-sky-900/40",
+  running: "text-violet-700 dark:text-violet-300 bg-violet-100 dark:bg-violet-950/30 border-violet-600 dark:border-violet-900/40",
+  done: "text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/30 border-emerald-600 dark:border-emerald-900/40",
+  failed: "text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/40 border-rose-600 dark:border-rose-900/50",
+  canceled: "text-[var(--color-text-secondary)] bg-[var(--color-surface-2)]/40 border-[var(--color-border)]/50",
 };
 
 export default function ScheduleBlastPanel() {
@@ -95,9 +95,9 @@ export default function ScheduleBlastPanel() {
 
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] mb-4">
-      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-neutral-200">
-        <span className="flex items-center gap-2 font-medium"><CalendarClock className="w-4 h-4 text-violet-400" /> Programmer un envoi</span>
-        <span className="flex items-center gap-2 text-xs text-neutral-500">
+      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-[var(--color-text-primary)]">
+        <span className="flex items-center gap-2 font-medium"><CalendarClock className="w-4 h-4 text-violet-600 dark:text-violet-400" /> Programmer un envoi</span>
+        <span className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
           {pending.length > 0 && <span>{pending.length} programmé{pending.length > 1 ? "s" : ""}</span>}
           {open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
         </span>
@@ -106,17 +106,17 @@ export default function ScheduleBlastPanel() {
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t border-[var(--color-border)] pt-3">
           <div className="flex flex-wrap items-end gap-3">
-            <label className="text-xs text-neutral-400">Prospects
+            <label className="text-xs text-[var(--color-text-secondary)]">Prospects
               <input type="number" min={1} value={count} onChange={(e) => setCount(Math.max(1, parseInt(e.target.value || "1", 10)))}
-                className="mt-1 block w-24 rounded-lg bg-neutral-900 border border-[var(--color-border)] px-2 py-1.5 text-sm text-neutral-100" />
+                className="mt-1 block w-24 rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-2 py-1.5 text-sm text-[var(--color-text-primary)]" />
             </label>
-            <label className="text-xs text-neutral-400">Date
+            <label className="text-xs text-[var(--color-text-secondary)]">Date
               <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                className="mt-1 block rounded-lg bg-neutral-900 border border-[var(--color-border)] px-2 py-1.5 text-sm text-neutral-100" />
+                className="mt-1 block rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-2 py-1.5 text-sm text-[var(--color-text-primary)]" />
             </label>
-            <label className="text-xs text-neutral-400">Heure
+            <label className="text-xs text-[var(--color-text-secondary)]">Heure
               <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
-                className="mt-1 block rounded-lg bg-neutral-900 border border-[var(--color-border)] px-2 py-1.5 text-sm text-neutral-100" />
+                className="mt-1 block rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-2 py-1.5 text-sm text-[var(--color-text-primary)]" />
             </label>
             <button onClick={submit} disabled={submitting || outOfWindow}
               className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium">
@@ -125,13 +125,13 @@ export default function ScheduleBlastPanel() {
           </div>
 
           <div className="flex flex-wrap gap-3 text-xs">
-            <span className="text-neutral-400">Coût estimé : <span className={overBudget ? "text-rose-300" : "text-neutral-200"}>~{estCost.toFixed(2)} $</span></span>
-            {balance != null && <span className="text-neutral-400">Solde Twilio : <span className="text-neutral-200">{balance.toFixed(2)} $</span></span>}
-            {overBudget && <span className="flex items-center gap-1 text-rose-300"><AlertTriangle className="w-3 h-3" /> Coût &gt; solde</span>}
-            {outOfWindow && <span className="flex items-center gap-1 text-amber-300"><AlertTriangle className="w-3 h-3" /> Hors créneau légal (8h-20h, hors dimanche)</span>}
+            <span className="text-[var(--color-text-secondary)]">Coût estimé : <span className={overBudget ? "text-rose-700 dark:text-rose-300" : "text-[var(--color-text-primary)]"}>~{estCost.toFixed(2)} $</span></span>
+            {balance != null && <span className="text-[var(--color-text-secondary)]">Solde Twilio : <span className="text-[var(--color-text-primary)]">{balance.toFixed(2)} $</span></span>}
+            {overBudget && <span className="flex items-center gap-1 text-rose-700 dark:text-rose-300"><AlertTriangle className="w-3 h-3" /> Coût &gt; solde</span>}
+            {outOfWindow && <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300"><AlertTriangle className="w-3 h-3" /> Hors créneau légal (8h-20h, hors dimanche)</span>}
           </div>
 
-          {info && <div className="text-xs px-3 py-2 rounded-lg border border-violet-900/40 bg-violet-950/20 text-violet-200">{info}</div>}
+          {info && <div className="text-xs px-3 py-2 rounded-lg border border-violet-600 dark:border-violet-900/40 bg-violet-100 dark:bg-violet-950/20 text-violet-700 dark:text-violet-200">{info}</div>}
 
           {list.length > 0 && (
             <div className="space-y-1.5 pt-1">
@@ -139,13 +139,13 @@ export default function ScheduleBlastPanel() {
                 <div key={b.id} className="flex items-center justify-between gap-3 text-xs rounded-lg border border-[var(--color-border)] px-3 py-2">
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded-md border ${STATUS_CLS[b.status]}`}>{b.status}</span>
-                    <span className="text-neutral-300">{b.limit_count} prospects</span>
-                    <span className="text-neutral-500">{fmt(b.scheduled_at)}</span>
-                    {b.status === "done" && b.result && <span className="text-emerald-300">{b.result.sent} envoyés</span>}
-                    {b.status === "failed" && b.result?.error && <span className="text-rose-300">{b.result.error}</span>}
+                    <span className="text-[var(--color-text-secondary)]">{b.limit_count} prospects</span>
+                    <span className="text-[var(--color-text-muted)]">{fmt(b.scheduled_at)}</span>
+                    {b.status === "done" && b.result && <span className="text-emerald-700 dark:text-emerald-300">{b.result.sent} envoyés</span>}
+                    {b.status === "failed" && b.result?.error && <span className="text-rose-700 dark:text-rose-300">{b.result.error}</span>}
                   </div>
                   {b.status === "pending" && (
-                    <button onClick={() => cancel(b.id)} className="flex items-center gap-1 text-neutral-500 hover:text-rose-300" title="Annuler">
+                    <button onClick={() => cancel(b.id)} className="flex items-center gap-1 text-[var(--color-text-muted)] hover:text-rose-700 dark:hover:text-rose-300" title="Annuler">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   )}

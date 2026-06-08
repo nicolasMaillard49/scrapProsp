@@ -124,45 +124,45 @@ export default function FocusMode({ open, prospects, initialIndex, onClose, onSe
         <div className="flex items-center gap-4">
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-neutral-400 hover:text-neutral-100 transition"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition"
           >
             <X className="w-4 h-4" /> Quitter (Esc)
           </button>
-          <div className="text-sm text-neutral-500">
-            <span className="text-neutral-200 font-medium">{idx + 1}</span> / {prospects.length}
+          <div className="text-sm text-[var(--color-text-muted)]">
+            <span className="text-[var(--color-text-primary)] font-medium">{idx + 1}</span> / {prospects.length}
           </div>
         </div>
         <div className="flex items-center gap-4 text-xs">
-          <SessionBadge label="Appelés" value={sessionStats.calls} accent="text-amber-300" />
-          <SessionBadge label="Positifs" value={sessionStats.positive} accent="text-emerald-300" />
-          <SessionBadge label="Négatifs" value={sessionStats.negative} accent="text-rose-300" />
+          <SessionBadge label="Appelés" value={sessionStats.calls} accent="text-amber-700 dark:text-amber-300" />
+          <SessionBadge label="Positifs" value={sessionStats.positive} accent="text-emerald-700 dark:text-emerald-300" />
+          <SessionBadge label="Négatifs" value={sessionStats.negative} accent="text-rose-700 dark:text-rose-300" />
         </div>
       </header>
 
       <div className="max-w-3xl mx-auto px-6 pt-6 pb-12 flex flex-col items-center text-center">
         <div className="flex items-center gap-2 mb-3">
-          <span className={`px-2 py-0.5 text-xs rounded-full ${current.metier === "plombier" ? "bg-blue-950/60 text-blue-300 border border-blue-800/40" : "bg-yellow-950/60 text-yellow-300 border border-yellow-800/40"}`}>
+          <span className={`px-2 py-0.5 text-xs rounded-full ${current.metier === "plombier" ? "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800/40" : "bg-yellow-100 dark:bg-yellow-950/60 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-800/40"}`}>
             {current.metier}
           </span>
-          <span className="text-xs text-neutral-500 flex items-center gap-1">
+          <span className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
             <MapPin className="w-3 h-3" /> {current.ville}
           </span>
           {current.rating && (
-            <span className="text-xs text-neutral-500 flex items-center gap-1">
+            <span className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
               <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
               {current.rating} ({current.reviews})
             </span>
           )}
         </div>
 
-        <h1 className="font-display text-4xl md:text-5xl leading-[1.02] tracking-tight mb-1 break-words max-w-full text-neutral-50">
+        <h1 className="font-display text-4xl md:text-5xl leading-[1.02] tracking-tight mb-1 break-words max-w-full text-[var(--color-text-primary)]">
           {current.name}
         </h1>
         <a
           href={current.maps_url}
           target="_blank"
           rel="noreferrer"
-          className="text-xs text-neutral-600 hover:text-violet-400 inline-flex items-center gap-1 mb-8"
+          className="text-xs text-[var(--color-text-muted)] hover:text-violet-400 inline-flex items-center gap-1 mb-8"
         >
           Fiche Google Maps <ExternalLink className="w-3 h-3" />
         </a>
@@ -184,25 +184,25 @@ export default function FocusMode({ open, prospects, initialIndex, onClose, onSe
               <span className="text-[10px] uppercase tracking-wider text-white/70 bg-black/20 px-2 py-1 rounded">K</span>
             </a>
           ) : (
-            <div className="flex items-center justify-between px-5 py-5 bg-amber-950/50 border border-amber-700/40 rounded-xl shadow-lg">
+            <div className="flex items-center justify-between px-5 py-5 bg-amber-100 dark:bg-amber-950/50 border border-amber-600 dark:border-amber-700/40 rounded-xl shadow-lg">
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${paused ? "bg-amber-500" : "bg-rose-500 animate-pulse"}`} />
                 <div className="text-left">
-                  <div className="text-[11px] uppercase tracking-wider text-amber-200/80">{paused ? "En pause" : "En cours"}</div>
-                  <div className="text-2xl font-bold font-mono tracking-wide text-amber-100">{fmtTime(elapsed)}</div>
+                  <div className="text-[11px] uppercase tracking-wider text-amber-700 dark:text-amber-200/80">{paused ? "En pause" : "En cours"}</div>
+                  <div className="text-2xl font-bold font-mono tracking-wide text-amber-700 dark:text-amber-100">{fmtTime(elapsed)}</div>
                 </div>
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setPaused((p) => !p)}
-                  className="p-2 rounded-lg border border-amber-700/40 hover:bg-amber-900/30 text-amber-200 transition"
+                  className="p-2 rounded-lg border border-amber-600 dark:border-amber-700/40 hover:bg-amber-200 dark:hover:bg-amber-900/30 text-amber-700 dark:text-amber-200 transition"
                   title={paused ? "Reprendre" : "Pause"}
                 >
                   {paused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                 </button>
                 <button
                   onClick={endCall}
-                  className="p-2 rounded-lg border border-rose-700/40 hover:bg-rose-900/30 text-rose-200 transition"
+                  className="p-2 rounded-lg border border-rose-600 dark:border-rose-700/40 hover:bg-rose-200 dark:hover:bg-rose-900/30 text-rose-700 dark:text-rose-200 transition"
                   title="Raccrocher (K)"
                 >
                   <PhoneOff className="w-4 h-4" />
@@ -244,7 +244,7 @@ export default function FocusMode({ open, prospects, initialIndex, onClose, onSe
         </div>
 
         <div className="w-full max-w-md mb-6">
-          <label className="block text-xs uppercase tracking-wider text-neutral-500 mb-1.5">
+          <label className="block text-xs uppercase tracking-wider text-[var(--color-text-muted)] mb-1.5">
             Notes (T pour focus)
           </label>
           <textarea
@@ -262,14 +262,14 @@ export default function FocusMode({ open, prospects, initialIndex, onClose, onSe
           <button
             onClick={prev}
             disabled={idx === 0}
-            className="flex items-center gap-1 px-3 py-1.5 text-neutral-400 hover:text-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            className="flex items-center gap-1 px-3 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition"
           >
             <ChevronLeft className="w-4 h-4" /> Précédent
           </button>
           <button
             onClick={skip}
             disabled={idx >= prospects.length - 1}
-            className="flex items-center gap-1 px-3 py-1.5 text-neutral-400 hover:text-neutral-100 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            className="flex items-center gap-1 px-3 py-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] disabled:opacity-30 disabled:cursor-not-allowed transition"
           >
             Passer (Espace) <SkipForward className="w-4 h-4" />
           </button>
@@ -300,7 +300,7 @@ export default function FocusMode({ open, prospects, initialIndex, onClose, onSe
 function SessionBadge({ label, value, accent }: { label: string; value: number; accent: string }) {
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className="text-neutral-500 uppercase tracking-wider">{label}</span>
+      <span className="text-[var(--color-text-muted)] uppercase tracking-wider">{label}</span>
       <span className={`font-bold ${accent}`}>{value}</span>
     </div>
   );
@@ -308,15 +308,15 @@ function SessionBadge({ label, value, accent }: { label: string; value: number; 
 
 function OutcomeButton({ icon, label, shortcut, color, onClick }: { icon: React.ReactNode; label: string; shortcut: string; color: "emerald" | "amber" | "rose" | "sky"; onClick: () => void }) {
   const palette = {
-    emerald: "from-emerald-500/15 to-emerald-700/10 border-emerald-700/50 hover:from-emerald-500/30 hover:to-emerald-700/20 text-emerald-200",
-    amber: "from-amber-500/15 to-amber-700/10 border-amber-700/50 hover:from-amber-500/30 hover:to-amber-700/20 text-amber-200",
-    rose: "from-rose-500/15 to-rose-700/10 border-rose-700/50 hover:from-rose-500/30 hover:to-rose-700/20 text-rose-200",
-    sky: "from-sky-500/15 to-sky-700/10 border-sky-700/50 hover:from-sky-500/30 hover:to-sky-700/20 text-sky-200",
+    emerald: "bg-emerald-600 hover:bg-emerald-700 border-emerald-600 text-white dark:bg-gradient-to-br dark:from-emerald-500/15 dark:to-emerald-700/10 dark:border-emerald-700/50 dark:hover:from-emerald-500/30 dark:hover:to-emerald-700/20 dark:text-emerald-200",
+    amber: "bg-amber-600 hover:bg-amber-700 border-amber-600 text-white dark:bg-gradient-to-br dark:from-amber-500/15 dark:to-amber-700/10 dark:border-amber-700/50 dark:hover:from-amber-500/30 dark:hover:to-amber-700/20 dark:text-amber-200",
+    rose: "bg-rose-600 hover:bg-rose-700 border-rose-600 text-white dark:bg-gradient-to-br dark:from-rose-500/15 dark:to-rose-700/10 dark:border-rose-700/50 dark:hover:from-rose-500/30 dark:hover:to-rose-700/20 dark:text-rose-200",
+    sky: "bg-sky-600 hover:bg-sky-700 border-sky-600 text-white dark:bg-gradient-to-br dark:from-sky-500/15 dark:to-sky-700/10 dark:border-sky-700/50 dark:hover:from-sky-500/30 dark:hover:to-sky-700/20 dark:text-sky-200",
   }[color];
   return (
     <button
       onClick={onClick}
-      className={`group flex flex-col items-center gap-1 py-4 rounded-xl border bg-gradient-to-br transition ${palette}`}
+      className={`group flex flex-col items-center gap-1 py-4 rounded-xl border transition ${palette}`}
     >
       <span className="opacity-90 group-hover:scale-110 transition">{icon}</span>
       <span className="font-medium text-sm">{label}</span>
