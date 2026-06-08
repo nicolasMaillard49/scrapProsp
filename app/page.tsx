@@ -46,15 +46,15 @@ function HomeInner() {
   } = useProspects();
 
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | Status>("all");
+  const [filter, setFilter] = useState<"all" | Status>("todo");
   const [metierFilter, setMetierFilter] = useState<"all" | "plombier" | "electricien">("all");
   const [villeFilter, setVilleFilter] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
-  const [openNowOnly, setOpenNowOnly] = useState(false);
+  const [openNowOnly, setOpenNowOnly] = useState(true);
   const [hideRadie, setHideRadie] = useState(true);
   const [jeuneOnly, setJeuneOnly] = useState(false);
   const [radarOnly, setRadarOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity" | "radar">("opportunity");
+  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity" | "radar">("age-asc");
   const [tourneeMode, setTourneeMode] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
@@ -892,9 +892,11 @@ function HomeInner() {
         }}
         onMarkNoAnswer={() => {
           if (callTarget) {
+            const next = filtered[callIdx + 1] ?? null;
             updateStatus(callTarget.id, "no_answer");
             toast.push("success", `${callTarget.name} — pas de réponse`);
-            setCallTarget(null);
+            if (next) { setCallTab("call"); setCallTarget(next); }
+            else setCallTarget(null);
           }
         }}
         onMarkNegative={() => {
