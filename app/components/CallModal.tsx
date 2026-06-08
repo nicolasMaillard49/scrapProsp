@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
   X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
-  Calendar, ChevronDown, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2,
+  Calendar, ChevronDown, ChevronLeft, ChevronRight, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2,
 } from "lucide-react";
 import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import { supabase } from "../lib/supabase";
@@ -25,6 +25,10 @@ interface Props {
   onMarkPositive?: () => void;
   onMarkNoAnswer?: () => void;
   onMarkNegative?: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }
 
 const statusLabel: Record<Status, { label: string; cls: string }> = {
@@ -70,6 +74,7 @@ const NTFY_KEY = "prospects-tracker-ntfy-topic";
 export default function CallModal({
   open, prospect, isOpen, hoursLabel, initialTab = "call",
   onClose, onMarkCalled, onMarkPositive, onMarkNoAnswer, onMarkNegative,
+  onPrev, onNext, hasPrev, hasNext,
 }: Props) {
   const [qrUrl, setQrUrl] = useState<string>("");
   const [ntfyTopic, setNtfyTopic] = useState<string>("");
@@ -207,13 +212,15 @@ export default function CallModal({
       if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return;
       if (e.key === "Escape") onClose();
       if (e.key === "Enter") onMarkCalled?.();
+      if (e.key === "ArrowLeft") onPrev?.();
+      if (e.key === "ArrowRight") onNext?.();
       if ((e.key === "m" || e.key === "M") && prospect) {
         window.open(`/maquette/${prospect.id}`, "_blank");
       }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [open, onClose, onMarkCalled, prospect]);
+  }, [open, onClose, onMarkCalled, onPrev, onNext, prospect]);
 
   const saveNtfy = () => {
     const clean = ntfyDraft.trim().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -282,6 +289,26 @@ export default function CallModal({
       className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 animate-fade-in overflow-y-auto"
       onClick={onClose}
     >
+      {hasPrev && onPrev && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onPrev(); }}
+          aria-label="Prospect précédent (←)"
+          title="Prospect précédent (←)"
+          className="hidden md:flex fixed left-3 top-1/2 -translate-y-1/2 z-[80] w-12 h-12 items-center justify-center rounded-full bg-[var(--color-surface)] border border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-violet-500/60 shadow-lg hover:scale-105 active:scale-95 transition"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
+      {hasNext && onNext && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onNext(); }}
+          aria-label="Prospect suivant (→)"
+          title="Prospect suivant (→)"
+          className="hidden md:flex fixed right-3 top-1/2 -translate-y-1/2 z-[80] w-12 h-12 items-center justify-center rounded-full bg-[var(--color-surface)] border border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-violet-500/60 shadow-lg hover:scale-105 active:scale-95 transition"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+      )}
       <div
         className="flex flex-col md:flex-row md:items-start gap-4 my-2 sm:my-4 animate-slide-up w-full md:w-auto md:max-w-[96vw] justify-center transition-all duration-300"
       >
@@ -294,6 +321,25 @@ export default function CallModal({
         onClick={(e) => e.stopPropagation()}
         className="order-1 md:order-2 bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl shrink-0 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden"
       >
+        {/* Navigation prospect — mobile uniquement (les flèches flottantes sont masquées sur petit écran) */}
+        {(hasPrev || hasNext) && (
+          <div className="flex md:hidden items-center justify-between gap-2 mb-3">
+            <button
+              onClick={onPrev}
+              disabled={!hasPrev}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] text-sm disabled:opacity-30 active:scale-95 transition"
+            >
+              <ChevronLeft className="w-4 h-4" /> Préc.
+            </button>
+            <button
+              onClick={onNext}
+              disabled={!hasNext}
+              className="flex items-center gap-1 px-3 py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] text-sm disabled:opacity-30 active:scale-95 transition"
+            >
+              Suiv. <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
         <div className="flex items-start justify-between mb-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -652,7 +698,7 @@ export default function CallModal({
         </div>
 
         <div className="mt-3 text-center text-[10px] text-[var(--color-text-muted)]">
-          Entrée = appelé · M = maquette · Échap = fermer
+          ← / → = prospect précédent / suivant · Entrée = appelé · M = maquette · Échap = fermer
         </div>
       </div>
 

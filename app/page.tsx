@@ -182,6 +182,14 @@ function HomeInner() {
   const paginated = pageSize === 0 ? filtered : filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
   const pageStart = pageSize === 0 ? 0 : (safePage - 1) * pageSize;
 
+  // Navigation rapide entre prospects (flèches < > dans la fiche)
+  const callIdx = callTarget ? filtered.findIndex((p) => p.id === callTarget.id) : -1;
+  const goAdjacent = (dir: 1 | -1) => {
+    if (callIdx === -1) return;
+    const t = filtered[callIdx + dir];
+    if (t) { setCallTab("call"); setCallTarget(t); }
+  };
+
   const hasActiveFilters =
     filter !== "all" || regionFilter !== "all" || metierFilter !== "all" ||
     villeFilter !== "all" || openNowOnly || jeuneOnly || radarOnly || !hideRadie || !!search;
@@ -891,11 +899,17 @@ function HomeInner() {
         }}
         onMarkNegative={() => {
           if (callTarget) {
+            const next = filtered[callIdx + 1] ?? null;
             updateStatus(callTarget.id, "negative");
             toast.push("success", `${callTarget.name} marqué négatif`);
-            setCallTarget(null);
+            if (next) { setCallTab("call"); setCallTarget(next); }
+            else setCallTarget(null);
           }
         }}
+        hasPrev={callIdx > 0}
+        hasNext={callIdx >= 0 && callIdx < filtered.length - 1}
+        onPrev={() => goAdjacent(-1)}
+        onNext={() => goAdjacent(1)}
       />
     </main>
   );
