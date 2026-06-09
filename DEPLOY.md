@@ -75,15 +75,17 @@ Permet de programmer un envoi SMS depuis `/sms` (heure + nombre de prospects) qu
 
 Détecte chaque nuit les nouvelles fiches Google Maps (sans site web) par métier×région, les insère en base et envoie **1 SMS récap** au `0615907873` s'il y a ≥ 1 nouveau prospect.
 
-> ⚠️ Le radar **ne tourne PAS sur Vercel** : il scrape ~27 combos × ~13 villes (~25-75 min), bien au-delà de la limite de 300 s des fonctions Vercel. Il s'exécute donc **sur le VPS** (où vit déjà le scraper), via Node ≥ 18 — aucune dépendance npm (il utilise les API REST Supabase + Twilio). L'ancien endpoint `/api/cron/radar` reste mais n'est plus le chemin de prod.
+> ⚠️ Le radar **ne tourne PAS sur Vercel** : il scrape ~27 combos × ~13 villes, bien au-delà de la limite de 300 s des fonctions Vercel. Il s'exécute donc **sur le VPS** (où vit déjà le scraper), via Node ≥ 18 — aucune dépendance npm (il utilise les API REST Supabase + Twilio). L'ancien endpoint `/api/cron/radar` reste mais n'est plus le chemin de prod.
 
-1. Sur le VPS, place le dépôt (ou au moins le dossier `vps/`) et installe Node ≥ 18 (`node -v`).
-2. Copie la config : `cp vps/radar.env.example vps/radar.env` puis remplis `radar.env` (mêmes valeurs que Vercel ; `SUPABASE_KEY` = la clé *publishable* ; `SCRAPER_URL=http://localhost:8001`). **Ne committe jamais `radar.env`** (déjà dans `.gitignore`).
-3. Test manuel : `cd vps && set -a && . ./radar.env && set +a && node radar.mjs` → logs `+N metier/ville`, total, puis `SMS recap envoyé` (ou `Aucun nouveau prospect`).
-4. Cron (3h du matin), `crontab -e` sous le user `deploy` :
+> ✅ **Déployé et live depuis le 2026-06-09** sur le VPS `deploy@51.255.200.169` (premier run manuel validé : 342 scrapes, 0 erreur, ~5 min). Chemins réels notés ci-dessous.
+
+1. Sur le VPS, place le dépôt (ou au moins le dossier `vps/`) dans `~/scrapProsp/vps/`. Node est installé via **nvm** (Node 20) ; le binaire absolu (utile pour le cron, qui n'a pas nvm dans son PATH) est `/home/deploy/.nvm/versions/node/v20.20.2/bin/node`.
+2. Copie la config : `cp vps/radar.env.example vps/radar.env` puis remplis `radar.env` (mêmes valeurs que Vercel ; `SUPABASE_KEY` = la clé *publishable* ; `SCRAPER_URL=http://localhost:8001`). **Ne committe jamais `radar.env`** (déjà dans `.gitignore`). Sur le VPS : `chmod 600 vps/radar.env`.
+3. Test manuel : `cd ~/scrapProsp/vps && set -a && . ./radar.env && set +a && /home/deploy/.nvm/versions/node/v20.20.2/bin/node radar.mjs` → logs `+N metier/ville`, total, puis `SMS recap envoyé` (ou `Aucun nouveau prospect`).
+4. Cron (3h du matin), `crontab -e` sous le user `deploy` (**chemin Node absolu obligatoire** — pas de nvm dans le PATH du cron) :
    ```cron
-   0 3 * * * cd /chemin/vers/repo/vps && set -a && . ./radar.env && set +a && node radar.mjs >> /var/log/radar-cron.log 2>&1
+   0 3 * * * cd /home/deploy/scrapProsp/vps && set -a && . ./radar.env && set +a && /home/deploy/.nvm/versions/node/v20.20.2/bin/node radar.mjs >> /home/deploy/radar-cron.log 2>&1
    ```
-5. Vérifie le lendemain : `tail -50 /var/log/radar-cron.log`.
+5. Vérifie le lendemain : `tail -50 /home/deploy/radar-cron.log`.
 
 Note : `vps/regionCities` est dupliqué dans `radar.mjs` (constante `REGION_CITIES`) — à garder en phase avec `app/lib/regionCities.ts` si tu changes les villes.
