@@ -15,6 +15,47 @@ function firstName(prenom?: string | null): string {
   return f.charAt(0).toUpperCase() + f.slice(1).toLowerCase();
 }
 
+/** Ressentis cliquables en découverte → alimentent la douleur du Pont. */
+const FEELINGS = [
+  { key: "deborde", label: "Débordé", pain: "vous êtes débordé, vous courez dans tous les sens" },
+  { key: "stagne", label: "Ça stagne", pain: "vous tournez avec les mêmes clients, ça stagne" },
+  { key: "inquiet", label: "Inquiet pour l’avenir", pain: "vous vous demandez d’où viendront les clients demain" },
+  { key: "boa", label: "Dépend du bouche-à-oreille", pain: "vous dépendez à 100 % du bouche-à-oreille" },
+  { key: "pasperçu", label: "Pas pris au sérieux", pain: "vous n’êtes pas pris au sérieux face aux plus gros" },
+  { key: "decu", label: "Déçu par le digital", pain: "vous avez déjà été déçu par des promesses sur internet" },
+] as const;
+
+/** Moteur principal cliquable → alimente l’ambition du Pont + l’angle d’argumentation. */
+const OBJECTIVES = [
+  { key: "tranquillite", label: "Tranquillité", ambition: "avoir l’esprit tranquille, un flux de clients régulier sans courir après",
+    angle: "Joue l’automatique : le site travaille pour lui 24/7, les clients arrivent tout seuls. Vocabulaire « serein », « ça tourne », « plus à y penser »." },
+  { key: "argent", label: "Plus d’argent / clients", ambition: "faire rentrer plus de clients et augmenter le chiffre",
+    angle: "Va sur le ROI : un seul client via le site = remboursé. Reprends la valeur d’un client qu’il t’a donnée. Volume, chantiers en plus." },
+  { key: "image", label: "Crédibilité / image", ambition: "avoir une image vraiment pro, crédible face aux concurrents",
+    angle: "Compare : aujourd’hui une fiche Google nue, demain un vrai site. Première impression — on appelle celui qui fait sérieux." },
+  { key: "developper", label: "Développer / recruter", ambition: "développer la boîte et pouvoir embaucher derrière",
+    angle: "Positionne le site comme un levier de croissance prévisible : un canal de clients régulier pour soutenir l’embauche." },
+  { key: "transmettre", label: "Valoriser / transmettre", ambition: "valoriser la boîte pour la transmettre ou la revendre un jour",
+    angle: "Le site = un actif qui reste et augmente la valeur perçue de l’entreprise le jour de la transmission." },
+] as const;
+
+/** Pastille cliquable (toggle). */
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition ${
+        active
+          ? "bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white border-transparent shadow"
+          : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 /** Surligne une variable dynamique (prénom, ville, métier…). */
 function V({ children }: { children: React.ReactNode }) {
   return <span className="text-[var(--color-accent)] font-semibold">{children}</span>;
@@ -105,10 +146,27 @@ export default function CallScript({
   const [mode, setMode] = useState<Mode>("prospection");
   // Au sein de la prospection : « site déjà envoyé par SMS » si un SMS est parti, sinon « découverte au tél ».
   const [version, setVersion] = useState<Version>(smsSent ? "sms" : "cold");
+  // Profil express du closing (cliquable pendant l'appel) — alimente le Pont + l'angle.
+  const [feelings, setFeelings] = useState<string[]>([]);
+  const [objective, setObjective] = useState<string | null>(null);
 
   useEffect(() => {
     setVersion(smsSent ? "sms" : "cold");
   }, [smsSent, prospect.id]);
+
+  // Réinitialise le profil quand on change de prospect.
+  useEffect(() => {
+    setFeelings([]);
+    setObjective(null);
+  }, [prospect.id]);
+
+  const toggleFeeling = (key: string) =>
+    setFeelings((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+
+  const painText = feelings.length
+    ? FEELINGS.filter((f) => feelings.includes(f.key)).map((f) => f.pain).join(" et ")
+    : null;
+  const obj = OBJECTIVES.find((o) => o.key === objective) ?? null;
 
   const prenom = firstName(prospect.dirigeant_prenom);
   const greet = prenom ? <V>{prenom}</V> : "monsieur";
@@ -316,12 +374,52 @@ export default function CallScript({
                 "Questions ouvertes, pas de oui/non. Reformule (« donc si je comprends bien… ») pour qu’il se sente écouté.",
                 "Ne montre RIEN tant que tu n’as pas une douleur claire ET un chiffre.",
               ]} />
+
+              {/* Profil express cliquable → compose le Pont + l'angle */}
+              <div className="mt-3 rounded-lg border border-sky-200 dark:border-sky-500/25 bg-sky-50 dark:bg-sky-500/5 p-2.5">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-sky-700 dark:text-sky-300">Profil express — clique pendant l’appel</span>
+                  {(feelings.length > 0 || objective) && (
+                    <button type="button" onClick={() => { setFeelings([]); setObjective(null); }}
+                      className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] underline">
+                      réinitialiser
+                    </button>
+                  )}
+                </div>
+                <div className="text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Comment il se sent aujourd’hui ? <span className="text-[var(--color-text-muted)]">(plusieurs possibles)</span></div>
+                <div className="flex flex-wrap gap-1.5">
+                  {FEELINGS.map((f) => (
+                    <Chip key={f.key} active={feelings.includes(f.key)} onClick={() => toggleFeeling(f.key)}>{f.label}</Chip>
+                  ))}
+                </div>
+                <div className="text-[10px] font-medium text-[var(--color-text-secondary)] mt-2.5 mb-1">Son moteur principal ?</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {OBJECTIVES.map((o) => (
+                    <Chip key={o.key} active={objective === o.key} onClick={() => setObjective(objective === o.key ? null : o.key)}>{o.label}</Chip>
+                  ))}
+                </div>
+                <div className="mt-2 text-[10px] text-sky-700 dark:text-sky-300/80 leading-snug">
+                  ↓ Ta sélection compose automatiquement le <b>Pont</b> et l’<b>angle</b> (phase 2).
+                </div>
+              </div>
             </Section>
 
-            {/* 2 — LE PONT */}
+            {/* 2 — LE PONT (composé depuis le profil express) */}
             <Section num={2} title="Le Pont (relier douleur → solution)" icon={<Link2 className="w-4 h-4" />} defaultOpen accent>
-              <Say>« Donc si je résume avec vos mots : aujourd’hui <V>[sa douleur]</V>, et ce que vous voulez vraiment
-                c’est <V>[son ambition]</V>. C’est <V>exactement</V> pour ça que je vous ai préparé ce site. »</Say>
+              <Say>« Donc si je résume avec vos mots : aujourd’hui {painText ? <V>{painText}</V> : <V>[sa douleur]</V>},
+                et ce que vous voulez vraiment c’est {obj ? <V>{obj.ambition}</V> : <V>[son ambition]</V>}.
+                C’est <V>exactement</V> pour ça que je vous ai préparé ce site. »</Say>
+              {(!painText || !obj) && (
+                <div className="text-[10px] text-[var(--color-text-muted)] italic">
+                  Clique sur les ressentis et le moteur en phase 1 (Découverte) pour remplir automatiquement les passages en couleur.
+                </div>
+              )}
+              {obj && (
+                <div className="mt-1 rounded-lg border border-violet-200 dark:border-violet-500/25 bg-violet-50 dark:bg-violet-500/5 px-2.5 py-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-accent)] mb-0.5">Angle conseillé — {obj.label}</div>
+                  <div className="text-[11px] leading-relaxed text-[var(--color-text-secondary)]">{obj.angle}</div>
+                </div>
+              )}
               <Tips items={[
                 "Le Pont se dit UNE seule fois, juste avant de montrer — c’est lui qui donne du sens à toute la présentation.",
                 "Reprends SES mots, pas les tiens. S’il a dit « j’en ai marre de courir après les devis », redis « courir après les devis ».",
@@ -335,6 +433,11 @@ export default function CallScript({
                 <span className="text-[var(--color-text-muted)]"> (partage d’écran, puis silence — laisse-le réagir en premier)</span></Say>
               <Say>« Là c’est votre page d’accueil avec <V>{metier}</V> à <V>{ville}</V>, vos avis, le bouton pour vous appeler.
                 Ça vous ressemble ? On garde comme ça ? »</Say>
+              {obj && (
+                <div className="rounded-lg border border-violet-200 dark:border-violet-500/25 bg-violet-50 dark:bg-violet-500/5 px-2.5 py-1.5 text-[11px] leading-relaxed text-[var(--color-text-secondary)]">
+                  <span className="font-semibold text-[var(--color-accent)]">Garde l’angle « {obj.label} » : </span>{obj.angle}
+                </div>
+              )}
               <Tips items={[
                 "Ne dis JAMAIS « c’est beau / c’est top » à sa place : pose des questions, laisse-le conclure que c’est bien.",
                 "Fais-le valider section par section (« on garde ? ») → chaque oui est un micro-engagement.",
