@@ -80,6 +80,10 @@ Explorer l'écosystème **API data.gouv** pour de l'enrichissement complémentai
   - [ ] Messaging Service Twilio (expéditeur + STOP)
   - [ ] Webhook `…/api/sms/incoming` configuré dans Twilio (post-déploiement)
   - [ ] (optim coût) domaine court pour repasser à 1 SMS/message
+- [x] **Tracking démo + notif Telegram** ✅ 2026-06-10 — `demo_views`, `/api/demo/track`, notif « 👀 il regarde sa démo » (cf. `docs/innovate-2026-06-10.md`)
+- [x] **Countdown d'expiration des démos** ✅ 2026-06-10 — 7 j à partir de la 1re ouverture, écran « expirée »
+- [x] **Démo télécommandée en live** ✅ 2026-06-10 — panneau « Démo live » dans la CallModal (Realtime), presence « 🟢 il regarde »
+- [x] **Bouton « Je le veux » + Stripe** ✅ 2026-06-10 — paiement en totalité, webhook -> `positive` + notif 💰. **Attente : Payment Link + webhook à créer dans Stripe, token Telegram.**
 - [ ] **Script d'appel IA** (Claude Haiku) dans la CallModal
 - [ ] **Transcription d'appel** (Whisper) — priorité basse
 - [ ] Explorer les API **data.gouv** pour enrichissement complémentaire

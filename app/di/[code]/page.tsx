@@ -1,9 +1,10 @@
-import { demoMetadata, DemoView } from "@/app/lib/demo";
+import { demoMetadata, StaticDemoView } from "@/app/lib/demo";
 import { getInstagramProspectByCode } from "@/app/lib/instagramDemo";
 import type { Metadata } from "next";
 
 // Aperçu sur-mesure d'un prospect Instagram : /di/{8 premiers caractères de l'UUID}.
-// Réutilise les templates de démo (DemoView) ; alimenté par instagram_prospects.
+// Réutilise les templates de démo (StaticDemoView : table différente, pas de
+// tracking demo_views ni de Stripe) ; alimenté par instagram_prospects.
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
@@ -21,5 +22,5 @@ export default async function InstagramDemoPage({
   const { code } = await params;
   const { style } = await searchParams;
   const prospect = await getInstagramProspectByCode(code);
-  return <DemoView prospect={prospect} style={style} />;
+  return <StaticDemoView prospect={prospect} style={style} />;
 }

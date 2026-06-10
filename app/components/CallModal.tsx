@@ -12,6 +12,7 @@ import AgeBadge from "./AgeBadge";
 import CompetitorSection from "./CompetitorSection";
 import CompanyInfo from "./CompanyInfo";
 import CallScript from "./CallScript";
+import LiveRemote from "./LiveRemote";
 import type { Call, Prospect, Status } from "../lib/types";
 
 interface Props {
@@ -592,6 +593,9 @@ export default function CallModal({
             )}
           </div>
         )}
+
+        {/* Télécommande de la démo live (Realtime) — pilote ce que le prospect voit pendant l'appel */}
+        {prospect && <LiveRemote prospectId={prospect.id} />}
 
         <details
           open={rdvOpen}

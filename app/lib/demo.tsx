@@ -2,16 +2,20 @@ import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { TEMPLATES, templateForMetier, type TemplateKey } from "@/app/lib/demoTemplate";
 import { metierLabel } from "@/app/maquette/templates/data";
 import type { TemplateProps } from "@/app/maquette/templates/data";
+import DemoLive from "@/app/components/DemoLive";
 import type { Metadata } from "next";
 
+/** Prospect d'une démo : props du template + id (tracking/realtime) + expiration. */
+export type DemoProspect = TemplateProps & { id: string; demo_expires_at: string | null };
+
 /** Colonnes nécessaires au rendu d'une démo. */
-const SELECT = "name, metier, phone, ville, rating, reviews, address";
+const SELECT = "id, name, metier, phone, ville, rating, reviews, address, demo_expires_at";
 
 /** Récupère un prospect par son UUID complet (route /demo/[id]). */
-export async function getProspectById(id: string): Promise<TemplateProps | null> {
+export async function getProspectById(id: string): Promise<DemoProspect | null> {
   if (!supabaseConfigured) return null;
   const { data } = await supabase.from("prospects").select(SELECT).eq("id", id).single();
-  return (data as TemplateProps) ?? null;
+  return (data as unknown as DemoProspect) ?? null;
 }
 
 /**
@@ -20,7 +24,7 @@ export async function getProspectById(id: string): Promise<TemplateProps | null>
  * par une plage uuid [code-0000…, (code+1)-0000…) — la comparaison uuid est
  * octet-par-octet, donc équivalente au préfixe hexadécimal.
  */
-export async function getProspectByCode(code: string): Promise<TemplateProps | null> {
+export async function getProspectByCode(code: string): Promise<DemoProspect | null> {
   if (!supabaseConfigured) return null;
   const c = code.toLowerCase();
   if (!/^[0-9a-f]{1,8}$/.test(c)) return null;
@@ -31,7 +35,7 @@ export async function getProspectByCode(code: string): Promise<TemplateProps | n
   let query = supabase.from("prospects").select(SELECT).gte("id", lo);
   if (hiPrefix) query = query.lt("id", `${hiPrefix}-0000-0000-0000-000000000000`);
   const { data } = await query.limit(1);
-  return (data?.[0] as TemplateProps) ?? null;
+  return (data?.[0] as unknown as DemoProspect) ?? null;
 }
 
 /** Base absolue pour les URLs de métadonnées (og:image doit être absolue pour WhatsApp/social). */
@@ -69,11 +73,39 @@ const messageStyle: React.CSSProperties = {
   color: "#6b7280",
 };
 
-/** Rendu de la démo (template auto selon métier, override possible via ?style=). */
-export function DemoView({ prospect, style }: { prospect: TemplateProps | null; style?: string }) {
+/**
+ * Rendu statique d'une démo (template seul, sans tracking ni Stripe).
+ * Utilisé par /di (prospects Instagram : table différente, pas de demo_views).
+ */
+export function StaticDemoView({ prospect, style }: { prospect: TemplateProps | null; style?: string }) {
   if (!prospect) return <div style={messageStyle}>Démo introuvable.</div>;
   const key: TemplateKey =
     style && style in TEMPLATES ? (style as TemplateKey) : templateForMetier(prospect.metier);
   const Template = TEMPLATES[key];
   return <Template {...prospect} nmfCredit />;
+}
+
+/**
+ * Rendu de la démo (template auto selon métier, override possible via ?style=).
+ * Enveloppée dans DemoLive : tracking des vues, countdown d'expiration,
+ * télécommande Realtime pendant l'appel et CTA paiement Stripe.
+ */
+export function DemoView({ prospect, style }: { prospect: DemoProspect | null; style?: string }) {
+  if (!prospect) return <div style={messageStyle}>Démo introuvable.</div>;
+  const key: TemplateKey =
+    style && style in TEMPLATES ? (style as TemplateKey) : templateForMetier(prospect.metier);
+  const { id, demo_expires_at, ...templateProps } = prospect;
+  const stripeLink = process.env.STRIPE_PAYMENT_LINK;
+  const stripeUrl = stripeLink
+    ? `${stripeLink}${stripeLink.includes("?") ? "&" : "?"}client_reference_id=${id}`
+    : null;
+  return (
+    <DemoLive
+      prospect={templateProps}
+      prospectId={id}
+      initialStyle={key}
+      initialExpiresAt={demo_expires_at}
+      stripeUrl={stripeUrl}
+    />
+  );
 }
