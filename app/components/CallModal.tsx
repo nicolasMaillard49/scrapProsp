@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import {
   X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
-  Calendar, ChevronDown, ChevronLeft, ChevronRight, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2,
+  Calendar, ChevronDown, ChevronLeft, ChevronRight, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2, Globe,
 } from "lucide-react";
 import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import { supabase } from "../lib/supabase";
@@ -409,16 +409,30 @@ export default function CallModal({
               </span>
             </div>
           )}
-          {prospect?.maps_url && (
-            <a
-              href={prospect.maps_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-[12px] text-violet-600 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200 transition"
-            >
-              <ExternalLink className="w-3 h-3" /> Fiche Google Maps
-            </a>
-          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            {prospect?.maps_url && (
+              <a
+                href={prospect.maps_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-[12px] text-violet-600 hover:text-violet-700 dark:text-violet-300 dark:hover:text-violet-200 transition"
+              >
+                <ExternalLink className="w-3 h-3" /> Fiche Google Maps
+              </a>
+            )}
+            {prospect?.website && (
+              <a
+                href={prospect.website}
+                target="_blank"
+                rel="noreferrer"
+                title={prospect.website}
+                className="inline-flex items-center gap-1 text-[12px] text-emerald-600 hover:text-emerald-700 dark:text-emerald-300 dark:hover:text-emerald-200 transition max-w-full"
+              >
+                <Globe className="w-3 h-3 shrink-0" />
+                <span className="truncate max-w-[220px]">{prospect.website.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</span>
+              </a>
+            )}
+          </div>
         </div>
 
         {prospect && <CompanyInfo prospect={prospect} />}
