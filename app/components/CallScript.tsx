@@ -39,6 +39,118 @@ const OBJECTIVES = [
     angle: "Le site = un actif qui reste et augmente la valeur perçue de l’entreprise le jour de la transmission." },
 ] as const;
 
+/* ════════════════ GOOGLE ADS — semaine test (source : sales-game/content) ════════════════ */
+
+/** Situation du site (phase RDV Ads) — clique sa réponse → relance dédiée. */
+const ADS_SITE_DIMS = [
+  {
+    key: "site", q: "Son site aujourd'hui ?",
+    opts: [
+      { key: "propre", label: "Site propre", relance: "« Vous avez fait le plus dur. Mais un site sans visiteurs, c'est une vitrine dans une rue où personne ne passe — nous on amène les gens devant. »" },
+      { key: "vieux", label: "Site daté", relance: "« Même daté, il peut convertir si les bonnes personnes tombent dessus au bon moment — c'est exactement ce que fait la pub. »" },
+      { key: "proche", label: "Fait par un proche", relance: "« C'est top d'avoir quelqu'un de confiance. La question c'est juste : quand on tape votre métier + votre ville, vous sortez où ? Votre proche peut même regarder comment on configure. »" },
+      { key: "aucun", label: "Pas de site", relance: "Cible non idéale pour les Ads (il faut une page d'atterrissage) → bascule sur l'offre site à 299€, ou propose le combo site + semaine test." },
+    ],
+  },
+  {
+    key: "clients", q: "Ses clients viennent d'où ?",
+    opts: [
+      { key: "boa", label: "Bouche-à-oreille", relance: "« Gardez-le précieusement, c'est la preuve que vous bossez bien. Mais il amène les clients de vos clients — pas ceux qui tapent votre métier sur Google sans connaître personne. Ceux-là, aujourd'hui, ils tombent sur vos concurrents. »" },
+      { key: "reseaux", label: "Réseaux sociaux", relance: "« Les réseaux travaillent votre image, mais c'est pas le même client : sur Insta on scrolle pour se divertir, sur Google on tape votre métier parce qu'on en a besoin MAINTENANT. Nous on capte ceux-là. »" },
+      { key: "pub", label: "Fait déjà de la pub", relance: "« Vous savez sur quels mots-clés vous êtes positionné et combien de demandes ça rentre par semaine ? Souvent on paie sans voir les chiffres. Notre semaine test est gratuite — vous comparez en vrai. »" },
+      { key: "saitpas", label: "Il sait pas trop", relance: "« Donc si demain ça ralentit, vous avez pas de robinet à ouvrir. C'est exactement ce qu'on teste : un canal mesurable, que vous contrôlez. »" },
+    ],
+  },
+] as const;
+
+interface AdsObjection {
+  key: string;
+  label: string;
+  line: string;
+  reponse: string;
+}
+
+/** Objections phase RDV (vouvoiement) — la réponse « good » du sales-game. */
+const ADS_OBJ_RDV: AdsObjection[] = [
+  { key: "agence", label: "J'ai déjà une agence",
+    line: "« Merci mais j'ai déjà une agence qui s'occupe de toute ma com. »",
+    reponse: "« Parfait, bon signe que vous investissiez déjà. Juste pour comprendre : elle vous fait apparaître en haut de Google quand on tape votre métier + votre ville ? C'est exactement ce qu'on teste — et pendant une semaine c'est gratuit. Vous comparez, vous gardez le meilleur. »" },
+  { key: "premier", label: "Je suis déjà premier sur Google",
+    line: "« Quand on tape mon nom je suis premier, ça me sert à rien. »",
+    reponse: "« Parfait — ceux qui vous connaissent vous trouvent. Maintenant tapez votre MÉTIER + votre ville, sans votre nom, comme quelqu'un qui ne vous connaît pas : vous ressortez où ? C'est sur cette recherche-là qu'on vous met en haut. »" },
+  { key: "fiche", label: "J'ai déjà ma fiche Google",
+    line: "« J'ai ma fiche Maps avec mes avis, pourquoi payer en plus ? »",
+    reponse: "« Bien joué d'avoir la fiche, gardez-la. Mais elle ressort surtout auprès des gens proches sur la carte. Les annonces s'affichent TOUT en haut, sur n'importe quelle recherche métier + ville, au-dessus de la carte et des concurrents qui ont aussi des avis. »" },
+  { key: "cliquepas", label: "Les gens cliquent pas sur les pubs",
+    line: "« Moi je clique jamais sur les pubs en haut de Google. »",
+    reponse: "« Vrai pour ce qu'on ne cherche pas. Mais quand vous tapez plombier + votre ville à 22h parce que ça fuit, vous cliquez sur quoi ? Le premier qui peut venir. Les gens qui cherchent votre métier sont déjà en train d'acheter. »" },
+  { key: "boa", label: "Le bouche-à-oreille me suffit",
+    line: "« Mes clients viennent par bouche-à-oreille, j'ai pas besoin de Google. »",
+    reponse: "« Excellente base — je ne veux pas la remplacer. J'ajoute juste une source : les gens qui tapent déjà votre métier sur Google et qui ne vous connaissent pas encore. Aujourd'hui ils tombent sur vos concurrents. On teste une semaine, gratuitement, et vous jugez. »" },
+  { key: "dejaappele", label: "On m'a déjà appelé 10 fois",
+    line: "« On m'a déjà appelé dix fois pour Google, j'en peux plus. »",
+    reponse: "« Je vous comprends, et je vais pas refaire le même speech. La différence : on ne vous demande pas d'investir — on configure tout, vous testez une semaine gratuitement, le budget pub va directement à Google. Vous risquez juste de voir des clients arriver. 30 secondes ? »" },
+  { key: "mail", label: "Envoyez-moi un mail",
+    line: "« Envoyez-moi tout ça par mail, je regarderai. »",
+    reponse: "« Avec plaisir pour le résumé. Mais un mail ne remplace pas les 10 minutes où on regarde VOTRE cas — votre métier, votre zone. On se cale un créneau rapide, et derrière je vous envoie tout par écrit. Plutôt matin ou après-midi ? »" },
+  { key: "marchepas", label: "J'y crois pas / ça marche pas",
+    line: "« Google Ads franchement j'y crois pas, c'est du flan. »",
+    reponse: "« Et vous avez raison de ne pas y croire sur parole — moi non plus. C'est exactement pour ça qu'on fait une semaine test gratuite : vous ne croyez rien, vous regardez juste les chiffres à la fin. On lance, on regarde ensemble ? »" },
+];
+
+/** Objections phase closing semaine test (tutoiement, comme la source). */
+const ADS_OBJ_CLOSE: AdsObjection[] = [
+  { key: "budgetpub", label: "Encore un budget pub",
+    line: "« Encore un budget pub à sortir, j'en ai marre de payer partout. »",
+    reponse: "« Clair avec toi : c'est ~100€ sur la semaine, payés directement à Google — pas à nous. Notre travail pendant le test est gratuit. Le pire scénario : 100€ pour savoir si ça te rentre des clients. »" },
+  { key: "derape", label: "Peur que ça dérape",
+    line: "« J'ai peur que ça me bouffe 500€ en deux jours. »",
+    reponse: "« Légitime — et c'est pour ça que le budget est PLAFONNÉ : 10 à 15€ par jour, Google ne peut pas dépenser un centime de plus, et tu peux tout couper en un clic. Sur la semaine, 100€ max. »" },
+  { key: "apres", label: "C'est combien après ?",
+    line: "« Et une fois la semaine gratuite finie, ça me coûte combien ? »",
+    reponse: "« Transparent : si tu vois que ça rentre et que tu veux continuer, la gestion c'est 750€/mois TTC. Mais tu décides SEULEMENT après avoir vu les résultats — zéro engagement pendant le test. On fait les calculs ensemble à la fin et tu tranches. »" },
+  { key: "tropcher", label: "750€/mois trop cher",
+    line: "« 750 balles par mois ? Beaucoup trop cher pour moi. »",
+    reponse: "« Reprends ton chiffre : un chantier moyen chez toi c'est [X]€. Si la machine t'en ramène ne serait-ce que deux par mois, on est où ? C'est pas une dépense, c'est un commercial qui bosse 24/7 — et tu le juges sur la semaine test avant de payer quoi que ce soit. »" },
+  { key: "essaye", label: "Déjà essayé, rien donné",
+    line: "« J'ai testé Google Ads, j'ai cramé 300 balles pour rien. »",
+    reponse: "« Ça m'aide de le savoir. C'était toi qui gérais, ou un expert ? Neuf fois sur dix le problème c'est le ciblage — mauvais mots-clés, mauvaise zone, pas de plafond. Là un expert pilote, et tu vois en une semaine si ça réagit différemment quand c'est bien fait. »" },
+  { key: "complique", label: "Trop compliqué / pas le temps",
+    line: "« J'ai déjà pas le temps pour ma compta, alors gérer ça en plus… »",
+    reponse: "« Justement : tu ne gères RIEN. L'expert configure, lance, surveille. La seule chose qui t'arrive, ce sont des appels de clients qui cherchaient déjà ton service. C'est l'inverse d'une charge. »" },
+  { key: "reflechir", label: "Je vais réfléchir",
+    line: "« C'est intéressant… mais je vais réfléchir. »",
+    reponse: "« Je t'entends. Mais réfléchir à quoi exactement ? On parle d'une semaine de test gratuite — on fait tout, et le seul truc à prévoir c'est ~100€ payés direct à Google. Qu'est-ce qui te fait hésiter ? »" },
+  { key: "conjoint", label: "J'en parle à ma femme / associé",
+    line: "« Faut que j'en parle à ma femme, c'est elle qui gère les sous. »",
+    reponse: "« Logique. Si elle était là, elle objecterait quoi à un test à 100€ qui peut ramener des clients ? … Et si ça ne tenait qu'à toi, tu le ferais ? » (si oui → cale un rappel précis à trois, date/heure notées)" },
+  { key: "commission", label: "Vous touchez une commission",
+    line: "« Vous me poussez à dépenser chez Google pour votre commission, c'est ça ? »",
+    reponse: "« Franc avec toi : pendant le test je touche zéro — service gratuit, budget direct chez Google. Je suis payé seulement APRÈS, et uniquement si ça te rentre des clients et que tu continues. J'ai tout intérêt à ce que ça marche : on a les mêmes intérêts. »" },
+];
+
+/** Objection Ads cliquable : chip → réplique de l'artisan + ta réponse. */
+function AdsObjections({ items }: { items: AdsObjection[] }) {
+  const [sel, setSel] = useState<string | null>(null);
+  const cur = items.find((o) => o.key === sel) ?? null;
+  return (
+    <div>
+      <div className="text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Il dit quoi ? — clique l&apos;objection</div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((o) => (
+          <Chip key={o.key} active={sel === o.key} onClick={() => setSel(sel === o.key ? null : o.key)}>{o.label}</Chip>
+        ))}
+      </div>
+      {cur && (
+        <>
+          <p className="mt-2 text-[11px] italic text-[var(--color-text-muted)]">{cur.line}</p>
+          <Relance>{cur.reponse}</Relance>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Pastille cliquable (toggle). */
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -188,8 +300,9 @@ function Section({
   );
 }
 
-type Mode = "prospection" | "closing";
+type Mode = "prospection" | "closing" | "ads";
 type Version = "sms" | "cold";
+type AdsStep = "rdv" | "test";
 
 export default function CallScript({
   prospect,
@@ -198,10 +311,15 @@ export default function CallScript({
   prospect: Prospect;
   smsSent: boolean;
 }) {
-  // Étape 1 = prospection (décrocher le RDV), étape 2 = closing (vendre à 299€ après le RDV).
-  const [mode, setMode] = useState<Mode>("prospection");
+  // Étape 1 = prospection (décrocher le RDV), étape 2 = closing (vendre à 299€ après le RDV),
+  // ads = vendre la semaine test Google Ads. Les prospects du scrape Ads ouvrent direct sur l'onglet Ads.
+  const [mode, setMode] = useState<Mode>(prospect.source === "ads" ? "ads" : "prospection");
   // Au sein de la prospection : « site déjà envoyé par SMS » si un SMS est parti, sinon « découverte au tél ».
   const [version, setVersion] = useState<Version>(smsSent ? "sms" : "cold");
+  // Au sein de l'onglet Ads : RDV (décrocher la visio) puis Semaine test (closer en visio).
+  const [adsStep, setAdsStep] = useState<AdsStep>("rdv");
+  // Situation Ads cliquable (site + provenance clients) → relances dédiées.
+  const [adsSit, setAdsSit] = useState<Record<string, string>>({});
   // Profil express du closing (cliquable pendant l'appel) — alimente le Pont + l'angle.
   const [feelings, setFeelings] = useState<string[]>([]);
   const [objective, setObjective] = useState<string | null>(null);
@@ -219,6 +337,10 @@ export default function CallScript({
     setObjective(null);
     setBiz({});
     setChannels([]);
+    setAdsSit({});
+    setAdsStep("rdv");
+    setMode(prospect.source === "ads" ? "ads" : "prospection");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prospect.id]);
 
   const toggleFeeling = (key: string) =>
@@ -258,13 +380,15 @@ export default function CallScript({
       <div className="flex items-center gap-2 mb-3 text-sm font-semibold text-[var(--color-text-primary)]">
         {mode === "prospection" ? (
           <><PhoneCall className="w-4 h-4 text-[var(--color-accent)]" /> Script de prospection — RDV</>
-        ) : (
+        ) : mode === "closing" ? (
           <><Handshake className="w-4 h-4 text-[var(--color-accent)]" /> Script de closing — 299€</>
+        ) : (
+          <><Megaphone className="w-4 h-4 text-[var(--color-accent)]" /> Script Google Ads — semaine test</>
         )}
       </div>
 
-      {/* Sélecteur d'étape : Prospection (décrocher le RDV) vs Closing (vendre au RDV) */}
-      <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] mb-3">
+      {/* Sélecteur d'offre : Prospection (RDV site) / Closing (vendre le site) / Ads (semaine test) */}
+      <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] mb-3">
         <button onClick={() => setMode("prospection")} className={`${tabBase} ${mode === "prospection" ? tabOn : tabOff}`}>
           <PhoneCall className="w-3.5 h-3.5" />
           Prospection
@@ -273,9 +397,196 @@ export default function CallScript({
           <Handshake className="w-3.5 h-3.5" />
           Closing
         </button>
+        <button onClick={() => setMode("ads")} className={`${tabBase} ${mode === "ads" ? tabOn : tabOff}`}>
+          <Megaphone className="w-3.5 h-3.5" />
+          Ads
+        </button>
       </div>
 
-      {mode === "prospection" ? (
+      {mode === "ads" && (
+        <>
+          {/* Sous-étape : décrocher le RDV vs closer la semaine test en visio */}
+          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] mb-3">
+            <button onClick={() => setAdsStep("rdv")} className={`${tabBase} ${adsStep === "rdv" ? tabOn : tabOff}`}>
+              <PhoneCall className="w-3.5 h-3.5" />
+              1. RDV (tél)
+            </button>
+            <button onClick={() => setAdsStep("test")} className={`${tabBase} ${adsStep === "test" ? tabOn : tabOff}`}>
+              <Presentation className="w-3.5 h-3.5" />
+              2. Semaine test (visio)
+            </button>
+          </div>
+
+          {/* Site détecté par le scrape — la cible idéale Ads a déjà un site */}
+          <div className={`mb-3 px-3 py-2 rounded-lg border text-[11px] leading-relaxed ${
+            prospect.website
+              ? "bg-emerald-50 dark:bg-emerald-500/5 border-emerald-200 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-200/90"
+              : "bg-amber-50 dark:bg-amber-500/5 border-amber-200 dark:border-amber-500/20 text-amber-800 dark:text-amber-200/90"
+          }`}>
+            {prospect.website ? (
+              <>🎯 <b>Site détecté</b> — cible idéale Ads :{" "}
+                <a href={prospect.website} target="_blank" rel="noreferrer" className="underline font-medium break-all">
+                  {prospect.website.replace(/^https?:\/\/(www\.)?/, "").split("/")[0]}
+                </a>
+                {" "}· ouvre-le avant d&apos;appeler + tape « {metier} {ville} » sur Google pour voir où il sort.</>
+            ) : (
+              <>⚠️ <b>Pas de site détecté</b> — l&apos;offre Ads cible ceux qui en ont déjà un.
+                Vérifie sa fiche Maps, sinon bascule sur l&apos;offre site (onglet Prospection) ou propose le combo site + semaine test.</>
+            )}
+          </div>
+
+          {adsStep === "rdv" ? (
+            <>
+              {/* Mindset RDV Ads */}
+              <div className="mb-3 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-500/5 border border-violet-200 dark:border-violet-500/20 text-[11px] text-violet-800 dark:text-violet-100/80 leading-relaxed">
+                Tu ne vends <span className="font-semibold text-violet-700 dark:text-violet-200">rien aujourd&apos;hui</span> : tu proposes un{" "}
+                <span className="font-semibold text-violet-700 dark:text-violet-200">test gratuit</span> d&apos;une semaine.
+                70 % des RDV acceptent la semaine test, 50 % des tests finissent closés.
+                Objectif unique : <span className="font-semibold text-violet-700 dark:text-violet-200">la visio de 10 min</span>.
+              </div>
+
+              <ol className="space-y-2">
+                <Section num={1} title="Ouverture" icon={<PhoneCall className="w-4 h-4" />} defaultOpen accent>
+                  <Say>« Si je vous dis que c&apos;est un appel de prospection, vous raccrochez, ou vous me laissez <V>10 secondes</V> ? »</Say>
+                  <Say>« Je suis tombé sur votre site en cherchant un <V>{metier}</V> à <V>{ville}</V> — il est bien.
+                    Le souci, c&apos;est que pour vous trouver, il faut déjà vous chercher <V>vous</V>. »</Say>
+                  <Tips items={[
+                    "Pause après l'accroche : laisse-le réagir.",
+                    "Les 10 techniques d'ouverture de l'onglet Prospection marchent aussi ici.",
+                  ]} />
+                </Section>
+
+                <Section num={2} title="Question d'entrée + situation" icon={<Search className="w-4 h-4" />} defaultOpen accent>
+                  <Ask>« Aujourd&apos;hui, vos clients viennent d&apos;où ? »</Ask>
+                  <Ask>« Et votre site, il vous ramène combien de demandes par mois, à peu près ? »</Ask>
+                  <div className="mt-3 rounded-lg border border-emerald-200 dark:border-emerald-500/25 bg-emerald-50/60 dark:bg-emerald-500/5 p-2.5">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Sa situation — clique sa réponse</span>
+                      {Object.keys(adsSit).length > 0 && (
+                        <button type="button" onClick={() => setAdsSit({})}
+                          className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] underline">
+                          réinitialiser
+                        </button>
+                      )}
+                    </div>
+                    {ADS_SITE_DIMS.map((dim) => {
+                      const sel = adsSit[dim.key];
+                      const selOpt = dim.opts.find((o) => o.key === sel);
+                      return (
+                        <div key={dim.key} className="mb-2.5 last:mb-0">
+                          <div className="text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">{dim.q}</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {dim.opts.map((o) => (
+                              <Chip key={o.key} active={sel === o.key} onClick={() =>
+                                setAdsSit((prev) => prev[dim.key] === o.key
+                                  ? Object.fromEntries(Object.entries(prev).filter(([k]) => k !== dim.key))
+                                  : { ...prev, [dim.key]: o.key })
+                              }>{o.label}</Chip>
+                            ))}
+                          </div>
+                          {selOpt && <Relance>{selOpt.relance}</Relance>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Section>
+
+                <Section num={3} title="Le mécanisme (20 secondes)" icon={<Megaphone className="w-4 h-4" />} defaultOpen accent>
+                  <Say>« Notre service c&apos;est simple : on met votre entreprise <V>en tête de Google</V> quand quelqu&apos;un
+                    cherche <V>{metier}</V> dans votre zone. Et on vous propose de tester ça <V>gratuitement pendant 1 semaine</V>. »</Say>
+                  <Say>« Il y a juste un petit budget pub à prévoir — environ <V>100€</V> sur la semaine, payés <V>directement à Google</V>,
+                    pas à nous. Notre travail pendant le test, il est offert. »</Say>
+                  <Tips items={[
+                    "20 secondes max : mécanisme → test gratuit → budget transparent. Pas de jargon (Quality Score, CPC…).",
+                    "Le « directement à Google, pas à nous » désamorce 80 % de la méfiance.",
+                  ]} />
+                </Section>
+
+                <Section num={4} title="Projection + prise de RDV" icon={<CalendarCheck className="w-4 h-4" />} defaultOpen accent>
+                  <Say>« Imaginez : demain quelqu&apos;un tape <V>{metier} {ville}</V> — il tombe sur <V>vous</V> en premier,
+                    au-dessus de tous vos concurrents. C&apos;est ça qu&apos;on teste. »</Say>
+                  <Say>« On se cale <V>10 minutes en visio</V> ? Je vous montre votre cas concret — votre zone, ce que les gens
+                    cherchent — et vous me direz si ça vaut le coup de lancer la semaine. » → <V>RDV</V></Say>
+                  <Tips items={[
+                    "Récupère le prénom, justifie la visio (« je vous montre VOTRE zone en partage d'écran »), confirme le créneau — anti no-show, comme pour les sites.",
+                    <>Cale le créneau dans « <b>Caler un RDV</b> » sur la fiche → confirme par SMS → le jour J, bascule sur l&apos;étape <b>2. Semaine test</b>.</>,
+                  ]} />
+                </Section>
+
+                <Section num={5} title="Objections (RDV)" icon={<ShieldAlert className="w-4 h-4" />} defaultOpen>
+                  <AdsObjections items={ADS_OBJ_RDV} />
+                </Section>
+              </ol>
+            </>
+          ) : (
+            <>
+              {/* Mindset closing semaine test */}
+              <div className="mb-3 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-500/5 border border-violet-200 dark:border-violet-500/20 text-[11px] text-violet-800 dark:text-violet-100/80 leading-relaxed">
+                En <span className="font-semibold text-violet-700 dark:text-violet-200">visio</span>, tutoiement naturel.
+                Tu fais le <span className="font-semibold text-violet-700 dark:text-violet-200">diagnostic AVANT l&apos;offre</span>,
+                tu annonces les <span className="font-semibold text-violet-700 dark:text-violet-200">3 chiffres dans l&apos;ordre</span> (gratuit → 100€ Google → 750€/mois ensuite),
+                et après le close : <span className="font-semibold text-violet-700 dark:text-violet-200">silence total</span>.
+                Objectif : <span className="font-semibold text-violet-700 dark:text-violet-200">formulaire rempli pendant l&apos;appel</span>.
+              </div>
+
+              <ol className="space-y-2">
+                <Section num={1} title="Brise-glace + positionnement" icon={<Handshake className="w-4 h-4" />} defaultOpen accent>
+                  <Say>« Salut {greet}, ça va depuis notre appel ? On peut se tutoyer ? »</Say>
+                  <Say>« Avant de commencer : je suis pas là pour te vendre du rêve. On lance un test, on regarde les chiffres
+                    ensemble à la fin, et <V>c&apos;est toi qui tranches</V>. Ça te va comme deal ? »</Say>
+                  <Tips items={["Le « c'est toi qui tranches » pose le cadre : pas de pression, des chiffres. Il se détend → il écoute."]} />
+                </Section>
+
+                <Section num={2} title="Diagnostic (3 questions clés)" icon={<Search className="w-4 h-4" />} defaultOpen accent>
+                  <Ask>« C&apos;est quoi ton service le plus <V>rentable</V> — celui que tu voudrais vendre plus souvent ? »</Ask>
+                  <Ask>« Un chantier moyen là-dessus, ça te rapporte combien à peu près ? »</Ask>
+                  <Ask>« Tu interviens dans quel rayon autour de <V>{ville}</V> ? »</Ask>
+                  <Tips items={[
+                    "Note LE chiffre (valeur d'un chantier) : c'est lui qui justifiera les 750€/mois au close.",
+                    "On lance la campagne sur SON service le plus rentable, pas sur tout — dis-le-lui, ça rassure.",
+                    "Pendant qu'il parle, ouvre son site en partage d'écran et tape son métier + sa ville sur Google : montre-lui où il sort.",
+                  ]} />
+                </Section>
+
+                <Section num={3} title="Le mécanisme (coquille vide)" icon={<Link2 className="w-4 h-4" />} defaultOpen accent>
+                  <Say>« Ton site, il est bien — mais un site sans visiteurs c&apos;est une <V>coquille vide</V> :
+                    une vitrine dans une rue où personne ne passe. »</Say>
+                  <Say>« Là, regarde : quand on tape <V>{metier} {ville}</V>, les 3-4 premiers résultats sont des <V>annonces</V>.
+                    Les gens cliquent là, au moment exact où ils ont besoin. Nous, on met <V>ton site</V> à cette place. »</Say>
+                </Section>
+
+                <Section num={4} title="L'offre (3 chiffres, dans l'ordre)" icon={<BadgeEuro className="w-4 h-4" />} defaultOpen accent>
+                  <Say>« 1. Pendant la semaine test, notre travail est <V>gratuit</V> — l&apos;expert configure tout, lance, surveille. »</Say>
+                  <Say>« 2. Le seul budget, c&apos;est la pub : <V>10-15€ par jour plafonnés</V>, environ <V>100€ sur la semaine</V>,
+                    payés directement à Google sur <V>ton</V> compte. »</Say>
+                  <Say>« 3. Et si à la fin tu vois que ça rentre et que tu veux continuer, la gestion c&apos;est <V>750€/mois</V> —
+                    mais ça, tu le décides <V>après</V> avoir vu les chiffres. Zéro engagement pendant le test. »</Say>
+                  <Tips items={[
+                    "Annonce les 3 chiffres toi-même, dans cet ordre — s'il découvre le 750€ plus tard, tu passes pour un piège.",
+                    <>Recadrage valeur : « Tu m&apos;as dit qu&apos;un chantier vaut <V>[X]€</V>. Un paysagiste chez nous a signé un chantier à 15 000€ dès sa semaine test. Deux chantiers par mois et la gestion est payée plusieurs fois. »</>,
+                  ]} />
+                </Section>
+
+                <Section num={5} title="Le close + logistique" icon={<CalendarCheck className="w-4 h-4" />} defaultOpen accent>
+                  <Say>« C&apos;est bon pour toi tout ça ? »
+                    <span className="text-[var(--color-text-muted)]"> → SILENCE total. Le premier qui parle a perdu.</span></Say>
+                  <Tips items={[
+                    <><b>Dès le oui</b> : formulaire rempli <b>pendant l&apos;appel</b> (2 min, vous le faites ensemble) — ou max 5 min après, jamais « je te l&apos;envoie pour ce soir ».</>,
+                    "Le budget pub se met sur SON compte Google (l'argent reste chez lui) — guide-le pas à pas.",
+                    "Transmets le formulaire à l'expert, cale le point résultats à J+7 dans « Caler un RDV », passe la fiche en Positif.",
+                  ]} />
+                </Section>
+
+                <Section num={6} title="Objections (semaine test)" icon={<ShieldAlert className="w-4 h-4" />} defaultOpen>
+                  <AdsObjections items={ADS_OBJ_CLOSE} />
+                </Section>
+              </ol>
+            </>
+          )}
+        </>
+      )}
+
+      {mode === "prospection" && (
         <>
           {/* Sous-version : SMS déjà envoyé vs cold */}
           <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] mb-3">
@@ -417,7 +728,9 @@ export default function CallScript({
             )}
           </ol>
         </>
-      ) : (
+      )}
+
+      {mode === "closing" && (
         <>
           {/* Mindset closing */}
           <div className="mb-3 px-3 py-2 rounded-lg bg-violet-50 dark:bg-violet-500/5 border border-violet-200 dark:border-violet-500/20 text-[11px] text-violet-800 dark:text-violet-100/80 leading-relaxed">

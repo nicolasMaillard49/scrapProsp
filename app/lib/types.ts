@@ -32,6 +32,7 @@ export interface Prospect {
   categorie: string | null;
   source: string | null;
   radar_detected_at: string | null;
+  website: string | null;
   // Engagement démo (migration 009)
   demo_first_viewed_at: string | null;
   demo_expires_at: string | null;

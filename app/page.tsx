@@ -22,6 +22,7 @@ import type { Prospect, Status } from "./lib/types";
 import { useProspects } from "./lib/useProspects";
 import { gbpBadge, computeGbpScore } from "./lib/gbp";
 import { opportunityScore, opportunityBadge } from "./lib/opportunity";
+import { metierLabel } from "./maquette/templates/data";
 
 const statusConfig: Record<Status, { label: string; ring: string; row: string; text: string }> = {
   todo: { label: "À appeler", ring: "ring-neutral-400 dark:ring-neutral-700", row: "border-l-[3px] border-l-neutral-300 dark:border-l-transparent dark:bg-neutral-500/5", text: "text-neutral-500 dark:text-neutral-400" },
@@ -47,13 +48,14 @@ function HomeInner() {
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | Status>("todo");
-  const [metierFilter, setMetierFilter] = useState<"all" | "plombier" | "electricien">("all");
+  const [metierFilter, setMetierFilter] = useState<string>("all");
   const [villeFilter, setVilleFilter] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [openNowOnly, setOpenNowOnly] = useState(true);
   const [hideRadie, setHideRadie] = useState(true);
   const [jeuneOnly, setJeuneOnly] = useState(false);
   const [radarOnly, setRadarOnly] = useState(false);
+  const [adsOnly, setAdsOnly] = useState(false);
   const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity" | "radar">("age-asc");
   const [tourneeMode, setTourneeMode] = useState(false);
   const [focusOpen, setFocusOpen] = useState(false);
@@ -121,6 +123,12 @@ function HomeInner() {
     return Array.from(new Set(pool.map((p) => p.ville))).sort();
   }, [prospects, regionFilter]);
 
+  // Métiers présents en base (le scrape Ads en ajoute : serrurier, vitrier, déménageur…)
+  const metiers = useMemo(() => {
+    const pool = regionFilter === "all" ? prospects : prospects.filter((p) => p.region === regionFilter);
+    return Array.from(new Set(pool.map((p) => p.metier).filter(Boolean))).sort();
+  }, [prospects, regionFilter]);
+
   const effectiveNow = openNowOnly ? now : null;
 
   const filtered = useMemo(() => {
@@ -137,6 +145,7 @@ function HomeInner() {
         if (hideRadie && _radie) return false;
         if (jeuneOnly && !_jeune) return false;
         if (radarOnly && p.source !== "radar") return false;
+        if (adsOnly && p.source !== "ads") return false;
         if (q) {
           const matchesText = `${p.name} ${p.ville} ${p.metier} ${p.address || ""}`.toLowerCase().includes(q);
           const matchesPhone = qDigits.length >= 2 && p.phone.replace(/\D/g, "").includes(qDigits);
@@ -170,12 +179,12 @@ function HomeInner() {
         return a.p.name.localeCompare(b.p.name);
       })
       .map((e) => e.p);
-  }, [enriched, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, jeuneOnly, radarOnly, sortBy, effectiveNow, now]);
+  }, [enriched, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, jeuneOnly, radarOnly, adsOnly, sortBy, effectiveNow, now]);
 
   // Auto-reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, hideRadie, jeuneOnly, radarOnly, sortBy, pageSize]);
+  }, [search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, hideRadie, jeuneOnly, radarOnly, adsOnly, sortBy, pageSize]);
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -192,7 +201,7 @@ function HomeInner() {
 
   const hasActiveFilters =
     filter !== "all" || regionFilter !== "all" || metierFilter !== "all" ||
-    villeFilter !== "all" || openNowOnly || jeuneOnly || radarOnly || !hideRadie || !!search;
+    villeFilter !== "all" || openNowOnly || jeuneOnly || radarOnly || adsOnly || !hideRadie || !!search;
 
   const resetFilters = () => {
     setSearch("");
@@ -202,6 +211,8 @@ function HomeInner() {
     setRegionFilter("all");
     setOpenNowOnly(false);
     setJeuneOnly(false);
+    setRadarOnly(false);
+    setAdsOnly(false);
     setHideRadie(true);
   };
 
@@ -385,10 +396,9 @@ function HomeInner() {
             />
           </div>
           <SelectIcon icon={<Filter className="w-3.5 h-3.5" />}>
-            <select value={metierFilter} onChange={(e) => setMetierFilter(e.target.value as typeof metierFilter)} className="bg-transparent text-sm outline-none cursor-pointer">
+            <select value={metierFilter} onChange={(e) => setMetierFilter(e.target.value)} className="bg-transparent text-sm outline-none cursor-pointer">
               <option value="all">Métier</option>
-              <option value="plombier">Plombiers</option>
-              <option value="electricien">Électriciens</option>
+              {metiers.map((m) => <option key={m} value={m}>{metierLabel(m)}</option>)}
             </select>
           </SelectIcon>
           <SelectIcon icon={<MapPin className="w-3.5 h-3.5" />}>
@@ -445,6 +455,18 @@ function HomeInner() {
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><line x1="12" y1="2" x2="12" y2="4"/></svg>
             <span className="hidden min-[420px]:inline">Radar</span>
+          </button>
+          <button
+            onClick={() => setAdsOnly((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
+              adsOnly
+                ? "bg-fuchsia-500/15 border-fuchsia-500/40 text-fuchsia-700 dark:text-fuchsia-200"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+            }`}
+            title="N'afficher que les prospects Google Ads (scrape villes ≥ 5000 hab — la fiche s'ouvre direct sur le script Ads)"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+            <span className="hidden min-[420px]:inline">Ads</span>
           </button>
           <button
             onClick={() => setHideRadie((v) => !v)}
