@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TEMPLATES, type TemplateKey } from "@/app/lib/demoTemplate";
 import type { TemplateProps } from "@/app/maquette/templates/data";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
@@ -100,7 +100,15 @@ export default function DemoLive({ prospect, prospectId, initialStyle, initialEx
         setStyleKey(cmd.value as TemplateKey);
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else if (cmd.action === "goto" && cmd.value) {
-        document.getElementById(cmd.value)?.scrollIntoView({ behavior: "smooth" });
+        // SalonTemplate a ses propres ancres (prestations/galerie/avis) — alias par section.
+        const ALIASES: Record<string, string[]> = {
+          services: ["services", "prestations"],
+          apropos: ["apropos", "galerie", "avis"],
+        };
+        for (const id of ALIASES[cmd.value] ?? [cmd.value]) {
+          const el = document.getElementById(id);
+          if (el) { el.scrollIntoView({ behavior: "smooth" }); break; }
+        }
       } else if (cmd.action === "ping") {
         setPinged(true);
         setTimeout(() => setPinged(false), 2200);
@@ -125,7 +133,11 @@ export default function DemoLive({ prospect, prospectId, initialStyle, initialEx
   const urgent = expiryMs != null && expiryMs < 24 * 3600 * 1000;
   const nmfPhone = process.env.NEXT_PUBLIC_NMF_PHONE;
 
-  const Template = TEMPLATES[styleKey];
+  // Mémoïsé : le tick du countdown (1 s) ne doit pas re-rendre tout le template.
+  const templateEl = useMemo(() => {
+    const Template = TEMPLATES[styleKey];
+    return <Template {...prospect} nmfCredit />;
+  }, [styleKey, prospect]);
 
   const onCta = () => {
     if (!stripeUrl) return;
@@ -136,7 +148,7 @@ export default function DemoLive({ prospect, prospectId, initialStyle, initialEx
   return (
     <>
       <div style={expired ? { filter: "blur(8px)", pointerEvents: "none", userSelect: "none", height: "100vh", overflow: "hidden" } : undefined}>
-        <Template {...prospect} nmfCredit />
+        {templateEl}
       </div>
 
       <style dangerouslySetInnerHTML={{ __html: `

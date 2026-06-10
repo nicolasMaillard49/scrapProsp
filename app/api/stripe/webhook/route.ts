@@ -59,11 +59,12 @@ export async function POST(req: NextRequest) {
     if (prospectId) {
       const { data: prospect } = await supabase
         .from("prospects")
-        .select("id, name, ville, phone")
+        .select("id, name, ville, phone, paid_at")
         .eq("id", prospectId)
         .single();
 
-      if (prospect) {
+      // Idempotence : Stripe rejoue les webhooks non-2xx / réseau — ne pas re-notifier.
+      if (prospect && !prospect.paid_at) {
         await supabase
           .from("prospects")
           .update({ status: "positive", paid_at: new Date().toISOString() })

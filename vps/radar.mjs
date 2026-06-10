@@ -141,8 +141,10 @@ async function main() {
 
   log("Radar VPS — demarrage. Scraper:", SCRAPER_URL);
 
-  // 1. Combos actifs (metier, region) — dedup en JS
-  const comboRows = await sbSelectAll("prospects?select=metier,region&metier=not.is.null&region=not.is.null");
+  // 1. Combos actifs (metier, region) — dedup en JS.
+  // On EXCLUT les prospects du scrape Ads : leurs 7 metiers x toutes les zones
+  // feraient exploser les combos (~1200 scrapes/nuit en mode complet ≈ 19 h).
+  const comboRows = await sbSelectAll("prospects?select=metier,region&metier=not.is.null&region=not.is.null&source=neq.ads");
   const seen = new Set();
   const combos = [];
   for (const r of comboRows) {
