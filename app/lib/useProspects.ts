@@ -15,16 +15,26 @@ export function useProspects() {
       return;
     }
     async function load() {
-      const { data, error } = await supabase
-        .from("prospects")
-        .select("*, calls(*)")
-        .order("created_at", { ascending: true });
+      // PostgREST plafonne à 1000 lignes par requête : pagination obligatoire
+      // au-delà (la base dépasse ce cap depuis le scrape Ads).
+      const PAGE = 1000;
+      const all: Prospect[] = [];
+      for (let offset = 0; ; offset += PAGE) {
+        const { data, error } = await supabase
+          .from("prospects")
+          .select("*, calls(*)")
+          .order("created_at", { ascending: true })
+          .range(offset, offset + PAGE - 1);
 
-      if (error) {
-        console.error("Failed to load prospects:", error);
+        if (error) {
+          console.error("Failed to load prospects:", error);
+          break;
+        }
+        all.push(...(data ?? []));
+        if (!data || data.length < PAGE) break;
       }
 
-      setProspects(data ?? []);
+      setProspects(all);
       setLoaded(true);
     }
     load();
