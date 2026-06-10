@@ -56,6 +56,62 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   );
 }
 
+/** Relance à dire en réaction à une réponse (réponse interactive, vert = « à répondre »). */
+function Relance({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mt-1.5 text-[12px] leading-relaxed text-emerald-800 dark:text-emerald-200/90 bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20 rounded-lg px-2.5 py-1.5">
+      <span className="font-semibold text-emerald-600 dark:text-emerald-400">↳ </span>{children}
+    </p>
+  );
+}
+
+/** Dimensions « vie d'entreprise » cliquables — chaque réponse a une relance dédiée. */
+const BIZ_DIMS = [
+  {
+    key: "anciennete", q: "Depuis quand installé ?",
+    opts: [
+      { key: "jeune", label: "< 2 ans", relance: "Le lancement, c’est LE moment pour se rendre visible : le site pose les bases tout de suite, avant les concurrents." },
+      { key: "etabli", label: "2–10 ans", relance: "Vous avez déjà la réputation. Le site capte tous ceux qui vous cherchent sur Google et ne tombent que sur une fiche." },
+      { key: "veteran", label: "10 ans +", relance: "Tout construit au bouche-à-oreille, bravo. Imaginez le même résultat AVEC un canal qui tourne 24/7 en plus." },
+    ],
+  },
+  {
+    key: "equipe", q: "Seul ou en équipe ?",
+    opts: [
+      { key: "seul", label: "Seul", relance: "Tout repose sur vous → le site qualifie et filtre les demandes avant même que vous décrochiez." },
+      { key: "petite", label: "2–5", relance: "Pour nourrir l’équipe en chantiers, il faut un flux régulier — pas seulement le bouche-à-oreille." },
+      { key: "grande", label: "5 +", relance: "À votre taille, l’image compte : le client compare et appelle celui qui fait le plus sérieux." },
+    ],
+  },
+  {
+    key: "charge", q: "Charge en ce moment ?",
+    opts: [
+      { key: "deborde", label: "Débordé", relance: "Vous êtes plein MAINTENANT. Et dans 3 mois ? Le site lisse le flux pour ne plus dépendre des périodes." },
+      { key: "ok", label: "Ça va", relance: "Bon moment pour installer le canal pendant que c’est calme — les effets arrivent en différé." },
+      { key: "trous", label: "Trous au planning", relance: "Le site remplit justement les trous : il travaille même quand vous êtes sur un chantier." },
+      { key: "saison", label: "Saisonnier", relance: "Pour des résultats en haute saison, il faut être visible AVANT — on prend de l’avance maintenant." },
+    ],
+  },
+  {
+    key: "digital", q: "Déjà tenté le digital ?",
+    opts: [
+      { key: "jamais", label: "Jamais", relance: "Page blanche → parfait, aucune mauvaise habitude à corriger. On part propre." },
+      { key: "vieux", label: "Vieux site", relance: "Un site daté fait fuir autant qu’une absence de site. Là vous voyez le neuf avant de décider." },
+      { key: "decu", label: "Déjà payé, déçu", relance: "« Qu’est-ce qui n’a pas marché ? » (écoute) → Nous le site est DÉJÀ fait : vous le voyez avant de payer un centime." },
+      { key: "reseaux", label: "Réseaux only", relance: "Instagram c’est bien, mais ça ne sort pas sur Google — le site, si, là où les gens cherchent près de chez eux." },
+    ],
+  },
+] as const;
+
+/** Canaux d'acquisition actuels (multi) — sert à montrer sa dépendance. */
+const CHANNELS = [
+  { key: "boa", label: "Bouche-à-oreille" },
+  { key: "lbc", label: "Le Bon Coin" },
+  { key: "pj", label: "Pages Jaunes" },
+  { key: "social", label: "Réseaux sociaux" },
+  { key: "rien", label: "Rien de structuré" },
+] as const;
+
 /** Surligne une variable dynamique (prénom, ville, métier…). */
 function V({ children }: { children: React.ReactNode }) {
   return <span className="text-[var(--color-accent)] font-semibold">{children}</span>;
@@ -149,6 +205,9 @@ export default function CallScript({
   // Profil express du closing (cliquable pendant l'appel) — alimente le Pont + l'angle.
   const [feelings, setFeelings] = useState<string[]>([]);
   const [objective, setObjective] = useState<string | null>(null);
+  // Vie d'entreprise : réponse choisie par dimension + canaux d'acquisition (multi).
+  const [biz, setBiz] = useState<Record<string, string>>({});
+  const [channels, setChannels] = useState<string[]>([]);
 
   useEffect(() => {
     setVersion(smsSent ? "sms" : "cold");
@@ -158,10 +217,26 @@ export default function CallScript({
   useEffect(() => {
     setFeelings([]);
     setObjective(null);
+    setBiz({});
+    setChannels([]);
   }, [prospect.id]);
 
   const toggleFeeling = (key: string) =>
     setFeelings((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  const toggleChannel = (key: string) =>
+    setChannels((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  const setBizDim = (dim: string, opt: string) =>
+    setBiz((prev) => {
+      if (prev[dim] === opt) {
+        const rest = { ...prev };
+        delete rest[dim];
+        return rest;
+      }
+      return { ...prev, [dim]: opt };
+    });
+  const channelText = channels.length
+    ? CHANNELS.filter((c) => channels.includes(c.key)).map((c) => c.label.toLowerCase()).join(", ")
+    : null;
 
   const painText = feelings.length
     ? FEELINGS.filter((f) => feelings.includes(f.key)).map((f) => f.pain).join(" et ")
@@ -358,6 +433,48 @@ export default function CallScript({
               <div className="text-[11px] font-semibold text-[var(--color-text-secondary)] first:mt-1">Reprendre contact</div>
               <Say>« Salut {greet}, ça va depuis notre appel ? Avant de vous montrer le site, j’aimerais juste comprendre
                 votre situation pour qu’on regarde la bonne chose ensemble. »</Say>
+
+              {/* Sa vie d'entreprise — clique sa réponse → relance interactive */}
+              <div className="mt-3 rounded-lg border border-emerald-200 dark:border-emerald-500/25 bg-emerald-50/60 dark:bg-emerald-500/5 p-2.5">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Sa vie d’entreprise — clique sa réponse</span>
+                  {(Object.keys(biz).length > 0 || channels.length > 0) && (
+                    <button type="button" onClick={() => { setBiz({}); setChannels([]); }}
+                      className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] underline">
+                      réinitialiser
+                    </button>
+                  )}
+                </div>
+
+                {BIZ_DIMS.map((dim) => {
+                  const sel = biz[dim.key];
+                  const selOpt = dim.opts.find((o) => o.key === sel);
+                  return (
+                    <div key={dim.key} className="mb-2.5 last:mb-0">
+                      <div className="text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">{dim.q}</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {dim.opts.map((o) => (
+                          <Chip key={o.key} active={sel === o.key} onClick={() => setBizDim(dim.key, o.key)}>{o.label}</Chip>
+                        ))}
+                      </div>
+                      {selOpt && <Relance>{selOpt.relance}</Relance>}
+                    </div>
+                  );
+                })}
+
+                {/* Canaux d'acquisition actuels (multi) */}
+                <div className="mb-0">
+                  <div className="text-[10px] font-medium text-[var(--color-text-secondary)] mb-1">Comment il trouve ses clients aujourd’hui ? <span className="text-[var(--color-text-muted)]">(plusieurs)</span></div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CHANNELS.map((c) => (
+                      <Chip key={c.key} active={channels.includes(c.key)} onClick={() => toggleChannel(c.key)}>{c.label}</Chip>
+                    ))}
+                  </div>
+                  {channelText && (
+                    <Relance>« Donc aujourd’hui vous comptez surtout sur <b>{channelText}</b>. Le jour où ça ralentit, vous faites comment ? Le site, lui, ne dépend de personne et tourne en continu. »</Relance>
+                  )}
+                </div>
+              </div>
 
               <div className="text-[11px] font-semibold text-[var(--color-text-secondary)] mt-3">La douleur (situation actuelle)</div>
               <Ask>« Aujourd’hui, vos clients, ils vous trouvent comment ? »</Ask>
