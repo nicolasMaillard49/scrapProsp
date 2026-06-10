@@ -13,7 +13,8 @@
  *
  * Variables d'environnement requises (voir radar.env.example) :
  *   SUPABASE_URL, SUPABASE_KEY (cle publishable, identique a l'app),
- *   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_MESSAGING_SERVICE_SID
+ *   + un canal de notif : TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID (recap riche, prefere)
+ *     ou TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_MESSAGING_SERVICE_SID (fallback SMS)
  * Optionnelles :
  *   SCRAPER_URL (defaut http://localhost:8001), RADAR_ADMIN_PHONE (defaut 0615907873)
  */
@@ -40,9 +41,14 @@ const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID || "";
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN || "";
 const TWILIO_MSG_SID = process.env.TWILIO_MESSAGING_SERVICE_SID || "";
 const RADAR_PHONE = process.env.RADAR_ADMIN_PHONE || "0615907873";
+const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const TG_CHAT = process.env.TELEGRAM_CHAT_ID || "";
 
-const SCRAPE_LIMIT = 20;
-const SCRAPE_TIMEOUT_MS = 120_000;
+// quick:false obligatoire : le mode quick ne remonte pas les telephones, or le
+// filtre exige un phone -> le radar trouvait 0 nouveau par construction.
+// limit 10 pour contenir la duree (~60 s par scrape en mode complet).
+const SCRAPE_LIMIT = 10;
+const SCRAPE_TIMEOUT_MS = 240_000;
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
 
@@ -85,13 +91,25 @@ async function sbInsert(rows) {
   });
   if (!res.ok) throw new Error(`Supabase INSERT: ${res.status} ${await res.text().catch(() => "")}`);
   const inserted = await res.json().catch(() => []);
-  return Array.isArray(inserted) ? inserted.length : 0;
+  return Array.isArray(inserted) ? inserted : [];
 }
 
 function cleanWebsite(c) {
   const w = (c.website ?? "").trim();
   if (!w || w === "yes" || w === "non") return null;
   return w;
+}
+
+/** Notif Telegram (HTML). Renvoie false si non configure ou en erreur. */
+async function sendTelegram(text) {
+  if (!TG_TOKEN || !TG_CHAT) return false;
+  const res = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: TG_CHAT, text, parse_mode: "HTML", disable_web_page_preview: true }),
+  });
+  if (!res.ok) throw new Error(`Telegram: ${res.status} ${await res.text().catch(() => "")}`);
+  return true;
 }
 
 async function sendSms(body) {
@@ -109,13 +127,13 @@ async function sendSms(body) {
 }
 
 async function main() {
-  // Validation config
+  // Validation config — il faut Supabase + au moins un canal de notif (Telegram prefere, SMS fallback)
   const missing = [];
   if (!SUPABASE_URL) missing.push("SUPABASE_URL");
   if (!SUPABASE_KEY) missing.push("SUPABASE_KEY");
-  if (!TWILIO_SID) missing.push("TWILIO_ACCOUNT_SID");
-  if (!TWILIO_TOKEN) missing.push("TWILIO_AUTH_TOKEN");
-  if (!TWILIO_MSG_SID) missing.push("TWILIO_MESSAGING_SERVICE_SID");
+  const hasTelegram = !!(TG_TOKEN && TG_CHAT);
+  const hasTwilio = !!(TWILIO_SID && TWILIO_TOKEN && TWILIO_MSG_SID);
+  if (!hasTelegram && !hasTwilio) missing.push("TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID (ou TWILIO_*)");
   if (missing.length) {
     log("ERREUR config manquante:", missing.join(", "));
     process.exit(1);
@@ -143,6 +161,7 @@ async function main() {
   // 3. Scanner chaque combo × ville
   const summary = {};
   let totalInserted = 0;
+  const newOnes = []; // lignes reellement inserees (pour le recap Telegram detaille)
   const errors = [];
   let scrapeCount = 0;
 
@@ -156,7 +175,7 @@ async function main() {
         const res = await fetch(`${SCRAPER_URL}/scrape`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ metier, ville, limit: SCRAPE_LIMIT, quick: true }),
+          body: JSON.stringify({ metier, ville, limit: SCRAPE_LIMIT, quick: false }),
           signal: AbortSignal.timeout(SCRAPE_TIMEOUT_MS),
         });
         if (!res.ok) { errors.push(`${metier}/${ville}: HTTP ${res.status}`); continue; }
@@ -189,13 +208,14 @@ async function main() {
           radar_detected_at: new Date().toISOString(),
         }));
 
-        const count = await sbInsert(rows);
-        if (count > 0) {
+        const inserted = await sbInsert(rows);
+        if (inserted.length > 0) {
           const label = `${metier} ${region}`;
-          summary[label] = (summary[label] ?? 0) + count;
-          totalInserted += count;
+          summary[label] = (summary[label] ?? 0) + inserted.length;
+          totalInserted += inserted.length;
+          newOnes.push(...inserted);
           for (const c of fresh) if (c.maps_url) knownUrls.add(c.maps_url);
-          log(`+${count} ${metier}/${ville}`);
+          log(`+${inserted.length} ${metier}/${ville}`);
         }
       } catch (e) {
         errors.push(`${metier}/${ville}: ${e instanceof Error ? e.message : String(e)}`);
@@ -206,18 +226,37 @@ async function main() {
   log(`Termine. ${scrapeCount} scrapes, ${totalInserted} nouveaux prospects.`);
   if (errors.length) log(`${errors.length} erreurs:`, errors.slice(0, 15).join(" | "));
 
-  // 4. SMS recap si nouveaux
+  // 4. Recap si nouveaux — Telegram (riche : noms + telephones), fallback SMS
   if (totalInserted > 0) {
     const detail = Object.entries(summary).map(([k, v]) => `${v} ${k}`).join(", ");
-    const body = `Radar: ${totalInserted} nouveaux prospects detectes cette nuit (${detail}). Ouvre l'app pour les voir.`;
     try {
-      await sendSms(body);
-      log("SMS recap envoye a", toE164(RADAR_PHONE));
+      const MAX_LISTED = 15;
+      const lines = newOnes.slice(0, MAX_LISTED).map(
+        (p) => `• <b>${p.name}</b> — ${p.metier}, ${p.ville}${p.phone ? ` · 📞 ${String(p.phone).replace(/\s/g, "")}` : ""}`,
+      );
+      if (newOnes.length > MAX_LISTED) lines.push(`… et ${newOnes.length - MAX_LISTED} autres dans l'app.`);
+      const sentTg = await sendTelegram(
+        `📡 <b>Radar : ${totalInserted} nouveau${totalInserted > 1 ? "x" : ""} prospect${totalInserted > 1 ? "s" : ""} cette nuit</b>\n(${detail})\n\n${lines.join("\n")}`,
+      );
+      if (sentTg) {
+        log("Recap Telegram envoye.");
+      } else {
+        await sendSms(`Radar: ${totalInserted} nouveaux prospects detectes cette nuit (${detail}). Ouvre l'app pour les voir.`);
+        log("SMS recap envoye a", toE164(RADAR_PHONE));
+      }
     } catch (e) {
-      log("ERREUR SMS:", e instanceof Error ? e.message : String(e));
+      log("ERREUR notif recap:", e instanceof Error ? e.message : String(e));
     }
   } else {
-    log("Aucun nouveau prospect — pas de SMS.");
+    // RAS : on previent quand meme par Telegram (sinon impossible de savoir si le radar a tourne).
+    try {
+      await sendTelegram(
+        `📡 Radar : RAS cette nuit — ${scrapeCount} scrapes, 0 nouveau prospect.${errors.length ? `\n⚠️ ${errors.length} erreurs de scrape.` : ""}\nLes zones actuelles sont couvertes : pense à ajouter des villes/métiers.`,
+      );
+      log("Recap Telegram RAS envoye.");
+    } catch (e) {
+      log("ERREUR notif RAS:", e instanceof Error ? e.message : String(e));
+    }
   }
 }
 
