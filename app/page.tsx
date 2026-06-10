@@ -145,7 +145,10 @@ function HomeInner() {
         if (hideRadie && _radie) return false;
         if (jeuneOnly && !_jeune) return false;
         if (radarOnly && p.source !== "radar") return false;
-        if (adsOnly && p.source !== "ads") return false;
+        // Filtre Ads = cible de l'offre Google Ads : scrape ads ET site existant
+        // (le pitch démarre sur son site). Les "ads sans site" restent dans la
+        // liste générale comme prospects site classiques.
+        if (adsOnly && (p.source !== "ads" || !p.website)) return false;
         if (q) {
           const matchesText = `${p.name} ${p.ville} ${p.metier} ${p.address || ""}`.toLowerCase().includes(q);
           const matchesPhone = qDigits.length >= 2 && p.phone.replace(/\D/g, "").includes(qDigits);
@@ -463,7 +466,7 @@ function HomeInner() {
                 ? "bg-fuchsia-500/15 border-fuchsia-500/40 text-fuchsia-700 dark:text-fuchsia-200"
                 : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
             }`}
-            title="N'afficher que les prospects Google Ads (scrape villes ≥ 5000 hab — la fiche s'ouvre direct sur le script Ads)"
+            title="N'afficher que les cibles Google Ads : scrape villes ≥ 5000 hab AVEC site web (la fiche s'ouvre direct sur le script Ads)"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
             <span className="hidden min-[420px]:inline">Ads</span>
