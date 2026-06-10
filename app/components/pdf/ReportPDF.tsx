@@ -4,22 +4,16 @@ import {
   Page,
   View,
   Text,
+  Image,
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
-import type { CompetitorReport, CompetitorResult } from "../../lib/types";
+import type { CompetitorResult } from "../../lib/types";
 import { estimateAdsTiers, estimateLeadsPerTier } from "../../lib/competitor-config";
 import { generateSalesArgs } from "../../lib/gbp";
+import type { ReportData, DemoQr } from "../../lib/generateReport";
 
-/* ── Data interface ── */
-export interface ReportData {
-  report: CompetitorReport;
-  prospectName: string;
-  prospectRating: number | null;
-  prospectReviews: number | null;
-  prospectScore: number;
-  prospectRank: number;
-}
+export type { ReportData };
 
 /* ── Register Helvetica variants (built-in, just declare weights) ── */
 Font.register({
@@ -39,6 +33,7 @@ const C = {
   violetBg: "#f3f0ff",
   violetBg2: "#ede9fe",
   green: "#10b981",
+  greenDark: "#047857",
   greenBg: "#ecfdf5",
   amber: "#f59e0b",
   rose: "#f43f5e",
@@ -65,15 +60,6 @@ function fmtDate(dateStr?: string): string {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
 }
 
-function devisNumber(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const r = String(Math.floor(Math.random() * 900) + 100);
-  return `DEV-${y}${m}${d}-${r}`;
-}
-
 function estimateNewRank(
   prospectScore: number,
   competitors: CompetitorResult[],
@@ -93,6 +79,13 @@ function estimateNewRank(
   const newRank = all.findIndex((c) => c.name.toLowerCase() === prospectName.toLowerCase()) + 1;
   return { newScore, newRank, total: all.length };
 }
+
+/** Libellés "rêve" des 3 scénarios (remplacent les forfaits chiffrés). */
+const SCENARIO_LABELS: Record<string, string> = {
+  eco: "Prudent",
+  performance: "Équilibré",
+  top1: "Ambitieux",
+};
 
 /* ═══════════════════════════════════════════════════════════════
    STYLES
@@ -279,137 +272,64 @@ const s = StyleSheet.create({
     color: "#8888aa",
   },
 
-  /* ══ PAGE 2 — Devis ══ */
-  devisHeader: {
-    backgroundColor: C.ink,
-    paddingTop: 24,
-    paddingBottom: 18,
-    paddingHorizontal: 36,
-  },
-  devisTitle: {
-    fontSize: 26,
-    fontWeight: 700,
-    color: C.white,
-    letterSpacing: 1,
-  },
-  devisNum: {
-    fontSize: 10,
-    color: C.violetMuted,
-    marginTop: 4,
-  },
-  devisMeta: {
-    fontSize: 8,
-    color: "#8888aa",
-    marginTop: 4,
-  },
+  /* ══ PAGE 2 — Projection (zéro prix : on vend la destination) ══ */
 
-  /* Client info box */
-  clientBox: {
-    backgroundColor: C.violetBg,
-    borderRadius: 6,
-    padding: 12,
-    marginBottom: 16,
-    borderWidth: 0.5,
-    borderColor: C.violetBg2,
+  /* Avant / Après */
+  baRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "stretch",
+    gap: 10,
+    marginBottom: 18,
   },
-  clientLabel: {
-    fontSize: 7,
+  baCard: {
+    flex: 1,
+    borderRadius: 8,
+    padding: 14,
+    borderWidth: 1,
+  },
+  baLabel: {
+    fontSize: 7.5,
     fontWeight: 700,
-    color: C.muted,
-    letterSpacing: 0.8,
-  },
-  clientName: {
-    fontSize: 13,
-    fontWeight: 700,
-    color: C.text,
-    marginTop: 2,
-  },
-  clientMeta: {
-    fontSize: 8,
-    color: C.muted,
-    textAlign: "right",
-  },
-
-  /* Site vitrine section */
-  siteRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    letterSpacing: 1.2,
     marginBottom: 6,
   },
-  siteDesc: {
-    fontSize: 8.5,
-    color: C.muted,
-    maxWidth: 280,
-    lineHeight: 1.4,
-  },
-  priceBox: {
-    backgroundColor: C.violetBg,
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: C.violet,
-    alignItems: "center",
-  },
-  priceMain: {
-    fontSize: 20,
+  baRank: {
+    fontSize: 30,
     fontWeight: 700,
-    color: C.violet,
+    lineHeight: 1,
   },
-  priceSub: {
-    fontSize: 7,
+  baTotal: {
+    fontSize: 9,
     color: C.muted,
     marginTop: 2,
   },
-  maintenanceRow: {
-    backgroundColor: C.bg,
-    borderRadius: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    justifyContent: "space-between",
+  baCaption: {
+    fontSize: 7.5,
+    marginTop: 8,
+    lineHeight: 1.4,
+  },
+  baArrowBox: {
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 14,
+    width: 26,
   },
-  maintenanceLabel: {
-    fontSize: 8,
-    color: C.text,
-  },
-  maintenanceDetail: {
-    fontSize: 7,
-    color: C.light,
-    marginTop: 1,
-  },
-  maintenancePrice: {
-    fontSize: 14,
-    fontWeight: 700,
+  baArrow: {
+    fontSize: 18,
     color: C.violet,
-  },
-  maintenancePeriod: {
-    fontSize: 7,
-    color: C.muted,
+    fontWeight: 700,
   },
 
-  /* Ads table columns */
-  colTier: { width: 52, fontWeight: 700 },
-  colBudget: { width: 52, textAlign: "center" },
-  colDesc: { flex: 1 },
+  /* Scénarios (gains, pas de budgets) */
+  colScenario: { width: 64, fontWeight: 700 },
+  colLeads: { width: 64, textAlign: "center" },
+  colSigned: { width: 64, textAlign: "center" },
+  colRevenue: { flex: 1, textAlign: "right" },
 
-  /* ROI table columns */
-  colRoiTier: { width: 52, fontWeight: 700 },
-  colLeads: { width: 50, textAlign: "center" },
-  colSigned: { width: 46, textAlign: "center" },
-  colRevenue: { width: 56, textAlign: "right" },
-
-  /* ── Ranking projection cards ── */
+  /* Projection cards */
   projRow: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   projCard: {
     flex: 1,
@@ -457,81 +377,129 @@ const s = StyleSheet.create({
     marginTop: 2,
   },
 
-  /* ── Recap table columns ── */
-  colFormule: { width: 54, fontWeight: 700 },
-  colCreation: { width: 36, textAlign: "center" },
-  colMensuel: { width: 42, textAlign: "center" },
-  colRangEst: { width: 40, textAlign: "center" },
-  colCaEst: { width: 52, textAlign: "right" },
-
-  /* ── Conditions ── */
-  condBlock: {
-    marginTop: 10,
-    borderLeftWidth: 2,
-    borderLeftColor: C.violet,
-    paddingLeft: 10,
-    paddingVertical: 4,
+  /* "Votre site est déjà prêt" + QR */
+  demoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: C.ink,
+    borderRadius: 10,
+    padding: 16,
+    marginBottom: 16,
   },
-  condTitle: {
-    fontSize: 9,
+  demoTextBlock: {
+    flex: 1,
+    paddingRight: 14,
+  },
+  demoKicker: {
+    fontSize: 7.5,
     fontWeight: 700,
-    color: C.text,
+    color: C.violetMuted,
+    letterSpacing: 1.2,
     marginBottom: 5,
   },
-  condItem: {
-    fontSize: 7.5,
+  demoTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: C.white,
+    marginBottom: 6,
+    lineHeight: 1.2,
+  },
+  demoBody: {
+    fontSize: 8.5,
+    color: "#b9b9d6",
+    lineHeight: 1.5,
+  },
+  demoUrl: {
+    fontSize: 8,
+    color: C.violetMuted,
+    marginTop: 7,
+  },
+  demoQrBox: {
+    backgroundColor: C.white,
+    borderRadius: 8,
+    padding: 6,
+  },
+  demoQr: {
+    width: 84,
+    height: 84,
+  },
+  demoQrCaption: {
+    fontSize: 6.5,
     color: C.muted,
-    marginBottom: 3,
-    lineHeight: 1.3,
+    textAlign: "center",
+    marginTop: 3,
   },
 
-  /* ── Signature ── */
-  sigRow: {
+  /* Étapes */
+  stepsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 16,
-    paddingTop: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: C.border,
+    gap: 8,
+    marginBottom: 16,
   },
-  sigBlock: {
-    width: 200,
+  stepCard: {
+    flex: 1,
+    backgroundColor: C.bg,
+    borderRadius: 6,
+    padding: 10,
+    borderWidth: 0.5,
+    borderColor: C.border,
   },
-  sigLabel: {
-    fontSize: 9,
+  stepNum: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: C.violet,
+    marginBottom: 4,
+  },
+  stepTitle: {
+    fontSize: 8.5,
     fontWeight: 700,
     color: C.text,
     marginBottom: 3,
   },
-  sigName: {
-    fontSize: 8,
+  stepBody: {
+    fontSize: 7.5,
     color: C.muted,
-    marginBottom: 18,
+    lineHeight: 1.4,
   },
-  sigLine: {
-    borderBottomWidth: 0.8,
-    borderBottomColor: C.text,
-    width: 160,
-    marginBottom: 4,
+
+  /* CTA final */
+  ctaBox: {
+    backgroundColor: C.violetBg,
+    borderWidth: 1,
+    borderColor: C.violet,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  sigCaption: {
-    fontSize: 7,
-    color: C.light,
+  ctaText: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: C.text,
+  },
+  ctaSub: {
+    fontSize: 7.5,
+    color: C.muted,
+    marginTop: 2,
+  },
+  ctaPhone: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: C.violet,
   },
 });
 
 /* ═══════════════════════════════════════════════════════════════
    COMPONENT
    ═══════════════════════════════════════════════════════════════ */
-export function ReportPDF({ data }: { data: ReportData }) {
+export function ReportPDF({ data, demo }: { data: ReportData; demo?: DemoQr | null }) {
   const { report, prospectName, prospectScore, prospectRank } = data;
   const tiers = report.ads_tiers ?? estimateAdsTiers(report.metier);
   const leadsData = estimateLeadsPerTier(report.metier);
   const dateStr = fmtDate(report.created_at);
-  const devNum = devisNumber();
-  const validUntil = new Date();
-  validUntil.setDate(validUntil.getDate() + 30);
-  const validStr = fmtDate(validUntil.toISOString());
+  const nmfPhone = process.env.NEXT_PUBLIC_NMF_PHONE ?? "";
 
   // Build merged ranked list
   const merged = [...report.competitors];
@@ -551,14 +519,17 @@ export function ReportPDF({ data }: { data: ReportData }) {
   const SITE_BONUS = 20;
   const adsBonus: Record<string, number> = { eco: 5, performance: 10, top1: 15 };
 
-  const midTierBudget = tiers[1]?.budget ?? report.ads_budget_est;
-  const salesArgs = generateSalesArgs(prospectName, prospectScore, report.competitors, midTierBudget);
+  // Pas de budget passé : l'argument « budget Ads moyen X€/mois » est un prix, il dégage.
+  const salesArgs = generateSalesArgs(prospectName, prospectScore, report.competitors, null);
 
-  const footerP1 = `Rapport concurrentiel — ${prospectName} — ${report.metier} — ${report.ville}`;
-  const footerP2 = `${devNum} — ${prospectName} — Valable jusqu'au ${validStr}`;
+  // Meilleur scénario pour le « Demain » de l'avant/après.
+  const best = estimateNewRank(prospectScore, merged, prospectName, SITE_BONUS, adsBonus.top1 ?? 15);
+
+  const footerP1 = `Analyse — ${prospectName} — ${report.metier} — ${report.ville}`;
+  const footerP2 = `Projet — ${prospectName} — ${report.ville} — ${fmtDate()}`;
 
   return (
-    <Document title={`Devis ${prospectName}`} author="NMF Agence">
+    <Document title={`Projet ${prospectName}`} author="NMF Agence">
 
       {/* ═══════════════════════════════════════════
           PAGE 1 — Analyse concurrentielle
@@ -670,112 +641,71 @@ export function ReportPDF({ data }: { data: ReportData }) {
       </Page>
 
       {/* ═══════════════════════════════════════════
-          PAGE 2 — Devis commercial
+          PAGE 2 — Votre projet (la destination, pas la facture)
           ═══════════════════════════════════════════ */}
       <Page size="A4" style={s.page}>
         {/* Header */}
-        <View style={s.devisHeader}>
+        <View style={s.header}>
           <View style={s.headerAccent} />
-          <Text style={s.devisTitle}>DEVIS</Text>
-          <Text style={s.devisNum}>{devNum}</Text>
-          <Text style={s.devisMeta}>Date : {fmtDate()} · Validité : {validStr}</Text>
+          <Text style={s.headerTitle}>Votre Projet</Text>
+          <Text style={s.headerSub}>{prospectName} — bientôt le réflexe local</Text>
+          <Text style={s.headerMeta}>{report.metier} · {report.ville} · {fmtDate()}</Text>
         </View>
         <View style={s.headerLine} />
 
         <View style={s.content}>
-          {/* Client box */}
-          <View style={s.clientBox}>
-            <View>
-              <Text style={s.clientLabel}>CLIENT</Text>
-              <Text style={s.clientName}>{prospectName}</Text>
-            </View>
-            <View>
-              <Text style={s.clientMeta}>{report.ville}</Text>
-              <Text style={s.clientMeta}>Classement : #{prospectRank}/{totalCompetitors}</Text>
-              <Text style={s.clientMeta}>Score : {prospectScore}/100</Text>
-            </View>
-          </View>
-
-          {/* 1. Site vitrine */}
-          <View style={s.sectionBar} />
-          <Text style={s.sectionTitle}>1. Site vitrine professionnel</Text>
-          <View style={s.siteRow}>
-            <Text style={s.siteDesc}>
-              Design responsive, SEO local, formulaire de contact, intégration Google Maps et fiche GBP.
-            </Text>
-            <View style={s.priceBox}>
-              <Text style={s.priceMain}>299€</Text>
-              <Text style={s.priceSub}>création unique</Text>
-            </View>
-          </View>
-          <View style={s.maintenanceRow}>
-            <View>
-              <Text style={s.maintenanceLabel}>Maintenance & hébergement inclus</Text>
-              <Text style={s.maintenanceDetail}>
-                Mises à jour, hébergement, support, SSL, nom de domaine
+          {/* Avant / Après */}
+          <View style={s.baRow}>
+            <View style={[s.baCard, { backgroundColor: C.bg, borderColor: C.border }]}>
+              <Text style={[s.baLabel, { color: C.muted }]}>AUJOURD&apos;HUI</Text>
+              <Text style={[s.baRank, { color: scoreColor(prospectScore) }]}>#{prospectRank}</Text>
+              <Text style={s.baTotal}>sur {totalCompetitors} dans votre zone</Text>
+              <Text style={[s.baCaption, { color: C.muted }]}>
+                Les clients qui cherchent un {report.metier} à {report.ville} trouvent vos concurrents avant vous.
               </Text>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 2 }}>
-              <Text style={s.maintenancePrice}>29€</Text>
-              <Text style={s.maintenancePeriod}>/mois</Text>
+            <View style={s.baArrowBox}>
+              <Text style={s.baArrow}>→</Text>
+            </View>
+            <View style={[s.baCard, { backgroundColor: C.greenBg, borderColor: C.green }]}>
+              <Text style={[s.baLabel, { color: C.greenDark }]}>DEMAIN</Text>
+              <Text style={[s.baRank, { color: C.green }]}>#{best.newRank}</Text>
+              <Text style={s.baTotal}>score {prospectScore} → {best.newScore}/100</Text>
+              <Text style={[s.baCaption, { color: C.greenDark }]}>
+                Site professionnel + visibilité Google : c&apos;est vous qu&apos;on trouve, c&apos;est vous qu&apos;on appelle.
+              </Text>
             </View>
           </View>
 
-          {/* 2. Forfaits Google Ads */}
+          {/* Ce que ça change */}
           <View style={s.sectionBar} />
-          <Text style={s.sectionTitle}>2. Forfaits Google Ads</Text>
-
-          {tiers.length > 0 && (
-            <View style={{ marginBottom: 12 }}>
-              <View style={s.tableHead}>
-                <Text style={[s.tableHeadCell, s.colTier]}>Forfait</Text>
-                <Text style={[s.tableHeadCell, s.colBudget]}>Budget/mois</Text>
-                <Text style={[s.tableHeadCell, s.colDesc]}>Objectif</Text>
-              </View>
-              {tiers.map((t, i) => (
-                <View key={i} style={i % 2 === 0 ? s.tableRow : s.tableRowAlt} wrap={false}>
-                  <Text style={[s.tableCell, s.colTier]}>{t.label}</Text>
-                  <Text style={[s.tableCell, s.colBudget, { fontWeight: 700, color: C.violet }]}>
-                    {t.budget}€
-                  </Text>
-                  <Text style={[s.tableCell, s.colDesc]}>{t.desc}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* 3. ROI estimation */}
-          <View style={s.sectionBar} />
-          <Text style={s.sectionTitle}>3. Retour sur investissement estimé</Text>
+          <Text style={s.sectionTitle}>Ce que ça change, concrètement</Text>
 
           <View style={{ marginBottom: 4 }}>
             <View style={s.tableHead}>
-              <Text style={[s.tableHeadCell, s.colRoiTier]}>Forfait</Text>
+              <Text style={[s.tableHeadCell, s.colScenario]}>Scénario</Text>
               <Text style={[s.tableHeadCell, s.colLeads]}>Demandes/mois</Text>
-              <Text style={[s.tableHeadCell, s.colSigned]}>Devis signés</Text>
-              <Text style={[s.tableHeadCell, s.colRevenue]}>CA estimé/mois</Text>
+              <Text style={[s.tableHeadCell, s.colSigned]}>Chantiers signés</Text>
+              <Text style={[s.tableHeadCell, s.colRevenue]}>Chiffre d&apos;affaires potentiel</Text>
             </View>
             {leadsData.map((ld, i) => (
               <View key={i} style={i % 2 === 0 ? s.tableRow : s.tableRowAlt} wrap={false}>
-                <Text style={[s.tableCell, s.colRoiTier]}>{ld.label}</Text>
+                <Text style={[s.tableCell, s.colScenario]}>{SCENARIO_LABELS[ld.key] ?? ld.label}</Text>
                 <Text style={[s.tableCell, s.colLeads]}>{ld.leads}</Text>
                 <Text style={[s.tableCell, s.colSigned]}>{ld.signedDevis}</Text>
                 <Text style={[s.tableCell, s.colRevenue, { fontWeight: 700, color: C.green }]}>
-                  {fmt(ld.revenueMensuel)}€
+                  +{fmt(ld.revenueMensuel)}€ / mois
                 </Text>
               </View>
             ))}
           </View>
-          <Text style={{ fontSize: 6.5, color: C.light, marginBottom: 12 }}>
-            Estimations basées sur le taux de conversion du secteur "{report.metier}" et un panier moyen de {leadsData[0]?.panier ?? 500}€ HT.
+          <Text style={{ fontSize: 6.5, color: C.light, marginBottom: 14 }}>
+            Estimations basées sur le taux de conversion du secteur « {report.metier} » et un panier moyen de {leadsData[0]?.panier ?? 500}€ HT par chantier.
           </Text>
 
-          {/* 4. Nouveau classement estimé */}
+          {/* Classement projeté */}
           <View style={s.sectionBar} />
-          <Text style={s.sectionTitle}>4. Votre nouveau classement estimé</Text>
-          <Text style={{ fontSize: 8, color: C.muted, marginBottom: 8 }}>
-            Un site web ajoute +20 points à votre score GBP. Les Google Ads boostent votre visibilité.
-          </Text>
+          <Text style={s.sectionTitle}>Votre classement projeté</Text>
 
           <View style={s.projRow}>
             {tiers.map((tier, i) => {
@@ -795,7 +725,7 @@ export function ReportPDF({ data }: { data: ReportData }) {
                   ]}
                   wrap={false}
                 >
-                  <Text style={s.projTier}>Site + {tier.label}</Text>
+                  <Text style={s.projTier}>Scénario {SCENARIO_LABELS[tier.key] ?? tier.label}</Text>
                   <View style={s.projRankRow}>
                     <Text style={s.projOldRank}>#{prospectRank}</Text>
                     <Text style={s.projArrow}>→</Text>
@@ -805,7 +735,7 @@ export function ReportPDF({ data }: { data: ReportData }) {
                     <Text style={s.projTotal}>/{est.total}</Text>
                   </View>
                   <Text style={s.projScore}>
-                    Score: {prospectScore} → {est.newScore}/100
+                    Score : {prospectScore} → {est.newScore}/100
                   </Text>
                   {gain > 0 && (
                     <Text style={s.projGain}>
@@ -817,71 +747,57 @@ export function ReportPDF({ data }: { data: ReportData }) {
             })}
           </View>
 
-          {/* 5. Récapitulatif */}
-          <View style={s.sectionBar} />
-          <Text style={s.sectionTitle}>5. Récapitulatif tarifaire</Text>
-
-          <View style={{ marginBottom: 6 }}>
-            <View style={s.tableHead}>
-              <Text style={[s.tableHeadCell, s.colFormule]}>Formule</Text>
-              <Text style={[s.tableHeadCell, s.colCreation]}>Création</Text>
-              <Text style={[s.tableHeadCell, s.colMensuel]}>Total/mois</Text>
-              <Text style={[s.tableHeadCell, s.colRangEst]}>Rang est.</Text>
-              <Text style={[s.tableHeadCell, s.colCaEst]}>CA est./mois</Text>
-            </View>
-            {tiers.map((tier, i) => {
-              const ld = leadsData.find((l) => l.key === tier.key);
-              const bonus = adsBonus[tier.key] ?? 10;
-              const est = estimateNewRank(prospectScore, merged, prospectName, SITE_BONUS, bonus);
-              return (
-                <View key={i} style={i % 2 === 0 ? s.tableRow : s.tableRowAlt} wrap={false}>
-                  <Text style={[s.tableCell, s.colFormule]}>Site + {tier.label}</Text>
-                  <Text style={[s.tableCell, s.colCreation]}>299€</Text>
-                  <Text style={[s.tableCell, s.colMensuel, { fontWeight: 700, color: C.violet }]}>
-                    {29 + tier.budget}€/mois
-                  </Text>
-                  <Text style={[s.tableCell, s.colRangEst, { fontWeight: 700, color: C.green }]}>
-                    #{est.newRank}/{est.total}
-                  </Text>
-                  <Text style={[s.tableCell, s.colCaEst, { fontWeight: 700, color: C.green }]}>
-                    {fmt(ld?.revenueMensuel ?? 0)}€
-                  </Text>
+          {/* Votre site est déjà prêt — QR vers la démo live */}
+          {demo && (
+            <View style={s.demoBox} wrap={false}>
+              <View style={s.demoTextBlock}>
+                <Text style={s.demoKicker}>CE N&apos;EST PAS UNE PROMESSE</Text>
+                <Text style={s.demoTitle}>Votre site existe déjà.</Text>
+                <Text style={s.demoBody}>
+                  Nous avons pris la liberté de créer le site de {prospectName} : vos avis Google,
+                  vos services, votre téléphone. Scannez le code et regardez-le — il est en ligne,
+                  entièrement personnalisable à votre demande (textes, photos, couleurs).
+                </Text>
+                <Text style={s.demoUrl}>{demo.url.replace(/^https?:\/\//, "")}</Text>
+              </View>
+              <View>
+                <View style={s.demoQrBox}>
+                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                  <Image src={demo.qr} style={s.demoQr} />
                 </View>
-              );
-            })}
+                <Text style={[s.demoQrCaption, { color: "#b9b9d6" }]}>Scannez-moi</Text>
+              </View>
+            </View>
+          )}
+
+          {/* La suite, simplement */}
+          <View style={s.sectionBar} />
+          <Text style={s.sectionTitle}>La suite, simplement</Text>
+          <View style={s.stepsRow}>
+            <View style={s.stepCard}>
+              <Text style={s.stepNum}>1</Text>
+              <Text style={s.stepTitle}>Regardez votre site</Text>
+              <Text style={s.stepBody}>Scannez le code ci-dessus : il est déjà en ligne, à vos couleurs.</Text>
+            </View>
+            <View style={s.stepCard}>
+              <Text style={s.stepNum}>2</Text>
+              <Text style={s.stepTitle}>On le personnalise ensemble</Text>
+              <Text style={s.stepBody}>Textes, photos, couleurs : dites-nous ce qu&apos;on change, on s&apos;occupe de tout.</Text>
+            </View>
+            <View style={s.stepCard}>
+              <Text style={s.stepNum}>3</Text>
+              <Text style={s.stepTitle}>Vos clients vous trouvent</Text>
+              <Text style={s.stepBody}>Mise en ligne officielle — et {report.ville} découvre le {report.metier} qu&apos;il fallait appeler.</Text>
+            </View>
           </View>
 
-          {/* Conditions */}
-          <View style={s.condBlock}>
-            <Text style={s.condTitle}>Conditions</Text>
-            <Text style={s.condItem}>
-              ◆ Devis {devNum} valable 30 jours — Paiement site : 50% à la commande, 50% à la livraison
-            </Text>
-            <Text style={s.condItem}>
-              ◆ Délai de réalisation site vitrine : 2 à 3 semaines
-            </Text>
-            <Text style={s.condItem}>
-              ◆ Google Ads : engagement minimum 3 mois, résiliable ensuite avec préavis 30 jours
-            </Text>
-            <Text style={s.condItem}>
-              ◆ Maintenance mensuelle sans engagement, résiliable à tout moment
-            </Text>
-          </View>
-
-          {/* Signature */}
-          <View style={s.sigRow}>
-            <View style={s.sigBlock}>
-              <Text style={s.sigLabel}>Le prestataire</Text>
-              <Text style={s.sigName}> </Text>
-              <View style={s.sigLine} />
-              <Text style={s.sigCaption}>Date et signature</Text>
+          {/* CTA */}
+          <View style={s.ctaBox} wrap={false}>
+            <View>
+              <Text style={s.ctaText}>On en parle ?</Text>
+              <Text style={s.ctaSub}>NMF Agence · www.nmf-agence.com · sans engagement</Text>
             </View>
-            <View style={s.sigBlock}>
-              <Text style={s.sigLabel}>Le client</Text>
-              <Text style={s.sigName}>{prospectName}</Text>
-              <View style={s.sigLine} />
-              <Text style={s.sigCaption}>Lu et approuvé — Date et signature</Text>
-            </View>
+            {nmfPhone ? <Text style={s.ctaPhone}>{nmfPhone}</Text> : <Text style={s.ctaPhone}>nmf-agence.com</Text>}
           </View>
         </View>
 
