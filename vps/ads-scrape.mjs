@@ -105,6 +105,31 @@ function cleanWebsite(c) {
   return w;
 }
 
+/** Resultat sponsorise Maps ("/aclk?...") = il paie DEJA des Google Ads. */
+function isSponsoredResult(c) {
+  return (c.website ?? "").trim().startsWith("/aclk");
+}
+
+/**
+ * Detecte le tag de conversion/remarketing Google Ads dans le HTML du site
+ * (gtag "AW-...", googleads.g.doubleclick.net, googleadservices.com).
+ * Site injoignable ou douteux -> false : on ne peut pas conclure, on garde le prospect.
+ */
+async function hasGoogleAdsTag(url) {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36" },
+      signal: AbortSignal.timeout(12_000),
+      redirect: "follow",
+    });
+    if (!res.ok) return false;
+    const html = await res.text();
+    return /AW-\d{6,}/.test(html) || /googleads\.g\.doubleclick\.net|googleadservices\.com/.test(html);
+  } catch {
+    return false;
+  }
+}
+
 function loadState() {
   if (!existsSync(STATE_FILE)) return { index: 0, done: false };
   try {
@@ -149,6 +174,7 @@ async function main() {
   const summary = {};
   const errors = [];
   let totalInserted = 0;
+  let totalSkippedAds = 0;
 
   for (let i = start; i < end; i++) {
     const { ville, zone, dept, metier } = combos[i];
@@ -165,11 +191,29 @@ async function main() {
       const competitors = json.competitors ?? [];
 
       // Cibles Ads : tout ce qui a nom + telephone (site web GARDE), pas deja en base.
-      const fresh = competitors.filter((c) => {
+      const candidates = competitors.filter((c) => {
         if (!c.name || !c.phone) return false;
         if (c.maps_url && knownUrls.has(c.maps_url)) return false;
         return true;
       });
+      if (candidates.length === 0) continue;
+
+      // Exclut ceux qui font DEJA de la pub Google — inutile de leur vendre la semaine test :
+      // 1. resultat sponsorise dans Maps ("/aclk?...") = annonceur actif sur cette recherche ;
+      // 2. tag de conversion/remarketing Google Ads detecte sur leur site.
+      const adChecks = await Promise.all(
+        candidates.map(async (c) => {
+          if (isSponsoredResult(c)) return true;
+          const site = cleanWebsite(c);
+          return site ? hasGoogleAdsTag(site) : false;
+        }),
+      );
+      const fresh = candidates.filter((_, idx) => !adChecks[idx]);
+      const skipped = candidates.length - fresh.length;
+      if (skipped > 0) {
+        totalSkippedAds += skipped;
+        log(`-${skipped} ${metier}/${ville} (font deja des Ads)`);
+      }
       if (fresh.length === 0) continue;
 
       const rows = fresh.map((c) => ({
@@ -202,7 +246,7 @@ async function main() {
 
   const done = end >= combos.length;
   writeFileSync(STATE_FILE, JSON.stringify({ index: end, done }), "utf-8");
-  log(`Batch ${batchNum} termine: ${end - start} scrapes, +${totalInserted} prospects, ${errors.length} erreurs.`);
+  log(`Batch ${batchNum} termine: ${end - start} scrapes, +${totalInserted} prospects, ${totalSkippedAds} ecartes (Ads actifs), ${errors.length} erreurs.`);
   if (errors.length) log("Erreurs:", errors.slice(0, 10).join(" | "));
 
   const villes = Object.entries(summary).sort((a, b) => b[1] - a[1]);
@@ -212,6 +256,7 @@ async function main() {
     await sendTelegram(
       `🎯 <b>Scrape Ads — batch ${batchNum}/${batchTotal}</b>\n` +
       `${end - start} scrapes · <b>+${totalInserted} prospects</b> ajoutés (source "ads")` +
+      `${totalSkippedAds ? ` · ${totalSkippedAds} écartés (font déjà des Ads)` : ""}` +
       `${errors.length ? ` · ⚠️ ${errors.length} erreurs` : ""}\n` +
       `${detail}${villes.length > 8 ? `\n… et ${villes.length - 8} autres villes` : ""}${next}` +
       (done ? "\n\n🎉 <b>Scrape Ads TERMINÉ</b> — toutes les villes sont passées." : ""),
