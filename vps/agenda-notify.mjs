@@ -82,7 +82,8 @@ async function sendTelegram(text) {
 
 /* ── Helpers heure de Paris ── */
 function parisHour(d = new Date()) {
-  return Number(new Intl.DateTimeFormat("fr-FR", { timeZone: TZ, hour: "numeric", hour12: false }).format(d));
+  // en-GB : "17" — fr-FR renverrait "17 h" et Number() donnerait NaN.
+  return Number(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "numeric", hour12: false }).format(d));
 }
 function parisDay(d = new Date()) {
   return new Intl.DateTimeFormat("fr-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
