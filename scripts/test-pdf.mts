@@ -84,6 +84,18 @@ const qr = await QRCode.toDataURL(demoUrlStr, {
   color: { dark: "#0f0e24", light: "#ffffff" },
 });
 
+// Photos du thème métier (plombier : héro, vague, salle de bain)
+const { pdfThemeFor } = await import("../app/components/pdf/pdf-theme");
+const theme = pdfThemeFor(prospect.metier);
+const loadAsset = (p?: string): string | undefined => {
+  if (!p) return undefined;
+  const f = resolve(ROOT, "public", p.replace(/^\//, ""));
+  if (!existsSync(f)) return undefined;
+  const mime = p.endsWith(".png") ? "image/png" : "image/jpeg";
+  return `data:${mime};base64,${readFileSync(f).toString("base64")}`;
+};
+const assets = { hero: loadAsset(theme.heroImage), wave: loadAsset(theme.waveImage), side: loadAsset(theme.sideImage) };
+
 const { createElement } = await import("react");
 const { renderToFile } = await import("@react-pdf/renderer");
 const { ReportPDF } = await import("../app/components/pdf/ReportPDF");
@@ -101,6 +113,7 @@ await renderToFile(
       prospectId: prospect.id,
     },
     demo: { url: demoUrlStr, qr },
+    assets,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any,
   out,

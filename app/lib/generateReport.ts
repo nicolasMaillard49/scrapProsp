@@ -20,12 +20,37 @@ export interface DemoQr {
   qr: string;
 }
 
+/** Charge un asset de public/ en data URL (les images du PDF doivent être embarquées). */
+async function assetToDataUrl(path: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(path);
+    if (!res.ok) return undefined;
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 export async function generateProspectReport(data: ReportData) {
   // Lazy imports — @react-pdf/renderer is heavy, only load when needed
-  const [{ pdf }, { ReportPDF }] = await Promise.all([
+  const [{ pdf }, { ReportPDF }, { pdfThemeFor }] = await Promise.all([
     import("@react-pdf/renderer"),
     import("../components/pdf/ReportPDF"),
+    import("../components/pdf/pdf-theme"),
   ]);
+
+  // Photos du thème métier (plombier : héro, vague, salle de bain)
+  const theme = pdfThemeFor(data.report.metier);
+  const [hero, wave, side] = await Promise.all(
+    [theme.heroImage, theme.waveImage, theme.sideImage].map((p) => (p ? assetToDataUrl(p) : Promise.resolve(undefined))),
+  );
+  const assets = { hero, wave, side };
 
   // QR vers la démo live : le prospect scanne le PDF et voit SON site.
   let demo: DemoQr | null = null;
@@ -49,7 +74,7 @@ export async function generateProspectReport(data: ReportData) {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const doc = React.createElement(ReportPDF, { data, demo }) as any;
+  const doc = React.createElement(ReportPDF, { data, demo, assets }) as any;
   const blob = await pdf(doc).toBlob();
 
   // Programmatic download

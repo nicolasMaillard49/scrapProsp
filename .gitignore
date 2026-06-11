@@ -35,3 +35,5 @@ yarn-error.log*
 .idea
 
 projet-exemple.pdf
+projet-preview*.pdf
+.preview
