@@ -16,6 +16,7 @@ export default function KeyboardHelp({ open, onClose }: { open: boolean; onClose
   const shortcuts: Array<[string, string, string]> = [
     ["Global", "F", "Lancer le mode Focus sur la sélection courante"],
     ["Global", "/", "Focus sur la recherche"],
+    ["Global", "H", "Historique des appels"],
     ["Global", "?", "Afficher cette aide"],
     ["Focus", "1 / P", "Marquer Positif (auto-advance)"],
     ["Focus", "2 / C", "Marquer Appelé"],

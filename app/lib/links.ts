@@ -64,7 +64,8 @@ function fmtGCal(d: Date): string {
   return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
 }
 
-export interface CalendarEvent {
+/** Événement pour l'URL template Google Calendar (≠ CalendarEvent de googleCalendar.ts, le type API). */
+export interface CalendarUrlEvent {
   title: string;
   start: Date;
   end: Date;
@@ -72,7 +73,7 @@ export interface CalendarEvent {
   location?: string;
 }
 
-export function googleCalendarUrl(ev: CalendarEvent): string {
+export function googleCalendarUrl(ev: CalendarUrlEvent): string {
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: ev.title,

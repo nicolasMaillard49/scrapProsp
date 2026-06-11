@@ -5,7 +5,7 @@ import Papa from "papaparse";
 import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
   CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2, User,
-  Filter, ArrowUpDown, Clock, Globe, MessageSquare,
+  Filter, ArrowUpDown, Clock, Globe, MessageSquare, History, CalendarDays,
   ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
 } from "lucide-react";
 import Link from "next/link";
@@ -17,6 +17,7 @@ import FocusMode from "./components/FocusMode";
 import KeyboardHelp from "./components/KeyboardHelp";
 import ProgressRing from "./components/ProgressRing";
 import CallModal, { WhatsAppIcon } from "./components/CallModal";
+import CallHistory from "./components/CallHistory";
 import { ToastProvider, useToast } from "./components/Toast";
 import type { Prospect, Status } from "./lib/types";
 import { useProspects } from "./lib/useProspects";
@@ -61,6 +62,7 @@ function HomeInner() {
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [callTarget, setCallTarget] = useState<Prospect | null>(null);
@@ -221,9 +223,11 @@ function HomeInner() {
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // ne pas voler Ctrl+H & co au navigateur
       if (e.key === "/") { e.preventDefault(); searchRef.current?.focus(); }
       if (e.key === "?") { e.preventDefault(); setHelpOpen(true); }
+      if (e.key.toLowerCase() === "h" && !callTarget && !focusOpen) { e.preventDefault(); setHistoryOpen((v) => !v); }
       if (e.key.toLowerCase() === "f") {
         if (filtered.length === 0) return;
         setFocusStart(0);
@@ -232,7 +236,7 @@ function HomeInner() {
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [filtered.length]);
+  }, [filtered.length, callTarget, focusOpen]);
 
   const exportCsv = () => {
     const rows = filtered.map((p) => ({
@@ -312,6 +316,14 @@ function HomeInner() {
               <span className="hidden md:inline">Carte</span>
             </Link>
             <Link
+              href="/agenda"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
+              title="Agenda — RDV Google Calendar"
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span className="hidden md:inline">Agenda</span>
+            </Link>
+            <Link
               href="/sms"
               className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
               title="Suivi des SMS"
@@ -327,6 +339,14 @@ function HomeInner() {
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
               <span className="hidden md:inline">Instagram</span>
             </Link>
+            <button
+              onClick={() => setHistoryOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
+              title="Historique des appels (H)"
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden md:inline">Historique</span>
+            </button>
             <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition" title="Raccourcis (?)">
               <Keyboard className="w-4 h-4" />
             </button>
@@ -894,6 +914,19 @@ function HomeInner() {
         onUpdateNote={(id: string, note: string) => updateNotes(id, note)}
       />
       <KeyboardHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {/* Monté seulement à l'ouverture : évite de recalculer l'historique (flatten+tri) à chaque mutation de prospects */}
+      {historyOpen && (
+        <CallHistory
+          open
+          prospects={prospects}
+          onClose={() => setHistoryOpen(false)}
+          onOpenProspect={(p) => {
+            setHistoryOpen(false);
+            setCallTab("call");
+            setCallTarget(p);
+          }}
+        />
+      )}
       <CallModal
         open={!!callTarget}
         prospect={callTarget}

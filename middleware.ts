@@ -31,6 +31,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Les API répondent 401 JSON : un fetch() suivrait le redirect et prendrait
+  // la page /login (HTML 200) pour un succès.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
+  }
+
   const loginUrl = new URL("/login", req.url);
   if (pathname !== "/") loginUrl.searchParams.set("from", pathname);
   return NextResponse.redirect(loginUrl);

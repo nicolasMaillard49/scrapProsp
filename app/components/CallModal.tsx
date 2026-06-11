@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import {
   X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
@@ -624,7 +624,8 @@ export default function CallModal({
             <ChevronDown className="w-4 h-4 text-[var(--color-text-muted)] group-open:rotate-180 transition" />
           </summary>
           <div className="px-4 pb-4">
-            <RdvForm name={name} phone={phone} notes={notes} address={address} onCreated={onClose} />
+            {/* key : remet le formulaire à zéro quand on navigue d'un prospect à l'autre */}
+            <RdvForm key={prospect?.id ?? "rdv"} name={name} phone={phone} notes={notes} address={address} onCreated={onClose} />
           </div>
         </details>
 
@@ -746,27 +747,53 @@ function RdvForm({ name, phone, notes, address, onCreated }: { name: string; pho
   const [time, setTime] = useState(def.time);
   const [duration, setDuration] = useState(30);
   const [extraNotes, setExtraNotes] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
 
-  const handleCreate = () => {
+  // Le même événement sert à l'API et au fallback URL Google Calendar.
+  const buildEvent = () => {
     const start = new Date(`${date}T${time}`);
     const end = new Date(start.getTime() + duration * 60_000);
-
     const details = [
       `Téléphone : ${phone}`,
       notes ? `Notes : ${notes}` : "",
       extraNotes ? `Détails RDV : ${extraNotes}` : "",
       address ? `Adresse : ${address}` : "",
     ].filter(Boolean).join("\n\n");
+    return { title: `RDV avec ${name}`, start, end, details, location: address || phone };
+  };
 
-    const url = googleCalendarUrl({
-      title: `RDV avec ${name}`,
-      start,
-      end,
-      details,
-      location: address || phone,
-    });
-    window.open(url, "_blank", "noopener,noreferrer");
+  /** Onglet Google Calendar prérempli — même contenu que l'API. */
+  const openFallback = () => {
+    window.open(googleCalendarUrl(buildEvent()), "_blank", "noopener,noreferrer");
     onCreated?.();
+  };
+
+  // Création directe via l'API (compte de service). Fallback : onglet Google
+  // Calendar prérempli si l'intégration n'est pas configurée (501).
+  const handleCreate = async () => {
+    const ev = buildEvent();
+    setState("sending");
+    try {
+      const res = await fetch("/api/calendar/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: ev.title, start: ev.start.toISOString(), end: ev.end.toISOString(), description: ev.details, location: ev.location }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.status === 401) { window.location.assign("/login"); return; }
+      if (res.status === 501) {
+        setState("idle");
+        openFallback();
+        return;
+      }
+      if (!res.ok) throw new Error(String(res.status));
+      setState("done");
+      closeTimer.current = setTimeout(() => onCreated?.(), 700);
+    } catch {
+      setState("error");
+    }
   };
 
   return (
@@ -814,14 +841,24 @@ function RdvForm({ name, phone, notes, address, onCreated }: { name: string; pho
       />
       <button
         onClick={handleCreate}
-        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30"
+        disabled={state === "sending" || state === "done"}
+        className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-white font-medium text-sm transition shadow-lg ${
+          state === "done"
+            ? "bg-emerald-600 shadow-emerald-900/30"
+            : "bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 shadow-violet-900/30 disabled:opacity-70"
+        }`}
       >
-        <Calendar className="w-4 h-4" />
-        Ajouter à Google Calendar
-        <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+        {state === "sending" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+        {state === "done" ? "RDV ajouté à l'agenda ✓" : state === "sending" ? "Création…" : "Caler le RDV dans l'agenda"}
       </button>
+      {state === "error" && (
+        <div className="text-[11px] text-rose-500 text-center">
+          Création impossible — <button onClick={handleCreate} className="underline">réessaie</button>, ou{" "}
+          <button onClick={openFallback} className="underline">ouvre Google Calendar</button>.
+        </div>
+      )}
       <div className="text-[10px] text-[var(--color-text-muted)] text-center">
-        Ouvre Google Calendar dans un nouvel onglet avec l'événement prérempli.
+        Créé directement dans ton Google Calendar — visible sur la page <a href="/agenda" className="underline hover:text-violet-400">Agenda</a>.
       </div>
     </div>
   );
