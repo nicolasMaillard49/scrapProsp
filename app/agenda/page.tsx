@@ -52,6 +52,45 @@ function toLocalInput(d: Date): { date: string; time: string } {
   };
 }
 
+/* ── Layout des chevauchements (style Google Calendar) ──
+   Les événements qui se chevauchent sont répartis en colonnes côte à côte :
+   chaque cluster d'événements connectés partage la largeur de la journée. */
+function layoutDay(events: CalendarEvent[]): Map<string, { col: number; cols: number }> {
+  const MIN_DUR = 15 * 60_000; // un RDV très court occupe quand même un slot visuel
+  const items = events
+    .map((e) => {
+      const start = new Date(e.start).getTime();
+      return { e, start, end: Math.max(new Date(e.end).getTime(), start + MIN_DUR) };
+    })
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+
+  const out = new Map<string, { col: number; cols: number }>();
+  let cluster: { item: (typeof items)[number]; col: number }[] = [];
+  let colEnds: number[] = []; // fin du dernier événement posé dans chaque colonne
+  let clusterEnd = -Infinity;
+
+  const flush = () => {
+    for (const p of cluster) out.set(p.item.e.id, { col: p.col, cols: colEnds.length });
+    cluster = [];
+    colEnds = [];
+  };
+
+  for (const item of items) {
+    if (cluster.length > 0 && item.start >= clusterEnd) flush();
+    let col = colEnds.findIndex((end) => end <= item.start);
+    if (col === -1) {
+      col = colEnds.length;
+      colEnds.push(item.end);
+    } else {
+      colEnds[col] = item.end;
+    }
+    cluster.push({ item, col });
+    clusterEnd = Math.max(clusterEnd, item.end);
+  }
+  flush();
+  return out;
+}
+
 export default function AgendaPage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -66,6 +105,12 @@ export default function AgendaPage() {
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
+  }, []);
+
+  // Au chargement, centre la vue sur l'heure actuelle (la ligne rouge).
+  const nowLineRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    nowLineRef.current?.scrollIntoView({ block: "center" });
   }, []);
 
   const weekStart = useMemo(() => addDays(startOfWeek(new Date()), weekOffset * 7), [weekOffset]);
@@ -234,6 +279,11 @@ export default function AgendaPage() {
                             {e.title}
                           </button>
                         ))}
+                        {(byDay.get(dayKeyOf(d))?.allDay.length ?? 0) > 2 && (
+                          <div className="mt-0.5 text-[9px] text-neutral-500 font-medium">
+                            +{(byDay.get(dayKeyOf(d))?.allDay.length ?? 0) - 2} autres
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -253,29 +303,38 @@ export default function AgendaPage() {
                   {weekDays.map((d, di) => {
                     const isToday = sameDay(d, now);
                     const dayEvents = byDay.get(dayKeyOf(d))?.timed ?? [];
+                    const dayLayout = layoutDay(dayEvents);
                     return (
                       <div
                         key={di}
-                        className={`relative border-l border-[var(--color-border)] ${isToday ? "bg-violet-500/[0.04]" : ""}`}
+                        className={`relative border-l border-[var(--color-border)] ${
+                          isToday ? "bg-violet-500/[0.04]" : di >= 5 ? "bg-[var(--color-surface-2)]/30" : ""
+                        }`}
                         style={{ height: GRID_H }}
                         onDoubleClick={(e) => {
                           const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                          const hour = DAY_START + Math.floor((e.clientY - rect.top) / HOUR_PX);
+                          // Snap à la demi-heure la plus proche du clic
+                          const halfSlot = Math.floor((e.clientY - rect.top) / (HOUR_PX / 2));
+                          const clamped = Math.min(Math.max(halfSlot, 0), (DAY_END - DAY_START) * 2 - 1);
                           const def = new Date(d);
-                          def.setHours(Math.min(Math.max(hour, DAY_START), DAY_END - 1), 0, 0, 0);
+                          def.setHours(DAY_START + Math.floor(clamped / 2), (clamped % 2) * 30, 0, 0);
                           setCreateDefault(def);
                           setCreateOpen(true);
                         }}
                         title="Double-clic : nouveau RDV à cette heure"
                       >
-                        {/* Lignes horaires */}
+                        {/* Lignes horaires + demi-heures */}
                         {Array.from({ length: DAY_END - DAY_START }, (_, i) => (
-                          <div key={i} className="absolute left-0 right-0 border-t border-[var(--color-border)] opacity-60" style={{ top: i * HOUR_PX }} />
+                          <div key={i}>
+                            <div className="absolute left-0 right-0 border-t border-[var(--color-border)] opacity-60" style={{ top: i * HOUR_PX }} />
+                            <div className="absolute left-0 right-0 border-t border-dashed border-[var(--color-border)] opacity-25" style={{ top: i * HOUR_PX + HOUR_PX / 2 }} />
+                          </div>
                         ))}
 
                         {/* Ligne "maintenant" */}
                         {isToday && now.getHours() >= DAY_START && now.getHours() < DAY_END && (
                           <div
+                            ref={nowLineRef}
                             className="absolute left-0 right-0 z-10 pointer-events-none"
                             style={{ top: (now.getHours() - DAY_START + now.getMinutes() / 60) * HOUR_PX }}
                           >
@@ -285,7 +344,7 @@ export default function AgendaPage() {
                         )}
 
                         {/* Événements */}
-                        {dayEvents.map((e, ei) => {
+                        {dayEvents.map((e) => {
                           const start = new Date(e.start);
                           const end = new Date(e.end);
                           const startH = start.getHours() + start.getMinutes() / 60;
@@ -296,24 +355,40 @@ export default function AgendaPage() {
                             Math.max(26, (Math.min(endH, DAY_END) - Math.max(startH, DAY_START)) * HOUR_PX - 2),
                             GRID_H - top - 2,
                           );
-                          // Décale légèrement les chevauchements successifs
-                          const overlap = dayEvents.slice(0, ei).filter((o) => new Date(o.end) > start).length;
+                          const lay = dayLayout.get(e.id) ?? { col: 0, cols: 1 };
+                          const widthPct = 96 / lay.cols;
+                          const leftPct = 2 + lay.col * widthPct;
                           const past = end.getTime() < now.getTime();
+                          const ongoing = !past && start.getTime() <= now.getTime();
+                          const compact = height < 40 || lay.cols > 2;
                           return (
                             <button
                               key={e.id}
                               onClick={() => setSelected(e)}
+                              title={`${e.title} · ${fmtTime(start)} – ${fmtTime(end)}`}
                               className={`absolute rounded-md px-1.5 py-1 text-left overflow-hidden border transition hover:z-20 hover:shadow-lg ${
+                                lay.cols > 1 ? "hover:min-w-[150px]" : ""
+                              } ${
                                 past
                                   ? "bg-neutral-200/80 dark:bg-neutral-800/80 border-neutral-300 dark:border-neutral-700 text-neutral-500"
-                                  : "bg-violet-500/90 border-violet-400 text-white shadow"
+                                  : ongoing
+                                    ? "bg-fuchsia-600/90 border-fuchsia-400 text-white shadow ring-1 ring-fuchsia-300/50"
+                                    : "bg-violet-500/90 border-violet-400 text-white shadow"
                               }`}
-                              style={{ top, height, left: `${4 + overlap * 10}%`, right: "2%" }}
+                              style={{ top, height, left: `${leftPct}%`, width: `calc(${widthPct}% - 2px)` }}
                             >
-                              <div className="text-[11px] font-semibold leading-tight truncate">{e.title}</div>
-                              <div className={`text-[10px] font-mono-num ${past ? "" : "text-violet-100"}`}>
-                                {fmtTime(start)} – {fmtTime(end)}
-                              </div>
+                              {compact ? (
+                                <div className="text-[10px] font-semibold leading-tight truncate">
+                                  <span className={`font-mono-num font-normal ${past ? "" : "text-violet-100"}`}>{fmtTime(start)}</span> {e.title}
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="text-[11px] font-semibold leading-tight truncate">{e.title}</div>
+                                  <div className={`text-[10px] font-mono-num ${past ? "" : "text-violet-100"}`}>
+                                    {fmtTime(start)} – {fmtTime(end)}
+                                  </div>
+                                </>
+                              )}
                             </button>
                           );
                         })}
