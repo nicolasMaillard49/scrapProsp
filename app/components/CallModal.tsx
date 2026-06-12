@@ -21,6 +21,8 @@ interface Props {
   isOpen?: boolean;
   hoursLabel?: string;
   initialTab?: "call" | "rdv";
+  /** Bandeau optionnel en tête de fiche (ex : infos du RDV quand ouverte depuis l'agenda). */
+  banner?: React.ReactNode;
   onClose: () => void;
   onMarkCalled?: () => void;
   onMarkPositive?: () => void;
@@ -73,7 +75,7 @@ function formatDuration(s?: number | null): string {
 const NTFY_KEY = "prospects-tracker-ntfy-topic";
 
 export default function CallModal({
-  open, prospect, isOpen, hoursLabel, initialTab = "call",
+  open, prospect, isOpen, hoursLabel, initialTab = "call", banner,
   onClose, onMarkCalled, onMarkPositive, onMarkNoAnswer, onMarkNegative,
   onPrev, onNext, hasPrev, hasNext,
 }: Props) {
@@ -322,6 +324,7 @@ export default function CallModal({
         onClick={(e) => e.stopPropagation()}
         className="order-1 md:order-2 bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-4 sm:p-6 shadow-2xl shrink-0 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden"
       >
+        {banner}
         {/* Navigation prospect — mobile uniquement (les flèches flottantes sont masquées sur petit écran) */}
         {(hasPrev || hasNext) && (
           <div className="flex md:hidden items-center justify-between gap-2 mb-3">
@@ -625,7 +628,7 @@ export default function CallModal({
           </summary>
           <div className="px-4 pb-4">
             {/* key : remet le formulaire à zéro quand on navigue d'un prospect à l'autre */}
-            <RdvForm key={prospect?.id ?? "rdv"} name={name} phone={phone} notes={notes} address={address} onCreated={onClose} />
+            <RdvForm key={prospect?.id ?? "rdv"} prospectId={prospect?.id} name={name} phone={phone} notes={notes} address={address} onCreated={onClose} />
           </div>
         </details>
 
@@ -741,7 +744,7 @@ export default function CallModal({
   );
 }
 
-function RdvForm({ name, phone, notes, address, onCreated }: { name: string; phone: string; notes?: string; address?: string; onCreated?: () => void }) {
+function RdvForm({ prospectId, name, phone, notes, address, onCreated }: { prospectId?: string; name: string; phone: string; notes?: string; address?: string; onCreated?: () => void }) {
   const def = useMemo(() => defaultRdvDate(), []);
   const [date, setDate] = useState(def.date);
   const [time, setTime] = useState(def.time);
@@ -779,7 +782,7 @@ function RdvForm({ name, phone, notes, address, onCreated }: { name: string; pho
       const res = await fetch("/api/calendar/events", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: ev.title, start: ev.start.toISOString(), end: ev.end.toISOString(), description: ev.details, location: ev.location }),
+        body: JSON.stringify({ title: ev.title, start: ev.start.toISOString(), end: ev.end.toISOString(), description: ev.details, location: ev.location, prospectId }),
         signal: AbortSignal.timeout(15_000),
       });
       if (res.status === 401) { window.location.assign("/login"); return; }

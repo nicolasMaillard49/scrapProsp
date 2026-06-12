@@ -7,6 +7,10 @@ import {
   MapPin, ExternalLink, Trash2, Clock, RefreshCw, Settings,
 } from "lucide-react";
 import type { CalendarEvent } from "../lib/googleCalendar";
+import CallModal from "../components/CallModal";
+import { useProspects } from "../lib/useProspects";
+import { isOpenNow, openLabel } from "../lib/openNow";
+import type { Prospect } from "../lib/types";
 
 /* ── Constantes d'affichage ── */
 const DAY_START = 7; // 7h
@@ -91,6 +95,28 @@ function layoutDay(events: CalendarEvent[]): Map<string, { col: number; cols: nu
   return out;
 }
 
+/* ── Lien RDV ↔ prospect ──
+   Lien fort : prospectId stocké dans l'événement quand le RDV est créé depuis une fiche.
+   Fallback (anciens RDV) : téléphone dans le lieu / la description, puis nom dans le titre. */
+function normPhone(s: string): string {
+  return s.replace(/[\s.\-()]/g, "").replace(/^\+33/, "0");
+}
+
+function matchProspect(e: CalendarEvent, prospects: Prospect[]): Prospect | null {
+  if (e.prospectId) {
+    const byId = prospects.find((p) => p.id === e.prospectId);
+    if (byId) return byId;
+  }
+  const hay = normPhone(`${e.location ?? ""}\n${e.description ?? ""}`);
+  const byPhone = prospects.find((p) => {
+    const ph = normPhone(p.phone || "");
+    return ph.length >= 9 && hay.includes(ph);
+  });
+  if (byPhone) return byPhone;
+  const title = e.title.toLowerCase();
+  return prospects.find((p) => p.name && p.name.trim().length > 3 && title.includes(p.name.trim().toLowerCase())) ?? null;
+}
+
 export default function AgendaPage() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -98,9 +124,35 @@ export default function AgendaPage() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
+  // Fiche prospect ouverte depuis un RDV — stockée par id pour rester à jour (Realtime).
+  const [ficheId, setFicheId] = useState<string | null>(null);
+  const [ficheEvent, setFicheEvent] = useState<CalendarEvent | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createDefault, setCreateDefault] = useState<Date | null>(null);
   const [now, setNow] = useState(() => new Date());
+  const { prospects, updateStatus } = useProspects();
+
+  const fiche = useMemo(
+    () => (ficheId ? prospects.find((p) => p.id === ficheId) ?? null : null),
+    [ficheId, prospects],
+  );
+
+  const closeFiche = () => {
+    setFicheId(null);
+    setFicheEvent(null);
+  };
+
+  // Clic sur un RDV : si un prospect correspond, on ouvre sa fiche complète
+  // (même visu que la prospection) ; sinon le détail simple de l'événement.
+  const openEvent = (e: CalendarEvent) => {
+    const p = matchProspect(e, prospects);
+    if (p) {
+      setFicheId(p.id);
+      setFicheEvent(e);
+    } else {
+      setSelected(e);
+    }
+  };
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
@@ -194,9 +246,11 @@ export default function AgendaPage() {
     }
     if (res.ok) {
       setSelected(null);
+      closeFiche();
       setEvents((prev) => prev.filter((e) => e.id !== ev.id));
     } else {
       setSelected(null);
+      closeFiche();
       setError("Suppression impossible — rafraîchis et réessaie.");
     }
   };
@@ -275,7 +329,7 @@ export default function AgendaPage() {
                         <div className={`text-lg leading-tight font-mono-num ${isToday ? "text-violet-500 font-bold" : "text-[var(--color-text-primary)]"}`}>{d.getDate()}</div>
                         {/* Événements journée entière */}
                         {(byDay.get(dayKeyOf(d))?.allDay ?? []).slice(0, 2).map((e) => (
-                          <button key={e.id} onClick={() => setSelected(e)} className="mt-1 w-full truncate px-1 py-0.5 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[10px] font-medium">
+                          <button key={e.id} onClick={() => openEvent(e)} className="mt-1 w-full truncate px-1 py-0.5 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[10px] font-medium">
                             {e.title}
                           </button>
                         ))}
@@ -364,7 +418,7 @@ export default function AgendaPage() {
                           return (
                             <button
                               key={e.id}
-                              onClick={() => setSelected(e)}
+                              onClick={() => openEvent(e)}
                               title={`${e.title} · ${fmtTime(start)} – ${fmtTime(end)}`}
                               className={`absolute rounded-md px-1.5 py-1 text-left overflow-hidden border transition hover:z-20 hover:shadow-lg ${
                                 lay.cols > 1 ? "hover:min-w-[150px]" : ""
@@ -399,7 +453,7 @@ export default function AgendaPage() {
               </div>
             </div>
             <div className="px-3 py-2 border-t border-[var(--color-border)] text-[10px] text-neutral-500 text-center">
-              Double-clique sur un créneau pour créer un RDV · clique sur un RDV pour le détail
+              Double-clique sur un créneau pour créer un RDV · clique sur un RDV pour ouvrir la fiche prospect
             </div>
           </div>
 
@@ -421,7 +475,7 @@ export default function AgendaPage() {
                   const isToday = sameDay(start, now);
                   return (
                     <li key={e.id}>
-                      <button onClick={() => setSelected(e)} className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-violet-500/40 hover:bg-[var(--color-surface-2)] transition">
+                      <button onClick={() => openEvent(e)} className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-violet-500/40 hover:bg-[var(--color-surface-2)] transition">
                         <div className="flex items-center gap-2">
                           <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${isToday ? "bg-rose-500" : "bg-violet-500"}`} />
                           <span className="text-[13px] font-medium text-[var(--color-text-primary)] truncate">{e.title}</span>
@@ -439,7 +493,40 @@ export default function AgendaPage() {
         </div>
       )}
 
-      {/* ── Détail d'un événement ── */}
+      {/* ── Fiche prospect (même visu que la prospection) ── */}
+      <CallModal
+        open={!!fiche}
+        prospect={fiche}
+        isOpen={fiche ? isOpenNow(fiche, now, now) : undefined}
+        hoursLabel={fiche ? openLabel(fiche, now, now) : undefined}
+        onClose={closeFiche}
+        onMarkCalled={() => { if (fiche) { updateStatus(fiche.id, "called"); closeFiche(); } }}
+        onMarkPositive={() => { if (fiche) updateStatus(fiche.id, "positive"); }}
+        onMarkNoAnswer={() => { if (fiche) { updateStatus(fiche.id, "no_answer"); closeFiche(); } }}
+        onMarkNegative={() => { if (fiche) { updateStatus(fiche.id, "negative"); closeFiche(); } }}
+        banner={ficheEvent && (
+          <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-violet-50 border border-violet-200 dark:bg-violet-500/10 dark:border-violet-500/30 text-[12px] text-violet-800 dark:text-violet-200">
+            <Clock className="w-3.5 h-3.5 shrink-0" />
+            <span className="min-w-0 truncate font-medium">
+              {ficheEvent.allDay
+                ? `RDV ${fmtDayLong(new Date(`${ficheEvent.start}T00:00`))} · journée entière`
+                : `RDV ${fmtDayLong(new Date(ficheEvent.start))} · ${fmtTime(new Date(ficheEvent.start))} – ${fmtTime(new Date(ficheEvent.end))}`}
+            </span>
+            <span className="ml-auto flex items-center gap-1 shrink-0">
+              {ficheEvent.htmlLink && (
+                <a href={ficheEvent.htmlLink} target="_blank" rel="noreferrer" title="Ouvrir dans Google Calendar" className="p-1 rounded hover:bg-violet-100 dark:hover:bg-violet-500/20 transition">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+              <button onClick={() => handleDelete(ficheEvent)} title="Supprimer le RDV" className="p-1 rounded text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-500/15 transition">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </span>
+          </div>
+        )}
+      />
+
+      {/* ── Détail d'un événement (sans prospect lié) ── */}
       {selected && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelected(null)}>
           <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>

@@ -25,12 +25,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
-/** POST /api/calendar/events — crée un événement { title, start, end, description?, location? }. */
+/** POST /api/calendar/events — crée un événement { title, start, end, description?, location?, prospectId? }. */
 export async function POST(req: NextRequest) {
   if (!calendarConfigured()) {
     return NextResponse.json({ configured: false }, { status: 501 });
   }
-  let body: { title?: string; start?: string; end?: string; description?: string; location?: string };
+  let body: { title?: string; start?: string; end?: string; description?: string; location?: string; prospectId?: string };
   try {
     body = await req.json();
   } catch {
@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       end: body.end,
       description: body.description,
       location: body.location,
+      prospectId: typeof body.prospectId === "string" && body.prospectId.trim() ? body.prospectId.trim() : undefined,
     });
     return NextResponse.json({ event }, { status: 201 });
   } catch (e) {

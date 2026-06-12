@@ -26,6 +26,8 @@ export interface CalendarEvent {
   location: string | null;
   description: string | null;
   htmlLink: string | null;
+  /** Id du prospect lié (stocké en extendedProperties quand le RDV est créé depuis une fiche). */
+  prospectId: string | null;
 }
 
 export function calendarConfigured(): boolean {
@@ -86,6 +88,7 @@ function toEvent(item: any): CalendarEvent {
     location: item.location ?? null,
     description: item.description ?? null,
     htmlLink: item.htmlLink ?? null,
+    prospectId: item.extendedProperties?.private?.prospectId ?? null,
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -110,6 +113,7 @@ export async function createEvent(input: {
   end: string;
   description?: string;
   location?: string;
+  prospectId?: string;
 }): Promise<CalendarEvent> {
   const res = await gcal(`/calendars/${calendarId()}/events`, {
     method: "POST",
@@ -119,6 +123,7 @@ export async function createEvent(input: {
       location: input.location || undefined,
       start: { dateTime: input.start, timeZone: TIMEZONE },
       end: { dateTime: input.end, timeZone: TIMEZONE },
+      extendedProperties: input.prospectId ? { private: { prospectId: input.prospectId } } : undefined,
     }),
   });
   if (!res.ok) throw new Error(`Calendar create: ${res.status} ${await res.text().catch(() => "")}`);
