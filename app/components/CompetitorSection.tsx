@@ -624,15 +624,19 @@ export default function CompetitorSection({
             <button
               onClick={async () => {
                 const prospectRank = rankedList.findIndex((c) => c.isProspect) + 1;
-                await generateProspectReport({
-                  report,
-                  prospectName,
-                  prospectRating,
-                  prospectReviews,
-                  prospectScore,
-                  prospectRank: prospectRank || rankedList.length,
-                  prospectId,
-                });
+                try {
+                  await generateProspectReport({
+                    report,
+                    prospectName,
+                    prospectRating,
+                    prospectReviews,
+                    prospectScore,
+                    prospectRank: prospectRank || rankedList.length,
+                    prospectId,
+                  });
+                } catch (e) {
+                  alert(`Génération du PDF impossible : ${e instanceof Error ? e.message : e}`);
+                }
               }}
               className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-violet-300 dark:border-violet-500/30 bg-violet-100 dark:bg-violet-500/10 hover:bg-violet-200 dark:hover:bg-violet-500/20 text-violet-700 dark:text-violet-200 text-[12px] font-medium transition"
             >

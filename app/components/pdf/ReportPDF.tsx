@@ -357,7 +357,10 @@ export function ReportPDF({ data, demo, assets }: { data: ReportData; demo?: Dem
     <Document title={`Projet ${prospectName}`} author="NMF Agence">
 
       {/* ════════ PAGE 1 — Le constat (page sombre) ════════ */}
-      <Page size="A4" style={s.darkPage}>
+      {/* wrap={false} : pages maquettées en hauteur fixe. Sans ça, la vague absolue
+          en bottom:0 touche la limite de page et le moteur de pagination boucle à l'infini
+          (gel du navigateur au clic sur « PDF »). */}
+      <Page size="A4" style={s.darkPage} wrap={false}>
         {/* Photo héro fondue dans le fond, ou décor géométrique */}
         {assets?.hero ? (
           <>
@@ -463,7 +466,7 @@ export function ReportPDF({ data, demo, assets }: { data: ReportData; demo?: Dem
       </Page>
 
       {/* ════════ PAGE 2 — Le rêve (page claire) ════════ */}
-      <Page size="A4" style={s.lightPage}>
+      <Page size="A4" style={s.lightPage} wrap={false}>
         {/* Photo ronde qui déborde du coin supérieur droit */}
         {assets?.side && (
           <>
