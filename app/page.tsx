@@ -6,7 +6,7 @@ import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
   CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2, User,
   Filter, ArrowUpDown, Clock, Globe, MessageSquare, History, CalendarDays,
-  ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
+  ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, Eye,
 } from "lucide-react";
 import Link from "next/link";
 import { whatsAppUrl } from "./lib/links";
@@ -322,6 +322,14 @@ function HomeInner() {
             >
               <CalendarDays className="w-4 h-4" />
               <span className="hidden md:inline">Agenda</span>
+            </Link>
+            <Link
+              href="/vues"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
+              title="Prospects qui ont regardé leur démo"
+            >
+              <Eye className="w-4 h-4" />
+              <span className="hidden md:inline">Vues</span>
             </Link>
             <Link
               href="/sms"
