@@ -43,8 +43,9 @@ async function accessToken(): Promise<string> {
   if (cached && cached.exp > Date.now() + 60_000) return cached.token;
 
   const email = process.env.GOOGLE_SA_EMAIL!;
-  // La clé privée arrive souvent avec des \n littéraux depuis les env vars.
-  const key = (process.env.GOOGLE_SA_PRIVATE_KEY ?? "").replace(/\\n/g, "\n");
+  // La clé privée arrive souvent avec des \n littéraux et parfois des guillemets
+  // collés autour (copier-coller dans le dashboard Vercel).
+  const key = (process.env.GOOGLE_SA_PRIVATE_KEY ?? "").trim().replace(/^["']|["']$/g, "").replace(/\\n/g, "\n");
   const iat = Math.floor(Date.now() / 1000);
 
   const enc = (o: object) => Buffer.from(JSON.stringify(o)).toString("base64url");

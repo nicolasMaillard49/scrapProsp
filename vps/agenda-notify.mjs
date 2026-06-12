@@ -18,7 +18,8 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const SA_EMAIL = process.env.GOOGLE_SA_EMAIL || "";
-const SA_KEY = (process.env.GOOGLE_SA_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+// Tolère les guillemets collés autour de la clé et les \n littéraux.
+const SA_KEY = (process.env.GOOGLE_SA_PRIVATE_KEY || "").trim().replace(/^["']|["']$/g, "").replace(/\\n/g, "\n");
 const CALENDAR_ID = process.env.GOOGLE_CALENDAR_ID || "";
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const TG_CHAT = process.env.TELEGRAM_CHAT_ID || "";
