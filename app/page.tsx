@@ -6,7 +6,7 @@ import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
   CheckCircle2, XCircle, Undo2, Keyboard, Sparkles, Trash2, User,
   Filter, ArrowUpDown, Clock, Globe, MessageSquare, History, CalendarDays,
-  ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, Eye,
+  ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, Eye, Building2,
 } from "lucide-react";
 import Link from "next/link";
 import { whatsAppUrl } from "./lib/links";
@@ -54,6 +54,7 @@ function HomeInner() {
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [openNowOnly, setOpenNowOnly] = useState(true);
   const [hideRadie, setHideRadie] = useState(true);
+  const [hideBig, setHideBig] = useState(true);
   const [jeuneOnly, setJeuneOnly] = useState(false);
   const [radarOnly, setRadarOnly] = useState(false);
   const [adsOnly, setAdsOnly] = useState(false);
@@ -145,6 +146,7 @@ function HomeInner() {
         if (villeFilter !== "all" && p.ville !== villeFilter) return false;
         if (effectiveNow && !isOpenNow(p, effectiveNow, now)) return false;
         if (hideRadie && _radie) return false;
+        if (hideBig && p.source === "trop_gros") return false;
         if (jeuneOnly && !_jeune) return false;
         if (radarOnly && p.source !== "radar") return false;
         // Filtre Ads = cible de l'offre Google Ads : scrape ads ET site existant
@@ -184,12 +186,12 @@ function HomeInner() {
         return a.p.name.localeCompare(b.p.name);
       })
       .map((e) => e.p);
-  }, [enriched, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, jeuneOnly, radarOnly, adsOnly, sortBy, effectiveNow, now]);
+  }, [enriched, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, hideBig, jeuneOnly, radarOnly, adsOnly, sortBy, effectiveNow, now]);
 
   // Auto-reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, hideRadie, jeuneOnly, radarOnly, adsOnly, sortBy, pageSize]);
+  }, [search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, hideRadie, hideBig, jeuneOnly, radarOnly, adsOnly, sortBy, pageSize]);
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -206,7 +208,7 @@ function HomeInner() {
 
   const hasActiveFilters =
     filter !== "all" || regionFilter !== "all" || metierFilter !== "all" ||
-    villeFilter !== "all" || openNowOnly || jeuneOnly || radarOnly || adsOnly || !hideRadie || !!search;
+    villeFilter !== "all" || openNowOnly || jeuneOnly || radarOnly || adsOnly || !hideRadie || !hideBig || !!search;
 
   const resetFilters = () => {
     setSearch("");
@@ -219,6 +221,7 @@ function HomeInner() {
     setRadarOnly(false);
     setAdsOnly(false);
     setHideRadie(true);
+    setHideBig(true);
   };
 
   useEffect(() => {
@@ -510,6 +513,18 @@ function HomeInner() {
           >
             <Trash2 className="w-3.5 h-3.5" />
             <span className="hidden min-[420px]:inline">{hideRadie ? "Radiées off" : "Radiées on"}</span>
+          </button>
+          <button
+            onClick={() => setHideBig((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
+              hideBig
+                ? "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                : "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-200"
+            }`}
+            title={hideBig ? "Les grosses boîtes (ETI/GE, transporteurs, garde-meuble, déménageurs ≥50 avis) sont masquées (cliquer pour afficher)" : "Les grosses boîtes sont visibles (cliquer pour masquer)"}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span className="hidden min-[420px]:inline">{hideBig ? "Grosses off" : "Grosses on"}</span>
           </button>
           <button
             onClick={() => {
