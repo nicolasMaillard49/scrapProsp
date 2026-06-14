@@ -554,6 +554,87 @@ async def _do_enrich(maps_url: str) -> EnrichResponse:
         await context.close()
 
 
+async def extract_single_place(page) -> Competitor | None:
+    """Search resolved to ONE business (no feed): extract that place page.
+
+    Used for exact name / phone lookups, which Google Maps opens directly as a
+    place page rather than a results feed. Returns full details (name, rating,
+    reviews, phone, address, website) or None if it's not a place page.
+    """
+    try:
+        if "/place/" not in page.url:
+            await page.wait_for_timeout(2500)
+        if "/place/" not in page.url:
+            return None
+        try:
+            await page.wait_for_selector("h1", timeout=5000)
+        except Exception:
+            return None
+
+        name = (await page.locator("h1").first.inner_text()).strip()
+        if not name or name.lower() in BLACKLISTED_NAMES:
+            return None
+
+        comp = Competitor(name=name, maps_url=page.url)
+
+        # Rating + reviews (best effort, from the header rating block)
+        try:
+            block = page.locator("div.F7nice").first
+            if await block.count() > 0:
+                txt = (await block.inner_text()).strip()
+                mr = re.search(r"(\d[.,]\d)", txt)
+                if mr:
+                    comp.rating = mr.group(1).replace(",", ".")
+                mc = re.search(r"\(([\d\s .,]+)\)", txt)
+                if mc:
+                    comp.reviews = re.sub(r"[\s .,]", "", mc.group(1))
+        except Exception:
+            pass
+
+        # Phone
+        try:
+            phone_btn = page.locator(
+                'button[data-tooltip="Copier le numéro de téléphone"]'
+            ).first
+            phone_label = await phone_btn.get_attribute("aria-label", timeout=2500)
+            if phone_label and ":" in phone_label:
+                comp.phone = phone_label.split(":")[-1].strip()
+        except Exception:
+            pass
+
+        # Address
+        try:
+            addr_btn = page.locator(
+                "button[data-tooltip=\"Copier l'adresse\"]"
+            ).first
+            addr_label = await addr_btn.get_attribute("aria-label", timeout=2500)
+            if addr_label:
+                comp.address = (
+                    addr_label.split(":", 1)[-1].strip()
+                    if ":" in addr_label
+                    else addr_label
+                )
+        except Exception:
+            pass
+
+        # Website
+        try:
+            auth = page.locator('a[data-item-id="authority"]')
+            if await auth.count() > 0:
+                href = await auth.first.get_attribute("href", timeout=2500)
+                comp.website = href or ""
+        except Exception:
+            pass
+
+        log.info(
+            f"Single place: {comp.name} | phone={comp.phone} | site={bool(comp.website)}"
+        )
+        return comp
+    except Exception as exc:
+        log.warning(f"extract_single_place failed: {str(exc)[:80]}")
+        return None
+
+
 async def _do_scrape(url: str, limit: int, quick: bool = False) -> list[Competitor]:
     """Core scraping logic — runs inside the timeout wrapper."""
     context = await _browser.new_context(
@@ -580,6 +661,12 @@ async def _do_scrape(url: str, limit: int, quick: bool = False) -> list[Competit
             await page.wait_for_selector('div[role="feed"]', timeout=15000)
             log.info("Feed found")
         except Exception:
+            # No feed: an exact name/phone search often resolves DIRECTLY to a
+            # single place page. Extract that one business instead of giving up.
+            single = await extract_single_place(page)
+            if single:
+                log.info(f"No feed — single place page: {single.name}")
+                return [single]
             log.warning("No feed found — page title: %s", await page.title())
             return []
 
