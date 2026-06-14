@@ -15,6 +15,11 @@ export function middleware(req: NextRequest) {
     pathname.startsWith("/d/") ||
     pathname.startsWith("/di/") ||
     pathname.startsWith("/templates/") ||
+    // Funnel d'éligibilité public (formulaire + rapport ouverts aux prospects).
+    // /api/eligibilite/create reste protégé (action interne d'envoi du SMS).
+    pathname.startsWith("/eligibilite/") ||
+    pathname === "/api/eligibilite/submit" ||
+    pathname === "/api/eligibilite/launch" ||
     pathname === "/api/sms/incoming" ||
     pathname === "/api/sms/status" ||
     pathname === "/api/cron/run-blasts" ||

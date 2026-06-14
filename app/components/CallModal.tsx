@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
 import {
   X, Phone, PhoneOff, Smartphone, CheckCircle2, XCircle, Settings, ExternalLink,
-  Calendar, ChevronDown, ChevronLeft, ChevronRight, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2, Globe,
+  Calendar, ChevronDown, ChevronLeft, ChevronRight, MapPin, Star, Clock, History, Palette, MessageSquare, Send, Loader2, Globe, Megaphone, Copy,
 } from "lucide-react";
 import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import { supabase } from "../lib/supabase";
@@ -92,6 +92,11 @@ export default function CallModal({
   const [smsPreview, setSmsPreview] = useState<{ message: string; segments: number } | null>(null);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [lastSmsAt, setLastSmsAt] = useState<string | null>(null);
+  // Funnel d'éligibilité Google Ads (clone Lokads) — déclenché pour les cibles source=ads.
+  const [eligState, setEligState] = useState<"idle" | "preview" | "sending" | "sent" | "error">("idle");
+  const [eligPreview, setEligPreview] = useState<{ message: string; formUrl: string } | null>(null);
+  const [eligError, setEligError] = useState<string | null>(null);
+  const [eligCopied, setEligCopied] = useState(false);
 
   const name = prospect?.name || "";
   const phone = prospect?.phone || "";
@@ -120,6 +125,10 @@ export default function CallModal({
     setSmsState("idle");
     setSmsPreview(null);
     setSmsError(null);
+    setEligState("idle");
+    setEligPreview(null);
+    setEligError(null);
+    setEligCopied(false);
   }, [prospect?.id, open]);
 
   // Charge la date du dernier SMS envoyé à ce prospect (pour la mention « SMS envoyé »)
@@ -190,6 +199,64 @@ export default function CallModal({
     setSmsError(msg);
     setSmsState("error");
   }
+
+  function setEligErr(msg: string) {
+    setEligError(msg);
+    setEligState("error");
+  }
+
+  // Aperçu du SMS d'éligibilité (dryRun : ne crée pas de lead, ne part pas).
+  const loadEligPreview = async () => {
+    if (!prospect) return;
+    setEligState("sending");
+    setEligError(null);
+    try {
+      const res = await fetch("/api/eligibilite/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectId: prospect.id, dryRun: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) return setEligErr(json.error || `Erreur ${res.status}`);
+      setEligPreview({ message: json.message, formUrl: json.formUrl });
+      setEligState("preview");
+    } catch (e) {
+      setEligErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  // Crée le lead + envoie réellement le SMS avec le lien du formulaire.
+  const sendElig = async () => {
+    if (!prospect) return;
+    setEligState("sending");
+    setEligError(null);
+    try {
+      const res = await fetch("/api/eligibilite/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospectId: prospect.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) return setEligErr(json.error || `Erreur ${res.status}`);
+      if (json.smsSent === false) {
+        return setEligErr(json.reason || "Lien créé mais SMS non envoyé (Twilio non configuré)");
+      }
+      setEligState("sent");
+    } catch (e) {
+      setEligErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const copyEligLink = async () => {
+    if (!eligPreview) return;
+    try {
+      await navigator.clipboard.writeText(eligPreview.formUrl);
+      setEligCopied(true);
+      setTimeout(() => setEligCopied(false), 2000);
+    } catch {
+      /* clipboard indisponible (http, permissions) — on ignore */
+    }
+  };
 
   useEffect(() => {
     try {
@@ -577,6 +644,61 @@ export default function CallModal({
             {smsState === "error" && smsError && (
               <div className="mt-1.5 px-3 py-1.5 rounded text-[11px] text-rose-700 bg-rose-50 border border-rose-200 dark:text-rose-300 dark:bg-rose-500/5 dark:border-rose-500/20 break-words">
                 {smsError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Funnel d'éligibilité Google Ads — uniquement pour les cibles du scrape Ads */}
+        {prospect?.source === "ads" && (
+          <div className="mb-4">
+            {eligState === "sent" ? (
+              <div className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500/90 text-white font-medium">
+                <CheckCircle2 className="w-5 h-5" /> Formulaire d&apos;éligibilité envoyé
+              </div>
+            ) : eligState === "preview" && eligPreview ? (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-600/50 dark:bg-amber-500/5 p-3">
+                <div className="text-[11px] text-[var(--color-text-secondary)] mb-1.5 flex items-center gap-1.5">
+                  <Megaphone className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                  SMS funnel Google Ads — le prospect remplit son éligibilité en 2 min
+                </div>
+                <div className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap mb-2">{eligPreview.message}</div>
+                <button
+                  onClick={copyEligLink}
+                  className="mb-3 inline-flex items-center gap-1.5 text-[11px] text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200 transition"
+                  title={eligPreview.formUrl}
+                >
+                  {eligCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {eligCopied ? "Lien copié" : "Copier le lien du formulaire"}
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setEligState("idle")}
+                    className="py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm transition"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={sendElig}
+                    className="py-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Send className="w-4 h-4" /> Envoyer le SMS
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={loadEligPreview}
+                disabled={eligState === "sending"}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 border border-amber-500 text-white dark:bg-gradient-to-br dark:from-amber-500/20 dark:to-orange-700/10 dark:border-amber-600/50 dark:hover:from-amber-500/30 dark:hover:to-orange-700/20 dark:text-amber-100 font-medium transition disabled:opacity-50"
+              >
+                {eligState === "sending" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Megaphone className="w-5 h-5" />}
+                Envoyer le formulaire d&apos;éligibilité
+              </button>
+            )}
+            {eligState === "error" && eligError && (
+              <div className="mt-1.5 px-3 py-1.5 rounded text-[11px] text-rose-700 bg-rose-50 border border-rose-200 dark:text-rose-300 dark:bg-rose-500/5 dark:border-rose-500/20 break-words">
+                {eligError}
               </div>
             )}
           </div>
