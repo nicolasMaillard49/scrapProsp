@@ -24,6 +24,7 @@ import { useProspects } from "./lib/useProspects";
 import { gbpBadge, computeGbpScore } from "./lib/gbp";
 import { opportunityScore, opportunityBadge } from "./lib/opportunity";
 import { metierLabel } from "./maquette/templates/data";
+import { normalizePhoneFR } from "./lib/match";
 
 const statusConfig: Record<Status, { label: string; ring: string; row: string; text: string }> = {
   todo: { label: "À appeler", ring: "ring-neutral-400 dark:ring-neutral-700", row: "border-l-[3px] border-l-neutral-300 dark:border-l-transparent dark:bg-neutral-500/5", text: "text-neutral-500 dark:text-neutral-400" },
@@ -50,7 +51,9 @@ function HomeInner() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | Status>("todo");
   const [metierFilter, setMetierFilter] = useState<string>("all");
+  const [metierExclude, setMetierExclude] = useState<string>("all");
   const [villeFilter, setVilleFilter] = useState<string>("all");
+  const [villeExclude, setVilleExclude] = useState<string>("all");
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [openNowOnly, setOpenNowOnly] = useState(true);
   const [hideRadie, setHideRadie] = useState(true);
@@ -137,13 +140,30 @@ function HomeInner() {
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
     const qDigits = q.replace(/\D/g, "");
+    const qPhone = normalizePhoneFR(q);
+    // Score de pertinence d'une fiche pour la recherche courante.
+    // Plus c'est petit, plus c'est pertinent → remonte en tête de liste.
+    const matchRank = (p: Prospect): number => {
+      const phoneDigits = p.phone.replace(/\D/g, "");
+      // Numéro de téléphone identique (au format FR canonique) = match exact.
+      if (qPhone.length === 9 && normalizePhoneFR(p.phone) === qPhone) return 0;
+      // Sous-chaîne de chiffres dans le téléphone (recherche partielle).
+      if (qDigits.length >= 4 && phoneDigits.includes(qDigits)) return 1;
+      const name = p.name.toLowerCase();
+      if (name === q) return 1;
+      if (name.startsWith(q)) return 2;
+      if (name.includes(q)) return 3;
+      return 4; // match faible (ville / métier / adresse)
+    };
     return enriched
       .filter(({ p, _radie, _jeune }) => {
         const st = p.status;
         if (filter !== "all" && st !== filter) return false;
         if (regionFilter !== "all" && p.region !== regionFilter) return false;
         if (metierFilter !== "all" && p.metier !== metierFilter) return false;
+        if (metierExclude !== "all" && p.metier === metierExclude) return false;
         if (villeFilter !== "all" && p.ville !== villeFilter) return false;
+        if (villeExclude !== "all" && p.ville === villeExclude) return false;
         if (effectiveNow && !isOpenNow(p, effectiveNow, now)) return false;
         if (hideRadie && _radie) return false;
         if (hideBig && p.source === "trop_gros") return false;
@@ -155,12 +175,21 @@ function HomeInner() {
         if (adsOnly && (p.source !== "ads" || !p.website)) return false;
         if (q) {
           const matchesText = `${p.name} ${p.ville} ${p.metier} ${p.address || ""}`.toLowerCase().includes(q);
-          const matchesPhone = qDigits.length >= 2 && p.phone.replace(/\D/g, "").includes(qDigits);
+          const matchesPhone =
+            (qDigits.length >= 2 && p.phone.replace(/\D/g, "").includes(qDigits)) ||
+            (qPhone.length === 9 && normalizePhoneFR(p.phone) === qPhone);
           if (!matchesText && !matchesPhone) return false;
         }
         return true;
       })
       .sort((a, b) => {
+        // Quand on recherche, la pertinence prime sur le tri choisi : le match
+        // exact (téléphone / nom) remonte en tête plutôt que d'être noyé.
+        if (q) {
+          const ra = matchRank(a.p);
+          const rb = matchRank(b.p);
+          if (ra !== rb) return ra - rb;
+        }
         if (sortBy === "opportunity") return b._opp - a._opp;
         if (sortBy === "reviews") return (b.p.reviews ?? 0) - (a.p.reviews ?? 0);
         if (sortBy === "reviews-asc") return (a.p.reviews ?? 0) - (b.p.reviews ?? 0);
@@ -186,12 +215,12 @@ function HomeInner() {
         return a.p.name.localeCompare(b.p.name);
       })
       .map((e) => e.p);
-  }, [enriched, search, filter, regionFilter, metierFilter, villeFilter, hideRadie, hideBig, jeuneOnly, radarOnly, adsOnly, sortBy, effectiveNow, now]);
+  }, [enriched, search, filter, regionFilter, metierFilter, metierExclude, villeFilter, villeExclude, hideRadie, hideBig, jeuneOnly, radarOnly, adsOnly, sortBy, effectiveNow, now]);
 
   // Auto-reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, filter, regionFilter, metierFilter, villeFilter, openNowOnly, hideRadie, hideBig, jeuneOnly, radarOnly, adsOnly, sortBy, pageSize]);
+  }, [search, filter, regionFilter, metierFilter, metierExclude, villeFilter, villeExclude, openNowOnly, hideRadie, hideBig, jeuneOnly, radarOnly, adsOnly, sortBy, pageSize]);
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -208,13 +237,15 @@ function HomeInner() {
 
   const hasActiveFilters =
     filter !== "all" || regionFilter !== "all" || metierFilter !== "all" ||
-    villeFilter !== "all" || openNowOnly || jeuneOnly || radarOnly || adsOnly || !hideRadie || !hideBig || !!search;
+    villeFilter !== "all" || villeExclude !== "all" || metierExclude !== "all" || openNowOnly || jeuneOnly || radarOnly || adsOnly || !hideRadie || !hideBig || !!search;
 
   const resetFilters = () => {
     setSearch("");
     setFilter("all");
     setMetierFilter("all");
+    setMetierExclude("all");
     setVilleFilter("all");
+    setVilleExclude("all");
     setRegionFilter("all");
     setOpenNowOnly(false);
     setJeuneOnly(false);
@@ -447,6 +478,18 @@ function HomeInner() {
             <select value={villeFilter} onChange={(e) => setVilleFilter(e.target.value)} className="bg-transparent text-sm outline-none cursor-pointer max-w-[110px] md:max-w-none">
               <option value="all">Ville</option>
               {villes.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </SelectIcon>
+          <SelectIcon icon={<XCircle className="w-3.5 h-3.5" />}>
+            <select value={villeExclude} onChange={(e) => setVilleExclude(e.target.value)} className="bg-transparent text-sm outline-none cursor-pointer max-w-[110px] md:max-w-none" title="Exclure une ville">
+              <option value="all">Exclure ville</option>
+              {villes.map((v) => <option key={v} value={v}>≠ {v}</option>)}
+            </select>
+          </SelectIcon>
+          <SelectIcon icon={<XCircle className="w-3.5 h-3.5" />}>
+            <select value={metierExclude} onChange={(e) => setMetierExclude(e.target.value)} className="bg-transparent text-sm outline-none cursor-pointer max-w-[110px] md:max-w-none" title="Exclure un métier">
+              <option value="all">Exclure métier</option>
+              {metiers.map((m) => <option key={m} value={m}>≠ {metierLabel(m)}</option>)}
             </select>
           </SelectIcon>
           <SelectIcon icon={<ArrowUpDown className="w-3.5 h-3.5" />}>
