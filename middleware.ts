@@ -3,8 +3,27 @@ import type { NextRequest } from "next/server";
 
 const COOKIE_NAME = "prospects-auth";
 
+// Domaine public dédié au funnel d'éligibilité (formulaire client). Sur ce host,
+// SEUL le funnel est servi — le tracker interne n'y est jamais exposé.
+const FUNNEL_HOST = process.env.FUNNEL_HOST || "eligibilite.nmf-agence.com";
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const host = (req.headers.get("host") || "").toLowerCase();
+
+  const isAsset =
+    pathname.startsWith("/_next/") || pathname === "/icon.svg" || pathname === "/favicon.ico";
+  // Pages + API publiques du funnel (le formulaire, le rapport, l'activation).
+  const isFunnelPath =
+    pathname.startsWith("/eligibilite/") ||
+    pathname === "/api/eligibilite/submit" ||
+    pathname === "/api/eligibilite/launch";
+
+  // ── Domaine funnel : on n'y sert QUE le funnel. Tout le reste part sur le site NMF.
+  if (host === FUNNEL_HOST) {
+    if (isFunnelPath || isAsset) return NextResponse.next();
+    return NextResponse.redirect("https://www.nmf-agence.com");
+  }
 
   // Routes ouvertes (page de login + démos publiques + assets statiques)
   if (
