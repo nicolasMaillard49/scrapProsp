@@ -62,7 +62,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
 
         <div
           className="mt-8 rounded-[22px] p-6 text-center"
-          style={{ background: "linear-gradient(180deg,#fff, var(--accent-soft))", border: "1px solid #e6def9" }}
+          style={{ background: "linear-gradient(180deg,#fff, var(--accent-soft))", border: "1px solid #ffe0c7" }}
         >
           <h3 className="text-lg font-extrabold" style={{ color: "var(--ink)" }}>Prêt à lancer votre campagne ?</h3>
           <p className="mt-1.5 text-sm" style={{ color: "var(--ink-soft)" }}>
@@ -83,7 +83,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
 
 function Stat({ label, value, sub, highlight }: { label: string; value: string; sub: string; highlight?: boolean }) {
   return (
-    <div className="fnl-stat" style={highlight ? { background: "var(--accent-soft)", borderColor: "#e6def9" } : undefined}>
+    <div className="fnl-stat" style={highlight ? { background: "var(--accent-soft)", borderColor: "#ffe0c7" } : undefined}>
       <div className="text-lg font-extrabold" style={{ color: highlight ? "var(--accent-dark)" : "var(--ink)" }}>{value}</div>
       <div className="text-[10px]" style={{ color: "var(--muted)" }}>{sub}</div>
       <div className="mt-1 text-[11px] font-medium" style={{ color: "var(--ink-soft)" }}>{label}</div>

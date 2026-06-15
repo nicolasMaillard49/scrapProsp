@@ -173,8 +173,8 @@ function emailShell(opts: {
   ctaUrl: string;
   footnote?: string;
 }): string {
-  const ACCENT = "#7B4FE0";
-  const ACCENT_DARK = "#5B34C0";
+  const ACCENT = "#FF6E00";
+  const ACCENT_DARK = "#E85F00";
   const INK = "#0f172a";
   const MUTED = "#667085";
   const BORDER = "#eceef2";
@@ -207,7 +207,7 @@ function emailShell(opts: {
         </td></tr>
         <tr><td style="padding:16px 36px 0;font-family:Helvetica,Arial,sans-serif;font-size:15px;line-height:1.65;color:#475467">${opts.intro}</td></tr>
         <tr><td style="padding:22px 36px 0">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf9ff;border:1px solid #ece8fb;border-radius:12px">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fff8f3;border:1px solid #ffe7d6;border-radius:12px">
             <tr><td style="padding:6px 18px">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}
               </table>
@@ -259,7 +259,7 @@ export function confirmationEmailHtml(lead: {
     ],
     ctaLabel: "Voir mon analyse",
     ctaUrl: reportUrl,
-    footnote: `Estimation à partir de performances moyennes — ce n'est pas une garantie. Lien direct : <a href="${reportUrl}" style="color:#7B4FE0">${reportUrl}</a>`,
+    footnote: `Estimation à partir de performances moyennes — ce n'est pas une garantie. Lien direct : <a href="${reportUrl}" style="color:#FF6E00">${reportUrl}</a>`,
   });
   return { subject, html };
 }

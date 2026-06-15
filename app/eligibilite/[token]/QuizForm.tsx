@@ -2,9 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { supabase, supabaseConfigured } from "../../lib/supabase";
 
-// Config dupliquée côté client (les constantes serveur ne sont pas importables ici sans "use server").
+const MapRadius = dynamic(() => import("./MapRadius"), {
+  ssr: false,
+  loading: () => (
+    <div className="fnl-map">
+      <div className="fnl-map-loading">···</div>
+    </div>
+  ),
+});
+
 const EMPLOYEES = [
   { value: "solo", label: "Je travaille seul", hint: "Solo" },
   { value: "2_5", label: "2 à 5", hint: "Petite équipe" },
@@ -61,8 +70,7 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
   const next = () => setStep((s) => s + 1);
   const back = () => setStep((s) => Math.max(0, s - 1));
 
-  // ── Miroir temps réel : on diffuse l'état du formulaire au fil de la saisie,
-  // pour que l'admin puisse suivre en direct (effet miroir côté /admin/funnel).
+  // Miroir temps réel (suivi admin) : on diffuse l'état au fil de la saisie.
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   useEffect(() => {
     if (!supabaseConfigured) return;
@@ -96,17 +104,19 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
     }
   }
 
+  const rangePct = (a.radius_km / 50) * 100;
+
   const STEPS = [
     {
-      q: "Votre métier",
+      q: "Quel est votre métier ?",
       sub: "On adapte toute la campagne à votre activité.",
-      body: <input className="fnl-input" value={a.metier} onChange={(e) => set("metier", e.target.value)} placeholder="Ex : Paysagiste" />,
+      body: <input className="fnl-input" value={a.metier} onChange={(e) => set("metier", e.target.value)} placeholder="Ex : Paysagiste" autoFocus />,
       can: () => a.metier.trim().length > 1,
     },
     {
       q: "Dans quelle ville exercez-vous ?",
       sub: "On garantit l'exclusivité sur votre zone géographique.",
-      body: <input className="fnl-input" value={a.ville} onChange={(e) => set("ville", e.target.value)} placeholder="Ex : Niort" />,
+      body: <input className="fnl-input" value={a.ville} onChange={(e) => set("ville", e.target.value)} placeholder="Ex : Niort" autoFocus />,
       can: () => a.ville.trim().length > 1,
     },
     {
@@ -114,13 +124,26 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
       sub: "On cible les internautes qui cherchent depuis cette zone.",
       body: (
         <div>
-          <div className="text-center mb-3">
-            <span className="text-4xl font-extrabold" style={{ color: "var(--accent)" }}>{a.radius_km}</span>
-            <span className="text-lg font-semibold" style={{ color: "var(--muted)" }}> km</span>
+          <MapRadius ville={a.ville} radiusKm={a.radius_km} />
+          <div className="mt-4 flex items-center gap-1.5 text-sm font-semibold" style={{ color: "var(--ink)" }}>
+            <PinIcon /> {a.ville || "Votre ville"}
           </div>
-          <input type="range" min={0} max={50} value={a.radius_km} onChange={(e) => set("radius_km", Number(e.target.value))} className="fnl-range w-full" />
-          <div className="flex justify-between text-xs mt-2" style={{ color: "var(--muted)" }}>
-            <span>0 km</span><span>50 km</span>
+          <div className="mt-1.5">
+            <span className="text-[44px] font-bold leading-none" style={{ color: "var(--ink)" }}>{a.radius_km}</span>
+            <span className="text-[22px] font-bold" style={{ color: "var(--muted)" }}> km</span>
+          </div>
+          <p className="mt-1 text-sm" style={{ color: "var(--ink-soft)" }}>Rayon autour du centre-ville.</p>
+          <input
+            type="range"
+            min={0}
+            max={50}
+            value={a.radius_km}
+            onChange={(e) => set("radius_km", Number(e.target.value))}
+            className="fnl-range mt-4"
+            style={{ background: `linear-gradient(90deg, var(--accent) ${rangePct}%, var(--border) ${rangePct}%)` }}
+          />
+          <div className="flex justify-between text-xs mt-2 font-medium" style={{ color: "var(--muted)" }}>
+            <span>0 km</span><span>25 km</span><span>50 km</span>
           </div>
         </div>
       ),
@@ -129,7 +152,7 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
     {
       q: "Quelle est l'adresse de votre site web ?",
       sub: "On l'analyse pour repérer votre service le plus rentable.",
-      body: <input className="fnl-input" value={a.site_url} onChange={(e) => set("site_url", e.target.value)} placeholder="exemple-paysagiste.fr" />,
+      body: <input className="fnl-input" value={a.site_url} onChange={(e) => set("site_url", e.target.value)} placeholder="exemple-paysagiste.fr" autoFocus />,
       can: () => true,
     },
     {
@@ -176,43 +199,52 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
   const pct = Math.round(((step + 1) / STEPS.length) * 100);
 
   return (
-    <div className="w-full max-w-md">
-      <style>{`
-        .fnl-range{appearance:none;height:8px;border-radius:999px;background:linear-gradient(90deg,var(--accent) ${(a.radius_km / 50) * 100}%,var(--border) ${(a.radius_km / 50) * 100}%);outline:none}
-        .fnl-range::-webkit-slider-thumb{appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--accent);box-shadow:0 2px 8px rgba(91,52,192,.35);cursor:pointer}
-        .fnl-range::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--accent);box-shadow:0 2px 8px rgba(91,52,192,.35);cursor:pointer}
-      `}</style>
-
-      {/* En-tête de marque + progression */}
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-[13px] font-extrabold tracking-[0.14em]" style={{ color: "var(--accent)" }}>NMF&nbsp;AGENCE</span>
-        <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Étape {step + 1} / {STEPS.length}</span>
-      </div>
-      <div className="mb-6 h-2 w-full rounded-full" style={{ background: "var(--border)" }}>
-        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: "var(--accent)" }} />
+    <div className="w-full max-w-md min-h-screen flex flex-col px-1">
+      {/* En-tête marque + progression */}
+      <div className="pt-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[18px] font-bold tracking-tight" style={{ color: "var(--ink)" }}>
+            NMF<span style={{ color: "var(--accent)" }}>.</span>
+          </span>
+          <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Étape {step + 1} / {STEPS.length}</span>
+        </div>
+        <div className="mt-3 h-1.5 w-full rounded-full" style={{ background: "var(--border)" }}>
+          <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: "var(--accent)" }} />
+        </div>
       </div>
 
-      <div className="fnl-card p-6 sm:p-7">
+      {/* Contenu */}
+      <div className="flex-1 flex flex-col justify-center py-8">
         {step > 0 && (
-          <button onClick={back} className="mb-4 text-sm font-medium hover:opacity-70 transition-opacity" style={{ color: "var(--muted)" }}>← Retour</button>
+          <button onClick={back} className="mb-5 inline-flex items-center gap-1 self-start text-sm font-medium hover:opacity-70 transition-opacity" style={{ color: "var(--ink-soft)" }}>
+            ← Retour
+          </button>
         )}
-
-        <h1 className="text-[22px] font-extrabold leading-tight" style={{ color: "var(--ink)", textWrap: "balance" }}>{cur.q}</h1>
-        <p className="mt-1.5 text-[14px] leading-relaxed mb-6" style={{ color: "var(--ink-soft)" }}>{cur.sub}</p>
-
-        <div className="mb-5">{cur.body}</div>
-
-        {error && <p className="text-sm mb-3" style={{ color: "#e11d48" }}>{error}</p>}
-
-        <button disabled={!cur.can() || submitting} onClick={isLast ? submit : next} className="fnl-btn">
-          {submitting ? "Envoi…" : isLast ? "Recevoir mon analyse" : "Continuer"}
-        </button>
+        <h1 className="text-[28px] font-bold leading-[1.1]" style={{ color: "var(--ink)", textWrap: "balance" }}>{cur.q}</h1>
+        <p className="mt-2.5 text-[15px] leading-relaxed mb-7" style={{ color: "var(--ink-soft)" }}>{cur.sub}</p>
+        <div>{cur.body}</div>
+        {error && <p className="mt-3 text-sm" style={{ color: "#e11d48" }}>{error}</p>}
       </div>
 
-      <p className="mt-4 text-center text-xs" style={{ color: "var(--muted)" }}>
-        🔒 Vos informations restent confidentielles · 1ʳᵉ semaine offerte
-      </p>
+      {/* CTA sticky bas */}
+      <div className="fnl-sticky">
+        <button disabled={!cur.can() || submitting} onClick={isLast ? submit : next} className="fnl-btn">
+          {submitting ? "Envoi…" : isLast ? "Recevoir mon analyse" : "Continuer →"}
+        </button>
+        <p className="mt-3 text-center text-xs" style={{ color: "var(--muted)" }}>
+          🔒 Confidentiel · 1ʳᵉ semaine offerte
+        </p>
+      </div>
     </div>
+  );
+}
+
+function PinIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
   );
 }
 

@@ -1,62 +1,68 @@
 /* ──────────────────────────────────────────────────────────────────────────
-   DA funnel éligibilité — « friendly-premium » pour artisans (mobile-first).
-   Accent NMF violet, fond clair teinté violet (pas le cream AI), contraste AA+.
-   Source de vérité : ces tokens. Aucune couleur en dur dans les pages.
+   DA funnel — qualité Lokads (réf. scrappée) : DM Sans, fond blanc, encre navy,
+   accent orange #FF6E00, inputs gris doux très arrondis, letter-spacing serré,
+   beaucoup d'air, CTA sticky. Tokens = source de vérité (propagent à toutes les pages).
    ────────────────────────────────────────────────────────────────────────── */
+@import "leaflet/dist/leaflet.css";
+
 .fnl {
-  --bg: #f6f5fb;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-2: #faf9ff;
-  --ink: #14131a;
-  --ink-soft: #4b4960;
-  --muted: #8a87a0;
-  --border: #ece9f5;
-  --accent: #7b4fe0;
-  --accent-dark: #5b34c0;
-  --accent-soft: #f2edfd;
+  --surface-2: #f8fafc;
+  --field: #eceff4;            /* fond des inputs (gris bleuté doux, façon Lokads) */
+  --ink: #101828;              /* navy quasi-noir */
+  --ink-soft: #475467;
+  --muted: #94a3b8;
+  --border: #e6e8ee;
+  --accent: #ff6e00;           /* orange Lokads */
+  --accent-dark: #e85f00;
+  --accent-soft: #fff3e9;
   --success: #10b981;
-  --radius: 16px;
+  --radius: 14px;
   --radius-lg: 22px;
   --radius-pill: 999px;
-  --shadow: 0 1px 2px rgba(20, 19, 26, 0.04), 0 12px 32px -16px rgba(91, 52, 192, 0.28);
-  --shadow-soft: 0 1px 2px rgba(20, 19, 26, 0.04), 0 6px 18px -10px rgba(20, 19, 26, 0.12);
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 18px 40px -22px rgba(16, 24, 40, 0.22);
+  --shadow-soft: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 22px -14px rgba(16, 24, 40, 0.16);
 
-  font-family: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  background:
-    radial-gradient(1200px 600px at 50% -10%, #efeafd 0%, rgba(239, 234, 253, 0) 60%),
-    var(--bg);
+  font-family: var(--font-dmsans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
   color: var(--ink);
+  letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Carte de contenu */
+.fnl h1, .fnl h2, .fnl h3 { letter-spacing: -0.025em; }
+
+/* Carte de contenu (rapport, étapes) */
 .fnl-card {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-soft);
 }
 
-/* Champ de saisie */
+/* Champ de saisie — fond gris doux, sans bordure visible (style Lokads) */
 .fnl-input {
   width: 100%;
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 15px 16px;
+  background: var(--field);
+  border: 1.5px solid transparent;
+  border-radius: 16px;
+  padding: 17px 18px;
   font-size: 16px; /* ≥16px : pas de zoom auto iOS */
+  font-weight: 500;
   color: var(--ink);
   outline: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
-.fnl-input::placeholder { color: var(--muted); }
+.fnl-input::placeholder { color: var(--muted); font-weight: 400; }
 .fnl-input:focus {
+  background: #fff;
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(123, 79, 224, 0.12);
+  box-shadow: 0 0 0 4px rgba(255, 110, 0, 0.12);
 }
 
-/* Bouton primaire — pleine largeur, grande zone tactile (≥52px) */
+/* Bouton primaire — pleine largeur, grande zone tactile */
 .fnl-btn {
   display: inline-flex;
   align-items: center;
@@ -70,31 +76,30 @@
   background: var(--accent);
   color: #fff;
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 20px -8px rgba(123, 79, 224, 0.6);
+  box-shadow: 0 10px 22px -10px rgba(255, 110, 0, 0.7);
   transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
 }
 .fnl-btn:hover:not(:disabled) { background: var(--accent-dark); transform: translateY(-1px); }
 .fnl-btn:active:not(:disabled) { transform: translateY(0); }
-.fnl-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.fnl-btn:disabled { background: #ffc9a3; cursor: not-allowed; box-shadow: none; }
 
-/* Carte de choix sélectionnable (radio cards) */
+/* Carte de choix sélectionnable */
 .fnl-choice {
   width: 100%;
   text-align: left;
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
-  padding: 15px 16px;
+  padding: 16px 17px;
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
 }
-.fnl-choice:hover { border-color: #d8cff5; transform: translateY(-1px); }
+.fnl-choice:hover { border-color: #f5c39a; transform: translateY(-1px); }
 .fnl-choice[data-active="true"] {
   border-color: var(--accent);
   background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 /* Pastille d'info (carte récap) */
@@ -104,6 +109,61 @@
   border-radius: var(--radius);
   padding: 14px;
   text-align: center;
+}
+
+/* Carte interactive (étape rayon) */
+.fnl-map {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #eef1f5;
+  border: 1px solid var(--border);
+}
+.fnl-map-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 24px;
+  letter-spacing: 0.2em;
+}
+.fnl-map .leaflet-container { background: #eef1f5; font-family: inherit; }
+
+/* Slider orange (rayon) */
+.fnl-range {
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  outline: none;
+}
+.fnl-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(255, 110, 0, 0.4);
+  cursor: pointer;
+}
+.fnl-range::-moz-range-thumb {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(255, 110, 0, 0.4);
+  cursor: pointer;
+}
+
+/* Barre d'action sticky (CTA en bas, façon Lokads) */
+.fnl-sticky {
+  position: sticky;
+  bottom: 0;
+  padding: 16px 0 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), #fff 28%);
 }
 
 @media (prefers-reduced-motion: reduce) {
