@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { supabase, supabaseConfigured } from "../../lib/supabase";
 
 // Config dupliquée côté client (les constantes serveur ne sont pas importables ici sans "use server").
 const EMPLOYEES = [
@@ -59,6 +60,23 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
   const set = (k: string, v: unknown) => setA((p) => ({ ...p, [k]: v }));
   const next = () => setStep((s) => s + 1);
   const back = () => setStep((s) => Math.max(0, s - 1));
+
+  // ── Miroir temps réel : on diffuse l'état du formulaire au fil de la saisie,
+  // pour que l'admin puisse suivre en direct (effet miroir côté /admin/funnel).
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    const ch = supabase.channel(`elig-live:${token}`, { config: { broadcast: { self: false } } });
+    ch.subscribe();
+    channelRef.current = ch;
+    return () => {
+      supabase.removeChannel(ch);
+      channelRef.current = null;
+    };
+  }, [token]);
+  useEffect(() => {
+    channelRef.current?.send({ type: "broadcast", event: "state", payload: { step, a } });
+  }, [step, a]);
 
   async function submit() {
     setSubmitting(true);

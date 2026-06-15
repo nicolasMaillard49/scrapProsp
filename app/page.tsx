@@ -413,6 +413,14 @@ function HomeInner() {
               <span className="hidden md:inline">SMS</span>
             </Link>
             <Link
+              href="/admin/funnel"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
+              title="Console funnel éligibilité : aperçu pages client, emails, miroir live"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden md:inline">Funnel</span>
+            </Link>
+            <Link
               href="/instagram"
               className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
               title="Prospection Instagram"
