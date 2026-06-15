@@ -25,23 +25,26 @@ carte** qui paie Google pour les clics. NMF n'avance pas la dépense pub.
 mais le **moyen de paiement est celui du client**. L'API Google Ads **ne permet pas
 d'ajouter une carte** (action manuelle de l'utilisateur dans l'UI Google, par sécurité).
 
-**Deux branches** (pas un choix de design — les deux sont supportées), selon une question
-du funnel « avez-vous déjà un compte Google Ads ? » :
+**On part de l'email** (déjà collecté dans le funnel) — **aucune question en plus**.
+Limite API à connaître : **il n'existe aucun moyen de chercher un compte Google Ads par
+email** (`listAccessibleCustomers` ne liste que nos comptes accessibles). On ne peut donc
+**pas détecter** programmatiquement si le prospect a déjà un compte — et ce n'est pas
+nécessaire.
 
-- **Branche 1 — compte existant** : on demande son **customer ID**, puis on envoie une
-  **invitation de liaison manager** (`CustomerManagerLink` MCC 671 → son compte, statut
-  PENDING). Le client **accepte** dans son UI ; **sa CB déjà en place** paie. On crée
-  ensuite la campagne dans son compte.
-- **Branche 2 — pas de compte** : on **crée un sous-compte** sous le MCC 671
-  (`createCustomerClient`, auto-linké), puis on **invite le client comme utilisateur** sur
-  ce compte → il se connecte et **ajoute sa carte** (obligatoire, non automatisable).
+**Flux unique (par défaut)** :
+1. **Auto** : on **crée un sous-compte** sous le MCC 671 (`createCustomerClient`, auto-linké)
+   + campagne en **PAUSE**.
+2. **Auto** : on **invite l'email du client** comme utilisateur sur ce compte.
+3. **Client** : il se connecte **avec son email**, **ajoute sa carte** (obligatoire, non
+   automatisable par l'API), accepte.
+4. **Activation** : CB validée → dé-pause de la campagne.
 
-Flux d'activation commun :
-1. **Auto** : compte (créé ou lié) + campagne en **PAUSE** (API).
-2. **Client** : accepte le lien / ajoute **sa CB** (étape manuelle chez lui).
-3. **Activation** : CB validée → dé-pause de la campagne.
-La campagne ne diffuse pas tant que le client n'a pas réglé son billing.
-*Petit ajout funnel (Phase 2)* : champ « déjà un compte Ads ? » (+ customer ID si oui).
+Que l'email gère déjà d'autres comptes Ads ou non n'a aucune importance : il accède au
+compte qu'on a créé. La campagne ne diffuse pas tant que la CB n'est pas réglée.
+
+**Cas manuel exceptionnel** (hors automatisation) : un client qui *insiste* pour réutiliser
+son compte existant nous fournit son **customer ID** → liaison manager (`CustomerManagerLink`)
+gérée à la main. Non couvert par le flux auto (l'email seul ne suffit pas à l'API).
 
 **Hors scope (volontairement)** :
 - Saisie de la CB (action **client**, dans l'UI Google — non automatisable par l'API).
