@@ -21,16 +21,27 @@ rien créer.
 NMF** (gestion offerte), mais **le client finance lui-même sa campagne** : c'est **sa
 carte** qui paie Google pour les clics. NMF n'avance pas la dépense pub.
 
-**Conséquence — billing client (non automatisable)** : le compte reste un **sous-compte
-géré sous le MCC 671**, mais avec le **moyen de paiement du client**. L'API Google Ads
-**ne permet pas d'ajouter une carte** (action manuelle de l'utilisateur dans l'UI Google,
-par sécurité). Le flux d'activation est donc :
-1. **Auto** : création du sous-compte + campagne en **PAUSE** (API).
-2. **Client** : ajoute **sa CB** via une invitation / un lien (étape manuelle chez lui).
-3. **Activation** : une fois la CB validée → dé-pause de la campagne.
-La campagne ne diffuse pas tant que le client n'a pas saisi sa CB.
-Mécanisme d'onboarding billing (invitation au compte **vs** liaison d'un compte client
-existant) = **décision Phase 2**.
+**Conséquence — billing client (non automatisable)** : le compte est géré sous le MCC 671,
+mais le **moyen de paiement est celui du client**. L'API Google Ads **ne permet pas
+d'ajouter une carte** (action manuelle de l'utilisateur dans l'UI Google, par sécurité).
+
+**Deux branches** (pas un choix de design — les deux sont supportées), selon une question
+du funnel « avez-vous déjà un compte Google Ads ? » :
+
+- **Branche 1 — compte existant** : on demande son **customer ID**, puis on envoie une
+  **invitation de liaison manager** (`CustomerManagerLink` MCC 671 → son compte, statut
+  PENDING). Le client **accepte** dans son UI ; **sa CB déjà en place** paie. On crée
+  ensuite la campagne dans son compte.
+- **Branche 2 — pas de compte** : on **crée un sous-compte** sous le MCC 671
+  (`createCustomerClient`, auto-linké), puis on **invite le client comme utilisateur** sur
+  ce compte → il se connecte et **ajoute sa carte** (obligatoire, non automatisable).
+
+Flux d'activation commun :
+1. **Auto** : compte (créé ou lié) + campagne en **PAUSE** (API).
+2. **Client** : accepte le lien / ajoute **sa CB** (étape manuelle chez lui).
+3. **Activation** : CB validée → dé-pause de la campagne.
+La campagne ne diffuse pas tant que le client n'a pas réglé son billing.
+*Petit ajout funnel (Phase 2)* : champ « déjà un compte Ads ? » (+ customer ID si oui).
 
 **Hors scope (volontairement)** :
 - Saisie de la CB (action **client**, dans l'UI Google — non automatisable par l'API).
