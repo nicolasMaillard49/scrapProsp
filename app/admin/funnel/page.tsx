@@ -19,17 +19,18 @@ interface Lead {
   created_at: string | null;
 }
 
-/* Lead d'exemple si la base est vide (pour visualiser les emails). */
+/* Lead de DÉMO (seedé en base via scripts/seed-demo-lead.mjs) : garantit un
+   exemple affichable dans les iframes même si aucun vrai lead n'existe encore. */
 const SAMPLE: Lead = {
-  id: "exemple",
-  token: "exemple",
+  id: "11111111-1111-4111-8111-111111111111",
+  token: "demo",
   metier: "plombier",
   ville: "Tours",
   first_name: "Jean",
   service_cible: "Débouchage canalisation urgence",
   budget_daily: 25,
   calls_per_month: 56,
-  status: "submitted",
+  status: "report_viewed",
   phone: "06 15 90 78 73",
   created_at: null,
 };

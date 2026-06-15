@@ -37,3 +37,6 @@ yarn-error.log*
 projet-exemple.pdf
 projet-preview*.pdf
 .preview
+
+# Aperçus HTML générés (emails)
+previews/
