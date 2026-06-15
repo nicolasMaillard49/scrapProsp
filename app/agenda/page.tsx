@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Calendar, ChevronLeft, ChevronRight, Plus, X, Loader2,
-  MapPin, ExternalLink, Trash2, Clock, RefreshCw, Settings,
+  MapPin, ExternalLink, Trash2, Clock, RefreshCw, Settings, User,
 } from "lucide-react";
 import type { CalendarEvent } from "../lib/googleCalendar";
 import CallModal from "../components/CallModal";
@@ -142,17 +142,24 @@ export default function AgendaPage() {
     setFicheEvent(null);
   };
 
-  // Clic sur un RDV : si un prospect correspond, on ouvre sa fiche complète
-  // (même visu que la prospection) ; sinon le détail simple de l'événement.
+  // Clic sur un RDV : on ouvre d'abord le détail (horaire + lieu + note).
+  // Depuis ce détail, un clic sur le nom du prospect ouvre sa fiche complète.
   const openEvent = (e: CalendarEvent) => {
-    const p = matchProspect(e, prospects);
-    if (p) {
-      setFicheId(p.id);
-      setFicheEvent(e);
-    } else {
-      setSelected(e);
-    }
+    setSelected(e);
   };
+
+  // Passe du détail de l'événement à la fiche prospect complète.
+  const openFiche = (p: Prospect, e: CalendarEvent) => {
+    setSelected(null);
+    setFicheId(p.id);
+    setFicheEvent(e);
+  };
+
+  // Prospect lié à l'événement actuellement affiché en détail (si trouvé).
+  const selectedProspect = useMemo(
+    () => (selected ? matchProspect(selected, prospects) : null),
+    [selected, prospects],
+  );
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
@@ -453,7 +460,7 @@ export default function AgendaPage() {
               </div>
             </div>
             <div className="px-3 py-2 border-t border-[var(--color-border)] text-[10px] text-neutral-500 text-center">
-              Double-clique sur un créneau pour créer un RDV · clique sur un RDV pour ouvrir la fiche prospect
+              Double-clique sur un créneau pour créer un RDV · clique sur un RDV pour voir le détail, puis sur le nom pour la fiche prospect
             </div>
           </div>
 
@@ -531,12 +538,28 @@ export default function AgendaPage() {
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelected(null)}>
           <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-3">
-              <h2 className="text-base font-semibold text-[var(--color-text-primary)]">{selected.title}</h2>
+              {selectedProspect ? (
+                <button
+                  onClick={() => openFiche(selectedProspect, selected)}
+                  className="group min-w-0 text-left"
+                  title="Ouvrir la fiche du prospect"
+                >
+                  <span className="text-base font-semibold text-violet-600 dark:text-violet-300 group-hover:underline decoration-violet-400/60 underline-offset-2">
+                    {selectedProspect.name}
+                  </span>
+                  <span className="ml-1.5 text-[11px] font-medium text-violet-500/80 whitespace-nowrap">→ voir la fiche</span>
+                </button>
+              ) : (
+                <h2 className="text-base font-semibold text-[var(--color-text-primary)] min-w-0">{selected.title}</h2>
+              )}
               <button onClick={() => setSelected(null)} className="p-1 rounded hover:bg-[var(--color-surface-2)] shrink-0">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="space-y-2 text-sm text-[var(--color-text-secondary)]">
+              {selectedProspect && selected.title.trim().toLowerCase() !== selectedProspect.name.trim().toLowerCase() && (
+                <div className="text-[12px] text-neutral-500 -mt-1">{selected.title}</div>
+              )}
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-violet-500 shrink-0" />
                 {selected.allDay
@@ -555,6 +578,14 @@ export default function AgendaPage() {
                 </p>
               )}
             </div>
+            {selectedProspect && (
+              <button
+                onClick={() => openFiche(selectedProspect, selected)}
+                className="w-full mt-4 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30"
+              >
+                <User className="w-4 h-4" /> Voir la fiche de {selectedProspect.name}
+              </button>
+            )}
             <div className="flex items-center gap-2 mt-4">
               {selected.htmlLink && (
                 <a href={selected.htmlLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 transition">
