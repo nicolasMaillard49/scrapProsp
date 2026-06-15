@@ -51,9 +51,9 @@ function HomeInner() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | Status>("todo");
   const [metierFilter, setMetierFilter] = useState<string>("all");
-  const [metierExclude, setMetierExclude] = useState<string>("all");
+  const [metierExclude, setMetierExclude] = useState<string[]>([]);
   const [villeFilter, setVilleFilter] = useState<string>("all");
-  const [villeExclude, setVilleExclude] = useState<string>("all");
+  const [villeExclude, setVilleExclude] = useState<string[]>([]);
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [openNowOnly, setOpenNowOnly] = useState(true);
   const [hideRadie, setHideRadie] = useState(true);
@@ -161,9 +161,9 @@ function HomeInner() {
         if (filter !== "all" && st !== filter) return false;
         if (regionFilter !== "all" && p.region !== regionFilter) return false;
         if (metierFilter !== "all" && p.metier !== metierFilter) return false;
-        if (metierExclude !== "all" && p.metier === metierExclude) return false;
+        if (metierExclude.includes(p.metier)) return false;
         if (villeFilter !== "all" && p.ville !== villeFilter) return false;
-        if (villeExclude !== "all" && p.ville === villeExclude) return false;
+        if (villeExclude.includes(p.ville)) return false;
         if (effectiveNow && !isOpenNow(p, effectiveNow, now)) return false;
         if (hideRadie && _radie) return false;
         if (hideBig && p.source === "trop_gros") return false;
@@ -237,15 +237,15 @@ function HomeInner() {
 
   const hasActiveFilters =
     filter !== "all" || regionFilter !== "all" || metierFilter !== "all" ||
-    villeFilter !== "all" || villeExclude !== "all" || metierExclude !== "all" || openNowOnly || jeuneOnly || radarOnly || adsOnly || !hideRadie || !hideBig || !!search;
+    villeFilter !== "all" || villeExclude.length > 0 || metierExclude.length > 0 || openNowOnly || jeuneOnly || radarOnly || adsOnly || !hideRadie || !hideBig || !!search;
 
   const resetFilters = () => {
     setSearch("");
     setFilter("all");
     setMetierFilter("all");
-    setMetierExclude("all");
+    setMetierExclude([]);
     setVilleFilter("all");
-    setVilleExclude("all");
+    setVilleExclude([]);
     setRegionFilter("all");
     setOpenNowOnly(false);
     setJeuneOnly(false);
@@ -481,15 +481,25 @@ function HomeInner() {
             </select>
           </SelectIcon>
           <SelectIcon icon={<XCircle className="w-3.5 h-3.5" />}>
-            <select value={villeExclude} onChange={(e) => setVilleExclude(e.target.value)} className="bg-transparent text-sm outline-none cursor-pointer max-w-[110px] md:max-w-none" title="Exclure une ville">
-              <option value="all">Exclure ville</option>
-              {villes.map((v) => <option key={v} value={v}>≠ {v}</option>)}
+            <select
+              value=""
+              onChange={(e) => { const v = e.target.value; if (v) setVilleExclude((prev) => prev.includes(v) ? prev : [...prev, v]); }}
+              className="bg-transparent text-sm outline-none cursor-pointer max-w-[110px] md:max-w-none"
+              title="Exclure une ou plusieurs villes"
+            >
+              <option value="">Exclure ville{villeExclude.length ? ` (${villeExclude.length})` : ""}</option>
+              {villes.filter((v) => !villeExclude.includes(v)).map((v) => <option key={v} value={v}>≠ {v}</option>)}
             </select>
           </SelectIcon>
           <SelectIcon icon={<XCircle className="w-3.5 h-3.5" />}>
-            <select value={metierExclude} onChange={(e) => setMetierExclude(e.target.value)} className="bg-transparent text-sm outline-none cursor-pointer max-w-[110px] md:max-w-none" title="Exclure un métier">
-              <option value="all">Exclure métier</option>
-              {metiers.map((m) => <option key={m} value={m}>≠ {metierLabel(m)}</option>)}
+            <select
+              value=""
+              onChange={(e) => { const m = e.target.value; if (m) setMetierExclude((prev) => prev.includes(m) ? prev : [...prev, m]); }}
+              className="bg-transparent text-sm outline-none cursor-pointer max-w-[110px] md:max-w-none"
+              title="Exclure un ou plusieurs métiers"
+            >
+              <option value="">Exclure métier{metierExclude.length ? ` (${metierExclude.length})` : ""}</option>
+              {metiers.filter((m) => !metierExclude.includes(m)).map((m) => <option key={m} value={m}>≠ {metierLabel(m)}</option>)}
             </select>
           </SelectIcon>
           <SelectIcon icon={<ArrowUpDown className="w-3.5 h-3.5" />}>
@@ -597,6 +607,38 @@ function HomeInner() {
             <span className="hidden min-[420px]:inline">Tourn{"\u00E9"}e</span>
           </button>
         </div>
+
+        {(villeExclude.length > 0 || metierExclude.length > 0) && (
+          <div className="flex items-center gap-1.5 flex-wrap mb-3 -mt-1">
+            <span className="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold mr-0.5">Exclus :</span>
+            {villeExclude.map((v) => (
+              <button
+                key={`v-${v}`}
+                onClick={() => setVilleExclude((prev) => prev.filter((x) => x !== v))}
+                className="flex items-center gap-1 px-2 py-0.5 text-[12px] rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 transition"
+                title="Réintégrer cette ville"
+              >
+                <MapPin className="w-3 h-3" /> {v} <XCircle className="w-3 h-3" />
+              </button>
+            ))}
+            {metierExclude.map((m) => (
+              <button
+                key={`m-${m}`}
+                onClick={() => setMetierExclude((prev) => prev.filter((x) => x !== m))}
+                className="flex items-center gap-1 px-2 py-0.5 text-[12px] rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 transition"
+                title="Réintégrer ce métier"
+              >
+                <Filter className="w-3 h-3" /> {metierLabel(m)} <XCircle className="w-3 h-3" />
+              </button>
+            ))}
+            <button
+              onClick={() => { setVilleExclude([]); setMetierExclude([]); }}
+              className="text-[11px] text-neutral-500 hover:text-rose-500 underline underline-offset-2 ml-1"
+            >
+              tout réintégrer
+            </button>
+          </div>
+        )}
 
         <div className="text-xs text-neutral-500 mb-2 flex items-center gap-2 flex-wrap">
           <span>{filtered.length} prospect{filtered.length > 1 ? "s" : ""}</span>
