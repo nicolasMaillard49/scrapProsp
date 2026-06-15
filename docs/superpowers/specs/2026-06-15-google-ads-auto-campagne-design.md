@@ -17,8 +17,23 @@ un compte client sous le MCC NMF et une campagne Search complète, **en PAUSE**,
 prête à être validée. Commencer par un **dry-run** qui logge tout le payload sans
 rien créer.
 
+**Modèle commercial (important)** : la « semaine test » est **gratuite côté services
+NMF** (gestion offerte), mais **le client finance lui-même sa campagne** : c'est **sa
+carte** qui paie Google pour les clics. NMF n'avance pas la dépense pub.
+
+**Conséquence — billing client (non automatisable)** : le compte reste un **sous-compte
+géré sous le MCC 671**, mais avec le **moyen de paiement du client**. L'API Google Ads
+**ne permet pas d'ajouter une carte** (action manuelle de l'utilisateur dans l'UI Google,
+par sécurité). Le flux d'activation est donc :
+1. **Auto** : création du sous-compte + campagne en **PAUSE** (API).
+2. **Client** : ajoute **sa CB** via une invitation / un lien (étape manuelle chez lui).
+3. **Activation** : une fois la CB validée → dé-pause de la campagne.
+La campagne ne diffuse pas tant que le client n'a pas saisi sa CB.
+Mécanisme d'onboarding billing (invitation au compte **vs** liaison d'un compte client
+existant) = **décision Phase 2**.
+
 **Hors scope (volontairement)** :
-- Automatisation du **billing** (le client/NMF saisit la CB manuellement).
+- Saisie de la CB (action **client**, dans l'UI Google — non automatisable par l'API).
 - Call tracking « appels depuis le site » (nécessite du JS sur le site du prospect).
 - Structure multi-ad-groups (on part sur **1 seul ad group** ciblé `service_cible`).
 - Stratégie d'enchères avancée (Maximize Conversions / CPA) — voir §9, décidé plus tard.
