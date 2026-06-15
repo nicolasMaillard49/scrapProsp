@@ -100,27 +100,13 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
     {
       q: "Votre métier",
       sub: "On adapte toute la campagne à votre activité.",
-      body: (
-        <input
-          className="input"
-          value={a.metier}
-          onChange={(e) => set("metier", e.target.value)}
-          placeholder="Ex : Paysagiste"
-        />
-      ),
+      body: <input className="fnl-input" value={a.metier} onChange={(e) => set("metier", e.target.value)} placeholder="Ex : Paysagiste" />,
       can: () => a.metier.trim().length > 1,
     },
     {
       q: "Dans quelle ville exercez-vous ?",
       sub: "On garantit l'exclusivité sur votre zone géographique.",
-      body: (
-        <input
-          className="input"
-          value={a.ville}
-          onChange={(e) => set("ville", e.target.value)}
-          placeholder="Ex : Niort"
-        />
-      ),
+      body: <input className="fnl-input" value={a.ville} onChange={(e) => set("ville", e.target.value)} placeholder="Ex : Niort" />,
       can: () => a.ville.trim().length > 1,
     },
     {
@@ -128,15 +114,14 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
       sub: "On cible les internautes qui cherchent depuis cette zone.",
       body: (
         <div>
-          <div className="text-3xl font-bold text-center mb-2">{a.radius_km} km</div>
-          <input
-            type="range"
-            min={0}
-            max={50}
-            value={a.radius_km}
-            onChange={(e) => set("radius_km", Number(e.target.value))}
-            className="w-full accent-orange-500"
-          />
+          <div className="text-center mb-3">
+            <span className="text-4xl font-extrabold" style={{ color: "var(--accent)" }}>{a.radius_km}</span>
+            <span className="text-lg font-semibold" style={{ color: "var(--muted)" }}> km</span>
+          </div>
+          <input type="range" min={0} max={50} value={a.radius_km} onChange={(e) => set("radius_km", Number(e.target.value))} className="fnl-range w-full" />
+          <div className="flex justify-between text-xs mt-2" style={{ color: "var(--muted)" }}>
+            <span>0 km</span><span>50 km</span>
+          </div>
         </div>
       ),
       can: () => true,
@@ -144,20 +129,13 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
     {
       q: "Quelle est l'adresse de votre site web ?",
       sub: "On l'analyse pour repérer votre service le plus rentable.",
-      body: (
-        <input
-          className="input"
-          value={a.site_url}
-          onChange={(e) => set("site_url", e.target.value)}
-          placeholder="exemple-paysagiste.fr"
-        />
-      ),
+      body: <input className="fnl-input" value={a.site_url} onChange={(e) => set("site_url", e.target.value)} placeholder="exemple-paysagiste.fr" />,
       can: () => true,
     },
     {
       q: "Combien êtes-vous dans l'équipe ?",
       sub: "On calibre le volume de leads à votre capacité de réponse.",
-      body: <Choices opts={EMPLOYEES} value={a.employees_range} onPick={(v) => { set("employees_range", v); }} />,
+      body: <Choices opts={EMPLOYEES} value={a.employees_range} onPick={(v) => set("employees_range", v)} />,
       can: () => !!a.employees_range,
     },
     {
@@ -182,11 +160,11 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
       q: "Dernière étape, vos coordonnées.",
       sub: "Pour recevoir votre analyse personnalisée.",
       body: (
-        <div className="space-y-3">
-          <input className="input" value={a.first_name} onChange={(e) => set("first_name", e.target.value)} placeholder="Prénom *" />
-          <input className="input" value={a.last_name} onChange={(e) => set("last_name", e.target.value)} placeholder="Nom" />
-          <input className="input" type="email" value={a.email} onChange={(e) => set("email", e.target.value)} placeholder="Email *" />
-          <input className="input" type="tel" value={a.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Téléphone *" />
+        <div className="space-y-2.5">
+          <input className="fnl-input" value={a.first_name} onChange={(e) => set("first_name", e.target.value)} placeholder="Prénom *" />
+          <input className="fnl-input" value={a.last_name} onChange={(e) => set("last_name", e.target.value)} placeholder="Nom" />
+          <input className="fnl-input" type="email" value={a.email} onChange={(e) => set("email", e.target.value)} placeholder="Email *" />
+          <input className="fnl-input" type="tel" value={a.phone} onChange={(e) => set("phone", e.target.value)} placeholder="Téléphone *" />
         </div>
       ),
       can: () => a.first_name.trim().length > 0 && /\S+@\S+\.\S+/.test(a.email) && a.phone.trim().length >= 6,
@@ -195,33 +173,45 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
 
   const cur = STEPS[step];
   const isLast = step === STEPS.length - 1;
+  const pct = Math.round(((step + 1) / STEPS.length) * 100);
 
   return (
     <div className="w-full max-w-md">
-      <style>{`.input{width:100%;background:#15151c;border:1px solid #2a2a35;border-radius:10px;padding:14px 16px;color:#fff;font-size:16px;outline:none}.input:focus{border-color:#f97316}`}</style>
+      <style>{`
+        .fnl-range{appearance:none;height:8px;border-radius:999px;background:linear-gradient(90deg,var(--accent) ${(a.radius_km / 50) * 100}%,var(--border) ${(a.radius_km / 50) * 100}%);outline:none}
+        .fnl-range::-webkit-slider-thumb{appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--accent);box-shadow:0 2px 8px rgba(91,52,192,.35);cursor:pointer}
+        .fnl-range::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--accent);box-shadow:0 2px 8px rgba(91,52,192,.35);cursor:pointer}
+      `}</style>
 
-      <div className="mb-6 h-1.5 w-full rounded-full bg-[#1d1d27]">
-        <div className="h-full rounded-full bg-orange-500 transition-all" style={{ width: `${((step + 1) / STEPS.length) * 100}%` }} />
+      {/* En-tête de marque + progression */}
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-[13px] font-extrabold tracking-[0.14em]" style={{ color: "var(--accent)" }}>NMF&nbsp;AGENCE</span>
+        <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Étape {step + 1} / {STEPS.length}</span>
+      </div>
+      <div className="mb-6 h-2 w-full rounded-full" style={{ background: "var(--border)" }}>
+        <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: "var(--accent)" }} />
       </div>
 
-      {step > 0 && (
-        <button onClick={back} className="mb-4 text-sm text-slate-400 hover:text-slate-200">← Retour</button>
-      )}
+      <div className="fnl-card p-6 sm:p-7">
+        {step > 0 && (
+          <button onClick={back} className="mb-4 text-sm font-medium hover:opacity-70 transition-opacity" style={{ color: "var(--muted)" }}>← Retour</button>
+        )}
 
-      <h1 className="text-xl font-bold mb-1">{cur.q}</h1>
-      <p className="text-slate-400 text-sm mb-6">{cur.sub}</p>
+        <h1 className="text-[22px] font-extrabold leading-tight" style={{ color: "var(--ink)", textWrap: "balance" }}>{cur.q}</h1>
+        <p className="mt-1.5 text-[14px] leading-relaxed mb-6" style={{ color: "var(--ink-soft)" }}>{cur.sub}</p>
 
-      <div className="mb-6">{cur.body}</div>
+        <div className="mb-5">{cur.body}</div>
 
-      {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+        {error && <p className="text-sm mb-3" style={{ color: "#e11d48" }}>{error}</p>}
 
-      <button
-        disabled={!cur.can() || submitting}
-        onClick={isLast ? submit : next}
-        className="w-full rounded-xl bg-orange-500 py-3.5 font-bold text-white disabled:opacity-40 hover:bg-orange-400 transition-colors"
-      >
-        {submitting ? "Envoi…" : isLast ? "Recevoir mon analyse" : "Continuer"}
-      </button>
+        <button disabled={!cur.can() || submitting} onClick={isLast ? submit : next} className="fnl-btn">
+          {submitting ? "Envoi…" : isLast ? "Recevoir mon analyse" : "Continuer"}
+        </button>
+      </div>
+
+      <p className="mt-4 text-center text-xs" style={{ color: "var(--muted)" }}>
+        🔒 Vos informations restent confidentielles · 1ʳᵉ semaine offerte
+      </p>
     </div>
   );
 }
@@ -237,18 +227,29 @@ function Choices({
 }) {
   return (
     <div className="space-y-2.5">
-      {opts.map((o) => (
-        <button
-          key={o.value}
-          onClick={() => onPick(o.value)}
-          className={`w-full text-left rounded-xl border px-4 py-3.5 transition-colors ${
-            value === o.value ? "border-orange-500 bg-orange-500/10" : "border-[#2a2a35] bg-[#15151c] hover:border-slate-500"
-          }`}
-        >
-          <div className="font-medium">{o.label}</div>
-          {o.hint && <div className="text-xs text-slate-400">{o.hint}</div>}
-        </button>
-      ))}
+      {opts.map((o) => {
+        const active = value === o.value;
+        return (
+          <button key={o.value} onClick={() => onPick(o.value)} data-active={active} className="fnl-choice">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold" style={{ color: "var(--ink)" }}>{o.label}</div>
+                {o.hint && <div className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{o.hint}</div>}
+              </div>
+              <span
+                className="shrink-0 grid place-items-center rounded-full transition-all"
+                style={{
+                  width: 22, height: 22,
+                  border: `2px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                  background: active ? "var(--accent)" : "transparent",
+                }}
+              >
+                {active && <span style={{ width: 8, height: 8, borderRadius: 999, background: "#fff" }} />}
+              </span>
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }

@@ -272,22 +272,22 @@ export function launchEmailHtml(lead: {
   calls_per_month?: number | null;
   id: string;
 }): { subject: string; html: string } {
-  const reportUrl = `${appBase()}/eligibilite/rapport/${lead.id}`;
+  const activationUrl = `${appBase()}/eligibilite/activation/${lead.id}`;
   const subject = "Votre campagne est prête — dernière étape";
   const html = emailShell({
-    preheader: "Votre compte est configuré : il ne reste qu'à valider pour lancer.",
+    preheader: "Votre compte est configuré : ajoutez votre carte pour lancer.",
     eyebrow: "Activation",
     title: `${lead.first_name ? `${esc(lead.first_name)}, votre` : "Votre"} campagne est prête.`,
     intro:
       "Votre compte publicitaire et votre campagne sont configurés. " +
-      "Il ne reste qu'une étape — valider l'activation — pour commencer à recevoir vos premiers appels.",
+      "Il ne reste qu'une étape — ajouter votre moyen de paiement — pour recevoir vos premiers appels.",
     rows: [
       { label: "Service ciblé", value: esc(lead.service_cible || "—") },
       { label: "Zone", value: esc(lead.ville || "—") },
       { label: "Budget", value: `${lead.budget_daily ?? "—"} €/jour · ~${lead.calls_per_month ?? "—"} demandes/mois` },
     ],
-    ctaLabel: "Activer ma campagne",
-    ctaUrl: reportUrl,
+    ctaLabel: "Ajouter ma carte et activer",
+    ctaUrl: activationUrl,
     footnote: "La 1ʳᵉ semaine de gestion est offerte (vous financez uniquement votre budget Google). Aucun engagement.",
   });
   return { subject, html };

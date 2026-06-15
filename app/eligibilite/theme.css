@@ -1,0 +1,111 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   DA funnel éligibilité — « friendly-premium » pour artisans (mobile-first).
+   Accent NMF violet, fond clair teinté violet (pas le cream AI), contraste AA+.
+   Source de vérité : ces tokens. Aucune couleur en dur dans les pages.
+   ────────────────────────────────────────────────────────────────────────── */
+.fnl {
+  --bg: #f6f5fb;
+  --surface: #ffffff;
+  --surface-2: #faf9ff;
+  --ink: #14131a;
+  --ink-soft: #4b4960;
+  --muted: #8a87a0;
+  --border: #ece9f5;
+  --accent: #7b4fe0;
+  --accent-dark: #5b34c0;
+  --accent-soft: #f2edfd;
+  --success: #10b981;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  --shadow: 0 1px 2px rgba(20, 19, 26, 0.04), 0 12px 32px -16px rgba(91, 52, 192, 0.28);
+  --shadow-soft: 0 1px 2px rgba(20, 19, 26, 0.04), 0 6px 18px -10px rgba(20, 19, 26, 0.12);
+
+  font-family: var(--font-jakarta), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #efeafd 0%, rgba(239, 234, 253, 0) 60%),
+    var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Carte de contenu */
+.fnl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+/* Champ de saisie */
+.fnl-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 15px 16px;
+  font-size: 16px; /* ≥16px : pas de zoom auto iOS */
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.fnl-input::placeholder { color: var(--muted); }
+.fnl-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(123, 79, 224, 0.12);
+}
+
+/* Bouton primaire — pleine largeur, grande zone tactile (≥52px) */
+.fnl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 22px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px -8px rgba(123, 79, 224, 0.6);
+  transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+.fnl-btn:hover:not(:disabled) { background: var(--accent-dark); transform: translateY(-1px); }
+.fnl-btn:active:not(:disabled) { transform: translateY(0); }
+.fnl-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+/* Carte de choix sélectionnable (radio cards) */
+.fnl-choice {
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 15px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+.fnl-choice:hover { border-color: #d8cff5; transform: translateY(-1px); }
+.fnl-choice[data-active="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Pastille d'info (carte récap) */
+.fnl-stat {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fnl-btn, .fnl-choice, .fnl-input { transition: none; }
+}

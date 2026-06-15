@@ -18,7 +18,7 @@ export default async function EligibiliteFormPage({ params }: { params: Promise<
   if (!lead) return <Centered>Lien invalide ou expiré.</Centered>;
 
   return (
-    <main className="min-h-screen bg-[#0b0b0f] text-slate-100 flex items-center justify-center p-4">
+    <main className="min-h-screen flex items-center justify-center p-4 py-10">
       <QuizForm
         token={lead.token}
         metier={lead.metier ?? ""}
@@ -31,7 +31,7 @@ export default async function EligibiliteFormPage({ params }: { params: Promise<
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-[#0b0b0f] text-slate-300 flex items-center justify-center p-6 text-center">
+    <main className="min-h-screen flex items-center justify-center p-6 text-center" style={{ color: "var(--ink-soft)" }}>
       {children}
     </main>
   );
