@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import Papa from "papaparse";
 import {
   Search, Upload, Download, ExternalLink, MapPin, Star, Phone, PhoneOff,
@@ -35,6 +36,35 @@ const statusConfig: Record<Status, { label: string; ring: string; row: string; t
   no_answer: { label: "Pas de réponse", ring: "ring-sky-500/60 dark:ring-sky-600/60", row: "border-l-[3px] border-l-sky-400 dark:border-l-transparent dark:bg-sky-500/10", text: "text-sky-600 dark:text-sky-300" },
 };
 
+/**
+ * Comme useState, mais persiste la valeur dans localStorage sous `key`.
+ * L'init reste la valeur par défaut (→ pas de mismatch d'hydratation SSR) ;
+ * la valeur stockée est rechargée juste après le montage. Ainsi les filtres
+ * survivent aux changements de page et aux rechargements.
+ */
+function usePersistedState<T>(key: string, initial: T): [T, Dispatch<SetStateAction<T>>] {
+  const [state, setState] = useState<T>(initial);
+  const hydrated = useRef(false);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw !== null) setState(JSON.parse(raw) as T);
+    } catch {
+      /* localStorage indispo / JSON corrompu : on garde la valeur par défaut */
+    }
+    hydrated.current = true;
+  }, [key]);
+  useEffect(() => {
+    if (!hydrated.current) return; // n'écrase pas le stockage avant le 1er chargement
+    try {
+      window.localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      /* quota / mode privé : on ignore */
+    }
+  }, [key, state]);
+  return [state, setState];
+}
+
 function HomeInner() {
   const toast = useToast();
   const {
@@ -48,27 +78,28 @@ function HomeInner() {
     importProspects,
   } = useProspects();
 
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | Status>("todo");
-  const [metierFilter, setMetierFilter] = useState<string>("all");
-  const [metierExclude, setMetierExclude] = useState<string[]>([]);
-  const [villeFilter, setVilleFilter] = useState<string>("all");
-  const [villeExclude, setVilleExclude] = useState<string[]>([]);
-  const [regionFilter, setRegionFilter] = useState<string>("all");
-  const [openNowOnly, setOpenNowOnly] = useState(true);
-  const [hideRadie, setHideRadie] = useState(true);
-  const [hideBig, setHideBig] = useState(true);
-  const [jeuneOnly, setJeuneOnly] = useState(false);
-  const [radarOnly, setRadarOnly] = useState(false);
-  const [adsOnly, setAdsOnly] = useState(false);
-  const [sortBy, setSortBy] = useState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity" | "radar">("age-asc");
-  const [tourneeMode, setTourneeMode] = useState(false);
+  // Filtres persistés (localStorage) → conservés en changeant de page / au reload.
+  const [search, setSearch] = usePersistedState("pt.search", "");
+  const [filter, setFilter] = usePersistedState<"all" | Status>("pt.filter", "todo");
+  const [metierFilter, setMetierFilter] = usePersistedState<string>("pt.metierFilter", "all");
+  const [metierExclude, setMetierExclude] = usePersistedState<string[]>("pt.metierExclude", []);
+  const [villeFilter, setVilleFilter] = usePersistedState<string>("pt.villeFilter", "all");
+  const [villeExclude, setVilleExclude] = usePersistedState<string[]>("pt.villeExclude", []);
+  const [regionFilter, setRegionFilter] = usePersistedState<string>("pt.regionFilter", "all");
+  const [openNowOnly, setOpenNowOnly] = usePersistedState("pt.openNowOnly", true);
+  const [hideRadie, setHideRadie] = usePersistedState("pt.hideRadie", true);
+  const [hideBig, setHideBig] = usePersistedState("pt.hideBig", true);
+  const [jeuneOnly, setJeuneOnly] = usePersistedState("pt.jeuneOnly", false);
+  const [radarOnly, setRadarOnly] = usePersistedState("pt.radarOnly", false);
+  const [adsOnly, setAdsOnly] = usePersistedState("pt.adsOnly", false);
+  const [sortBy, setSortBy] = usePersistedState<"reviews" | "reviews-asc" | "rating" | "name" | "age-asc" | "age-desc" | "gbp" | "opportunity" | "radar">("pt.sortBy", "age-asc");
+  const [tourneeMode, setTourneeMode] = usePersistedState("pt.tourneeMode", false);
   const [focusOpen, setFocusOpen] = useState(false);
   const [focusStart, setFocusStart] = useState(0);
   const [helpOpen, setHelpOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = usePersistedState("pt.pageSize", 20);
   const [callTarget, setCallTarget] = useState<Prospect | null>(null);
   const [callTab, setCallTab] = useState<"call" | "rdv">("call");
   const [now, setNow] = useState(() => new Date());
