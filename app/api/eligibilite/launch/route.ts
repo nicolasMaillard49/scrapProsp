@@ -37,7 +37,9 @@ export async function POST(req: NextRequest) {
 
   if (lead.email) {
     const { subject, html } = launchEmailHtml(lead);
-    await sendEmail({ to: lead.email, subject, html });
+    const r = await sendEmail({ to: lead.email, subject, html });
+    if (!r.ok) console.error(`[eligibilite/launch] email lancement NON envoyé à ${lead.email}:`, r.error || (r.skipped ? "skipped (config manquante)" : "?"));
+    else console.log(`[eligibilite/launch] email lancement envoyé à ${lead.email} (id ${r.id})`);
   }
   await sendTelegram(`🚀 Campagne lancée — ${lead.metier || ""} ${lead.ville || ""} — ${lead.phone || ""}`);
 

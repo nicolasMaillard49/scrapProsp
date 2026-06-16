@@ -86,7 +86,11 @@ export async function POST(req: NextRequest) {
   // Email de confirmation ("tout a été pris en compte" + lien rapport).
   if (updated.email) {
     const { subject, html } = confirmationEmailHtml(updated);
-    await sendEmail({ to: updated.email, subject, html });
+    const r = await sendEmail({ to: updated.email, subject, html });
+    if (!r.ok) console.error(`[eligibilite/submit] email confirmation NON envoyé à ${updated.email}:`, r.error || (r.skipped ? "skipped (config manquante)" : "?"));
+    else console.log(`[eligibilite/submit] email confirmation envoyé à ${updated.email} (id ${r.id})`);
+  } else {
+    console.warn(`[eligibilite/submit] lead ${updated.id} sans email → aucune confirmation envoyée`);
   }
   // Notif interne temps réel.
   await sendTelegram(
