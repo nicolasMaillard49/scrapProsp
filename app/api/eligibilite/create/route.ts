@@ -4,6 +4,7 @@ import { supabaseAdmin, supabaseAdminConfigured } from "@/app/lib/supabaseAdmin"
 import { twilioClient, twilioConfigured, messagingServiceSid } from "@/app/lib/twilio";
 import { toE164 } from "@/app/lib/sms";
 import { makeToken, appBase } from "@/app/lib/eligibilite";
+import { sendTelegram } from "@/app/lib/notify";
 
 /**
  * POST /api/eligibilite/create  { prospectId: string, dryRun?: boolean }
@@ -67,6 +68,10 @@ export async function POST(req: NextRequest) {
       .from("eligibilite_leads")
       .update({ status: "sms_sent", sms_sent_at: new Date().toISOString() })
       .eq("id", lead.id);
+    // Même lien formulaire envoyé sur mon Telegram pour pouvoir l'ouvrir vite.
+    await sendTelegram(
+      `📩 Lien éligibilité envoyé — ${prospect.metier || ""} ${prospect.ville || ""} — ${prospect.phone || ""}\n${formUrl}`,
+    );
     return NextResponse.json({ ok: true, smsSent: true, sid: sms.sid, leadId: lead.id, token, formUrl });
   } catch (err) {
     return NextResponse.json(
