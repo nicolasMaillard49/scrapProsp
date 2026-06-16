@@ -137,7 +137,9 @@ export async function createCampaignForLead(
 
     return { ok: true, dryRun: false, plan, recordId, customerId, campaignId: camp.campaignId || null };
   } catch (e) {
-    const error = e instanceof Error ? e.message : String(e);
+    const error = describeAdsError(e);
+    // Log complet pour les runtime logs Vercel (`vercel logs`) — la vraie cause Google.
+    console.error("[google-ads] échec création réelle — lead", lead.id, "—", error, "\nraw:", e);
     await recordAdsAccount({
       lead_id: lead.id,
       client_name: plan.params.accountName,
@@ -150,5 +152,26 @@ export async function createCampaignForLead(
       error,
     });
     return { ok: false, dryRun: false, plan, recordId: null, error };
+  }
+}
+
+/**
+ * Message lisible depuis une erreur google-ads-api. La lib lève souvent un objet
+ * (non-Error) de forme { errors: [{ message, error_code }] } → String() donnait
+ * "[object Object]". On extrait le détail exploitable.
+ */
+function describeAdsError(e: unknown): string {
+  const x = e as { errors?: Array<{ message?: string; error_code?: unknown }>; message?: string };
+  if (Array.isArray(x?.errors) && x.errors.length) {
+    return x.errors
+      .map((er) => er.message || (er.error_code ? JSON.stringify(er.error_code) : JSON.stringify(er)))
+      .join(" | ");
+  }
+  if (e instanceof Error) return e.message;
+  if (x?.message) return x.message;
+  try {
+    return JSON.stringify(e);
+  } catch {
+    return String(e);
   }
 }
