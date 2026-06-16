@@ -116,8 +116,8 @@ export async function createCampaignForLead(
   try {
     const customerId = await createOrReuseAccount(lead.id, plan.params.accountName);
     let invited = false;
-    if ((lead as { email?: string }).email) {
-      invited = await inviteUser(customerId, (lead as { email?: string }).email as string);
+    if (lead.email) {
+      invited = await inviteUser(customerId, lead.email);
     }
     const camp = await createPausedCampaign(customerId, plan);
 

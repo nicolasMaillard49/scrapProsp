@@ -50,10 +50,10 @@ export async function POST(req: NextRequest) {
     if (!res.dryRun) {
       await sendTelegram(
         res.ok
-          ? `✅ Compte Google Ads RÉEL créé — ID ${res.customerId} — campagne PAUSED « ${res.plan.params.campaignName} » — invitation envoyée à ${lead.email || "?"}`
+          ? `✅ Compte Google Ads RÉEL créé — ID ${String(res.customerId || "").replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3")} — campagne PAUSED « ${res.plan.params.campaignName} » — invitation envoyée à ${lead.email || "?"}`
           : `❌ Création Google Ads réelle échouée — ${res.error || "erreur inconnue"}`,
       );
-    } else if (res.dryRun) {
+    } else {
       await sendTelegram(
         `🧪 [dry-run] Campagne Google Ads simulée — ${res.plan.params.campaignName} — ` +
           `budget ${Math.round(res.plan.params.dailyBudgetMicros / 1_000_000)} €/j` +
