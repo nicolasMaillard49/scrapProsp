@@ -4,6 +4,7 @@ import { sendEmail } from "@/app/lib/email";
 import { sendTelegram } from "@/app/lib/notify";
 import { launchEmailHtml } from "@/app/lib/eligibilite";
 import { createCampaignForLead } from "@/app/lib/googleAds/campaign";
+import { isRealAllowed } from "@/app/lib/googleAds/allowlist";
 import type { EligibiliteLead } from "@/app/lib/googleAds/mapping";
 
 /**
@@ -21,9 +22,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
   if (!b.id) return NextResponse.json({ error: "id requis" }, { status: 400 });
-  // Sécurité : tant que la création réelle (Phase 2) n'est pas validée, on reste
-  // en dry-run sauf override explicite { dryRun: false }.
-  const dryRun = b.dryRun !== false;
 
   const { data: lead, error } = await supabaseAdmin
     .from("eligibilite_leads")
@@ -32,6 +30,10 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
   if (error || !lead) return NextResponse.json({ error: error?.message || "Lead introuvable" }, { status: 404 });
+
+  // Mode réel UNIQUEMENT si l'email du lead est dans l'allow-list
+  // (GOOGLE_ADS_REAL_EMAILS), ou override interne explicite { dryRun:false }.
+  const dryRun = b.dryRun === false ? false : !isRealAllowed(lead.email);
 
   if (lead.email) {
     const { subject, html } = launchEmailHtml(lead);
@@ -45,7 +47,13 @@ export async function POST(req: NextRequest) {
   try {
     const res = await createCampaignForLead(lead as EligibiliteLead, { dryRun });
     ads = { ok: res.ok, dryRun: res.dryRun, recordId: res.recordId, warnings: res.plan.warnings };
-    if (res.dryRun) {
+    if (!res.dryRun) {
+      await sendTelegram(
+        res.ok
+          ? `✅ Compte Google Ads RÉEL créé — ID ${String(res.customerId || "").replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3")} — campagne PAUSED « ${res.plan.params.campaignName} » — invitation envoyée à ${lead.email || "?"}`
+          : `❌ Création Google Ads réelle échouée — ${res.error || "erreur inconnue"}`,
+      );
+    } else {
       await sendTelegram(
         `🧪 [dry-run] Campagne Google Ads simulée — ${res.plan.params.campaignName} — ` +
           `budget ${Math.round(res.plan.params.dailyBudgetMicros / 1_000_000)} €/j` +

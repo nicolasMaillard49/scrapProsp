@@ -11,6 +11,7 @@ import { estimate } from "../eligibilite";
 /** Forme minimale d'un lead `eligibilite_leads` utile à la campagne. */
 export interface EligibiliteLead {
   id: string;
+  email?: string | null;
   metier?: string | null;
   ville?: string | null;
   lat?: number | null;
