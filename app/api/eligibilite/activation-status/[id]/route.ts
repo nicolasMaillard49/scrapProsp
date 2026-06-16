@@ -31,6 +31,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ active, customerId });
   } catch (e) {
     // Pas d'accès billing / erreur API : on ne casse pas le polling, on reste "en attente".
+    console.warn("[activation-status] billing check failed for", customerId, ":", e instanceof Error ? e.message : e);
     return NextResponse.json({
       active: false,
       customerId,

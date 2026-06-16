@@ -8,12 +8,18 @@ import { useEffect, useState } from "react";
  * - activé      → bandeau de succès (la campagne reste en PAUSE côté serveur)
  * Aucune action d'écriture : purement informatif pour le client.
  */
+// On arrête le polling auto au bout de ~20 min (120 ticks de 10 s) pour ne pas
+// marteler l'API si l'onglet reste ouvert ; on propose alors un rafraîchissement manuel.
+const MAX_TICKS = 120;
+
 export default function ActivationStatus({ id, initialActive = false }: { id: string; initialActive?: boolean }) {
   const [active, setActive] = useState(initialActive);
+  const [stopped, setStopped] = useState(false);
 
   useEffect(() => {
     if (active) return;
     let alive = true;
+    let ticks = 0;
     const check = async () => {
       try {
         const res = await fetch(`/api/eligibilite/activation-status/${id}`, { cache: "no-store" });
@@ -24,7 +30,14 @@ export default function ActivationStatus({ id, initialActive = false }: { id: st
       }
     };
     check();
-    const t = setInterval(check, 10_000);
+    const t = setInterval(() => {
+      if (++ticks >= MAX_TICKS) {
+        clearInterval(t);
+        if (alive) setStopped(true);
+        return;
+      }
+      check();
+    }, 10_000);
     return () => {
       alive = false;
       clearInterval(t);
@@ -46,6 +59,28 @@ export default function ActivationStatus({ id, initialActive = false }: { id: st
             Votre campagne est prête (en pause). On la met en ligne <b style={{ color: "var(--ink)" }}>avec vous</b>, au moment où vous le souhaitez.
           </span>
         </p>
+      </div>
+    );
+  }
+
+  if (stopped) {
+    return (
+      <div
+        role="status"
+        className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[16px] p-4"
+        style={{ background: "var(--surface-2)", border: "1px solid var(--border)" }}
+      >
+        <p className="text-sm" style={{ color: "var(--ink-soft)" }}>
+          Vous avez ajouté votre carte ?
+        </p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="text-sm font-semibold"
+          style={{ color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+        >
+          Vérifier maintenant →
+        </button>
       </div>
     );
   }
