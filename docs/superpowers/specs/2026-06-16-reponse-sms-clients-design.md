@@ -95,8 +95,9 @@ Dans `app/sms/page.tsx`, au sein du thread **déplié** (`expanded`) d'une conve
   (le fil et le badge se recalculent), vide le champ ; sinon affiche l'erreur.
 - **Masqué/désactivé** si la conversation contient un STOP (même détection que le
   backend, calculée côté client sur `c.replies`).
-- Le numéro envoyé doit être au format E.164 : reconstruire `+` + `c.phone`
-  (`c.phone` est déjà normalisé `33…`) ⇒ `+${c.phone}`.
+- Numéro : passer `c.phone` tel quel (`33…`). Le backend re-normalise via
+  `toE164` (qui réduit aux chiffres avant de valider), donc `33…` comme `+33…`
+  sont acceptés — pas de reconstruction nécessaire côté UI.
 
 **Badge « à répondre » :**
 - Définition : conversation dont le **dernier message du `thread` est `inbound`**
