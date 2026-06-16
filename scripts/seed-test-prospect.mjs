@@ -14,7 +14,7 @@ for (const line of readFileSync(new URL("../.env.local", import.meta.url), "utf8
 
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 
-const EMAIL = "nico39320@gmail.com"; // doit être dans GOOGLE_ADS_REAL_EMAILS
+const EMAIL = "nicolas.maillard49320@gmail.com"; // = compte Resend (sandbox) + allow-list Google Ads
 const PHONE = "0615907873";
 const MAPS_URL = "manual:testest"; // clé de dédup stable pour le prospect de test
 
