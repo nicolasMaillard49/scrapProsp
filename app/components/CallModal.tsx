@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { whatsAppUrl, salesWhatsAppMsg, googleCalendarUrl, defaultRdvDate } from "../lib/links";
 import { supabase } from "../lib/supabase";
+import { isStopMessage } from "../lib/sms";
+import SmsReplyComposer from "./SmsReplyComposer";
 import AgeBadge from "./AgeBadge";
 import CompetitorSection from "./CompetitorSection";
 import CompanyInfo from "./CompanyInfo";
@@ -42,6 +44,15 @@ const statusLabel: Record<Status, { label: string; cls: string }> = {
   negative: { label: "Négatif", cls: "bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-500/15 dark:text-rose-200 dark:border-rose-500/40" },
   no_answer: { label: "Pas de réponse", cls: "bg-sky-100 text-sky-800 border-sky-300 dark:bg-sky-500/15 dark:text-sky-200 dark:border-sky-500/40" },
 };
+
+interface SmsThreadRow {
+  id: string;
+  direction: "inbound" | "outbound";
+  body: string;
+  status: string | null;
+  sentiment: string | null;
+  sent_at: string | null;
+}
 
 function formatRelativeTime(iso: string): string {
   const d = new Date(iso);
@@ -92,6 +103,8 @@ export default function CallModal({
   const [smsPreview, setSmsPreview] = useState<{ message: string; segments: number } | null>(null);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [lastSmsAt, setLastSmsAt] = useState<string | null>(null);
+  // Fil de conversation SMS (entrant + sortant) pour répondre depuis la fiche.
+  const [smsThread, setSmsThread] = useState<SmsThreadRow[]>([]);
   // Funnel d'éligibilité Google Ads (clone Lokads) — déclenché pour les cibles source=ads.
   const [eligState, setEligState] = useState<"idle" | "preview" | "sending" | "sent" | "error">("idle");
   const [eligPreview, setEligPreview] = useState<{ message: string; formUrl: string } | null>(null);
@@ -131,22 +144,26 @@ export default function CallModal({
     setEligCopied(false);
   }, [prospect?.id, open]);
 
-  // Charge la date du dernier SMS envoyé à ce prospect (pour la mention « SMS envoyé »)
+  // Charge le fil SMS complet du prospect (entrant + sortant) : alimente la
+  // mention « SMS envoyé », le bloc conversation et la réponse depuis la fiche.
   useEffect(() => {
     if (!open || !prospect?.id) {
       setLastSmsAt(null);
+      setSmsThread([]);
       return;
     }
     let cancelled = false;
     (async () => {
       const { data } = await supabase
         .from("sms_messages")
-        .select("sent_at")
+        .select("id, direction, body, status, sentiment, sent_at")
         .eq("prospect_id", prospect.id)
-        .eq("direction", "outbound")
-        .order("sent_at", { ascending: false })
-        .limit(1);
-      if (!cancelled) setLastSmsAt(data?.[0]?.sent_at ?? null);
+        .order("sent_at", { ascending: true });
+      if (cancelled) return;
+      const thread = (data ?? []) as SmsThreadRow[];
+      setSmsThread(thread);
+      const lastOut = [...thread].reverse().find((m) => m.direction === "outbound");
+      setLastSmsAt(lastOut?.sent_at ?? null);
     })();
     return () => {
       cancelled = true;
@@ -648,6 +665,57 @@ export default function CallModal({
             )}
           </div>
         )}
+
+        {/* Conversation SMS — fil + réponse en texte libre depuis la fiche */}
+        {prospect && smsThread.length > 0 && (() => {
+          const blocked = smsThread.some((m) => m.direction === "inbound" && isStopMessage(m.body));
+          const last = smsThread[smsThread.length - 1];
+          const needsReply = !blocked && last?.direction === "inbound";
+          const recent = smsThread.slice(-5);
+          return (
+            <div className="mb-4 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-violet-600 dark:text-violet-300" /> Conversation SMS
+                </div>
+                {needsReply && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] border text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/30 border-amber-500 dark:border-amber-900/40">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> À répondre
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {recent.map((m) => {
+                  const out = m.direction === "outbound";
+                  return (
+                    <div key={m.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[85%] rounded-xl px-3 py-1.5 text-sm ${
+                        out
+                          ? "bg-violet-100 dark:bg-violet-950/40 border border-violet-300 dark:border-violet-900/40"
+                          : "bg-[var(--color-surface-2)]/50 border border-[var(--color-border)]/50"
+                      } text-[var(--color-text-primary)]`}>
+                        <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <SmsReplyComposer
+                to={prospect.phone || ""}
+                prospectId={prospect.id}
+                blocked={blocked}
+                compact
+                onSent={(info) => {
+                  setSmsThread((prev) => [
+                    ...prev,
+                    { id: info.sid, direction: "outbound", body: info.text, status: "sent", sentiment: null, sent_at: info.sentAt },
+                  ]);
+                  setLastSmsAt(info.sentAt);
+                }}
+              />
+            </div>
+          );
+        })()}
 
         {/* Funnel d'éligibilité Google Ads — uniquement pour les cibles du scrape Ads */}
         {prospect?.source === "ads" && (

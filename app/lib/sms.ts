@@ -15,6 +15,17 @@ export function toE164(phone: string | null | undefined): string | null {
   return `+${digits}`;
 }
 
+/**
+ * Vrai si le corps d'un SMS entrant est une demande de désinscription (STOP).
+ * Source de vérité partagée entre le webhook entrant et l'envoi de réponses :
+ * on ne doit JAMAIS réécrire à un numéro qui a fait STOP (obligation légale,
+ * Twilio bloque déjà l'envoi de son côté). Un simple « non merci » sans mot-clé
+ * STOP n'est PAS un opt-out et reste répondable.
+ */
+export function isStopMessage(body: string | null | undefined): boolean {
+  return /\b(STOP|ARRET|ARRÊT|DESABONNER|UNSUBSCRIBE)\b/i.test(body ?? "");
+}
+
 const GSM7_EXT = "^{}\\[~]|€";
 
 /**

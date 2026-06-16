@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { toE164 } from "@/app/lib/sms";
+import { toE164, isStopMessage } from "@/app/lib/sms";
 import { logInboundSms } from "@/app/lib/smsLog";
 
 const TWIML_EMPTY = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const { data } = await supabase.from("prospects").select("id, phone, notes, status");
   const prospect = (data ?? []).find((p) => toE164(p.phone) === from);
 
-  const isStop = /\b(STOP|ARRET|ARRÊT|DESABONNER|UNSUBSCRIBE)\b/i.test(body);
+  const isStop = isStopMessage(body);
 
   // Journal SMS : ligne entrante. STOP -> negative (mot-clé), sinon à classer (null).
   await logInboundSms({

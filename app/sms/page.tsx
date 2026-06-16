@@ -20,6 +20,8 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
+import { isStopMessage } from "@/app/lib/sms";
+import SmsReplyComposer from "@/app/components/SmsReplyComposer";
 import ScheduleBlastPanel from "./ScheduleBlastPanel";
 
 /* ── Types ────────────────────────────────────────────────────────────────── */
@@ -53,9 +55,13 @@ interface Convo {
   lastStatus: string | null;
   sentiment: Sentiment; // sentiment de la dernière réponse
   lastReply: SmsRow | null;
+  /** Dernier message du fil entrant = client en attente de réponse. */
+  needsReply: boolean;
+  /** Contact désinscrit (STOP) : réponse interdite. */
+  blocked: boolean;
 }
 
-type Filter = "all" | "replied" | "positive" | "negative" | "failed";
+type Filter = "all" | "toReply" | "replied" | "positive" | "negative" | "failed";
 
 /* "+33612…" / "06 12…" -> "33612…" */
 function normFr(phone: string | null): string {
@@ -180,7 +186,7 @@ export default function SmsPage() {
       if (!key) continue;
       let c = map.get(key);
       if (!c) {
-        c = { key, phone: key, prospectId: null, name: null, sent: [], replies: [], thread: [], lastAt: "", lastStatus: null, sentiment: null, lastReply: null };
+        c = { key, phone: key, prospectId: null, name: null, sent: [], replies: [], thread: [], lastAt: "", lastStatus: null, sentiment: null, lastReply: null, needsReply: false, blocked: false };
         map.set(key, c);
       }
       if (r.prospect_id && !c.prospectId) {
@@ -200,12 +206,15 @@ export default function SmsPage() {
       c.thread = [...c.sent, ...c.replies].sort((a, b) => (a.sent_at ?? "").localeCompare(b.sent_at ?? ""));
       c.lastReply = c.replies[c.replies.length - 1] ?? null;
       c.sentiment = c.lastReply?.sentiment ?? null;
+      c.blocked = c.replies.some((r) => isStopMessage(r.body));
+      const last = c.thread[c.thread.length - 1];
+      c.needsReply = !c.blocked && last?.direction === "inbound";
     }
     return [...map.values()].sort((a, b) => b.lastAt.localeCompare(a.lastAt));
   }, [rows, names]);
 
   const stats = useMemo(() => {
-    let sent = 0, delivered = 0, failed = 0, replied = 0, positive = 0, negative = 0;
+    let sent = 0, delivered = 0, failed = 0, replied = 0, positive = 0, negative = 0, toReply = 0;
     for (const r of rows) {
       if (r.direction === "outbound") {
         sent++;
@@ -217,8 +226,9 @@ export default function SmsPage() {
       if (c.replies.length) replied++;
       if (c.sentiment === "positive") positive++;
       if (c.sentiment === "negative") negative++;
+      if (c.needsReply) toReply++;
     }
-    return { sent, delivered, failed, replied, positive, negative };
+    return { sent, delivered, failed, replied, positive, negative, toReply };
   }, [rows, convos]);
 
   const pendingCount = useMemo(
@@ -228,6 +238,7 @@ export default function SmsPage() {
 
   const filtered = useMemo(() => {
     switch (filter) {
+      case "toReply": return convos.filter((c) => c.needsReply);
       case "replied": return convos.filter((c) => c.replies.length > 0);
       case "positive": return convos.filter((c) => c.sentiment === "positive");
       case "negative": return convos.filter((c) => c.sentiment === "negative");
@@ -281,8 +292,30 @@ export default function SmsPage() {
     [],
   );
 
+  /* Ajout optimiste d'une réponse envoyée dans le fil (sans recharger). */
+  const onReplySent = useCallback(
+    (c: Convo, info: { text: string; sid: string; segments: number; sentAt: string }) => {
+      const row: SmsRow = {
+        id: info.sid,
+        prospect_id: c.prospectId,
+        direction: "outbound",
+        to_phone: c.phone,
+        from_phone: null,
+        body: info.text,
+        segments: info.segments,
+        status: "sent",
+        sentiment: null,
+        sentiment_source: null,
+        sent_at: info.sentAt,
+      };
+      setRows((prev) => [row, ...prev]);
+    },
+    [],
+  );
+
   const FILTERS: { key: Filter; label: string; n: number }[] = [
     { key: "all", label: "Tous", n: convos.length },
+    { key: "toReply", label: "À répondre", n: stats.toReply },
     { key: "replied", label: "Répondu", n: stats.replied },
     { key: "positive", label: "Positifs", n: stats.positive },
     { key: "negative", label: "Négatifs", n: stats.negative },
@@ -322,6 +355,7 @@ export default function SmsPage() {
 
       {/* Stats */}
       <div className="flex flex-wrap gap-2 mb-4">
+        <Stat label="À répondre" value={stats.toReply} accent="text-amber-700 dark:text-amber-300" />
         <Stat label="Envoyés" value={stats.sent} accent="text-[var(--color-text-primary)]" />
         <Stat label="Délivrés" value={stats.delivered} accent="text-emerald-700 dark:text-emerald-300" />
         <Stat label="Échecs" value={stats.failed} accent="text-rose-700 dark:text-rose-300" />
@@ -431,6 +465,11 @@ export default function SmsPage() {
                     )}
                     {c.prospectId && <span className="text-xs text-[var(--color-text-muted)]">{prettyPhone(c.phone)}</span>}
                     <StatusBadge status={c.lastStatus} />
+                    {c.needsReply && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] border text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/30 border-amber-500 dark:border-amber-900/40">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> À répondre
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => toggleExpand(c.key)}
@@ -457,9 +496,10 @@ export default function SmsPage() {
                 )}
               </div>
 
-              {/* Fil complet déplié : liste des messages envoyés + réponses */}
+              {/* Fil complet déplié : liste des messages envoyés + réponses + réponse */}
               {expanded.has(c.key) ? (
-                <div className="mt-3 space-y-1.5">
+                <div className="mt-3">
+                  <div className="space-y-1.5">
                   {c.thread.map((m) => {
                     const out = m.direction === "outbound";
                     return (
@@ -480,6 +520,13 @@ export default function SmsPage() {
                       </div>
                     );
                   })}
+                  </div>
+                  <SmsReplyComposer
+                    to={c.phone}
+                    prospectId={c.prospectId}
+                    blocked={c.blocked}
+                    onSent={(info) => onReplySent(c, info)}
+                  />
                 </div>
               ) : (
                 c.lastReply && (
