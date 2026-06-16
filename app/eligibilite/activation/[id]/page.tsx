@@ -1,4 +1,5 @@
 import { supabaseAdmin, supabaseAdminConfigured } from "@/app/lib/supabaseAdmin";
+import ActivationStatus from "./ActivationStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -33,27 +34,34 @@ export default async function ActivationPage({ params }: { params: Promise<{ id:
           <span className="text-xs font-semibold" style={{ color: "var(--muted)" }}>Activation</span>
         </div>
 
-        <h1 className="text-[26px] font-extrabold leading-tight" style={{ color: "var(--ink)", textWrap: "balance" }}>
+        <h1 className="text-[27px] font-extrabold leading-[1.12]" style={{ color: "var(--ink)", textWrap: "balance" }}>
           {lead.first_name ? `${lead.first_name}, dernière` : "Dernière"} étape : ajoutez votre carte.
         </h1>
-        <p className="mt-2 text-[15px] leading-relaxed" style={{ color: "var(--ink-soft)" }}>
+        <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--ink-soft)" }}>
           Votre campagne {lead.service_cible ? <b style={{ color: "var(--ink)" }}>{lead.service_cible}</b> : ""}{" "}
           est configurée et prête. Pour qu&apos;elle démarre, Google a besoin de votre moyen de paiement.
         </p>
 
+        {/* Compte créé + statut d'activation (polling) */}
         {adsAccount?.customer_id ? (
-          <div
-            className="mt-5 rounded-[16px] p-4"
-            style={{ background: "rgba(16,185,129,.10)", border: "1px solid rgba(16,185,129,.30)" }}
-          >
-            <p className="text-sm font-bold" style={{ color: "#047857" }}>
-              ✅ Votre compte est créé · ID {formatCustomerId(adsAccount.customer_id)}
-            </p>
-            {lead.email ? (
-              <p className="mt-1 text-sm" style={{ color: "var(--ink-soft)" }}>
-                Google a envoyé une invitation à <b style={{ color: "var(--ink)" }}>{lead.email}</b>. Acceptez-la pour accéder à votre compte.
-              </p>
-            ) : null}
+          <div className="mt-5">
+            <div
+              className="flex items-center gap-3 rounded-[16px] p-4"
+              style={{ background: "rgba(16,185,129,.10)", border: "1px solid rgba(16,185,129,.30)" }}
+            >
+              <span aria-hidden style={{ fontSize: 18 }}>✅</span>
+              <div>
+                <p className="text-sm font-bold" style={{ color: "#047857" }}>
+                  Votre compte est créé · ID {formatCustomerId(adsAccount.customer_id)}
+                </p>
+                {lead.email ? (
+                  <p className="mt-0.5 text-sm" style={{ color: "var(--ink-soft)" }}>
+                    Google a envoyé une invitation à <b style={{ color: "var(--ink)" }}>{lead.email}</b>.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <ActivationStatus id={id} />
           </div>
         ) : null}
 
@@ -81,13 +89,13 @@ export default async function ActivationPage({ params }: { params: Promise<{ id:
             votre compte publicitaire — celui qu&apos;on a préparé pour vous.
           </Step>
           <Step n={3} title="Ajoutez votre carte">
-            Dans le menu <b style={{ color: "var(--ink)" }}>Facturation &amp; paiements</b>, choisissez
-            <b style={{ color: "var(--ink)" }}> « Ajouter un mode de paiement »</b> et saisissez votre carte. Quelques
-            informations (adresse, TVA) peuvent être demandées par Google.
+            Dans la section <b style={{ color: "var(--ink)" }}>« Mode de paiement »</b>, renseignez votre carte bancaire,
+            cochez les conditions Google, puis validez en bas de page. Voici l&apos;écran que vous verrez :
+            <PaymentMockup />
           </Step>
           <Step n={4} title="C'est lancé" last>
-            Dès votre carte validée, <b style={{ color: "var(--ink)" }}>votre campagne démarre automatiquement</b>.
-            Vous recevrez vos premiers appels dans les heures qui suivent. On surveille tout de notre côté.
+            Dès votre carte validée, <b style={{ color: "var(--ink)" }}>votre compte est activé</b>. On surveille tout
+            de notre côté et on met votre campagne en ligne <b style={{ color: "var(--ink)" }}>avec vous</b>.
           </Step>
         </div>
 
@@ -101,10 +109,13 @@ export default async function ActivationPage({ params }: { params: Promise<{ id:
         >
           Ouvrir Google Ads →
         </a>
+        <p className="mt-2 text-center text-xs" style={{ color: "var(--muted)" }}>
+          S&apos;ouvre dans un nouvel onglet, sur votre compte Google Ads.
+        </p>
 
         <div
-          className="mt-4 rounded-[16px] p-4 text-center text-sm"
-          style={{ background: "var(--surface)", border: "1px solid var(--border)", color: "var(--ink-soft)" }}
+          className="mt-5 rounded-[16px] p-4 text-center text-sm"
+          style={{ background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--ink-soft)" }}
         >
           Un doute, une question ? On le fait <b style={{ color: "var(--ink)" }}>avec vous au téléphone</b> en 5 minutes.
           {NMF_PHONE ? (
@@ -112,11 +123,52 @@ export default async function ActivationPage({ params }: { params: Promise<{ id:
           ) : null}
         </div>
 
-        <p className="mt-8 text-center text-xs" style={{ color: "var(--muted)" }}>
-          NMF Agence — sites web &amp; acquisition pour artisans.
+        <p className="mt-8 text-center text-xs leading-relaxed" style={{ color: "var(--muted)" }}>
+          NMF Agence — Nicolas Maillard, entrepreneur individuel.<br />
+          SIRET 102 905 379 00016 · TVA non applicable, art. 293 B du CGI.
         </p>
       </div>
     </main>
+  );
+}
+
+/** Recréation fidèle (HTML/CSS) du panneau « Mode de paiement » de Google Ads — repère visuel pour l'étape 3. */
+function PaymentMockup() {
+  return (
+    <span className="mt-3 block">
+      <span
+        className="block rounded-[14px] p-3"
+        style={{ background: "var(--accent-soft)", border: "1.5px solid var(--accent)" }}
+      >
+        {/* Faux cadre fieldset façon Google */}
+        <span className="relative block rounded-[10px] bg-white p-4" style={{ border: "1px solid #dadce0" }}>
+          <span
+            className="absolute px-1 text-[11px]"
+            style={{ top: -8, left: 12, background: "#fff", color: "#5f6368" }}
+          >
+            Mode de paiement
+          </span>
+          <span className="flex items-center gap-3">
+            {/* Logo Mastercard */}
+            <span className="relative inline-block shrink-0" style={{ width: 34, height: 22 }} aria-hidden>
+              <span className="absolute rounded-full" style={{ width: 22, height: 22, left: 0, background: "#EB001B" }} />
+              <span className="absolute rounded-full" style={{ width: 22, height: 22, left: 12, background: "#F79E1B", mixBlendMode: "multiply" }} />
+            </span>
+            <span className="flex-1 text-[14px] font-medium" style={{ color: "#202124" }}>
+              Mastercard&nbsp;•••• 1233
+            </span>
+            <span className="text-[14px] font-medium" style={{ color: "#1a73e8" }}>Modifier</span>
+          </span>
+          <span className="mt-2 block text-[12px] leading-snug" style={{ color: "#5f6368" }}>
+            Une <b style={{ color: "#202124" }}>autorisation temporaire de 10,00 €</b> apparaîtra sur votre carte
+            (généralement supprimée au bout d&apos;une semaine).
+          </span>
+        </span>
+        <span className="mt-2 flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--accent-dark)" }}>
+          <span aria-hidden>↑</span> C&apos;est ici que vous ajoutez votre carte, puis vous validez en bas de page.
+        </span>
+      </span>
+    </span>
   );
 }
 
@@ -127,7 +179,7 @@ function Step({ n, title, children, last }: { n: number; title: string; children
       <div className="flex flex-col items-center">
         <span
           className="grid place-items-center rounded-full font-extrabold shrink-0"
-          style={{ width: 38, height: 38, background: "var(--accent)", color: "#fff", boxShadow: "0 6px 14px -6px rgba(91,52,192,.6)" }}
+          style={{ width: 38, height: 38, background: "var(--accent)", color: "#fff", boxShadow: "0 6px 14px -6px rgba(255,110,0,.6)" }}
         >
           {n}
         </span>
@@ -135,7 +187,7 @@ function Step({ n, title, children, last }: { n: number; title: string; children
       </div>
       <div className="fnl-card p-4 flex-1 mb-1">
         <h3 className="font-extrabold text-[15px]" style={{ color: "var(--ink)" }}>{title}</h3>
-        <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--ink-soft)" }}>{children}</p>
+        <div className="mt-1 text-sm leading-relaxed" style={{ color: "var(--ink-soft)" }}>{children}</div>
       </div>
     </div>
   );

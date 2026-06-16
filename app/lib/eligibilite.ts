@@ -179,6 +179,8 @@ function emailShell(opts: {
   const MUTED = "#667085";
   const BORDER = "#eceef2";
   const phone = process.env.NEXT_PUBLIC_NMF_PHONE || "";
+  // Mentions légales micro-entreprise (obligatoires sur les communications pro).
+  const LEGAL = "Nicolas Maillard, entrepreneur individuel · SIRET 102 905 379 00016 · 1 rue Marguerin, 75014 Paris · TVA non applicable, art. 293 B du CGI";
 
   const rows = opts.rows
     .map(
@@ -223,9 +225,10 @@ function emailShell(opts: {
         </td></tr>
         ${opts.footnote ? `<tr><td style="padding:20px 36px 0;font-family:Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:${MUTED}">${opts.footnote}</td></tr>` : ""}
         <tr><td style="padding:28px 36px 30px">
-          <div style="border-top:1px solid ${BORDER};padding-top:18px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#98a2b3">
-            <strong style="color:#667085">NMF Agence</strong> — sites web &amp; acquisition pour artisans.${phone ? ` ${esc(phone)}.` : ""}<br>
-            Vous recevez cet email suite à votre demande d'analyse Google Ads.
+          <div style="border-top:1px solid ${BORDER};padding-top:18px;font-family:Helvetica,Arial,sans-serif;font-size:12px;line-height:1.65;color:#98a2b3">
+            <strong style="color:#667085">NMF Agence</strong> — sites web &amp; acquisition pour artisans.${phone ? ` <a href="tel:${esc(phone.replace(/\s/g, ""))}" style="color:#98a2b3;text-decoration:none">${esc(phone)}</a>.` : ""}<br>
+            <span style="color:#b0b7c3">${esc(LEGAL)}</span><br>
+            <span style="color:#b0b7c3">Vous recevez cet email suite à votre demande d'analyse Google Ads.</span>
           </div>
         </td></tr>
       </table>

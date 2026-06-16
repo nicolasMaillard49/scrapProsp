@@ -42,6 +42,24 @@ export async function createOrReuseAccount(leadId: string, accountName: string):
   return customerId;
 }
 
+/**
+ * Le compte a-t-il un moyen de paiement actif (billing) ? LECTURE SEULE.
+ * Sert au polling de la page d'activation : true = la carte a été ajoutée côté Google.
+ * N'écrit rien, ne dé-pause rien.
+ */
+export async function isBillingActive(customerId: string): Promise<boolean> {
+  const rows = await clientCustomer(customerId).query(
+    "SELECT billing_setup.status FROM billing_setup",
+  );
+  const active = new Set<unknown>([
+    enums.BillingSetupStatus.APPROVED,
+    enums.BillingSetupStatus.APPROVED_HELD,
+    "APPROVED",
+    "APPROVED_HELD",
+  ]);
+  return rows.some((r) => active.has((r as { billing_setup?: { status?: unknown } }).billing_setup?.status));
+}
+
 /** Invite l'email sur le compte client (rôle ADMIN). true = invitation envoyée, false = déjà invité/membre. */
 export async function inviteUser(customerId: string, email: string): Promise<boolean> {
   try {

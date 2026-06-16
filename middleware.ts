@@ -17,7 +17,8 @@ export function middleware(req: NextRequest) {
   const isFunnelPath =
     pathname.startsWith("/eligibilite/") ||
     pathname === "/api/eligibilite/submit" ||
-    pathname === "/api/eligibilite/launch";
+    pathname === "/api/eligibilite/launch" ||
+    pathname.startsWith("/api/eligibilite/activation-status/");
 
   // ── Domaine funnel : on n'y sert QUE le funnel. Tout le reste part sur le site NMF.
   if (host === FUNNEL_HOST) {
@@ -39,6 +40,7 @@ export function middleware(req: NextRequest) {
     pathname.startsWith("/eligibilite/") ||
     pathname === "/api/eligibilite/submit" ||
     pathname === "/api/eligibilite/launch" ||
+    pathname.startsWith("/api/eligibilite/activation-status/") ||
     pathname === "/api/sms/incoming" ||
     pathname === "/api/sms/status" ||
     pathname === "/api/cron/run-blasts" ||
