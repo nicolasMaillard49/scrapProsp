@@ -47,7 +47,13 @@ export async function POST(req: NextRequest) {
   try {
     const res = await createCampaignForLead(lead as EligibiliteLead, { dryRun });
     ads = { ok: res.ok, dryRun: res.dryRun, recordId: res.recordId, warnings: res.plan.warnings };
-    if (res.dryRun) {
+    if (!res.dryRun) {
+      await sendTelegram(
+        res.ok
+          ? `✅ Compte Google Ads RÉEL créé — ID ${res.customerId} — campagne PAUSED « ${res.plan.params.campaignName} » — invitation envoyée à ${lead.email || "?"}`
+          : `❌ Création Google Ads réelle échouée — ${res.error || "erreur inconnue"}`,
+      );
+    } else if (res.dryRun) {
       await sendTelegram(
         `🧪 [dry-run] Campagne Google Ads simulée — ${res.plan.params.campaignName} — ` +
           `budget ${Math.round(res.plan.params.dailyBudgetMicros / 1_000_000)} €/j` +

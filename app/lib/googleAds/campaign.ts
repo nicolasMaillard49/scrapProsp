@@ -13,6 +13,7 @@ import { negativesFor } from "./negatives";
 import { generateAdContent, type Keyword, type AdCopy } from "./copy";
 import { MCC_ID, googleAdsConfigured } from "./client";
 import { recordAdsAccount } from "./persistence";
+import { createOrReuseAccount, inviteUser, createPausedCampaign } from "./create";
 
 /** Config du call tracking « appels depuis les annonces » (≥ 30 s = conversion). */
 export interface CallTrackingPlan {
@@ -39,6 +40,8 @@ export interface CreateResult {
   dryRun: boolean;
   plan: CampaignPlan;
   recordId: string | null;
+  customerId?: string | null;
+  campaignId?: string | null;
   error?: string;
 }
 
@@ -101,21 +104,51 @@ export async function createCampaignForLead(
     return { ok: true, dryRun: true, plan, recordId };
   }
 
-  // ── Mode réel — Phase 2 (non activé) ───────────────────────────────────────
-  // À implémenter pas à pas via customer.mutateResources() sur un compte de test :
-  //   1. createCustomerClient (compte sous le MCC 671)
-  //   2. conversion action AD_CALL (≥30s) + activation call reporting
-  //   3. campaign_budget → campaign (PAUSED, end_date, networks, geo PRESENCE, Maximize Clicks)
-  //   4. campaign_criterion (proximité/ville + langue FR)
-  //   5. ad_group → ad_group_criterion (keywords) → ad_group_ad (RSA)
-  //   6. campaign negative keywords + call asset
-  //   7. persistance customer_id/campaign_id
-  // Prérequis : billing actif sur le compte + vérif manuelle dans l'UI.
+  // ── Mode réel — Phase 2 ─────────────────────────────────────────────────────
   if (!googleAdsConfigured()) {
     return { ok: false, dryRun: false, plan, recordId: null, error: "Credentials Google Ads incomplets." };
   }
-  throw new Error(
-    "Création réelle non activée (Phase 2). Utiliser dryRun:true. " +
-      "Le mode réel sera branché et testé pas à pas sur un compte de test avec billing.",
-  );
+  // La RSA exige une final URL : on refuse de créer sans elle.
+  if (!plan.params.finalUrl) {
+    return { ok: false, dryRun: false, plan, recordId: null, error: "site_url manquant : final URL obligatoire." };
+  }
+
+  try {
+    const customerId = await createOrReuseAccount(lead.id, plan.params.accountName);
+    let invited = false;
+    if ((lead as { email?: string }).email) {
+      invited = await inviteUser(customerId, (lead as { email?: string }).email as string);
+    }
+    const camp = await createPausedCampaign(customerId, plan);
+
+    const recordId = await recordAdsAccount({
+      lead_id: lead.id,
+      client_name: plan.params.accountName,
+      customer_id: customerId,
+      mcc_id: plan.mccId,
+      campaign_id: camp.campaignId || null,
+      budget_id: camp.budgetId || null,
+      status: "paused",
+      daily_budget: Math.round(plan.params.dailyBudgetMicros / 1_000_000),
+      metier: plan.params.metier,
+      ville: plan.params.ville,
+      payload: { plan, invited, warnings: [...plan.warnings, ...camp.warnings] },
+    });
+
+    return { ok: true, dryRun: false, plan, recordId, customerId, campaignId: camp.campaignId || null };
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    await recordAdsAccount({
+      lead_id: lead.id,
+      client_name: plan.params.accountName,
+      mcc_id: plan.mccId,
+      status: "error",
+      daily_budget: Math.round(plan.params.dailyBudgetMicros / 1_000_000),
+      metier: plan.params.metier,
+      ville: plan.params.ville,
+      payload: plan,
+      error,
+    });
+    return { ok: false, dryRun: false, plan, recordId: null, error };
+  }
 }
