@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseAllowlist, isRealAllowed } from "./allowlist.ts";
+import { parseAllowlist, isRealAllowed } from "./allowlist";
 
 test("parseAllowlist: vide => set vide", () => {
   assert.equal(parseAllowlist("").size, 0);
