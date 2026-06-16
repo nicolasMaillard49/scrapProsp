@@ -12,6 +12,12 @@
 
 const API_KEY = process.env.RESEND_API_KEY ?? "";
 const FROM = process.env.RESEND_FROM || "Eligibilité <onboarding@resend.dev>";
+// Copie cachée de TOUS les emails (funnel) vers ces adresses (séparées par des virgules).
+// Permet de recevoir soi-même une copie des emails envoyés aux prospects (et cliquer les liens).
+const BCC = (process.env.EMAIL_BCC || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 export const emailConfigured = !!API_KEY;
 
@@ -20,10 +26,14 @@ export interface SendEmailInput {
   subject: string;
   html: string;
   replyTo?: string;
+  /** BCC additionnel pour cet envoi (s'ajoute à EMAIL_BCC). */
+  bcc?: string | string[];
 }
 
 export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; id?: string; error?: string; skipped?: boolean }> {
   if (!emailConfigured) return { ok: false, skipped: true, error: "RESEND_API_KEY manquant" };
+  const perCallBcc = input.bcc ? (Array.isArray(input.bcc) ? input.bcc : [input.bcc]) : [];
+  const bcc = [...BCC, ...perCallBcc];
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -37,6 +47,7 @@ export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; i
         subject: input.subject,
         html: input.html,
         reply_to: input.replyTo,
+        ...(bcc.length ? { bcc } : {}),
       }),
     });
     const data = await res.json().catch(() => ({}));
