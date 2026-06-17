@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const { data: prospect, error: pErr } = await supabase
     .from("prospects")
-    .select("id, name, metier, ville, phone")
+    .select("id, name, metier, ville, phone, website")
     .eq("id", prospectId)
     .single();
   if (pErr || !prospect) return NextResponse.json({ error: "Prospect introuvable" }, { status: 404 });
@@ -49,6 +49,10 @@ export async function POST(req: NextRequest) {
       metier: prospect.metier,
       ville: prospect.ville,
       phone: prospect.phone,
+      // Pré-remplissage : on emporte le site web déjà scrapé pour le proposer
+      // dans le formulaire (le prospect peut le corriger). Aussi utile car la
+      // campagne Google Ads exige une final URL.
+      site_url: prospect.website || null,
       status: "created",
     })
     .select()

@@ -11,7 +11,7 @@ export default async function EligibiliteFormPage({ params }: { params: Promise<
   }
   const { data: lead } = await supabaseAdmin
     .from("eligibilite_leads")
-    .select("token, metier, ville, phone, status")
+    .select("token, metier, ville, phone, status, site_url")
     .eq("token", token)
     .single();
 
@@ -24,6 +24,7 @@ export default async function EligibiliteFormPage({ params }: { params: Promise<
         metier={lead.metier ?? ""}
         ville={lead.ville ?? ""}
         phone={lead.phone ?? ""}
+        siteUrl={lead.site_url ?? ""}
       />
     </main>
   );

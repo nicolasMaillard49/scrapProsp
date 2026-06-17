@@ -44,9 +44,11 @@ interface Props {
   metier: string;
   ville: string;
   phone: string;
+  /** Site web déjà connu (scrapé) : pré-remplit le champ, éditable par le prospect. */
+  siteUrl?: string;
 }
 
-export default function QuizForm({ token, metier, ville, phone }: Props) {
+export default function QuizForm({ token, metier, ville, phone, siteUrl = "" }: Props) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -55,7 +57,7 @@ export default function QuizForm({ token, metier, ville, phone }: Props) {
     metier,
     ville,
     radius_km: 10,
-    site_url: "",
+    site_url: siteUrl,
     employees_range: "",
     ca_range: "",
     ad_budget_range: "",
