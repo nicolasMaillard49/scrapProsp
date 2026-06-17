@@ -40,3 +40,4 @@ projet-preview*.pdf
 
 # Aperçus HTML générés (emails)
 previews/
+.superpowers/
