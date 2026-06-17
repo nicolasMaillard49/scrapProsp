@@ -132,41 +132,71 @@ export default async function ActivationPage({ params }: { params: Promise<{ id:
   );
 }
 
-/** Recréation fidèle (HTML/CSS) du panneau « Mode de paiement » de Google Ads — repère visuel pour l'étape 3. */
+/** Recréation fidèle (HTML/CSS) de l'écran « Ajoutez un mode de paiement » de Google Ads — repère visuel pour l'étape 3. */
 function PaymentMockup() {
   return (
     <span className="mt-3 block">
+      {/* Fenêtre façon navigateur, pour situer l'écran complet */}
       <span
-        className="block rounded-[14px] p-3"
-        style={{ background: "var(--accent-soft)", border: "1.5px solid var(--accent)" }}
+        className="block overflow-hidden rounded-[14px] bg-white"
+        style={{ border: "1px solid #dadce0", boxShadow: "0 10px 28px -14px rgba(0,0,0,.3)" }}
       >
-        {/* Faux cadre fieldset façon Google */}
-        <span className="relative block rounded-[10px] bg-white p-4" style={{ border: "1px solid #dadce0" }}>
-          <span
-            className="absolute px-1 text-[11px]"
-            style={{ top: -8, left: 12, background: "#fff", color: "#5f6368" }}
-          >
-            Mode de paiement
-          </span>
-          <span className="flex items-center gap-3">
-            {/* Logo Mastercard */}
-            <span className="relative inline-block shrink-0" style={{ width: 34, height: 22 }} aria-hidden>
-              <span className="absolute rounded-full" style={{ width: 22, height: 22, left: 0, background: "#EB001B" }} />
-              <span className="absolute rounded-full" style={{ width: 22, height: 22, left: 12, background: "#F79E1B", mixBlendMode: "multiply" }} />
+        {/* Barre de fenêtre */}
+        <span className="flex items-center gap-1.5 px-3 py-2" style={{ background: "#f1f3f4", borderBottom: "1px solid #e8eaed" }}>
+          <span className="rounded-full" style={{ width: 8, height: 8, background: "#ea4335" }} />
+          <span className="rounded-full" style={{ width: 8, height: 8, background: "#fbbc04" }} />
+          <span className="rounded-full" style={{ width: 8, height: 8, background: "#34a853" }} />
+          <span className="ml-2 truncate text-[11px]" style={{ color: "#5f6368" }}>ads.google.com · Facturation</span>
+        </span>
+
+        {/* Contenu de l'écran */}
+        <span className="block p-4">
+          <span className="block text-[15px] font-semibold" style={{ color: "#202124" }}>Ajoutez un mode de paiement</span>
+          <span className="mt-0.5 block text-[12px]" style={{ color: "#5f6368" }}>Carte de crédit ou de débit</span>
+
+          {/* Champ numéro de carte (focus bleu) + logos */}
+          <span className="relative mt-4 block">
+            <span className="absolute px-1 text-[10px]" style={{ top: -7, left: 12, background: "#fff", color: "#1a73e8" }}>Numéro de carte</span>
+            <span className="flex items-center gap-2 rounded-[8px] px-3 py-2.5" style={{ border: "2px solid #1a73e8" }}>
+              <span className="flex-1 text-[14px] tracking-wider" style={{ color: "#202124" }}>1234&nbsp;5678&nbsp;9012&nbsp;3456</span>
+              {/* Mastercard */}
+              <span className="relative inline-block shrink-0" style={{ width: 30, height: 19 }} aria-hidden>
+                <span className="absolute rounded-full" style={{ width: 19, height: 19, left: 0, background: "#EB001B" }} />
+                <span className="absolute rounded-full" style={{ width: 19, height: 19, left: 11, background: "#F79E1B", mixBlendMode: "multiply" }} />
+              </span>
+              {/* Visa */}
+              <span className="shrink-0 rounded-[3px] px-1 text-[10px] font-black italic" style={{ background: "#1434CB", color: "#fff" }} aria-hidden>VISA</span>
             </span>
-            <span className="flex-1 text-[14px] font-medium" style={{ color: "#202124" }}>
-              Mastercard&nbsp;•••• 1233
-            </span>
-            <span className="text-[14px] font-medium" style={{ color: "#1a73e8" }}>Modifier</span>
           </span>
-          <span className="mt-2 block text-[12px] leading-snug" style={{ color: "#5f6368" }}>
+
+          {/* Expiration + CVC */}
+          <span className="mt-3 flex gap-2">
+            <span className="relative block flex-1">
+              <span className="absolute px-1 text-[10px]" style={{ top: -7, left: 12, background: "#fff", color: "#5f6368" }}>MM / AA</span>
+              <span className="block rounded-[8px] px-3 py-2.5 text-[14px]" style={{ border: "1px solid #dadce0", color: "#202124" }}>12 / 28</span>
+            </span>
+            <span className="relative block flex-1">
+              <span className="absolute px-1 text-[10px]" style={{ top: -7, left: 12, background: "#fff", color: "#5f6368" }}>CVC</span>
+              <span className="block rounded-[8px] px-3 py-2.5 text-[14px]" style={{ border: "1px solid #dadce0", color: "#202124" }}>•••</span>
+            </span>
+          </span>
+
+          {/* Autorisation temporaire */}
+          <span className="mt-3 block rounded-[8px] p-2.5 text-[12px] leading-snug" style={{ background: "#f8f9fa", color: "#5f6368" }}>
             Une <b style={{ color: "#202124" }}>autorisation temporaire de 10,00 €</b> apparaîtra sur votre carte
             (généralement supprimée au bout d&apos;une semaine).
           </span>
+
+          {/* Bouton de validation façon Google */}
+          <span className="mt-3 inline-block rounded-[8px] px-5 py-2 text-[13px] font-semibold text-white" style={{ background: "#1a73e8" }}>
+            Envoyer
+          </span>
         </span>
-        <span className="mt-2 flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--accent-dark)" }}>
-          <span aria-hidden>↑</span> C&apos;est ici que vous ajoutez votre carte, puis vous validez en bas de page.
-        </span>
+      </span>
+
+      {/* Pointeur NMF */}
+      <span className="mt-2 flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--accent-dark)" }}>
+        <span aria-hidden>↑</span> Renseignez votre carte ici, puis validez en bas de la page.
       </span>
     </span>
   );
