@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, Radio, Mail, Smartphone, ExternalLink } from "lucide-react";
+import { ArrowLeft, Radio, Mail, Smartphone, ExternalLink, Megaphone } from "lucide-react";
 import { supabaseAdmin, supabaseAdminConfigured } from "@/app/lib/supabaseAdmin";
 import { confirmationEmailHtml, launchEmailHtml } from "@/app/lib/eligibilite";
+import LeadAdsPanel, { type PlanLike } from "./LeadAdsPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,24 @@ export default async function FunnelConsolePage() {
     leads = (data as Lead[]) ?? [];
   }
 
+  // Provisioning Google Ads : pour chaque lead « lancé », son dernier record ads
+  // (plan généré + statut/customer_id éventuels). Plan = payload.plan ?? payload.
+  const launchedLeads = leads.filter((l) => l.status === "launched");
+  const adsByLead = new Map<string, { status: string; customer_id: string | null; campaign_id: string | null; plan: PlanLike | null }>();
+  if (supabaseAdminConfigured && launchedLeads.length > 0) {
+    const { data: rows } = await supabaseAdmin
+      .from("google_ads_accounts")
+      .select("lead_id, status, customer_id, campaign_id, payload, created_at")
+      .in("lead_id", launchedLeads.map((l) => l.id))
+      .order("created_at", { ascending: false });
+    for (const r of rows ?? []) {
+      if (!r.lead_id || adsByLead.has(r.lead_id)) continue; // ordre desc -> on garde le plus récent
+      const payload = r.payload as { plan?: PlanLike } | PlanLike | null;
+      const plan = (payload && typeof payload === "object" && "plan" in payload ? payload.plan : payload) as PlanLike | null;
+      adsByLead.set(r.lead_id, { status: r.status, customer_id: r.customer_id, campaign_id: r.campaign_id, plan: plan ?? null });
+    }
+  }
+
   // Pour les aperçus emails / pages : on prend le lead le plus complet dispo.
   const sample = leads.find((l) => l.service_cible) ?? leads[0] ?? SAMPLE;
   const confirmation = confirmationEmailHtml(sample);
@@ -96,6 +115,50 @@ export default async function FunnelConsolePage() {
           <p className="mt-2 text-xs text-slate-600">
             « Suivre live » ouvre le miroir : les champs se remplissent en temps réel pendant que le prospect tape.
           </p>
+        </section>
+
+        {/* ── Workflow création compte Google Ads ── */}
+        <section className="mt-10">
+          <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">
+            <Megaphone className="w-4 h-4" /> Workflow création compte Google Ads
+          </h2>
+          <div className="rounded-xl border border-[#2a2a35] bg-[#13131a] p-4 text-sm text-slate-300 leading-relaxed">
+            <p className="text-amber-300/90 text-[13px] mb-3">
+              ⚠️ Le MCC 671 ne peut pas créer de comptes par API (manager trop jeune : il
+              faut un compte lié ayant dépensé &gt; 1 000 $). On provisionne le compte
+              <b> à la main</b>, puis on crée la campagne par API.
+            </p>
+            <ol className="list-decimal pl-5 space-y-1.5">
+              <li>Créer un <b>compte Google Ads autonome</b> (hors MCC, mode expert, sans campagne).</li>
+              <li>Inviter l&apos;<b>email du client en Administrateur</b> (Outils → Configuration → Accès au compte).</li>
+              <li>Le client <b>ajoute sa carte</b> (Facturation → Mode de paiement).</li>
+              <li><b>Lier le compte au MCC 671</b> — garder la facturation sur le compte du client.</li>
+              <li>Coller le <b>customer ID</b> du compte lié ci-dessous → <b>« Créer la campagne »</b> (PAUSED, par API).</li>
+              <li>Tout prêt ? <b>Dé-pauser</b> la campagne à la main dans Google Ads.</li>
+            </ol>
+          </div>
+
+          <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mt-6 mb-3">
+            Leads lancés — à provisionner
+          </h3>
+          {launchedLeads.length === 0 ? (
+            <p className="text-sm text-slate-500">Aucun lead « lancé » pour l&apos;instant.</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {launchedLeads.map((l) => {
+                const ads = adsByLead.get(l.id) ?? null;
+                return (
+                  <LeadAdsPanel
+                    key={l.id}
+                    leadId={l.id}
+                    leadLabel={`${l.first_name || "—"} · ${l.metier ?? ""} ${l.ville ?? ""}`}
+                    plan={ads?.plan ?? null}
+                    existing={ads ? { status: ads.status, customer_id: ads.customer_id, campaign_id: ads.campaign_id } : null}
+                  />
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* ── Aperçu des pages client ── */}

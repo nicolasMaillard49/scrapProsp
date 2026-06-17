@@ -1,5 +1,4 @@
 import { supabaseAdmin, supabaseAdminConfigured } from "@/app/lib/supabaseAdmin";
-import ActivationStatus from "./ActivationStatus";
 
 export const dynamic = "force-dynamic";
 
@@ -14,15 +13,6 @@ export default async function ActivationPage({ params }: { params: Promise<{ id:
     .eq("id", id)
     .single();
   if (!lead) return <Centered>Activation introuvable.</Centered>;
-
-  const { data: adsAccount } = await supabaseAdmin
-    .from("google_ads_accounts")
-    .select("customer_id, status")
-    .eq("lead_id", id)
-    .not("customer_id", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
   const cap = lead.budget_daily ? lead.budget_daily * 7 : null;
 
@@ -39,31 +29,9 @@ export default async function ActivationPage({ params }: { params: Promise<{ id:
         </h1>
         <p className="mt-3 text-[15px] leading-relaxed" style={{ color: "var(--ink-soft)" }}>
           Votre campagne {lead.service_cible ? <b style={{ color: "var(--ink)" }}>{lead.service_cible}</b> : ""}{" "}
-          est configurée et prête. Pour qu&apos;elle démarre, Google a besoin de votre moyen de paiement.
+          est configurée. Votre conseiller prépare votre compte Google Ads :
+          {lead.email ? <> vous allez recevoir d&apos;ici peu une <b style={{ color: "var(--ink)" }}>invitation par email</b> sur <b style={{ color: "var(--ink)" }}>{lead.email}</b>.</> : <> vous allez recevoir d&apos;ici peu une <b style={{ color: "var(--ink)" }}>invitation par email</b>.</>}
         </p>
-
-        {/* Compte créé + statut d'activation (polling) */}
-        {adsAccount?.customer_id ? (
-          <div className="mt-5">
-            <div
-              className="flex items-center gap-3 rounded-[16px] p-4"
-              style={{ background: "rgba(16,185,129,.10)", border: "1px solid rgba(16,185,129,.30)" }}
-            >
-              <span aria-hidden style={{ fontSize: 18 }}>✅</span>
-              <div>
-                <p className="text-sm font-bold" style={{ color: "#047857" }}>
-                  Votre compte est créé · ID {formatCustomerId(adsAccount.customer_id)}
-                </p>
-                {lead.email ? (
-                  <p className="mt-0.5 text-sm" style={{ color: "var(--ink-soft)" }}>
-                    Google a envoyé une invitation à <b style={{ color: "var(--ink)" }}>{lead.email}</b>.
-                  </p>
-                ) : null}
-              </div>
-            </div>
-            <ActivationStatus id={id} />
-          </div>
-        ) : null}
 
         {/* Pourquoi ma carte — rassurance */}
         <div className="mt-5 fnl-card p-5">
@@ -221,12 +189,6 @@ function Step({ n, title, children, last }: { n: number; title: string; children
       </div>
     </div>
   );
-}
-
-/** 6711813801 -> "671-181-3801" (format compte Google Ads). */
-function formatCustomerId(id: string): string {
-  const d = id.replace(/\D/g, "");
-  return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : id;
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

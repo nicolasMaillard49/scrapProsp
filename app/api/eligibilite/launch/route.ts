@@ -4,7 +4,6 @@ import { sendEmail } from "@/app/lib/email";
 import { sendTelegram } from "@/app/lib/notify";
 import { launchEmailHtml } from "@/app/lib/eligibilite";
 import { createCampaignForLead } from "@/app/lib/googleAds/campaign";
-import { isRealAllowed } from "@/app/lib/googleAds/allowlist";
 import type { EligibiliteLead } from "@/app/lib/googleAds/mapping";
 
 /**
@@ -31,40 +30,31 @@ export async function POST(req: NextRequest) {
     .single();
   if (error || !lead) return NextResponse.json({ error: error?.message || "Lead introuvable" }, { status: 404 });
 
-  // Mode réel UNIQUEMENT si l'email du lead est dans l'allow-list
-  // (GOOGLE_ADS_REAL_EMAILS), ou override interne explicite { dryRun:false }.
-  const dryRun = b.dryRun === false ? false : !isRealAllowed(lead.email);
-
   if (lead.email) {
     const { subject, html } = launchEmailHtml(lead);
     const r = await sendEmail({ to: lead.email, subject, html });
     if (!r.ok) console.error(`[eligibilite/launch] email lancement NON envoyé à ${lead.email}:`, r.error || (r.skipped ? "skipped (config manquante)" : "?"));
     else console.log(`[eligibilite/launch] email lancement envoyé à ${lead.email} (id ${r.id})`);
   }
-  await sendTelegram(`🚀 Campagne lancée — ${lead.metier || ""} ${lead.ville || ""} — ${lead.phone || ""}`);
 
-  // Construction de la campagne Google Ads (dry-run par défaut). Non bloquant :
-  // un échec ici ne doit pas casser l'activation du lead.
-  let ads: { ok: boolean; dryRun: boolean; recordId: string | null; warnings: string[] } | null = null;
+  // L'auto-création de compte Google Ads est désactivée : le MCC 671 ne peut pas
+  // créer de comptes par API tant qu'il n'a pas un compte lié ayant dépensé > 1000 $.
+  // On génère + persiste donc seulement le PLAN (dry-run) et on notifie pour le
+  // provisioning MANUEL. La campagne réelle est créée ensuite depuis /admin/funnel
+  // (POST /api/eligibilite/create-campaign), sur le compte créé à la main + lié au MCC.
+  let ads: { ok: boolean; recordId: string | null; warnings: string[] } | null = null;
   try {
-    const res = await createCampaignForLead(lead as EligibiliteLead, { dryRun });
-    ads = { ok: res.ok, dryRun: res.dryRun, recordId: res.recordId, warnings: res.plan.warnings };
-    if (!res.dryRun) {
-      await sendTelegram(
-        res.ok
-          ? `✅ Compte Google Ads RÉEL créé — ID ${String(res.customerId || "").replace(/(\d{3})(\d{3})(\d{4})/, "$1-$2-$3")} — campagne PAUSED « ${res.plan.params.campaignName} » — invitation envoyée à ${lead.email || "?"}`
-          : `❌ Création Google Ads réelle échouée — ${res.error || "erreur inconnue"}`,
-      );
-    } else {
-      await sendTelegram(
-        `🧪 [dry-run] Campagne Google Ads simulée — ${res.plan.params.campaignName} — ` +
-          `budget ${Math.round(res.plan.params.dailyBudgetMicros / 1_000_000)} €/j` +
-          (res.plan.warnings.length ? ` — ⚠️ ${res.plan.warnings.join(" · ")}` : ""),
-      );
-    }
+    const res = await createCampaignForLead(lead as EligibiliteLead, { dryRun: true });
+    ads = { ok: res.ok, recordId: res.recordId, warnings: res.plan.warnings };
+    const budget = Math.round(res.plan.params.dailyBudgetMicros / 1_000_000);
+    await sendTelegram(
+      `🛠️ Compte Google Ads à créer manuellement — ${lead.metier || ""} ${lead.ville || ""} — ` +
+        `${lead.email || "sans email"} — ${lead.phone || ""} · budget ${budget} €/j · ${res.plan.keywords.length} mots-clés` +
+        (res.plan.warnings.length ? `\n⚠️ ${res.plan.warnings.join(" · ")}` : ""),
+    );
   } catch (e) {
     console.error("createCampaignForLead error:", e);
-    ads = { ok: false, dryRun, recordId: null, warnings: [String(e instanceof Error ? e.message : e)] };
+    ads = { ok: false, recordId: null, warnings: [String(e instanceof Error ? e.message : e)] };
   }
 
   return NextResponse.json({ ok: true, ads });

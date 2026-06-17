@@ -116,7 +116,9 @@ export async function createPausedCampaign(customerId: string, plan: CampaignPla
       end_date: plan.params.endDate,
       network_settings: {
         target_google_search: true,
-        target_search_network: true,
+        // Partenaires de recherche OFF : trafic moins qualifié pour de l'artisan local
+        // (best-practice skill google-ads-artisans). Display déjà OFF.
+        target_search_network: false,
         target_content_network: false,
         target_partner_search_network: false,
       },

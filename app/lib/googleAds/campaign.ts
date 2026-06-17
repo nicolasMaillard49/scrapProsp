@@ -156,6 +156,73 @@ export async function createCampaignForLead(
 }
 
 /**
+ * Normalise un customer ID Google Ads saisi à la main → 10 chiffres (sans tirets
+ * ni espaces). Renvoie null si ce n'est pas exactement 10 chiffres. PURE (testable).
+ */
+export function normalizeCustomerId(raw: string | null | undefined): string | null {
+  const digits = (raw || "").replace(/\D/g, "");
+  return digits.length === 10 ? digits : null;
+}
+
+/**
+ * Crée la campagne PAUSED dans un compte client DÉJÀ créé et lié au MCC 671
+ * (provisioning manuel : le MCC trop jeune ne peut pas créer de compte par API).
+ * Ne crée AUCUN compte — réutilise `createPausedCampaign` sur le customerId fourni
+ * par l'admin. `mutateResources` n'est pas concerné par la garde « new accounts ».
+ */
+export async function createCampaignOnLinkedAccount(
+  lead: EligibiliteLead,
+  customerIdRaw: string,
+): Promise<CreateResult> {
+  const customerId = normalizeCustomerId(customerIdRaw); // strip tirets/espaces -> 10 chiffres (évite CUSTOMER_NOT_FOUND)
+  const plan = await buildPlan(lead);
+
+  if (!customerId) {
+    return { ok: false, dryRun: false, plan, recordId: null, error: `Customer ID invalide (attendu 10 chiffres, reçu « ${customerIdRaw} »).` };
+  }
+  if (!googleAdsConfigured()) {
+    return { ok: false, dryRun: false, plan, recordId: null, error: "Credentials Google Ads incomplets." };
+  }
+  if (!plan.params.finalUrl) {
+    return { ok: false, dryRun: false, plan, recordId: null, error: "site_url manquant : final URL obligatoire pour la RSA." };
+  }
+
+  try {
+    const camp = await createPausedCampaign(customerId, plan);
+    const recordId = await recordAdsAccount({
+      lead_id: lead.id,
+      client_name: plan.params.accountName,
+      customer_id: customerId,
+      mcc_id: plan.mccId,
+      campaign_id: camp.campaignId || null,
+      budget_id: camp.budgetId || null,
+      status: "paused",
+      daily_budget: Math.round(plan.params.dailyBudgetMicros / 1_000_000),
+      metier: plan.params.metier,
+      ville: plan.params.ville,
+      payload: { plan, warnings: [...plan.warnings, ...camp.warnings] },
+    });
+    return { ok: true, dryRun: false, plan, recordId, customerId, campaignId: camp.campaignId || null };
+  } catch (e) {
+    const error = describeAdsError(e);
+    console.error("[google-ads] échec création campagne (compte lié) — lead", lead.id, "cust", customerId, "—", error, "\nraw:", e);
+    await recordAdsAccount({
+      lead_id: lead.id,
+      client_name: plan.params.accountName,
+      customer_id: customerId,
+      mcc_id: plan.mccId,
+      status: "error",
+      daily_budget: Math.round(plan.params.dailyBudgetMicros / 1_000_000),
+      metier: plan.params.metier,
+      ville: plan.params.ville,
+      payload: plan,
+      error,
+    });
+    return { ok: false, dryRun: false, plan, recordId: null, customerId, error };
+  }
+}
+
+/**
  * Message lisible depuis une erreur google-ads-api. La lib lève souvent un objet
  * (non-Error) de forme { errors: [{ message, error_code }] } → String() donnait
  * "[object Object]". On extrait le détail exploitable.
