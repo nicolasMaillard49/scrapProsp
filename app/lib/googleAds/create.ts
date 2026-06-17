@@ -74,6 +74,44 @@ export async function inviteUser(customerId: string, email: string): Promise<boo
   }
 }
 
+/** Nom (ASCII, stable) de l'action de conversion « appel depuis les annonces ». */
+const CALL_CONVERSION_NAME = "Appel NMF 30s";
+
+/**
+ * Garantit l'existence d'une action de conversion « Appels depuis les annonces »
+ * (durée mini 30 s) au niveau du compte, et renvoie son resource_name.
+ * Idempotent : réutilise celle qui existe (par nom + type AD_CALL). Renvoie null
+ * en cas d'échec (la campagne sera créée SANS call asset — non bloquant).
+ * ⚠️ Formes exactes (enums, phone_call_duration_seconds) à confirmer au smoke-test.
+ */
+export async function ensureCallConversionAction(customerId: string): Promise<string | null> {
+  const cust = clientCustomer(customerId);
+  try {
+    const rows = await cust.query(
+      `SELECT conversion_action.resource_name FROM conversion_action ` +
+        `WHERE conversion_action.name = '${CALL_CONVERSION_NAME}' AND conversion_action.type = 'AD_CALL' LIMIT 1`,
+    );
+    const existing = (rows[0] as { conversion_action?: { resource_name?: string } } | undefined)?.conversion_action?.resource_name;
+    if (existing) return existing;
+
+    const res = await cust.conversionActions.create([
+      {
+        name: CALL_CONVERSION_NAME,
+        type: enums.ConversionActionType.AD_CALL,
+        category: enums.ConversionActionCategory.PHONE_CALL_LEAD,
+        status: enums.ConversionActionStatus.ENABLED,
+        phone_call_duration_seconds: 30,
+        counting_type: enums.ConversionActionCountingType.ONE_PER_CLICK,
+        value_settings: { default_value: 0, always_use_default_value: true },
+      },
+    ]);
+    return res.results?.[0]?.resource_name ?? null;
+  } catch (e) {
+    console.warn("[google-ads] ensureCallConversionAction échec (campagne créée sans call asset):", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 export interface CampaignIds {
   campaignId: string;
   budgetId: string;
@@ -84,6 +122,14 @@ export interface CampaignIds {
 export async function createPausedCampaign(customerId: string, plan: CampaignPlan): Promise<CampaignIds> {
   const cust = clientCustomer(customerId);
   const warnings: string[] = [];
+
+  // Conversion appel (≥30s) au niveau du compte (idempotent) → référencée par le call
+  // asset. Non bloquant : si l'action n'a pas pu être créée, on omet le call asset.
+  let callConversionRN: string | null = null;
+  if (plan.callTracking.enabled && plan.params.callPhoneE164) {
+    callConversionRN = await ensureCallConversionAction(customerId);
+    if (!callConversionRN) warnings.push("Action de conversion appel non créée : call asset omis (à configurer à la main).");
+  }
 
   const budgetRN = ResourceNames.campaignBudget(customerId, "-1");
   const campaignRN = ResourceNames.campaign(customerId, "-2");
@@ -211,6 +257,30 @@ export async function createPausedCampaign(customerId: string, plan: CampaignPla
     operation: "create",
     resource: { campaign: campaignRN, language: { language_constant: plan.params.languageConstant } },
   });
+
+  // Call asset (numéro affiché + suivi) lié à la campagne, référençant la conversion appel.
+  if (callConversionRN) {
+    const assetRN = ResourceNames.asset(customerId, "-4");
+    const nationalPhone = plan.params.callPhoneE164.replace(/^\+33/, "0"); // CallAsset attend le national + country_code
+    ops.push({
+      entity: "asset",
+      operation: "create",
+      resource: {
+        resource_name: assetRN,
+        call_asset: {
+          country_code: "FR",
+          phone_number: nationalPhone,
+          call_conversion_reporting_state: enums.CallConversionReportingState.USE_RESOURCE_LEVEL_CALL_CONVERSION_ACTION,
+          call_conversion_action: callConversionRN,
+        },
+      },
+    });
+    ops.push({
+      entity: "campaign_asset",
+      operation: "create",
+      resource: { campaign: campaignRN, asset: assetRN, field_type: enums.AssetFieldType.CALL },
+    });
+  }
 
   const result = await cust.mutateResources(ops);
   // La forme exacte de mutate_operation_responses (clés campaign_result, campaign_budget_result)
