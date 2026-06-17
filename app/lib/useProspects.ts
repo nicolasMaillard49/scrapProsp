@@ -15,27 +15,76 @@ export function useProspects() {
       return;
     }
     async function load() {
-      // PostgREST plafonne à 1000 lignes par requête : pagination obligatoire
-      // au-delà (la base dépasse ce cap depuis le scrape Ads).
+      // PostgREST plafonne à 1000 lignes par requête. La base dépasse largement
+      // ce cap (~15 k prospects depuis le scrape Ads). Plutôt que 16 requêtes
+      // séquentielles bloquant le premier rendu, on :
+      //   1. charge la 1ʳᵉ page + le count total et on AFFICHE tout de suite ;
+      //   2. charge les pages restantes EN PARALLÈLE en arrière-plan ;
+      //   3. charge les appels à part (petit volume, utile seulement à
+      //      l'Historique / la fiche) et on les fusionne ensuite.
       const PAGE = 1000;
-      const all: Prospect[] = [];
-      for (let offset = 0; ; offset += PAGE) {
-        const { data, error } = await supabase
-          .from("prospects")
-          .select("*, calls(*)")
-          .order("created_at", { ascending: true })
-          .range(offset, offset + PAGE - 1);
 
-        if (error) {
-          console.error("Failed to load prospects:", error);
-          break;
-        }
-        all.push(...(data ?? []));
-        if (!data || data.length < PAGE) break;
+      const { data: first, count, error } = await supabase
+        .from("prospects")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: true })
+        .range(0, PAGE - 1);
+
+      if (error) {
+        console.error("Failed to load prospects:", error);
+        setLoaded(true);
+        return;
       }
 
-      setProspects(all);
+      // 1ʳᵉ page visible immédiatement — la table est interactive en 1 aller-retour.
+      setProspects(first ?? []);
       setLoaded(true);
+
+      // 2. Pages restantes en parallèle (le tri/les filtres tournent côté client
+      //    sur l'ensemble, donc on complète le jeu de données en tâche de fond).
+      const total = count ?? (first?.length ?? 0);
+      if (total > PAGE) {
+        const requests = [];
+        for (let offset = PAGE; offset < total; offset += PAGE) {
+          requests.push(
+            supabase
+              .from("prospects")
+              .select("*")
+              .order("created_at", { ascending: true })
+              .range(offset, offset + PAGE - 1),
+          );
+        }
+        const pages = await Promise.all(requests);
+        const more = pages.flatMap((r) => r.data ?? []) as Prospect[];
+        if (more.length) {
+          setProspects((prev) => {
+            const seen = new Set(prev.map((p) => p.id));
+            return [...prev, ...more.filter((p) => !seen.has(p.id))];
+          });
+        }
+      }
+
+      // 3. Appels : un seul fetch (petit volume), groupés par prospect puis
+      //    fusionnés. Dédupe par id pour préserver les appels ajoutés en
+      //    optimiste (updateStatus) pendant le chargement de fond.
+      const { data: calls } = await supabase.from("calls").select("*");
+      if (calls?.length) {
+        const byProspect = new Map<string, Call[]>();
+        for (const c of calls as Call[]) {
+          const arr = byProspect.get(c.prospect_id) ?? [];
+          arr.push(c);
+          byProspect.set(c.prospect_id, arr);
+        }
+        setProspects((prev) =>
+          prev.map((p) => {
+            const fetched = byProspect.get(p.id) ?? [];
+            if (!fetched.length && !p.calls) return p;
+            const existing = p.calls ?? [];
+            const ids = new Set(fetched.map((c) => c.id));
+            return { ...p, calls: [...fetched, ...existing.filter((c) => !ids.has(c.id))] };
+          }),
+        );
+      }
     }
     load();
   }, []);
