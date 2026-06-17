@@ -1,11 +1,14 @@
 "use client";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { CalendarEvent } from "../../lib/googleCalendar";
 import { sameDay, addDays, dayKeyOf } from "../../lib/calendarDates";
 import { layoutDay } from "../eventLayout";
 
-const DAY_START = 7, DAY_END = 21, HOUR_PX = 52;
+const DAY_START = 7, DAY_END = 23, HOUR_PX = 68;
 const GRID_H = (DAY_END - DAY_START) * HOUR_PX;
+// Heure sur laquelle on cale la vue à l'ouverture : la majorité des RDV se
+// prennent en soirée (17h–22h), on positionne donc le scroll juste avant 17h.
+const FOCUS_HOUR = 17;
 const DAYS = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
 const fmtTime = (d: Date) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
@@ -19,14 +22,21 @@ export default function WeekView({
   onCreateAt: (d: Date) => void;
 }) {
   const nowRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+  // À l'ouverture, on cale le défilement sur la soirée (17h) : la grille
+  // s'ouvre directement sur la tranche où la plupart des RDV sont pris.
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: (FOCUS_HOUR - DAY_START) * HOUR_PX - 12 });
+  }, []);
 
   return (
     <div className="glass-panel overflow-hidden">
       <div className="overflow-x-auto">
         <div className="min-w-[760px]">
           {/* En-têtes jours */}
-          <div className="grid border-b border-white/10" style={{ gridTemplateColumns: "52px repeat(7,1fr)" }}>
+          <div className="grid border-b border-[var(--color-border-strong)]" style={{ gridTemplateColumns: "52px repeat(7,1fr)" }}>
             <div />
             {weekDays.map((d, i) => {
               const today = sameDay(d, now);
@@ -38,7 +48,8 @@ export default function WeekView({
               );
             })}
           </div>
-          {/* Corps */}
+          {/* Corps — scrollable verticalement, calé sur la soirée à l'ouverture */}
+          <div ref={bodyRef} className="overflow-y-auto" style={{ maxHeight: "68vh" }}>
           <div className="grid relative" style={{ gridTemplateColumns: "52px repeat(7,1fr)" }}>
             <div className="relative" style={{ height: GRID_H }}>
               {Array.from({ length: DAY_END - DAY_START }, (_, i) => (
@@ -54,7 +65,7 @@ export default function WeekView({
               return (
                 <div
                   key={di}
-                  className={`relative border-l border-white/5 ${today ? "bg-violet-500/[0.04]" : di >= 5 ? "bg-[var(--color-surface-2)]/30" : ""}`}
+                  className={`relative border-l border-[var(--color-border)] ${today ? "bg-violet-500/[0.04]" : di >= 5 ? "bg-[var(--color-surface-2)]/30" : ""}`}
                   style={{ height: GRID_H }}
                   onDoubleClick={(e) => {
                     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
@@ -66,7 +77,12 @@ export default function WeekView({
                   title="Double-clic : nouveau RDV"
                 >
                   {Array.from({ length: DAY_END - DAY_START }, (_, i) => (
-                    <div key={i} className="absolute left-0 right-0 border-t border-white/5" style={{ top: i * HOUR_PX }} />
+                    <div key={i}>
+                      {/* trait plein à l'heure pile */}
+                      <div className="absolute left-0 right-0 border-t border-[var(--color-border)]" style={{ top: i * HOUR_PX }} />
+                      {/* trait pointillé à la demi-heure */}
+                      <div className="absolute left-0 right-0 border-t border-dashed border-[var(--color-border)] opacity-40" style={{ top: i * HOUR_PX + HOUR_PX / 2 }} />
+                    </div>
                   ))}
                   {today && now.getHours() >= DAY_START && now.getHours() < DAY_END && (
                     <div ref={nowRef} className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: (now.getHours() - DAY_START + now.getMinutes() / 60) * HOUR_PX }}>
@@ -81,22 +97,27 @@ export default function WeekView({
                     const top = Math.min(Math.max(0, (startH - DAY_START) * HOUR_PX), GRID_H - 26);
                     const height = Math.min(Math.max(26, (Math.min(endH, DAY_END) - Math.max(startH, DAY_START)) * HOUR_PX - 2), GRID_H - top - 2);
                     const l = lay.get(e.id) ?? { col: 0, cols: 1 };
-                    const w = 96 / l.cols;
+                    // Largeur égale par colonne : 2 RDV simultanés => 50/50, 3 => 1/3, etc.
+                    const w = 100 / l.cols;
                     const past = end.getTime() < now.getTime();
                     const ongoing = !past && start.getTime() <= now.getTime();
                     const cls = past ? "ev-past" : ongoing ? "ev-now" : "ev-normal";
                     return (
                       <button key={e.id} onClick={() => onOpen(e)} title={`${e.title} · ${fmtTime(start)}–${fmtTime(end)}`}
                         className={`glass-event ${cls} absolute px-1.5 py-1 text-left hover:z-20 hover:shadow-lg`}
-                        style={{ top, height, left: `${2 + l.col * w}%`, width: `calc(${w}% - 2px)` }}>
-                        <div className="text-[11px] font-semibold leading-tight truncate">{e.title}</div>
+                        style={{ top, height, left: `calc(${l.col * w}% + 1px)`, width: `calc(${w}% - 3px)` }}>
+                        <div className={`text-[11px] font-semibold leading-tight ${height > 64 ? "line-clamp-2" : "truncate"}`}>{e.title}</div>
                         <div className="text-[10px] font-mono-num opacity-80">{fmtTime(start)}{height > 38 ? ` – ${fmtTime(end)}` : ""}</div>
+                        {height > 78 && e.location && (
+                          <div className="text-[10px] opacity-70 truncate mt-0.5">{e.location}</div>
+                        )}
                       </button>
                     );
                   })}
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </div>

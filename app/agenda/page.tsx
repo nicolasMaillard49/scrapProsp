@@ -105,6 +105,13 @@ export default function AgendaPage() {
     }
   }, [view, refDate, fetchRange]);
 
+  // Précharge les ~45 prochains jours pour alimenter la récap « Prochains RDV »
+  // même quand on est en vue Semaine (dont la plage est plus courte).
+  useEffect(() => {
+    const from = new Date();
+    fetchRange(from, addDays(from, 45));
+  }, [fetchRange]);
+
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
@@ -271,24 +278,33 @@ export default function AgendaPage() {
             <div className="glass-panel p-2 space-y-2">
               {Array.from({ length: 8 }).map((_, i) => <div key={i} className="skeleton h-[56px]" />)}
             </div>
-          ) : view === "week" ? (
-            <WeekView
-              weekStart={weekStart}
-              now={now}
-              byDay={byDay}
-              onOpen={openEvent}
-              onCreateAt={(d) => { setCreateDefault(d); setCreateOpen(true); }}
-            />
-          ) : view === "month" ? (
-            <MonthView
-              refDate={refDate}
-              now={now}
-              byDay={byDay}
-              onOpen={openEvent}
-              onPickDay={(d) => { setRefDate(d); setView("week"); }}
-            />
           ) : (
-            <ListView events={all} now={now} onOpen={openEvent} />
+            <div className="flex flex-col xl:flex-row gap-4">
+              {/* min-w-0 : la grille garde son scroll interne sans pousser la page en largeur */}
+              <div className="flex-1 min-w-0">
+                {view === "week" ? (
+                  <WeekView
+                    weekStart={weekStart}
+                    now={now}
+                    byDay={byDay}
+                    onOpen={openEvent}
+                    onCreateAt={(d) => { setCreateDefault(d); setCreateOpen(true); }}
+                  />
+                ) : view === "month" ? (
+                  <MonthView
+                    refDate={refDate}
+                    now={now}
+                    byDay={byDay}
+                    onOpen={openEvent}
+                    onPickDay={(d) => { setRefDate(d); setView("week"); }}
+                  />
+                ) : (
+                  <ListView events={all} now={now} onOpen={openEvent} />
+                )}
+              </div>
+              {/* La liste EST déjà la récap : on n'affiche l'aside que pour Semaine/Mois */}
+              {view !== "list" && <UpcomingAside events={all} now={now} onOpen={openEvent} />}
+            </div>
           )}
         </div>
       )}
@@ -406,6 +422,48 @@ export default function AgendaPage() {
         />
       )}
     </main>
+  );
+}
+
+/* ── Récap « Prochains RDV » (aside) ── */
+function UpcomingAside({ events, now, onOpen }: { events: CalendarEvent[]; now: Date; onOpen: (e: CalendarEvent) => void }) {
+  const upcoming = useMemo(
+    () =>
+      events
+        .filter((e) => !e.allDay && new Date(e.end).getTime() >= Date.now())
+        .sort((a, b) => a.start.localeCompare(b.start))
+        .slice(0, 20),
+    [events],
+  );
+  return (
+    <aside className="xl:w-[300px] shrink-0">
+      <div className="glass-panel p-3 xl:sticky xl:top-[84px]">
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2 px-1">Prochains RDV</h2>
+        {upcoming.length === 0 ? (
+          <p className="text-sm text-neutral-500 px-1 py-3">Rien de prévu prochainement.</p>
+        ) : (
+          <ul className="space-y-1">
+            {upcoming.map((e) => {
+              const start = new Date(e.start);
+              const isToday = sameDay(start, now);
+              return (
+                <li key={e.id}>
+                  <button onClick={() => onOpen(e)} className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-violet-500/40 hover:bg-[var(--color-surface-2)] transition">
+                    <div className="flex items-center gap-2">
+                      <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${isToday ? "bg-rose-500" : "bg-violet-500"}`} />
+                      <span className="text-[13px] font-medium text-[var(--color-text-primary)] truncate">{e.title}</span>
+                    </div>
+                    <div className="text-[11px] text-neutral-500 pl-3.5 font-mono-num">
+                      {isToday ? "Aujourd'hui" : fmtDayLong(start)} · {fmtTime(start)}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </aside>
   );
 }
 
