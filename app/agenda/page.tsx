@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Calendar, ChevronLeft, ChevronRight, Plus, X, Loader2,
@@ -11,32 +11,15 @@ import CallModal from "../components/CallModal";
 import { useProspects } from "../lib/useProspects";
 import { isOpenNow, openLabel } from "../lib/openNow";
 import type { Prospect } from "../lib/types";
+import { useCalendarEvents } from "../lib/useCalendarEvents";
+import {
+  rangeForView, startOfWeek, addDays, sameDay, dayKeyOf, type CalendarView,
+} from "../lib/calendarDates";
+import WeekView from "./views/WeekView";
+import MonthView from "./views/MonthView";
+import ListView from "./views/ListView";
 
-/* ── Constantes d'affichage ── */
-const DAY_START = 7; // 7h
-const DAY_END = 21; // 21h
-const HOUR_PX = 52;
-const GRID_H = (DAY_END - DAY_START) * HOUR_PX;
-const DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
-
-/* ── Helpers dates ── */
-function startOfWeek(d: Date): Date {
-  const out = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const day = (out.getDay() + 6) % 7; // lundi = 0
-  out.setDate(out.getDate() - day);
-  return out;
-}
-
-function addDays(d: Date, n: number): Date {
-  const out = new Date(d);
-  out.setDate(out.getDate() + n);
-  return out;
-}
-
-function sameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-}
-
+/* ── Helpers d'affichage (formatage) ── */
 function fmtTime(d: Date): string {
   return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 }
@@ -54,45 +37,6 @@ function toLocalInput(d: Date): { date: string; time: string } {
     date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
     time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
   };
-}
-
-/* ── Layout des chevauchements (style Google Calendar) ──
-   Les événements qui se chevauchent sont répartis en colonnes côte à côte :
-   chaque cluster d'événements connectés partage la largeur de la journée. */
-function layoutDay(events: CalendarEvent[]): Map<string, { col: number; cols: number }> {
-  const MIN_DUR = 15 * 60_000; // un RDV très court occupe quand même un slot visuel
-  const items = events
-    .map((e) => {
-      const start = new Date(e.start).getTime();
-      return { e, start, end: Math.max(new Date(e.end).getTime(), start + MIN_DUR) };
-    })
-    .sort((a, b) => a.start - b.start || b.end - a.end);
-
-  const out = new Map<string, { col: number; cols: number }>();
-  let cluster: { item: (typeof items)[number]; col: number }[] = [];
-  let colEnds: number[] = []; // fin du dernier événement posé dans chaque colonne
-  let clusterEnd = -Infinity;
-
-  const flush = () => {
-    for (const p of cluster) out.set(p.item.e.id, { col: p.col, cols: colEnds.length });
-    cluster = [];
-    colEnds = [];
-  };
-
-  for (const item of items) {
-    if (cluster.length > 0 && item.start >= clusterEnd) flush();
-    let col = colEnds.findIndex((end) => end <= item.start);
-    if (col === -1) {
-      col = colEnds.length;
-      colEnds.push(item.end);
-    } else {
-      colEnds[col] = item.end;
-    }
-    cluster.push({ item, col });
-    clusterEnd = Math.max(clusterEnd, item.end);
-  }
-  flush();
-  return out;
 }
 
 /* ── Lien RDV ↔ prospect ──
@@ -117,12 +61,11 @@ function matchProspect(e: CalendarEvent, prospects: Prospect[]): Prospect | null
   return prospects.find((p) => p.name && p.name.trim().length > 3 && title.includes(p.name.trim().toLowerCase())) ?? null;
 }
 
+const VIEW_LABEL: Record<CalendarView, string> = { week: "Semaine", month: "Mois", list: "Liste" };
+
 export default function AgendaPage() {
-  const [weekOffset, setWeekOffset] = useState(0);
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [configured, setConfigured] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<CalendarView>("week");
+  const [refDate, setRefDate] = useState(() => new Date());
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
   // Fiche prospect ouverte depuis un RDV — stockée par id pour rester à jour (Realtime).
   const [ficheId, setFicheId] = useState<string | null>(null);
@@ -131,6 +74,41 @@ export default function AgendaPage() {
   const [createDefault, setCreateDefault] = useState<Date | null>(null);
   const [now, setNow] = useState(() => new Date());
   const { prospects, updateStatus } = useProspects();
+
+  const { all, fetchRange, addEvent, removeEvent, revalidating, coldLoading, status, staleError } =
+    useCalendarEvents();
+
+  // Vue persistée entre les sessions.
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("pt.agenda.view");
+      if (v === "week" || v === "month" || v === "list") setView(v);
+    } catch { /* localStorage indisponible */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem("pt.agenda.view", view); } catch { /* idem */ }
+  }, [view]);
+
+  // Non authentifié → on renvoie vers la connexion.
+  useEffect(() => {
+    if (status === "auth") window.location.assign("/login?from=/agenda");
+  }, [status]);
+
+  // Revalidation + prefetch dès que la vue ou la période change.
+  useEffect(() => {
+    const { from, to } = rangeForView(view, refDate);
+    fetchRange(from, to);
+    // En vue Semaine, on précharge la semaine d'avant et d'après pour une navigation instantanée.
+    if (view === "week") {
+      fetchRange(addDays(from, -7), from);
+      fetchRange(to, addDays(to, 7));
+    }
+  }, [view, refDate, fetchRange]);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const fiche = useMemo(
     () => (ficheId ? prospects.find((p) => p.id === ficheId) ?? null : null),
@@ -143,10 +121,7 @@ export default function AgendaPage() {
   };
 
   // Clic sur un RDV : on ouvre d'abord le détail (horaire + lieu + note).
-  // Depuis ce détail, un clic sur le nom du prospect ouvre sa fiche complète.
-  const openEvent = (e: CalendarEvent) => {
-    setSelected(e);
-  };
+  const openEvent = (e: CalendarEvent) => setSelected(e);
 
   // Passe du détail de l'événement à la fiche prospect complète.
   const openFiche = (p: Prospect, e: CalendarEvent) => {
@@ -161,71 +136,10 @@ export default function AgendaPage() {
     [selected, prospects],
   );
 
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Au chargement, centre la vue sur l'heure actuelle (la ligne rouge).
-  const nowLineRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    nowLineRef.current?.scrollIntoView({ block: "center" });
-  }, []);
-
-  const weekStart = useMemo(() => addDays(startOfWeek(new Date()), weekOffset * 7), [weekOffset]);
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
-
-  // Une seule plage : couvre la semaine affichée ET les 30 prochains jours (sidebar).
-  // fetchSeq : une réponse lente d'une navigation précédente ne doit pas écraser la semaine affichée.
-  const fetchSeq = useRef(0);
-  const fetchEvents = useCallback(async () => {
-    const seq = ++fetchSeq.current;
-    setLoading(true);
-    setError(null);
-    const from = new Date(Math.min(weekStart.getTime(), Date.now()));
-    const to = new Date(Math.max(addDays(weekStart, 7).getTime(), Date.now() + 30 * 24 * 3600 * 1000));
-    try {
-      const res = await fetch(`/api/calendar/events?from=${from.toISOString()}&to=${to.toISOString()}`);
-      if (seq !== fetchSeq.current) return;
-      if (res.status === 401) {
-        window.location.assign("/login?from=/agenda");
-        return;
-      }
-      if (res.status === 501) {
-        setConfigured(false);
-        setEvents([]);
-        return;
-      }
-      if (!res.ok) throw new Error(String(res.status));
-      const json = await res.json();
-      if (seq !== fetchSeq.current) return;
-      setConfigured(true);
-      setEvents(json.events ?? []);
-    } catch {
-      if (seq === fetchSeq.current) setError("Impossible de joindre Google Calendar. Réessaie dans un instant.");
-    } finally {
-      if (seq === fetchSeq.current) setLoading(false);
-    }
-  }, [weekStart]);
-
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
-
-  const upcoming = useMemo(
-    () =>
-      events
-        .filter((e) => !e.allDay && new Date(e.end).getTime() >= Date.now())
-        .sort((a, b) => a.start.localeCompare(b.start))
-        .slice(0, 20),
-    [events],
-  );
-
-  // Événements indexés par jour en un seul passage — la grille ne fait que des lookups.
-  const dayKeyOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  // Événements indexés par jour en un seul passage — les vues ne font que des lookups.
   const byDay = useMemo(() => {
     const map = new Map<string, { allDay: CalendarEvent[]; timed: CalendarEvent[] }>();
-    for (const e of events) {
+    for (const e of all) {
       const d = e.allDay ? new Date(`${e.start}T00:00`) : new Date(e.start);
       const key = dayKeyOf(d);
       let bucket = map.get(key);
@@ -237,12 +151,29 @@ export default function AgendaPage() {
     }
     for (const b of map.values()) b.timed.sort((a, c) => a.start.localeCompare(c.start));
     return map;
-  }, [events]);
+  }, [all]);
+
+  const weekStart = useMemo(() => startOfWeek(refDate), [refDate]);
 
   const todayCount = useMemo(
-    () => events.filter((e) => !e.allDay && sameDay(new Date(e.start), now)).length,
-    [events, now],
+    () => all.filter((e) => !e.allDay && sameDay(new Date(e.start), now)).length,
+    [all, now],
   );
+
+  // Libellé de période, dépendant de la vue.
+  const periodLabel = useMemo(() => {
+    if (view === "month") return refDate.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+    if (view === "list") return "60 prochains jours";
+    return `${weekStart.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${addDays(weekStart, 6).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`;
+  }, [view, refDate, weekStart]);
+
+  const navigate = (dir: number) =>
+    setRefDate((d) => (view === "month" ? new Date(d.getFullYear(), d.getMonth() + dir, 1) : addDays(d, dir * 7)));
+
+  const refresh = () => {
+    const { from, to } = rangeForView(view, refDate);
+    fetchRange(from, to);
+  };
 
   const handleDelete = async (ev: CalendarEvent) => {
     if (!confirm(`Supprimer « ${ev.title} » de l'agenda ?`)) return;
@@ -251,14 +182,10 @@ export default function AgendaPage() {
       window.location.assign("/login?from=/agenda");
       return;
     }
+    setSelected(null);
+    closeFiche();
     if (res.ok) {
-      setSelected(null);
-      closeFiche();
-      setEvents((prev) => prev.filter((e) => e.id !== ev.id));
-    } else {
-      setSelected(null);
-      closeFiche();
-      setError("Suppression impossible — rafraîchis et réessaie.");
+      removeEvent(ev.id); // suppression optimiste sur le cache partagé
     }
   };
 
@@ -283,22 +210,24 @@ export default function AgendaPage() {
           </div>
 
           <div className="flex items-center gap-1.5 ml-auto">
-            <button onClick={() => fetchEvents()} className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-600 dark:text-neutral-400 transition" title="Rafraîchir">
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            <button onClick={refresh} className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-600 dark:text-neutral-400 transition" title="Rafraîchir">
+              <RefreshCw className={`w-4 h-4 ${revalidating ? "animate-spin" : ""}`} />
             </button>
-            <div className="flex items-center rounded-lg border border-[var(--color-border)] overflow-hidden">
-              <button onClick={() => setWeekOffset((v) => v - 1)} className="p-2 hover:bg-[var(--color-surface-2)] transition" title="Semaine précédente">
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button onClick={() => setWeekOffset(0)} className={`px-3 py-2 text-sm transition ${weekOffset === 0 ? "text-violet-500 font-semibold" : "hover:bg-[var(--color-surface-2)]"}`}>
-                Aujourd&apos;hui
-              </button>
-              <button onClick={() => setWeekOffset((v) => v + 1)} className="p-2 hover:bg-[var(--color-surface-2)] transition" title="Semaine suivante">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-            <span className="hidden md:block text-sm text-neutral-500 px-1 font-mono-num">
-              {weekStart.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – {addDays(weekStart, 6).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+            {view !== "list" && (
+              <div className="flex items-center rounded-lg border border-[var(--color-border)] overflow-hidden">
+                <button onClick={() => navigate(-1)} className="p-2 hover:bg-[var(--color-surface-2)] transition" title={view === "month" ? "Mois précédent" : "Semaine précédente"}>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button onClick={() => setRefDate(new Date())} className="px-3 py-2 text-sm hover:bg-[var(--color-surface-2)] transition">
+                  Aujourd&apos;hui
+                </button>
+                <button onClick={() => navigate(1)} className="p-2 hover:bg-[var(--color-surface-2)] transition" title={view === "month" ? "Mois suivant" : "Semaine suivante"}>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            <span className="hidden md:block text-sm text-neutral-500 px-1 font-mono-num capitalize">
+              {periodLabel}
             </span>
             <button
               onClick={() => { setCreateDefault(null); setCreateOpen(true); }}
@@ -311,192 +240,56 @@ export default function AgendaPage() {
         </div>
       </div>
 
-      {/* ── États non configuré / erreur ── */}
-      {configured === false && <SetupPanel />}
-      {error && (
-        <div className="m-4 md:m-6 px-4 py-3 rounded-xl border border-rose-300 dark:border-rose-500/30 bg-rose-50 dark:bg-rose-500/5 text-sm text-rose-700 dark:text-rose-300">
-          {error}
-        </div>
-      )}
-
-      {configured !== false && !error && (
-        <div className="flex flex-col xl:flex-row gap-4 px-3 md:px-6 py-4">
-          {/* ── Grille semaine ── */}
-          <div className="flex-1 min-w-0 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
-            <div className="overflow-x-auto">
-              <div className="min-w-[760px]">
-                {/* En-têtes jours */}
-                <div className="grid border-b border-[var(--color-border)]" style={{ gridTemplateColumns: "52px repeat(7, 1fr)" }}>
-                  <div />
-                  {weekDays.map((d, i) => {
-                    const isToday = sameDay(d, now);
-                    return (
-                      <div key={i} className={`px-2 py-2.5 text-center border-l border-[var(--color-border)] ${isToday ? "bg-violet-500/10" : ""}`}>
-                        <div className={`text-[10px] uppercase tracking-wider ${isToday ? "text-violet-500 font-bold" : "text-neutral-500"}`}>{DAYS[i]}</div>
-                        <div className={`text-lg leading-tight font-mono-num ${isToday ? "text-violet-500 font-bold" : "text-[var(--color-text-primary)]"}`}>{d.getDate()}</div>
-                        {/* Événements journée entière */}
-                        {(byDay.get(dayKeyOf(d))?.allDay ?? []).slice(0, 2).map((e) => (
-                          <button key={e.id} onClick={() => openEvent(e)} className="mt-1 w-full truncate px-1 py-0.5 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[10px] font-medium">
-                            {e.title}
-                          </button>
-                        ))}
-                        {(byDay.get(dayKeyOf(d))?.allDay.length ?? 0) > 2 && (
-                          <div className="mt-0.5 text-[9px] text-neutral-500 font-medium">
-                            +{(byDay.get(dayKeyOf(d))?.allDay.length ?? 0) - 2} autres
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Corps : heures + colonnes */}
-                <div className="grid relative" style={{ gridTemplateColumns: "52px repeat(7, 1fr)" }}>
-                  {/* Colonne des heures */}
-                  <div className="relative" style={{ height: GRID_H }}>
-                    {Array.from({ length: DAY_END - DAY_START }, (_, i) => (
-                      <div key={i} className="absolute right-1.5 -translate-y-1/2 text-[10px] text-neutral-400 dark:text-neutral-600 font-mono-num" style={{ top: i * HOUR_PX }}>
-                        {i > 0 ? `${DAY_START + i}h` : ""}
-                      </div>
-                    ))}
-                  </div>
-
-                  {weekDays.map((d, di) => {
-                    const isToday = sameDay(d, now);
-                    const dayEvents = byDay.get(dayKeyOf(d))?.timed ?? [];
-                    const dayLayout = layoutDay(dayEvents);
-                    return (
-                      <div
-                        key={di}
-                        className={`relative border-l border-[var(--color-border)] ${
-                          isToday ? "bg-violet-500/[0.04]" : di >= 5 ? "bg-[var(--color-surface-2)]/30" : ""
-                        }`}
-                        style={{ height: GRID_H }}
-                        onDoubleClick={(e) => {
-                          const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-                          // Snap à la demi-heure la plus proche du clic
-                          const halfSlot = Math.floor((e.clientY - rect.top) / (HOUR_PX / 2));
-                          const clamped = Math.min(Math.max(halfSlot, 0), (DAY_END - DAY_START) * 2 - 1);
-                          const def = new Date(d);
-                          def.setHours(DAY_START + Math.floor(clamped / 2), (clamped % 2) * 30, 0, 0);
-                          setCreateDefault(def);
-                          setCreateOpen(true);
-                        }}
-                        title="Double-clic : nouveau RDV à cette heure"
-                      >
-                        {/* Lignes horaires + demi-heures */}
-                        {Array.from({ length: DAY_END - DAY_START }, (_, i) => (
-                          <div key={i}>
-                            <div className="absolute left-0 right-0 border-t border-[var(--color-border)] opacity-60" style={{ top: i * HOUR_PX }} />
-                            <div className="absolute left-0 right-0 border-t border-dashed border-[var(--color-border)] opacity-25" style={{ top: i * HOUR_PX + HOUR_PX / 2 }} />
-                          </div>
-                        ))}
-
-                        {/* Ligne "maintenant" */}
-                        {isToday && now.getHours() >= DAY_START && now.getHours() < DAY_END && (
-                          <div
-                            ref={nowLineRef}
-                            className="absolute left-0 right-0 z-10 pointer-events-none"
-                            style={{ top: (now.getHours() - DAY_START + now.getMinutes() / 60) * HOUR_PX }}
-                          >
-                            <div className="h-[2px] bg-rose-500" />
-                            <div className="w-2 h-2 rounded-full bg-rose-500 -mt-[5px]" />
-                          </div>
-                        )}
-
-                        {/* Événements */}
-                        {dayEvents.map((e) => {
-                          const start = new Date(e.start);
-                          const end = new Date(e.end);
-                          const startH = start.getHours() + start.getMinutes() / 60;
-                          const endH = end.getHours() + end.getMinutes() / 60;
-                          // Borné à la grille : un RDV avant 7h ou après 21h reste visible au bord (l'horaire texte fait foi).
-                          const top = Math.min(Math.max(0, (startH - DAY_START) * HOUR_PX), GRID_H - 26);
-                          const height = Math.min(
-                            Math.max(26, (Math.min(endH, DAY_END) - Math.max(startH, DAY_START)) * HOUR_PX - 2),
-                            GRID_H - top - 2,
-                          );
-                          const lay = dayLayout.get(e.id) ?? { col: 0, cols: 1 };
-                          const widthPct = 96 / lay.cols;
-                          const leftPct = 2 + lay.col * widthPct;
-                          const past = end.getTime() < now.getTime();
-                          const ongoing = !past && start.getTime() <= now.getTime();
-                          const compact = height < 40 || lay.cols > 2;
-                          return (
-                            <button
-                              key={e.id}
-                              onClick={() => openEvent(e)}
-                              title={`${e.title} · ${fmtTime(start)} – ${fmtTime(end)}`}
-                              className={`absolute rounded-md px-1.5 py-1 text-left overflow-hidden border transition hover:z-20 hover:shadow-lg ${
-                                lay.cols > 1 ? "hover:min-w-[150px]" : ""
-                              } ${
-                                past
-                                  ? "bg-neutral-200/80 dark:bg-neutral-800/80 border-neutral-300 dark:border-neutral-700 text-neutral-500"
-                                  : ongoing
-                                    ? "bg-fuchsia-600/90 border-fuchsia-400 text-white shadow ring-1 ring-fuchsia-300/50"
-                                    : "bg-violet-500/90 border-violet-400 text-white shadow"
-                              }`}
-                              style={{ top, height, left: `${leftPct}%`, width: `calc(${widthPct}% - 2px)` }}
-                            >
-                              {compact ? (
-                                <div className="text-[10px] font-semibold leading-tight truncate">
-                                  <span className={`font-mono-num font-normal ${past ? "" : "text-violet-100"}`}>{fmtTime(start)}</span> {e.title}
-                                </div>
-                              ) : (
-                                <>
-                                  <div className="text-[11px] font-semibold leading-tight truncate">{e.title}</div>
-                                  <div className={`text-[10px] font-mono-num ${past ? "" : "text-violet-100"}`}>
-                                    {fmtTime(start)} – {fmtTime(end)}
-                                  </div>
-                                </>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+      {/* ── Corps ── */}
+      {status === "unconfigured" ? (
+        <SetupPanel />
+      ) : (
+        <div className="glass-amb px-3 md:px-6 py-4">
+          {/* Barre : segmented control de vue */}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="flex gap-0.5 p-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+              {(["week", "month", "list"] as CalendarView[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`px-3 py-1.5 text-xs rounded-md transition ${
+                    view === v
+                      ? "bg-violet-600/20 text-violet-600 dark:text-violet-200 font-semibold"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  {VIEW_LABEL[v]}
+                </button>
+              ))}
             </div>
-            <div className="px-3 py-2 border-t border-[var(--color-border)] text-[10px] text-neutral-500 text-center">
-              Double-clique sur un créneau pour créer un RDV · clique sur un RDV pour voir le détail, puis sur le nom pour la fiche prospect
-            </div>
+            {staleError && <span className="text-[10px] text-amber-600">màj impossible — affichage du cache</span>}
+            <span className="md:hidden text-[11px] text-neutral-500 ml-auto font-mono-num capitalize">{periodLabel}</span>
           </div>
 
-          {/* ── Prochains RDV ── */}
-          <aside className="xl:w-[300px] shrink-0">
-            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
-              <h2 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2 px-1">Prochains RDV</h2>
-              {loading && upcoming.length === 0 && (
-                <div className="flex items-center gap-2 text-sm text-neutral-500 px-1 py-3">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Chargement…
-                </div>
-              )}
-              {!loading && upcoming.length === 0 && (
-                <p className="text-sm text-neutral-500 px-1 py-3">Rien de prévu sur les 30 prochains jours.</p>
-              )}
-              <ul className="space-y-1">
-                {upcoming.map((e) => {
-                  const start = new Date(e.start);
-                  const isToday = sameDay(start, now);
-                  return (
-                    <li key={e.id}>
-                      <button onClick={() => openEvent(e)} className="w-full text-left px-2.5 py-2 rounded-lg border border-transparent hover:border-violet-500/40 hover:bg-[var(--color-surface-2)] transition">
-                        <div className="flex items-center gap-2">
-                          <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${isToday ? "bg-rose-500" : "bg-violet-500"}`} />
-                          <span className="text-[13px] font-medium text-[var(--color-text-primary)] truncate">{e.title}</span>
-                        </div>
-                        <div className="text-[11px] text-neutral-500 pl-3.5 font-mono-num">
-                          {isToday ? "Aujourd'hui" : fmtDayLong(start)} · {fmtTime(start)}
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+          {/* Vue active (squelette le temps du premier chargement à froid) */}
+          {coldLoading ? (
+            <div className="glass-panel p-2 space-y-2">
+              {Array.from({ length: 8 }).map((_, i) => <div key={i} className="skeleton h-[56px]" />)}
             </div>
-          </aside>
+          ) : view === "week" ? (
+            <WeekView
+              weekStart={weekStart}
+              now={now}
+              byDay={byDay}
+              onOpen={openEvent}
+              onCreateAt={(d) => { setCreateDefault(d); setCreateOpen(true); }}
+            />
+          ) : view === "month" ? (
+            <MonthView
+              refDate={refDate}
+              now={now}
+              byDay={byDay}
+              onOpen={openEvent}
+              onPickDay={(d) => { setRefDate(d); setView("week"); }}
+            />
+          ) : (
+            <ListView events={all} now={now} onOpen={openEvent} />
+          )}
         </div>
       )}
 
@@ -605,7 +398,11 @@ export default function AgendaPage() {
         <CreateEventModal
           defaultStart={createDefault}
           onClose={() => setCreateOpen(false)}
-          onCreated={() => { setCreateOpen(false); fetchEvents(); }}
+          onCreated={(created) => {
+            setCreateOpen(false);
+            if (created) addEvent(created); // affichage optimiste immédiat
+            else refresh(); // fallback : on recharge la plage courante
+          }}
         />
       )}
     </main>
@@ -613,7 +410,7 @@ export default function AgendaPage() {
 }
 
 /* ── Modal de création ── */
-function CreateEventModal({ defaultStart, onClose, onCreated }: { defaultStart: Date | null; onClose: () => void; onCreated: () => void }) {
+function CreateEventModal({ defaultStart, onClose, onCreated }: { defaultStart: Date | null; onClose: () => void; onCreated: (created: CalendarEvent | null) => void }) {
   const def = useMemo(() => {
     const d = defaultStart ?? (() => {
       const t = new Date();
@@ -643,7 +440,8 @@ function CreateEventModal({ defaultStart, onClose, onCreated }: { defaultStart: 
         body: JSON.stringify({ title: title.trim(), start: start.toISOString(), end: end.toISOString(), location, description }),
       });
       if (!res.ok) throw new Error(String(res.status));
-      onCreated();
+      const json = await res.json().catch(() => null);
+      onCreated((json?.event as CalendarEvent) ?? null);
     } catch {
       setState("error");
     }
