@@ -121,3 +121,25 @@ export function deliverySmsMsg(p: SmsProspect, demoLink: string): string {
     `dites-moi ce que vous en pensez !`
   );
 }
+
+/**
+ * Lien de prise de RDV (Koalendar). Source de vérité unique : réutilisé par le
+ * SMS « réserver un créneau » et par le modèle de réponse rapide du composer.
+ */
+export const KOALENDAR_URL = "https://koalendar.com/e/reunion-nicolas-maillard";
+
+/**
+ * Message « prise de RDV » — envoi unitaire depuis la fiche prospect, à un
+ * contact déjà engagé. Propose de réserver un créneau (site web ou Google Ads)
+ * via Koalendar. Ton chaleureux, sans mention STOP (opt-out géré par le
+ * Messaging Service Twilio si le contact répond STOP).
+ */
+export function meetingSmsMsg(p: SmsProspect): string {
+  const owner = ownerSalutation(p.dirigeant_prenom, p.dirigeant_nom, "Salut");
+  const greeting = owner ? `${owner}, ` : "Bonjour, ";
+  return (
+    `${greeting}c'est Nicolas de NMF Agence. ` +
+    `Pour échanger sur votre projet (nouveau site web ou campagne Google Ads), ` +
+    `réservez le créneau qui vous arrange ici : ${KOALENDAR_URL}`
+  );
+}

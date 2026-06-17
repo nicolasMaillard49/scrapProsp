@@ -4,13 +4,12 @@
  * déjà écrit — ce n'est pas de la prospection à froid). Pur frontend : un clic
  * insère le texte dans le champ, toujours éditable avant envoi.
  */
+import { KOALENDAR_URL } from "./sms";
+
 export interface ReplyTemplate {
   label: string;
   text: string;
 }
-
-/** Lien de prise de RDV (Koalendar). Centralisé ici pour être modifiable en un endroit. */
-const KOALENDAR_URL = "https://koalendar.com/e/reunion-nicolas-maillard";
 
 export const REPLY_TEMPLATES: ReplyTemplate[] = [
   { label: "Je rappelle", text: "Bonjour, je vous rappelle dans la journée 👍" },

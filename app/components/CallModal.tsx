@@ -103,6 +103,10 @@ export default function CallModal({
   const [smsPreview, setSmsPreview] = useState<{ message: string; segments: number } | null>(null);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [lastSmsAt, setLastSmsAt] = useState<string | null>(null);
+  // Envoi « lien de prise de RDV » (Koalendar) par SMS depuis la fiche
+  const [rdvSmsState, setRdvSmsState] = useState<"idle" | "preview" | "sending" | "sent" | "error">("idle");
+  const [rdvSmsPreview, setRdvSmsPreview] = useState<{ message: string; segments: number } | null>(null);
+  const [rdvSmsError, setRdvSmsError] = useState<string | null>(null);
   // Fil de conversation SMS (entrant + sortant) pour répondre depuis la fiche.
   const [smsThread, setSmsThread] = useState<SmsThreadRow[]>([]);
   // Funnel d'éligibilité Google Ads (clone Lokads) — déclenché pour les cibles source=ads.
@@ -138,6 +142,9 @@ export default function CallModal({
     setSmsState("idle");
     setSmsPreview(null);
     setSmsError(null);
+    setRdvSmsState("idle");
+    setRdvSmsPreview(null);
+    setRdvSmsError(null);
     setEligState("idle");
     setEligPreview(null);
     setEligError(null);
@@ -216,6 +223,53 @@ export default function CallModal({
     setSmsError(msg);
     setSmsState("error");
   }
+
+  function setRdvSmsErr(msg: string) {
+    setRdvSmsError(msg);
+    setRdvSmsState("error");
+  }
+
+  const loadRdvPreview = async () => {
+    if (!prospect) return;
+    setRdvSmsState("sending");
+    setRdvSmsError(null);
+    try {
+      const res = await fetch("/api/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [prospect.id], template: "meeting", dryRun: true }),
+      });
+      const json = await res.json();
+      const r = json.results?.[0];
+      if (!res.ok) return setRdvSmsErr(json.error || `Erreur ${res.status}`);
+      if (!r?.ok) return setRdvSmsErr(r?.error || "Numéro non mobile (pas de SMS possible)");
+      setRdvSmsPreview({ message: r.message, segments: r.segments });
+      setRdvSmsState("preview");
+    } catch (e) {
+      setRdvSmsErr(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const sendRdvSms = async () => {
+    if (!prospect) return;
+    setRdvSmsState("sending");
+    setRdvSmsError(null);
+    try {
+      const res = await fetch("/api/sms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [prospect.id], template: "meeting" }),
+      });
+      const json = await res.json();
+      const r = json.results?.[0];
+      if (!res.ok) return setRdvSmsErr(json.error || `Erreur ${res.status}`);
+      if (!r?.ok) return setRdvSmsErr(r?.error || "Échec de l'envoi");
+      setRdvSmsState("sent");
+      setLastSmsAt(new Date().toISOString());
+    } catch (e) {
+      setRdvSmsErr(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   function setEligErr(msg: string) {
     setEligError(msg);
@@ -661,6 +715,53 @@ export default function CallModal({
             {smsState === "error" && smsError && (
               <div className="mt-1.5 px-3 py-1.5 rounded text-[11px] text-rose-700 bg-rose-50 border border-rose-200 dark:text-rose-300 dark:bg-rose-500/5 dark:border-rose-500/20 break-words">
                 {smsError}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Envoyer le lien de prise de RDV (Koalendar) par SMS, aperçu + confirmation */}
+        {prospect && (
+          <div className="mb-4">
+            {rdvSmsState === "sent" ? (
+              <div className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-emerald-600/80 text-white font-medium">
+                <CheckCircle2 className="w-5 h-5" /> Lien de RDV envoyé
+              </div>
+            ) : rdvSmsState === "preview" && rdvSmsPreview ? (
+              <div className="rounded-xl border border-teal-300 bg-teal-50 dark:border-teal-700/50 dark:bg-teal-500/5 p-3">
+                <div className="text-[11px] text-[var(--color-text-secondary)] mb-1.5 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-teal-600 dark:text-teal-300" />
+                  Aperçu — {rdvSmsPreview.segments} SMS (~{(rdvSmsPreview.segments * 0.075).toFixed(2)} €)
+                </div>
+                <div className="text-sm text-[var(--color-text-primary)] whitespace-pre-wrap mb-3">{rdvSmsPreview.message}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setRdvSmsState("idle")}
+                    className="py-2 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] text-sm transition"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={sendRdvSms}
+                    className="py-2 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Send className="w-4 h-4" /> Envoyer
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={loadRdvPreview}
+                disabled={rdvSmsState === "sending"}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 border border-teal-600 text-white dark:bg-gradient-to-br dark:from-teal-500/20 dark:to-cyan-700/10 dark:border-teal-700/50 dark:hover:from-teal-500/30 dark:hover:to-cyan-700/20 dark:text-teal-100 font-medium transition disabled:opacity-50"
+              >
+                {rdvSmsState === "sending" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
+                Envoyer le lien de RDV
+              </button>
+            )}
+            {rdvSmsState === "error" && rdvSmsError && (
+              <div className="mt-1.5 px-3 py-1.5 rounded text-[11px] text-rose-700 bg-rose-50 border border-rose-200 dark:text-rose-300 dark:bg-rose-500/5 dark:border-rose-500/20 break-words">
+                {rdvSmsError}
               </div>
             )}
           </div>

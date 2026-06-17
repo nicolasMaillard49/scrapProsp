@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { twilioClient, twilioConfigured, messagingServiceSid } from "@/app/lib/twilio";
-import { toE164, salesSmsMsg, deliverySmsMsg, smsSegments } from "@/app/lib/sms";
+import { toE164, salesSmsMsg, deliverySmsMsg, meetingSmsMsg, smsSegments } from "@/app/lib/sms";
 import { shortCode } from "@/app/lib/links";
 import { logOutboundSms, markProspectSmsSent } from "@/app/lib/smsLog";
 
@@ -25,10 +25,11 @@ function demoBase(req: NextRequest): string {
 }
 
 /**
- * POST /api/sms  { ids: string[], dryRun?: boolean, template?: 'sales' | 'delivery' }
+ * POST /api/sms  { ids: string[], dryRun?: boolean, template?: 'sales' | 'delivery' | 'meeting' }
  * Envoie un SMS à chaque prospect ciblé.
  * - template 'sales' (défaut) : message de prospection à froid (lien démo + STOP).
  * - template 'delivery' : message « livraison du site » depuis la fiche (chaleureux, sans STOP).
+ * - template 'meeting' : message « réserver un créneau » (lien Koalendar, sans STOP).
  * dryRun=true => construit le message sans rien envoyer (aperçu/coût) ; `message` est renvoyé.
  */
 export async function POST(req: NextRequest) {
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
   }
 
-  let body: { ids?: string[]; dryRun?: boolean; template?: "sales" | "delivery" };
+  let body: { ids?: string[]; dryRun?: boolean; template?: "sales" | "delivery" | "meeting" };
   try {
     body = await req.json();
   } catch {
@@ -45,7 +46,8 @@ export async function POST(req: NextRequest) {
 
   const ids = Array.isArray(body.ids) ? body.ids.filter((x) => typeof x === "string") : [];
   const dryRun = body.dryRun === true;
-  const template = body.template === "delivery" ? "delivery" : "sales";
+  const template =
+    body.template === "delivery" ? "delivery" : body.template === "meeting" ? "meeting" : "sales";
   if (ids.length === 0) {
     return NextResponse.json({ error: "Aucun id fourni" }, { status: 400 });
   }
@@ -80,7 +82,12 @@ export async function POST(req: NextRequest) {
       dirigeant_prenom: p.dirigeant_prenom,
       dirigeant_nom: p.dirigeant_nom,
     };
-    const message = template === "delivery" ? deliverySmsMsg(smsProspect, link) : salesSmsMsg(smsProspect, link);
+    const message =
+      template === "delivery"
+        ? deliverySmsMsg(smsProspect, link)
+        : template === "meeting"
+          ? meetingSmsMsg(smsProspect)
+          : salesSmsMsg(smsProspect, link);
     const segments = smsSegments(message);
 
     if (!to) {
