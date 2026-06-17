@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     ads = { ok: res.ok, recordId: res.recordId, warnings: res.plan.warnings };
     const budget = Math.round(res.plan.params.dailyBudgetMicros / 1_000_000);
     await sendTelegram(
-      `🛠️ Compte Google Ads à créer manuellement — ${lead.metier || ""} ${lead.ville || ""} — ` +
+      `🛠️ Compte Google Ads à créer manuellement — Lead #${lead.ref} — ${lead.metier || ""} ${lead.ville || ""} — ` +
         `${lead.email || "sans email"} — ${lead.phone || ""} · budget ${budget} €/j · ${res.plan.keywords.length} mots-clés` +
         (res.plan.warnings.length ? `\n⚠️ ${res.plan.warnings.join(" · ")}` : ""),
     );

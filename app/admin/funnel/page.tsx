@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 interface Lead {
   id: string;
+  ref: number;
   token: string;
   metier: string | null;
   ville: string | null;
@@ -24,6 +25,7 @@ interface Lead {
    exemple affichable dans les iframes même si aucun vrai lead n'existe encore. */
 const SAMPLE: Lead = {
   id: "11111111-1111-4111-8111-111111111111",
+  ref: 0,
   token: "demo",
   metier: "plombier",
   ville: "Tours",
@@ -46,7 +48,7 @@ export default async function FunnelConsolePage() {
   if (supabaseAdminConfigured) {
     const { data } = await supabaseAdmin
       .from("eligibilite_leads")
-      .select("id, token, metier, ville, first_name, service_cible, budget_daily, calls_per_month, status, phone, created_at")
+      .select("id, ref, token, metier, ville, first_name, service_cible, budget_daily, calls_per_month, status, phone, created_at")
       .order("created_at", { ascending: false })
       .limit(30);
     leads = (data as Lead[]) ?? [];
@@ -98,9 +100,14 @@ export default async function FunnelConsolePage() {
             <div className="grid gap-2 sm:grid-cols-2">
               {leads.map((l) => (
                 <div key={l.id} className="flex items-center justify-between gap-3 rounded-xl border border-[#2a2a35] bg-[#13131a] px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{l.first_name || "—"} · {l.metier} {l.ville}</div>
-                    <div className="text-xs text-slate-500">{STATUS_LABEL[l.status ?? ""] ?? l.status} · {l.phone}</div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="shrink-0 rounded-md bg-slate-700/60 border border-slate-600/50 px-2 py-1 text-sm font-bold tabular-nums text-slate-200">
+                      #{l.ref}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{l.first_name || "—"} · {l.metier} {l.ville}</div>
+                      <div className="text-xs text-slate-500">{STATUS_LABEL[l.status ?? ""] ?? l.status} · {l.phone}</div>
+                    </div>
                   </div>
                   <Link
                     href={`/admin/funnel/live/${l.token}`}
@@ -151,7 +158,7 @@ export default async function FunnelConsolePage() {
                   <LeadAdsPanel
                     key={l.id}
                     leadId={l.id}
-                    leadLabel={`${l.first_name || "—"} · ${l.metier ?? ""} ${l.ville ?? ""}`}
+                    leadLabel={`#${l.ref} · ${l.first_name || "—"} · ${l.metier ?? ""} ${l.ville ?? ""}`}
                     plan={ads?.plan ?? null}
                     existing={ads ? { status: ads.status, customer_id: ads.customer_id, campaign_id: ads.campaign_id } : null}
                   />

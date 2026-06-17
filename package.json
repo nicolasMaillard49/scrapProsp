@@ -10,7 +10,8 @@
     "push:sirene": "node scripts/apply-sirene-extended.mjs",
     "import:twilio": "node scripts/import-twilio-sms.mjs",
     "migrate:005": "node scripts/apply-migration-005.mjs",
-    "migrate:006": "node scripts/apply-migration-006.mjs"
+    "migrate:006": "node scripts/apply-migration-006.mjs",
+    "migrate:013": "node scripts/apply-migration-013.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
