@@ -81,6 +81,10 @@ export async function POST(request: NextRequest) {
           ville: prospect.ville,
           metier: prospect.metier,
           limit,
+          // Le classement n'utilise que note/avis/site (gbp_score) — jamais le
+          // tél/adresse des concurrents. On saute l'enrichissement (clic dans
+          // chaque fiche), qui coûte ~3-5 s × limit et n'apporte rien ici.
+          quick: true,
         }),
         signal: AbortSignal.timeout(120_000),
       });

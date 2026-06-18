@@ -78,6 +78,9 @@ export async function POST(request: NextRequest) {
             ville: prospect.ville,
             metier: prospect.metier,
             limit,
+            // Cf. analyze : le rapport n'utilise que le gbp_score (note/avis/site),
+            // donc on saute l'enrichissement tél/adresse (gros gain en batch série).
+            quick: true,
           }),
           signal: AbortSignal.timeout(120_000),
         });
