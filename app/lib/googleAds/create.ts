@@ -175,7 +175,9 @@ export async function createPausedCampaign(customerId: string, plan: CampaignPla
         positive_geo_target_type: enums.PositiveGeoTargetType.PRESENCE,
         negative_geo_target_type: enums.NegativeGeoTargetType.PRESENCE,
       },
-      maximize_clicks: plan.params.cpcCeilingMicros > 0
+      // Maximize Clicks = champ `target_spend` sur la campagne (PAS `maximize_clicks`,
+      // qui n'existe pas → stratégie d'enchères vide → « required field not present »).
+      target_spend: plan.params.cpcCeilingMicros > 0
         ? { cpc_bid_ceiling_micros: plan.params.cpcCeilingMicros }
         : {},
     },
