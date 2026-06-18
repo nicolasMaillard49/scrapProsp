@@ -436,8 +436,8 @@ function UpcomingAside({ events, now, onOpen }: { events: CalendarEvent[]; now: 
     [events],
   );
   return (
-    <aside className="xl:w-[300px] shrink-0">
-      <div className="glass-panel p-3 xl:sticky xl:top-[84px]">
+    <aside className="hidden xl:block xl:w-[300px] shrink-0 min-h-0">
+      <div className="glass-panel p-3 h-full overflow-y-auto">
         <h2 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2 px-1">Prochains RDV</h2>
         {upcoming.length === 0 ? (
           <p className="text-sm text-neutral-500 px-1 py-3">Rien de prévu prochainement.</p>
