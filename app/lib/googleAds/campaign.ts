@@ -12,7 +12,7 @@ import { leadToCampaignParams, type EligibiliteLead, type CampaignParams } from 
 import { negativesFor } from "./negatives";
 import { generateAdContent, type Keyword, type AdCopy } from "./copy";
 import { MCC_ID, googleAdsConfigured } from "./client";
-import { recordAdsAccount } from "./persistence";
+import { recordAdsAccount, existingCampaignForLead } from "./persistence";
 import { createOrReuseAccount, inviteUser, createPausedCampaign } from "./create";
 
 /** Config du call tracking « appels depuis les annonces » (≥ 30 s = conversion). */
@@ -42,6 +42,8 @@ export interface CreateResult {
   recordId: string | null;
   customerId?: string | null;
   campaignId?: string | null;
+  /** true = la campagne existait déjà pour ce lead, rien n'a été (re)créé (idempotence). */
+  alreadyExisted?: boolean;
   error?: string;
 }
 
@@ -185,6 +187,22 @@ export async function createCampaignOnLinkedAccount(
   }
   if (!plan.params.finalUrl) {
     return { ok: false, dryRun: false, plan, recordId: null, error: "site_url manquant : final URL obligatoire pour la RSA." };
+  }
+
+  // Idempotence : si une campagne a déjà été créée pour ce lead, on NE recrée rien
+  // (un retry réseau / double-clic / 2e onglet créerait sinon une campagne + un budget
+  // en double dans le compte client). On renvoie la campagne existante.
+  const already = await existingCampaignForLead(lead.id);
+  if (already) {
+    return {
+      ok: true,
+      dryRun: false,
+      plan,
+      recordId: null,
+      customerId: already.customerId ?? customerId,
+      campaignId: already.campaignId,
+      alreadyExisted: true,
+    };
   }
 
   try {

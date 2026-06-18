@@ -36,15 +36,18 @@ export async function POST(req: NextRequest) {
   const res = await createCampaignOnLinkedAccount(lead as EligibiliteLead, b.customerId);
 
   await sendTelegram(
-    res.ok
-      ? `✅ Campagne PAUSED créée — compte ${res.customerId} — « ${res.plan.params.campaignName} » (campagne ${res.campaignId || "?"})`
-      : `❌ Création campagne échouée — compte ${b.customerId} — ${res.error || "erreur inconnue"}`,
+    res.alreadyExisted
+      ? `ℹ️ Campagne déjà existante (rien recréé) — compte ${res.customerId} — campagne ${res.campaignId || "?"}`
+      : res.ok
+        ? `✅ Campagne PAUSED créée — compte ${res.customerId} — « ${res.plan.params.campaignName} » (campagne ${res.campaignId || "?"})`
+        : `❌ Création campagne échouée — compte ${b.customerId} — ${res.error || "erreur inconnue"}`,
   );
 
   return NextResponse.json({
     ok: res.ok,
     customerId: res.customerId ?? null,
     campaignId: res.campaignId ?? null,
+    alreadyExisted: res.alreadyExisted ?? false,
     error: res.error ?? null,
   });
 }

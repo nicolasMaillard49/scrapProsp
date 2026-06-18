@@ -49,3 +49,23 @@ export async function existingCustomerForLead(leadId: string): Promise<string | 
     .maybeSingle();
   return data?.customer_id ?? null;
 }
+
+/**
+ * Récupère la campagne DÉJÀ créée pour un lead (campaign_id non nul) — idempotence
+ * de la création de campagne : évite qu'un retry / double-clic / 2e onglet crée une
+ * campagne (et un budget) en double dans le compte client. Les records `error`
+ * (campaign_id nul) ne bloquent pas : on peut réessayer après un échec.
+ */
+export async function existingCampaignForLead(
+  leadId: string,
+): Promise<{ customerId: string | null; campaignId: string } | null> {
+  const { data } = await supabaseAdmin
+    .from("google_ads_accounts")
+    .select("customer_id, campaign_id")
+    .eq("lead_id", leadId)
+    .not("campaign_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.campaign_id ? { customerId: data.customer_id ?? null, campaignId: data.campaign_id } : null;
+}
