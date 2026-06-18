@@ -36,6 +36,41 @@
   --color-accent-soft: rgba(139, 92, 246, 0.15);
 }
 
+/* ── Thème de l'AGENDA uniquement ───────────────────────────────────────
+   Scopé à .agenda-theme : on remappe les variables de palette violet/fuchsia
+   (utilisées en dur par les classes Tailwind des composants agenda) sans
+   toucher au reste de l'app. Light = blanc/bleu, Dark = noir/rouge/blanc.
+   Tailwind v4 compile `bg-violet-500` en `var(--color-violet-500)` : il suffit
+   de redéfinir ces variables dans ce sous-arbre. */
+.agenda-theme {
+  /* Light : violet -> bleu */
+  --color-violet-50: #eff6ff;  --color-violet-100: #dbeafe; --color-violet-200: #bfdbfe;
+  --color-violet-300: #93c5fd; --color-violet-400: #60a5fa; --color-violet-500: #3b82f6;
+  --color-violet-600: #2563eb; --color-violet-700: #1d4ed8; --color-violet-800: #1e40af;
+  --color-violet-900: #1e3a8a; --color-violet-950: #172554;
+  /* Light : fuchsia -> cyan/bleu clair (dégradés) */
+  --color-fuchsia-50: #f0f9ff;  --color-fuchsia-100: #e0f2fe; --color-fuchsia-200: #bae6fd;
+  --color-fuchsia-300: #7dd3fc; --color-fuchsia-400: #38bdf8; --color-fuchsia-500: #0ea5e9;
+  --color-fuchsia-600: #0284c7; --color-fuchsia-700: #0369a1; --color-fuchsia-800: #075985;
+  --color-fuchsia-900: #0c4a6e; --color-fuchsia-950: #082f49;
+  --color-accent: #2563eb;
+  --color-accent-soft: rgba(37, 99, 235, 0.1);
+}
+.dark .agenda-theme {
+  /* Dark : violet -> rouge */
+  --color-violet-50: #fef2f2;  --color-violet-100: #fee2e2; --color-violet-200: #fecaca;
+  --color-violet-300: #fca5a5; --color-violet-400: #f87171; --color-violet-500: #ef4444;
+  --color-violet-600: #dc2626; --color-violet-700: #b91c1c; --color-violet-800: #991b1b;
+  --color-violet-900: #7f1d1d; --color-violet-950: #450a0a;
+  /* Dark : fuchsia -> rose (dégradés) */
+  --color-fuchsia-50: #fff1f2;  --color-fuchsia-100: #ffe4e6; --color-fuchsia-200: #fecdd3;
+  --color-fuchsia-300: #fda4af; --color-fuchsia-400: #fb7185; --color-fuchsia-500: #f43f5e;
+  --color-fuchsia-600: #e11d48; --color-fuchsia-700: #be123c; --color-fuchsia-800: #9f1239;
+  --color-fuchsia-900: #881337; --color-fuchsia-950: #4c0519;
+  --color-accent: #ef4444;
+  --color-accent-soft: rgba(239, 68, 68, 0.15);
+}
+
 html, body {
   height: 100%;
   color: var(--color-text-primary);
@@ -258,14 +293,21 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 :root:not(.dark) .glass-panel {
   border-color: rgba(255, 255, 255, 0.85);
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.5));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 18px 50px rgba(70, 55, 130, 0.16);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 18px 50px rgba(37, 99, 235, 0.16);
 }
 .glass-amb { position: relative; isolation: isolate; }
+/* Glow ambiant de l'agenda — light = bleu/cyan */
 .glass-amb::before {
   content: ""; position: absolute; inset: -30%; z-index: -1; filter: blur(8px);
   background:
-    radial-gradient(38% 38% at 22% 18%, rgba(139, 92, 246, 0.4), transparent 70%),
-    radial-gradient(42% 42% at 82% 72%, rgba(217, 70, 239, 0.32), transparent 70%);
+    radial-gradient(38% 38% at 22% 18%, rgba(37, 99, 235, 0.28), transparent 70%),
+    radial-gradient(42% 42% at 82% 72%, rgba(2, 132, 199, 0.22), transparent 70%);
+}
+/* Glow ambiant de l'agenda — dark = rouge/rose */
+.dark .glass-amb::before {
+  background:
+    radial-gradient(38% 38% at 22% 18%, rgba(239, 68, 68, 0.34), transparent 70%),
+    radial-gradient(42% 42% at 82% 72%, rgba(225, 29, 72, 0.26), transparent 70%);
 }
 .glass-event {
   position: relative; overflow: hidden; border-radius: 10px;
@@ -278,11 +320,13 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
   background: linear-gradient(rgba(255, 255, 255, 0.32), transparent); pointer-events: none;
 }
 /* États (accent = état, jamais déco). Variantes sombre par défaut, clair surchargé. */
-.ev-normal { background: linear-gradient(160deg, rgba(139,92,246,.30), rgba(139,92,246,.12)); border: 1px solid rgba(167,139,250,.5); color: #f5f3ff; box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 6px 16px rgba(124,58,237,.32); }
-.ev-now    { background: linear-gradient(160deg, rgba(217,70,239,.34), rgba(217,70,239,.14)); border: 1px solid rgba(240,171,252,.55); color: #fdf2f8; box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 6px 16px rgba(217,70,239,.34); }
+/* Dark : event normal = rouge, en cours = rose */
+.ev-normal { background: linear-gradient(160deg, rgba(239,68,68,.30), rgba(239,68,68,.12)); border: 1px solid rgba(248,113,113,.5); color: #fef2f2; box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 6px 16px rgba(220,38,38,.32); }
+.ev-now    { background: linear-gradient(160deg, rgba(244,63,94,.34), rgba(244,63,94,.14)); border: 1px solid rgba(251,113,133,.55); color: #fff1f2; box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 6px 16px rgba(225,29,72,.34); }
 .ev-past   { background: linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.025)); border: 1px solid rgba(255,255,255,.1); color: #9ca3af; }
-:root:not(.dark) .ev-normal { background: linear-gradient(160deg, rgba(139,92,246,.20), rgba(139,92,246,.09)); border-color: rgba(139,92,246,.4); color: #5b21b6; box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 5px 14px rgba(124,58,237,.18); }
-:root:not(.dark) .ev-now    { background: linear-gradient(160deg, rgba(217,70,239,.18), rgba(217,70,239,.08)); border-color: rgba(217,70,239,.4); color: #86198f; box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 5px 14px rgba(217,70,239,.18); }
+/* Light : event normal = bleu, en cours = cyan */
+:root:not(.dark) .ev-normal { background: linear-gradient(160deg, rgba(37,99,235,.18), rgba(37,99,235,.08)); border-color: rgba(37,99,235,.4); color: #1e3a8a; box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 5px 14px rgba(37,99,235,.18); }
+:root:not(.dark) .ev-now    { background: linear-gradient(160deg, rgba(2,132,199,.18), rgba(2,132,199,.08)); border-color: rgba(2,132,199,.4); color: #075985; box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 5px 14px rgba(2,132,199,.18); }
 :root:not(.dark) .ev-past   { background: linear-gradient(160deg, rgba(255,255,255,.66), rgba(255,255,255,.4)); border-color: rgba(0,0,0,.07); color: #9ca3af; }
 @media (prefers-reduced-motion: reduce) {
   .glass-event { transition: none; }

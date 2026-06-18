@@ -197,7 +197,7 @@ export default function AgendaPage() {
   };
 
   return (
-    <main className="h-[100dvh] flex flex-col overflow-hidden">
+    <main className="agenda-theme h-[100dvh] flex flex-col overflow-hidden">
       {/* ── Header ── */}
       <div className="shrink-0 z-20 bg-white dark:bg-[#111114] border-b border-[var(--color-border)] px-3 md:px-6 py-3">
         <div className="flex items-center gap-2 md:gap-3 flex-wrap">
