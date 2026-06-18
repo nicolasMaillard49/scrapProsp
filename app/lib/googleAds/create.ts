@@ -159,6 +159,10 @@ export async function createPausedCampaign(customerId: string, plan: CampaignPla
       name: plan.params.campaignName,
       status: enums.CampaignStatus.PAUSED,
       advertising_channel_type: enums.AdvertisingChannelType.SEARCH,
+      // Déclaration « publicité politique UE » rendue OBLIGATOIRE par Google (réglo UE).
+      // Pub d'artisan local → ne contient PAS de publicité politique UE.
+      contains_eu_political_advertising:
+        enums.EuPoliticalAdvertisingStatus.DOES_NOT_CONTAIN_EU_POLITICAL_ADVERTISING,
       campaign_budget: budgetRN,
       // Pas de end_date à la création : la campagne naît PAUSED, sans date de fin.
       // La fin (J+7) est posée à l'ACTIVATION (cf. activateCampaign) = 7 jours de
