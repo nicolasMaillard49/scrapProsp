@@ -41,3 +41,6 @@ projet-preview*.pdf
 # Aperçus HTML générés (emails)
 previews/
 .superpowers/
+
+# Déploiement VPS — contient les chemins/accès VPS, ne pas committer
+scripts/deploy-vps.py
