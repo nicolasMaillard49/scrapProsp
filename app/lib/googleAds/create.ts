@@ -7,6 +7,7 @@
 import { enums, ResourceNames } from "google-ads-api";
 import { mccCustomer, clientCustomer, MCC_ID } from "./client";
 import { existingCustomerForLead } from "./persistence";
+import { endDatePlusDays, TEST_DURATION_DAYS } from "./mapping";
 import type { CampaignPlan } from "./campaign";
 
 /** Extrait le dernier groupe de chiffres d'un resource_name (= customer_id créé). */
@@ -159,7 +160,9 @@ export async function createPausedCampaign(customerId: string, plan: CampaignPla
       status: enums.CampaignStatus.PAUSED,
       advertising_channel_type: enums.AdvertisingChannelType.SEARCH,
       campaign_budget: budgetRN,
-      end_date: plan.params.endDate,
+      // Pas de end_date à la création : la campagne naît PAUSED, sans date de fin.
+      // La fin (J+7) est posée à l'ACTIVATION (cf. activateCampaign) = 7 jours de
+      // DIFFUSION réelle, ce qui absorbe le délai de validation Google.
       network_settings: {
         target_google_search: true,
         // Partenaires de recherche OFF : trafic moins qualifié pour de l'artisan local
@@ -292,4 +295,28 @@ export async function createPausedCampaign(customerId: string, plan: CampaignPla
     lastNumericId(results.map((r) => r[key]?.resource_name).find(Boolean) as string | undefined) ?? "";
 
   return { campaignId: find("campaign_result"), budgetId: find("campaign_budget_result"), warnings };
+}
+
+/**
+ * Active une campagne PAUSED : la passe ENABLED et fixe sa fin à J+TEST_DURATION_DAYS
+ * à partir de MAINTENANT (= go-live réel), pas de la création. La « semaine de test »
+ * compte donc 7 jours de DIFFUSION effective, ce qui absorbe le délai de validation
+ * Google (compte/annonces). Renvoie la date de fin posée (YYYYMMDD).
+ */
+export async function activateCampaign(
+  customerId: string,
+  campaignId: string,
+): Promise<{ endDate: string }> {
+  const endDate = endDatePlusDays(TEST_DURATION_DAYS);
+  // end_date est un champ Campaign valide (la création l'utilise via mutateResources),
+  // mais le typage strict de campaigns.update() le rejette → cast localisé de l'argument
+  // (même approche que createOrReuseAccount). .update() construit le field mask seul.
+  await clientCustomer(customerId).campaigns.update([
+    {
+      resource_name: ResourceNames.campaign(customerId, campaignId),
+      status: enums.CampaignStatus.ENABLED,
+      end_date: endDate,
+    },
+  ] as unknown as Parameters<ReturnType<typeof clientCustomer>["campaigns"]["update"]>[0]);
+  return { endDate };
 }

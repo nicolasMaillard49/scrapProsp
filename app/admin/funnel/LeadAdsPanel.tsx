@@ -57,11 +57,19 @@ export default function LeadAdsPanel({ leadId, leadLabel, plan, existing }: Prop
     existing?.status === "paused" ? "done" : "idle",
   );
   const [result, setResult] = useState<{ campaignId: string | null; error: string | null } | null>(
-    existing?.status === "paused" ? { campaignId: existing.campaign_id, error: null } : null,
+    existing?.status === "paused" || existing?.status === "active"
+      ? { campaignId: existing.campaign_id, error: null }
+      : null,
   );
+  const [actState, setActState] = useState<"idle" | "loading" | "done" | "error">(
+    existing?.status === "active" ? "done" : "idle",
+  );
+  const [actResult, setActResult] = useState<{ endDate: string | null; error: string | null } | null>(null);
 
   const digits = customerId.replace(/\D/g, "");
   const idValid = digits.length === 10;
+  const campaignId = result?.campaignId ?? existing?.campaign_id ?? null;
+  const custForActivate = digits.length === 10 ? digits : existing?.customer_id ?? null;
 
   async function copy() {
     try {
@@ -70,6 +78,28 @@ export default function LeadAdsPanel({ leadId, leadLabel, plan, existing }: Prop
       setTimeout(() => setCopied(false), 2000);
     } catch {
       /* clipboard indispo */
+    }
+  }
+
+  async function activate() {
+    setActState("loading");
+    try {
+      const res = await fetch("/api/eligibilite/activate-campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId, customerId: custForActivate, campaignId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setActResult({ endDate: null, error: json.error || `Erreur ${res.status}` });
+        setActState("error");
+        return;
+      }
+      setActResult({ endDate: json.endDate, error: null });
+      setActState("done");
+    } catch (e) {
+      setActResult({ endDate: null, error: e instanceof Error ? e.message : String(e) });
+      setActState("error");
     }
   }
 
@@ -126,8 +156,31 @@ export default function LeadAdsPanel({ leadId, leadLabel, plan, existing }: Prop
       )}
 
       {state === "done" ? (
-        <div className="mt-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-sm text-emerald-300">
-          ✅ Campagne PAUSED créée{result?.campaignId ? ` · ID ${result.campaignId}` : ""}.
+        <div className="mt-3 space-y-2">
+          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-sm text-emerald-300">
+            ✅ Campagne PAUSED créée{result?.campaignId ? ` · ID ${result.campaignId}` : ""}.
+          </div>
+          {actState === "done" ? (
+            <div className="rounded-lg bg-sky-500/10 border border-sky-500/30 px-3 py-2 text-sm text-sky-300">
+              🚀 Campagne ACTIVÉE{actResult?.endDate ? ` · fin le ${actResult.endDate}` : ""} — 7 j de diffusion à partir d&apos;aujourd&apos;hui.
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={activate}
+                disabled={!campaignId || actState === "loading"}
+                className="w-full rounded-lg bg-sky-500/20 border border-sky-500/40 px-4 py-2 text-sm font-medium text-sky-300 hover:bg-sky-500/30 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {actState === "loading" ? "Activation…" : "Activer (lance + fin J+7 du go-live)"}
+              </button>
+              <p className="text-[11px] text-slate-500">
+                À cliquer quand le compte + les annonces sont validés par Google. Pose la fin à 7 jours de diffusion réelle.
+              </p>
+              {actState === "error" && actResult?.error ? (
+                <p className="text-[11px] text-rose-400 break-words">{actResult.error}</p>
+              ) : null}
+            </>
+          )}
         </div>
       ) : (
         <div className="mt-3">

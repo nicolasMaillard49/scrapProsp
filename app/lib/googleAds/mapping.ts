@@ -33,8 +33,6 @@ export interface CampaignParams {
   metier: string;
   ville: string;
   dailyBudgetMicros: number;
-  /** YYYYMMDD : la campagne s'éteint d'elle-même à cette date (garde-fou budget). */
-  endDate: string;
   /** Enveloppe totale du test (100 € sur la semaine). */
   capEuros: number;
   geo:
@@ -50,7 +48,7 @@ export interface CampaignParams {
   cpcCeilingMicros: number;
 }
 
-const TEST_DURATION_DAYS = 7;
+export const TEST_DURATION_DAYS = 7;
 /** Enveloppe FIXE du test : 100 € pour toute la semaine (au-delà, on réadapte à la main). */
 const TEST_BUDGET_TOTAL_EUROS = 100;
 /** Critère de langue Français dans l'API Google Ads. */
@@ -111,7 +109,6 @@ export function leadToCampaignParams(lead: EligibiliteLead, now = new Date()): C
     metier,
     ville,
     dailyBudgetMicros: Math.round(dailyEuros * 1_000_000),
-    endDate: endDatePlusDays(TEST_DURATION_DAYS, now),
     capEuros: TEST_BUDGET_TOTAL_EUROS,
     geo: hasGeo
       ? {
