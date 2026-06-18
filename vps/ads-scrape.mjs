@@ -97,6 +97,12 @@ async function sendTelegram(text) {
   return true;
 }
 
+/** Forme canonique FR du téléphone = 9 derniers chiffres. "" si inexploitable. */
+function normPhone(phone) {
+  const d = (phone || "").replace(/\D/g, "");
+  return d.length >= 9 ? d.slice(-9) : "";
+}
+
 function cleanWebsite(c) {
   const w = (c.website ?? "").trim();
   // Les resultats sponsorises Maps renvoient une URL de redirection "/aclk?..."
@@ -171,6 +177,12 @@ async function main() {
   const existing = await sbSelectAll("prospects?select=maps_url&maps_url=not.is.null");
   const knownUrls = new Set(existing.map((r) => r.maps_url));
 
+  // Dédup par TÉLÉPHONE : un même business (zone de service) est listé par Google
+  // dans plusieurs villes → même n°, maps_url différents. On filtre sur le n°
+  // canonique, sinon ces fiches passent le filtre maps_url et créent des doublons.
+  const existingPhones = await sbSelectAll("prospects?select=phone&phone=not.is.null");
+  const knownPhones = new Set(existingPhones.map((r) => normPhone(r.phone)).filter(Boolean));
+
   const summary = {};
   const errors = [];
   let totalInserted = 0;
@@ -190,10 +202,15 @@ async function main() {
       const json = await res.json();
       const competitors = json.competitors ?? [];
 
-      // Cibles Ads : tout ce qui a nom + telephone (site web GARDE), pas deja en base.
+      // Cibles Ads : tout ce qui a nom + telephone (site web GARDE), pas deja en
+      // base (ni par maps_url, ni par telephone), et sans doublon dans ce lot.
+      const seenPhones = new Set();
       const candidates = competitors.filter((c) => {
         if (!c.name || !c.phone) return false;
         if (c.maps_url && knownUrls.has(c.maps_url)) return false;
+        const np = normPhone(c.phone);
+        if (np && (knownPhones.has(np) || seenPhones.has(np))) return false;
+        if (np) seenPhones.add(np);
         return true;
       });
       if (candidates.length === 0) continue;
@@ -231,6 +248,11 @@ async function main() {
         status: "todo",
         source: "ads",
       }));
+
+      // Inter-combos du même run : ces n° sont désormais "connus" (la liste DB
+      // n'est relue qu'au prochain run). Évite de réinsérer le même business
+      // listé sur une autre ville plus loin dans ce batch.
+      for (const c of fresh) { const np = normPhone(c.phone); if (np) knownPhones.add(np); }
 
       const inserted = await sbInsert(rows);
       if (inserted.length > 0) {

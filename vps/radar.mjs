@@ -59,6 +59,12 @@ function toE164(phone) {
   return `+${digits}`;
 }
 
+/** Forme canonique FR du téléphone = 9 derniers chiffres. "" si inexploitable. */
+function normPhone(phone) {
+  const d = String(phone || "").replace(/\D/g, "");
+  return d.length >= 9 ? d.slice(-9) : "";
+}
+
 const sbHeaders = {
   apikey: SUPABASE_KEY,
   Authorization: `Bearer ${SUPABASE_KEY}`,
@@ -158,7 +164,10 @@ async function main() {
   // 2. maps_url existants pour dedup
   const existing = await sbSelectAll("prospects?select=maps_url&maps_url=not.is.null");
   const knownUrls = new Set(existing.map((r) => r.maps_url));
-  log(`${combos.length} combos, ${knownUrls.size} fiches connues.`);
+  // Dédup par TÉLÉPHONE (même business listé sur plusieurs villes = même n°).
+  const existingPhones = await sbSelectAll("prospects?select=phone&phone=not.is.null");
+  const knownPhones = new Set(existingPhones.map((r) => normPhone(r.phone)).filter(Boolean));
+  log(`${combos.length} combos, ${knownUrls.size} fiches connues (${knownPhones.size} n°).`);
 
   // 3. Scanner chaque combo × ville
   const summary = {};
@@ -185,11 +194,15 @@ async function main() {
         const json = await res.json();
         const competitors = json.competitors ?? [];
 
+        const seenPhones = new Set();
         const fresh = competitors.filter((c) => {
           if (!c.name || !c.phone) return false;
           const ws = (c.website ?? "").trim().toLowerCase();
           if (ws && ws !== "yes" && ws !== "non" && ws.startsWith("http")) return false;
           if (c.maps_url && knownUrls.has(c.maps_url)) return false;
+          const np = normPhone(c.phone);
+          if (np && (knownPhones.has(np) || seenPhones.has(np))) return false;
+          if (np) seenPhones.add(np);
           return true;
         });
         if (fresh.length === 0) continue;
@@ -209,6 +222,9 @@ async function main() {
           source: "radar",
           radar_detected_at: new Date().toISOString(),
         }));
+
+        // Inter-combos du même run : ces n° sont désormais connus.
+        for (const c of fresh) { const np = normPhone(c.phone); if (np) knownPhones.add(np); }
 
         const inserted = await sbInsert(rows);
         if (inserted.length > 0) {

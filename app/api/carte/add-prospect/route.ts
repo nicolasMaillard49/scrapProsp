@@ -91,6 +91,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
+      // Conflit sur l'index unique du téléphone (migration 014) : le même numéro
+      // est déjà en base (souvent une autre fiche-ville du même business).
+      if (error.code === "23505" && /phone_norm/.test(`${error.message} ${error.details ?? ""}`)) {
+        return NextResponse.json(
+          { error: "Ce numéro est déjà associé à un prospect existant", existing: true },
+          { status: 409 },
+        );
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
