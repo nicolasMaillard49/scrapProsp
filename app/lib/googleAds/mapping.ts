@@ -6,7 +6,6 @@
  * pouvoir évoluer sans toucher au reste.
  */
 import { normalizePhoneFR } from "../match";
-import { estimate } from "../eligibilite";
 
 /** Forme minimale d'un lead `eligibilite_leads` utile à la campagne. */
 export interface EligibiliteLead {
@@ -36,7 +35,7 @@ export interface CampaignParams {
   dailyBudgetMicros: number;
   /** YYYYMMDD : la campagne s'éteint d'elle-même à cette date (garde-fou budget). */
   endDate: string;
-  /** Plafond total testé par le cron de surveillance (= budget_daily × jours). */
+  /** Enveloppe totale du test (100 € sur la semaine). */
   capEuros: number;
   geo:
     | { kind: "proximity"; latMicro: number; lonMicro: number; radiusKm: number }
@@ -52,6 +51,8 @@ export interface CampaignParams {
 }
 
 const TEST_DURATION_DAYS = 7;
+/** Enveloppe FIXE du test : 100 € pour toute la semaine (au-delà, on réadapte à la main). */
+const TEST_BUDGET_TOTAL_EUROS = 100;
 /** Critère de langue Français dans l'API Google Ads. */
 const LANGUAGE_FR = "languageConstants/1002";
 
@@ -90,11 +91,12 @@ export function leadToCampaignParams(lead: EligibiliteLead, now = new Date()): C
   const service = (lead.service_cible || metier).trim();
   const owner = [lead.first_name, lead.last_name].filter(Boolean).join(" ").trim();
 
-  // Budget journalier : valeur du lead, sinon estimation déterministe (fallback).
-  const dailyEuros =
-    lead.budget_daily && lead.budget_daily > 0
-      ? lead.budget_daily
-      : estimate({ metier, ad_budget_range: lead.ad_budget_range ?? undefined }).budget_daily;
+  // Budget du test = enveloppe FIXE de 100 € pour la semaine. Google Ads (Search)
+  // EXIGE un budget journalier moyen — il n'existe pas de budget "total" pur. On
+  // répartit donc les 100 € sur les 7 jours (≈ 14,29 €/j, livraison STANDARD qui
+  // étale dans la journée) et la campagne s'éteint à J+7 (end_date) → l'enveloppe
+  // tient la semaine sans qu'on impose une "limite journalière" arbitraire.
+  const dailyEuros = TEST_BUDGET_TOTAL_EUROS / TEST_DURATION_DAYS;
 
   const hasGeo = typeof lead.lat === "number" && typeof lead.lon === "number";
   const radiusKm = lead.radius_km && lead.radius_km > 0 ? lead.radius_km : 15;
@@ -110,7 +112,7 @@ export function leadToCampaignParams(lead: EligibiliteLead, now = new Date()): C
     ville,
     dailyBudgetMicros: Math.round(dailyEuros * 1_000_000),
     endDate: endDatePlusDays(TEST_DURATION_DAYS, now),
-    capEuros: dailyEuros * TEST_DURATION_DAYS,
+    capEuros: TEST_BUDGET_TOTAL_EUROS,
     geo: hasGeo
       ? {
           kind: "proximity",
