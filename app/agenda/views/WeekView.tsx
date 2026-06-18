@@ -3,8 +3,8 @@ import type { CalendarEvent } from "../../lib/googleCalendar";
 import { sameDay, addDays, dayKeyOf } from "../../lib/calendarDates";
 import { layoutDay } from "../eventLayout";
 
-const DAY_START = 7, DAY_END = 23;
-const SPAN = DAY_END - DAY_START; // 16 h affichées
+const DAY_START = 10, DAY_END = 21;
+const SPAN = DAY_END - DAY_START; // 11 h affichées (10h–21h)
 const DAYS = ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"];
 const fmtTime = (d: Date) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 /** Position verticale (%) d'une heure décimale dans la plage affichée. */
@@ -13,7 +13,7 @@ const pctOf = (h: number) => ((h - DAY_START) / SPAN) * 100;
 /**
  * Vue Semaine sans AUCUN scroll (ni vertical ni horizontal) : la grille horaire
  * remplit toute la hauteur disponible et les 7 colonnes se partagent la largeur.
- * Positionnement des événements en pourcentage de la plage 7h–23h (pas de px fixes).
+ * Positionnement des événements en pourcentage de la plage 10h–21h (pas de px fixes).
  */
 export default function WeekView({
   weekStart, now, byDay, onOpen, onCreateAt,
