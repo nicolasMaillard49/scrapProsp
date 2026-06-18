@@ -94,6 +94,12 @@ export interface Analysis {
 
 const BUDGET_DAILY: Record<string, number> = { lt_500: 12, "500_1000": 25, "1000_3000": 65, gt_3000: 110 };
 
+/** Budget RÉEL de la semaine de test : 100 € pour tous (≈14 €/jour), service offert.
+ *  Affiché dans le funnel/emails à la place de l'ancienne estimation (12–110 €/j),
+ *  qui donnait des coûts journaliers bien trop élevés. Cf. mapping.ts (campagne). */
+export const TEST_BUDGET_WEEK_EUROS = 100;
+export const TEST_BUDGET_DAILY_EUROS = 14; // 100 ÷ 7 arrondi
+
 /** Estimations déterministes à partir des réponses (fallback + base de calcul). */
 export function estimate(a: { metier?: string; ad_budget_range?: string }): Omit<Analysis, "service_cible" | "service_reason"> {
   const daily = BUDGET_DAILY[a.ad_budget_range ?? ""] ?? 12;
@@ -257,7 +263,7 @@ export function confirmationEmailHtml(lead: {
       `sur <strong style="color:#0f172a">${esc(lead.ville || "")}</strong> et identifié le service le plus rentable à mettre en avant.`,
     rows: [
       { label: "Service ciblé", value: esc(lead.service_cible || "—") },
-      { label: "Budget Google conseillé", value: `${lead.budget_daily ?? "—"} €/jour` },
+      { label: "Budget Google (semaine test)", value: `≈${TEST_BUDGET_DAILY_EUROS} €/jour · ${TEST_BUDGET_WEEK_EUROS} € pour la semaine` },
       { label: "Demandes estimées", value: `~${lead.calls_per_month ?? "—"} / mois` },
     ],
     ctaLabel: "Voir mon analyse",
@@ -287,7 +293,7 @@ export function launchEmailHtml(lead: {
     rows: [
       { label: "Service ciblé", value: esc(lead.service_cible || "—") },
       { label: "Zone", value: esc(lead.ville || "—") },
-      { label: "Budget", value: `${lead.budget_daily ?? "—"} €/jour · ~${lead.calls_per_month ?? "—"} demandes/mois` },
+      { label: "Budget (semaine test)", value: `≈${TEST_BUDGET_DAILY_EUROS} €/jour · ${TEST_BUDGET_WEEK_EUROS} € · service offert` },
     ],
     ctaLabel: "Ajouter ma carte et activer",
     ctaUrl: activationUrl,

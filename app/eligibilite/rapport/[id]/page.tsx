@@ -1,4 +1,5 @@
 import { supabaseAdmin, supabaseAdminConfigured } from "@/app/lib/supabaseAdmin";
+import { TEST_BUDGET_WEEK_EUROS, TEST_BUDGET_DAILY_EUROS } from "@/app/lib/eligibilite";
 import LaunchButton from "./LaunchButton";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +48,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
         <div className="mt-6 grid grid-cols-3 gap-3">
           <Stat label="Revenu add." value={`+${euro(lead.revenue_month)} €`} sub="/ mois" highlight />
           <Stat label="Demandes" value={`~${lead.calls_per_month ?? 0}`} sub="/ mois" />
-          <Stat label="Budget Google" value={`${lead.budget_daily ?? 0} €`} sub="/ jour" />
+          <Stat label="Budget Google" value={`≈${TEST_BUDGET_DAILY_EUROS} €`} sub="/ jour (test)" />
         </div>
 
         <div className="mt-6 fnl-card p-5">
@@ -56,7 +57,7 @@ export default async function RapportPage({ params }: { params: Promise<{ id: st
           <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--ink-soft)" }}>{lead.service_reason}</p>
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
             <Mini label="Zone ciblée" value={`${lead.ville} + ${lead.radius_km ?? 10} km`} />
-            <Mini label="Budget conseillé" value={`${lead.budget_daily ?? 0} €/j · ${euro(lead.budget_monthly)} €/mois`} />
+            <Mini label="Budget (semaine test)" value={`${TEST_BUDGET_WEEK_EUROS} € pour la semaine · ≈${TEST_BUDGET_DAILY_EUROS} €/j`} />
           </div>
         </div>
 
