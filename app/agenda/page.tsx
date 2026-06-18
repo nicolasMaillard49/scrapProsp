@@ -238,7 +238,7 @@ export default function AgendaPage() {
             </span>
             <button
               onClick={() => { setCreateDefault(null); setCreateOpen(true); }}
-              className="flex items-center gap-1.5 px-3 md:px-4 py-2 text-sm rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium transition shadow-lg shadow-violet-900/30"
+              className="flex items-center gap-1.5 px-3 md:px-4 py-2 text-sm rounded-lg bg-[var(--color-accent)] hover:brightness-110 text-white font-medium transition shadow-sm"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Nouveau RDV</span>
@@ -390,7 +390,7 @@ export default function AgendaPage() {
             {selectedProspect && (
               <button
                 onClick={() => openFiche(selectedProspect, selected)}
-                className="w-full mt-4 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30"
+                className="w-full mt-4 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--color-accent)] hover:brightness-110 text-white font-medium text-sm transition shadow-sm"
               >
                 <User className="w-4 h-4" /> Voir la fiche de {selectedProspect.name}
               </button>
@@ -535,7 +535,7 @@ function CreateEventModal({ defaultStart, onClose, onCreated }: { defaultStart: 
           <button
             onClick={submit}
             disabled={!title.trim() || state === "sending"}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[var(--color-accent)] hover:brightness-110 text-white font-medium text-sm transition shadow-sm disabled:opacity-50"
           >
             {state === "sending" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
             Créer le RDV

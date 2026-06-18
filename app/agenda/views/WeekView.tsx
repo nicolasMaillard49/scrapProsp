@@ -85,7 +85,7 @@ export default function WeekView({
               {/* trait "maintenant" */}
               {today && now.getHours() >= DAY_START && now.getHours() < DAY_END && (
                 <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top: `${pctOf(now.getHours() + now.getMinutes() / 60)}%` }}>
-                  <div className="h-[2px] bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,.7)]" />
+                  <div className="h-[2px] bg-rose-500" />
                   <div className="w-2 h-2 rounded-full bg-rose-500 -mt-[5px]" />
                 </div>
               )}

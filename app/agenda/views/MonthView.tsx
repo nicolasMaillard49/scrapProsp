@@ -25,7 +25,7 @@ export default function MonthView({
   return (
     <div className="glass-panel h-full flex flex-col overflow-hidden">
       {/* En-têtes jours */}
-      <div className="grid grid-cols-7 border-b border-white/10 shrink-0">
+      <div className="grid grid-cols-7 border-b border-[var(--color-border)] shrink-0">
         {DOW.map((d) => (
           <div key={d} className="px-2 py-1.5 text-center text-[10px] uppercase tracking-wider text-neutral-500">{d}</div>
         ))}
@@ -41,14 +41,14 @@ export default function MonthView({
             <button
               key={i}
               onClick={() => onPickDay(d)}
-              className={`relative flex flex-col text-left p-1 border-l border-t border-white/5 overflow-hidden transition hover:bg-violet-500/5 ${dim ? "opacity-35" : ""} ${weekend && !dim ? "bg-[var(--color-surface-2)]/20" : ""}`}
+              className={`relative flex flex-col text-left p-1 border-l border-t border-[var(--color-border)] overflow-hidden transition hover:bg-violet-500/5 ${dim ? "opacity-35" : ""} ${weekend && !dim ? "bg-[var(--color-surface-2)]/30" : ""}`}
             >
               {/* Numéro du jour — pastille pleine si aujourd'hui (façon Apple) */}
               <div className="mb-0.5">
                 <span
                   className={`inline-grid place-items-center w-5 h-5 rounded-full text-[11px] leading-none font-mono-num ${
                     today
-                      ? "bg-violet-600 text-white font-bold shadow-sm shadow-violet-900/40"
+                      ? "bg-violet-600 text-white font-bold"
                       : dim
                         ? "text-neutral-500"
                         : "text-[var(--color-text-secondary)]"
