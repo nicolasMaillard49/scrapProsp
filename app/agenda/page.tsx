@@ -64,7 +64,7 @@ function matchProspect(e: CalendarEvent, prospects: Prospect[]): Prospect | null
 const VIEW_LABEL: Record<CalendarView, string> = { week: "Semaine", month: "Mois", list: "Liste" };
 
 export default function AgendaPage() {
-  const [view, setView] = useState<CalendarView>("week");
+  const [view, setView] = useState<CalendarView>("month");
   const [refDate, setRefDate] = useState(() => new Date());
   const [selected, setSelected] = useState<CalendarEvent | null>(null);
   // Fiche prospect ouverte depuis un RDV — stockée par id pour rester à jour (Realtime).
@@ -197,9 +197,9 @@ export default function AgendaPage() {
   };
 
   return (
-    <main className="min-h-screen">
+    <main className="h-[100dvh] flex flex-col overflow-hidden">
       {/* ── Header ── */}
-      <div className="sticky top-0 z-20 bg-white dark:bg-[#111114] border-b border-[var(--color-border)] px-3 md:px-6 py-3">
+      <div className="shrink-0 z-20 bg-white dark:bg-[#111114] border-b border-[var(--color-border)] px-3 md:px-6 py-3">
         <div className="flex items-center gap-2 md:gap-3 flex-wrap">
           <Link href="/" className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition" title="Retour aux prospects">
             <ArrowLeft className="w-4 h-4" />
@@ -251,11 +251,11 @@ export default function AgendaPage() {
       {status === "unconfigured" ? (
         <SetupPanel />
       ) : (
-        <div className="glass-amb px-3 md:px-6 py-4">
+        <div className="glass-amb flex-1 min-h-0 flex flex-col px-3 md:px-6 py-3">
           {/* Barre : segmented control de vue */}
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <div className="flex items-center gap-2 mb-3 flex-wrap shrink-0">
             <div className="flex gap-0.5 p-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
-              {(["week", "month", "list"] as CalendarView[]).map((v) => (
+              {(["month", "week", "list"] as CalendarView[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
@@ -275,13 +275,13 @@ export default function AgendaPage() {
 
           {/* Vue active (squelette le temps du premier chargement à froid) */}
           {coldLoading ? (
-            <div className="glass-panel p-2 space-y-2">
+            <div className="glass-panel flex-1 min-h-0 p-2 space-y-2 overflow-hidden">
               {Array.from({ length: 8 }).map((_, i) => <div key={i} className="skeleton h-[56px]" />)}
             </div>
           ) : (
-            <div className="flex flex-col xl:flex-row gap-4">
-              {/* min-w-0 : la grille garde son scroll interne sans pousser la page en largeur */}
-              <div className="flex-1 min-w-0">
+            <div className="flex-1 min-h-0 flex flex-col xl:flex-row gap-4">
+              {/* min-w-0/min-h-0 : la vue remplit l'espace sans pousser la page */}
+              <div className={`flex-1 min-w-0 min-h-0 ${view === "list" ? "overflow-y-auto" : ""}`}>
                 {view === "week" ? (
                   <WeekView
                     weekStart={weekStart}
@@ -302,8 +302,8 @@ export default function AgendaPage() {
                   <ListView events={all} now={now} onOpen={openEvent} />
                 )}
               </div>
-              {/* La liste EST déjà la récap : on n'affiche l'aside que pour Semaine/Mois */}
-              {view !== "list" && <UpcomingAside events={all} now={now} onOpen={openEvent} />}
+              {/* Récap latérale uniquement en vue Semaine (le Mois reste plein écran, sans scroll) */}
+              {view === "week" && <UpcomingAside events={all} now={now} onOpen={openEvent} />}
             </div>
           )}
         </div>
