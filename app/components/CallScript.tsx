@@ -443,6 +443,34 @@ export default function CallScript({
                   </div>
                 </Section>
 
+                <Section title="Autres ouvertures (variantes au choix)" icon={<Flame className="w-4 h-4" />}>
+                  <ObjTitle>🤝 Les confrères (preuve sociale)</ObjTitle>
+                  <Say>« Bonjour, j&apos;ai déjà contacté plusieurs de vos <V>confrères {metier}</V> dans la région ces derniers jours
+                    pour leur présenter quelque chose qui leur ramène des clients — et je voulais vous le montrer à vous aussi.
+                    Vous me laissez <V>30 secondes</V> ? »</Say>
+                  <Tips items={[
+                    "Crée la curiosité + l'urgence : ses concurrents sont déjà au courant, pas lui.",
+                    "Ne donne jamais de nom de confrère s'il demande — « je préfère rester discret, comme je le serai avec vous ».",
+                  ]} />
+
+                  <ObjTitle>🏆 Le meilleur de la ville (ego / qualification)</ObjTitle>
+                  <Say>« Bonjour, petite question directe : c&apos;est bien vous le <V>meilleur {metier} de {ville}</V> ? »
+                    <span className="text-[var(--color-text-muted)]"> ⏸ Silence — il rit ou se défend (« euh… un des bons »).</span></Say>
+                  <Say>« Ha, c&apos;est exactement à lui que je veux parler 😄 Justement, j&apos;ai un moyen de faire en sorte que
+                    quand les gens cherchent « <V>{metier} {ville}</V> » sur Google, ce soit <V>vous</V> qu&apos;ils trouvent en premier. »</Say>
+                  <Tips items={["L'ego ouvre la porte : il veut prouver qu'il est le meilleur → il écoute la suite."]} />
+
+                  <ObjTitle>📍 Le client perdu (manque à gagner)</ObjTitle>
+                  <Say>« Bonjour, là tout de suite y&apos;a des gens qui tapent « <V>{metier} {ville}</V> » sur Google…
+                    et pour l&apos;instant c&apos;est pas vous qu&apos;ils trouvent. Je vous explique en <V>30 secondes</V> comment on change ça ? »</Say>
+                  <Tips items={["Concret et local : il visualise des clients qui vont chez le concurrent maintenant."]} />
+
+                  <ObjTitle>👋 La franchise (casse le « non » réflexe)</ObjTitle>
+                  <Say>« Bonjour {greet}, je vais être honnête avec vous : c&apos;est un appel de prospection.
+                    Mais donnez-moi <V>30 secondes</V> et si ça vous parle pas, vous raccrochez — promis, je vous en voudrai pas. »</Say>
+                  <Tips items={["L'honnêteté désarme : il baisse la garde parce que tu annonces la couleur."]} />
+                </Section>
+
                 <Section num={2} title="Question d'entrée" icon={<Search className="w-4 h-4" />} defaultOpen accent>
                   <Say>« Parfait. J&apos;ai juste une petite question avant.
                     Aujourd&apos;hui, vos clients vous trouvent plutôt comment ? Bouche à oreille ? Via votre site web ? Un peu les deux ? »</Say>
