@@ -298,7 +298,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 /* plus de glow ambiant — sobre */
 .glass-amb::before { content: none; }
 .glass-event {
-  position: relative; overflow: hidden; border-radius: 4px;
+  position: relative; overflow: hidden; border-radius: 0;
   transition: background .15s ease, border-color .15s ease;
 }
 /* États (l'accent = état, jamais déco) — plat, sans dégradé ni glow. */

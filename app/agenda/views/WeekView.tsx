@@ -36,7 +36,7 @@ export default function WeekView({
         {weekDays.map((d, i) => {
           const today = sameDay(d, now);
           return (
-            <div key={i} className={`px-1 py-1.5 text-center ${today ? "bg-violet-500/10 rounded-t-lg" : ""}`}>
+            <div key={i} className={`px-1 py-1.5 text-center ${today ? "bg-violet-500/10" : ""}`}>
               <div className={`text-[9px] uppercase tracking-wider ${today ? "text-violet-500 font-bold" : "text-neutral-500"}`}>{DAYS[i]}</div>
               <div className={`text-base leading-tight font-mono-num ${today ? "text-violet-500 font-bold" : "text-[var(--color-text-primary)]"}`}>{d.getDate()}</div>
             </div>
