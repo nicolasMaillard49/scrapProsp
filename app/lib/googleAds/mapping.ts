@@ -108,7 +108,10 @@ export function leadToCampaignParams(lead: EligibiliteLead, now = new Date()): C
     serviceCible: service,
     metier,
     ville,
-    dailyBudgetMicros: Math.round(dailyEuros * 1_000_000),
+    // amount_micros DOIT être un multiple de 10 000 (= 1 centime) pour l'EUR, sinon
+    // Google rejette « money amount not a multiple of a minimum unit ». On arrondit
+    // donc au centime : 100/7 ≈ 14,2857 € → 14,29 € → 14 290 000 micros.
+    dailyBudgetMicros: Math.round(dailyEuros * 100) * 10_000,
     capEuros: TEST_BUDGET_TOTAL_EUROS,
     geo: hasGeo
       ? {
