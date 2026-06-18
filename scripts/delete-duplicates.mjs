@@ -31,7 +31,20 @@ const env = Object.fromEntries(
 );
 
 const APPLY = process.argv.includes("--apply");
-const NAME_ONLY = process.env.NAME_ONLY === "1";
+// Clé de regroupement : phone (défaut, le plus fiable — même n° = même business,
+// même listé dans plusieurs villes), name-ville, ou name (le plus agressif).
+const KEY = (process.env.KEY || "phone").toLowerCase();
+
+/** Forme canonique FR du téléphone = 9 derniers chiffres. "" si inexploitable. */
+function normPhone(phone) {
+  let d = (phone || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("0033")) d = d.slice(4);
+  else if (d.startsWith("33") && d.length >= 11) d = d.slice(2);
+  else if (d.startsWith("0")) d = d.slice(1);
+  d = d.slice(-9);
+  return d.length === 9 ? d : "";
+}
 
 /** Normalise un libellé : minuscules, sans accents, espaces/ponctuation compactés. */
 function norm(s) {
@@ -70,10 +83,15 @@ const withCalls = new Set((await fetchAll("calls", "prospect_id")).map((r) => r.
 console.log(`Avec rapport concurrent: ${withReport.size} · avec historique d'appels: ${withCalls.size}`);
 
 // 3) Regroupement.
+function keyOf(p) {
+  if (KEY === "phone") return normPhone(p.phone); // "" si tél inexploitable
+  if (KEY === "name") return norm(p.name);
+  return `${norm(p.name)}|${norm(p.ville)}`; // name-ville
+}
 const groups = new Map();
 for (const p of prospects) {
-  const key = NAME_ONLY ? norm(p.name) : `${norm(p.name)}|${norm(p.ville)}`;
-  if (!norm(p.name)) continue; // nom vide : on ignore (jamais un doublon fiable)
+  const key = keyOf(p);
+  if (!key) continue; // clé vide (ex. tél/nom inexploitable) : jamais un doublon fiable
   let g = groups.get(key);
   if (!g) { g = []; groups.set(key, g); }
   g.push(p);
@@ -116,7 +134,7 @@ for (const [key, g] of groups) {
 const byStatus = {};
 for (const p of toDelete) byStatus[p.status] = (byStatus[p.status] || 0) + 1;
 
-console.log(`\nClé de regroupement: ${NAME_ONLY ? "nom seul" : "nom + ville"}`);
+console.log(`\nClé de regroupement: ${KEY === "phone" ? "téléphone" : KEY === "name" ? "nom seul" : "nom + ville"}`);
 console.log(`Groupes en double (≥2 fiches): ${dupGroups}`);
 console.log(`Fiches à supprimer: ${toDelete.length}`);
 console.log(`Doublons préservés (rapport concurrent): ${sparedReports.length}`);
