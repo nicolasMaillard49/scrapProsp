@@ -14,7 +14,7 @@ import { generateAdContent, type Keyword, type AdCopy } from "./copy";
 import { MCC_ID, googleAdsConfigured, mccCustomer } from "./client";
 import { bestKeywordsForLead } from "./keywordIdeas";
 import { recordAdsAccount, existingCampaignForLead } from "./persistence";
-import { createOrReuseAccount, inviteUser, createPausedCampaign } from "./create";
+import { createOrReuseAccount, inviteUser, createPausedCampaign, refreshCampaignKeywords } from "./create";
 
 /** Config du call tracking « appels depuis les annonces » (≥ 30 s = conversion). */
 export interface CallTrackingPlan {
@@ -268,6 +268,59 @@ export async function createCampaignOnLinkedAccount(
       error,
     });
     return { ok: false, dryRun: false, plan, recordId: null, customerId, error };
+  }
+}
+
+export interface RefreshKeywordsForLeadResult {
+  ok: boolean;
+  removed: number;
+  added: number;
+  keywords: Keyword[];
+  keywordSource: CampaignPlan["keywordSource"];
+  error?: string;
+}
+
+/**
+ * Rafraîchit les mots-clés d'une campagne EXISTANTE pour un lead : régénère le plan
+ * (donc des mots-clés frais city-free, via l'API Keyword Ideas en prod) et remplace
+ * les mots-clés de la campagne. Ne recrée RIEN, ne touche ni budget ni enchères.
+ */
+export async function refreshCampaignKeywordsForLead(
+  lead: EligibiliteLead,
+  customerIdRaw: string,
+  campaignId: string,
+): Promise<RefreshKeywordsForLeadResult> {
+  const empty: Keyword[] = [];
+  const customerId = normalizeCustomerId(customerIdRaw);
+  if (!customerId) {
+    return { ok: false, removed: 0, added: 0, keywords: empty, keywordSource: "fallback", error: `Customer ID invalide (« ${customerIdRaw} »).` };
+  }
+  if (!campaignId) {
+    return { ok: false, removed: 0, added: 0, keywords: empty, keywordSource: "fallback", error: "campaignId requis." };
+  }
+  if (!googleAdsConfigured()) {
+    return { ok: false, removed: 0, added: 0, keywords: empty, keywordSource: "fallback", error: "Credentials Google Ads incomplets." };
+  }
+
+  const plan = await buildPlan(lead);
+  if (!plan.keywords.length) {
+    return { ok: false, removed: 0, added: 0, keywords: empty, keywordSource: plan.keywordSource, error: "Aucun mot-clé généré (ni API ni fallback)." };
+  }
+
+  try {
+    const res = await refreshCampaignKeywords(customerId, campaignId, plan.keywords);
+    return {
+      ok: res.ok,
+      removed: res.removed,
+      added: res.added,
+      keywords: plan.keywords,
+      keywordSource: plan.keywordSource,
+      error: res.error,
+    };
+  } catch (e) {
+    const error = describeAdsError(e);
+    console.error("[google-ads] échec refresh mots-clés — cust", customerId, "camp", campaignId, "—", error, "\nraw:", e);
+    return { ok: false, removed: 0, added: 0, keywords: plan.keywords, keywordSource: plan.keywordSource, error };
   }
 }
 

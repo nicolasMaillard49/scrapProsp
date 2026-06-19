@@ -65,7 +65,17 @@ export default async function FunnelConsolePage() {
       .in("lead_id", launchedLeads.map((l) => l.id))
       .order("created_at", { ascending: false });
     for (const r of rows ?? []) {
-      if (!r.lead_id || adsByLead.has(r.lead_id)) continue; // ordre desc -> on garde le plus récent
+      if (!r.lead_id) continue;
+      const prev = adsByLead.get(r.lead_id);
+      if (prev) {
+        // Ordre desc → on garde statut/plan de la ligne la plus récente, mais on
+        // récupère customer_id/campaign_id depuis une ligne plus ancienne si la plus
+        // récente ne les a pas (ex. un retry `error` masquerait la campagne créée →
+        // le bouton « Rafraîchir les mots-clés » ne s'afficherait plus).
+        if (!prev.customer_id && r.customer_id) prev.customer_id = r.customer_id;
+        if (!prev.campaign_id && r.campaign_id) prev.campaign_id = r.campaign_id;
+        continue;
+      }
       const payload = r.payload as { plan?: PlanLike } | PlanLike | null;
       const plan = (payload && typeof payload === "object" && "plan" in payload ? payload.plan : payload) as PlanLike | null;
       adsByLead.set(r.lead_id, { status: r.status, customer_id: r.customer_id, campaign_id: r.campaign_id, plan: plan ?? null });

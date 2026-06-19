@@ -65,6 +65,14 @@ export default function LeadAdsPanel({ leadId, leadLabel, plan, existing }: Prop
     existing?.status === "active" ? "done" : "idle",
   );
   const [actResult, setActResult] = useState<{ endDate: string | null; error: string | null } | null>(null);
+  const [refreshState, setRefreshState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [refreshResult, setRefreshResult] = useState<{
+    removed: number;
+    added: number;
+    keywords: { text: string; match: string }[];
+    source: string;
+    error: string | null;
+  } | null>(null);
 
   const digits = customerId.replace(/\D/g, "");
   const idValid = digits.length === 10;
@@ -100,6 +108,28 @@ export default function LeadAdsPanel({ leadId, leadLabel, plan, existing }: Prop
     } catch (e) {
       setActResult({ endDate: null, error: e instanceof Error ? e.message : String(e) });
       setActState("error");
+    }
+  }
+
+  async function refreshKeywords() {
+    setRefreshState("loading");
+    try {
+      const res = await fetch("/api/eligibilite/refresh-keywords", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId, customerId: custForActivate, campaignId }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setRefreshResult({ removed: 0, added: 0, keywords: [], source: "", error: json.error || `Erreur ${res.status}` });
+        setRefreshState("error");
+        return;
+      }
+      setRefreshResult({ removed: json.removed, added: json.added, keywords: json.keywords || [], source: json.keywordSource, error: null });
+      setRefreshState("done");
+    } catch (e) {
+      setRefreshResult({ removed: 0, added: 0, keywords: [], source: "", error: e instanceof Error ? e.message : String(e) });
+      setRefreshState("error");
     }
   }
 
@@ -210,6 +240,35 @@ export default function LeadAdsPanel({ leadId, leadLabel, plan, existing }: Prop
           ) : null}
         </div>
       )}
+
+      {campaignId ? (
+        <div className="mt-3 border-t border-[#23232c] pt-3">
+          <button
+            onClick={refreshKeywords}
+            disabled={refreshState === "loading"}
+            className="w-full rounded-lg bg-indigo-500/20 border border-indigo-500/40 px-4 py-2 text-sm font-medium text-indigo-300 hover:bg-indigo-500/30 transition disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {refreshState === "loading" ? "Rafraîchissement…" : "🔑 Rafraîchir les mots-clés (sans ville, via API)"}
+          </button>
+          <p className="mt-1 text-[11px] text-slate-500">
+            Remplace les mots-clés actuels par des mots-clés <strong>sans ville</strong> (corrige « Volume de recherche faible »). Ne touche ni au budget ni aux enchères.
+          </p>
+          {refreshState === "done" && refreshResult ? (
+            <div className="mt-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-3 py-2 text-[12px] text-emerald-300">
+              ✅ {refreshResult.removed} supprimé(s) · {refreshResult.added} ajouté(s)
+              <span className="text-emerald-200/70"> (source : {refreshResult.source})</span>
+              {refreshResult.keywords.length ? (
+                <div className="mt-1 text-emerald-200/80 break-words">
+                  {[...new Set(refreshResult.keywords.map((k) => k.text))].join(", ")}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {refreshState === "error" && refreshResult?.error ? (
+            <p className="mt-2 text-[11px] text-rose-400 break-words">{refreshResult.error}</p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

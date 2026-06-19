@@ -8,6 +8,8 @@ import { enums, ResourceNames } from "google-ads-api";
 import { mccCustomer, clientCustomer, MCC_ID } from "./client";
 import { existingCustomerForLead } from "./persistence";
 import { endDatePlusDays, TEST_DURATION_DAYS } from "./mapping";
+import { buildKeywordRefreshOps } from "./keywordRefresh";
+import type { Keyword } from "./copy";
 import type { CampaignPlan } from "./campaign";
 
 /** Extrait le dernier groupe de chiffres d'un resource_name (= customer_id créé). */
@@ -301,6 +303,55 @@ export async function createPausedCampaign(customerId: string, plan: CampaignPla
     lastNumericId(results.map((r) => r[key]?.resource_name).find(Boolean) as string | undefined) ?? "";
 
   return { campaignId: find("campaign_result"), budgetId: find("campaign_budget_result"), warnings };
+}
+
+export interface RefreshKeywordsResult {
+  ok: boolean;
+  removed: number;
+  added: number;
+  adGroup: string | null;
+  error?: string;
+}
+
+/**
+ * Remplace les mots-clés d'une campagne EXISTANTE sans la recréer : lit les
+ * `ad_group_criterion` mots-clés actuels (GAQL), puis un seul `mutateResources`
+ * atomique supprime les anciens et crée les nouveaux sur le 1er groupe d'annonces
+ * de la campagne (nos campagnes n'en ont qu'un). Ne touche ni au budget ni aux
+ * enchères → n'impacte pas l'apprentissage au-delà du changement de mots-clés.
+ */
+export async function refreshCampaignKeywords(
+  customerId: string,
+  campaignId: string,
+  newKeywords: Keyword[],
+): Promise<RefreshKeywordsResult> {
+  const cust = clientCustomer(customerId);
+
+  // 1) Groupe d'annonces de la campagne (on cible le 1er).
+  const agRows = await cust.query(
+    `SELECT ad_group.resource_name FROM ad_group ` +
+      `WHERE campaign.id = ${campaignId} AND ad_group.status != 'REMOVED'`,
+  );
+  const adGroupRN = (agRows[0] as { ad_group?: { resource_name?: string } } | undefined)?.ad_group?.resource_name;
+  if (!adGroupRN) {
+    return { ok: false, removed: 0, added: 0, adGroup: null, error: "Aucun groupe d'annonces trouvé sur la campagne." };
+  }
+
+  // 2) Mots-clés existants à supprimer (resource_names).
+  const kwRows = await cust.query(
+    `SELECT ad_group_criterion.resource_name FROM ad_group_criterion ` +
+      `WHERE campaign.id = ${campaignId} AND ad_group_criterion.type = 'KEYWORD' ` +
+      `AND ad_group_criterion.status != 'REMOVED'`,
+  );
+  const existingRNs = kwRows
+    .map((r) => (r as { ad_group_criterion?: { resource_name?: string } }).ad_group_criterion?.resource_name)
+    .filter((x): x is string => !!x);
+
+  const ops = buildKeywordRefreshOps(adGroupRN, existingRNs, newKeywords);
+  if (!ops.length) return { ok: true, removed: 0, added: 0, adGroup: adGroupRN };
+
+  await cust.mutateResources(ops as unknown as Parameters<typeof cust.mutateResources>[0]);
+  return { ok: true, removed: existingRNs.length, added: newKeywords.length, adGroup: adGroupRN };
 }
 
 /**
