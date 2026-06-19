@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ArrowLeft, Radio, Mail, Smartphone, ExternalLink, Megaphone } from "lucide-react";
+import { ArrowLeft, Radio, Mail, Smartphone, ExternalLink, Megaphone, BarChart3, ChevronRight } from "lucide-react";
 import { supabaseAdmin, supabaseAdminConfigured } from "@/app/lib/supabaseAdmin";
 import { confirmationEmailHtml, launchEmailHtml } from "@/app/lib/eligibilite";
+import { listTrackedCampaigns, type TrackedCampaign } from "@/app/lib/googleAds/persistence";
 import LeadAdsPanel, { type PlanLike } from "./LeadAdsPanel";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,9 @@ export default async function FunnelConsolePage() {
       adsByLead.set(r.lead_id, { status: r.status, customer_id: r.customer_id, campaign_id: r.campaign_id, plan: plan ?? null });
     }
   }
+
+  // Campagnes réellement créées (campaign_id non nul) — section « en cours ».
+  const campaigns = supabaseAdminConfigured ? await listTrackedCampaigns() : [];
 
   // Pour les aperçus emails / pages : on prend le lead le plus complet dispo.
   const sample = leads.find((l) => l.service_cible) ?? leads[0] ?? SAMPLE;
@@ -178,6 +182,25 @@ export default async function FunnelConsolePage() {
           )}
         </section>
 
+        {/* ── Campagnes en cours ── */}
+        <section className="mt-10">
+          <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">
+            <BarChart3 className="w-4 h-4" /> Campagnes en cours
+          </h2>
+          {campaigns.length === 0 ? (
+            <p className="text-sm text-slate-500">Aucune campagne créée pour l&apos;instant.</p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {campaigns.map((c) => (
+                <CampaignRow key={c.id} c={c} />
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-xs text-slate-600">
+            « Détails » ouvre les perfs réelles (Google Ads API) + un chat pour interroger Claude sur la campagne.
+          </p>
+        </section>
+
         {/* ── Aperçu des pages client ── */}
         <section className="mt-10">
           <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-400 mb-3">
@@ -201,6 +224,34 @@ export default async function FunnelConsolePage() {
         </section>
       </div>
     </main>
+  );
+}
+
+const CAMPAIGN_STATUS_LABEL: Record<string, { label: string; tone: string }> = {
+  active: { label: "active", tone: "bg-emerald-500/15 border-emerald-500/40 text-emerald-300" },
+  paused: { label: "en pause", tone: "bg-amber-500/15 border-amber-500/40 text-amber-300" },
+  capped: { label: "plafonnée", tone: "bg-sky-500/15 border-sky-500/40 text-sky-300" },
+  error: { label: "erreur", tone: "bg-rose-500/15 border-rose-500/40 text-rose-300" },
+};
+
+function CampaignRow({ c }: { c: TrackedCampaign }) {
+  const st = CAMPAIGN_STATUS_LABEL[c.status] ?? { label: c.status, tone: "bg-slate-700/50 border-slate-600 text-slate-300" };
+  return (
+    <Link
+      href={`/admin/funnel/campagne/${c.id}`}
+      className="group flex items-center justify-between gap-3 rounded-xl border border-[#2a2a35] bg-[#13131a] px-4 py-3 hover:border-orange-500/40 transition"
+    >
+      <div className="min-w-0">
+        <div className="font-medium truncate">{c.client_name}</div>
+        <div className="text-xs text-slate-500 truncate">
+          {c.metier} {c.ville} · {c.daily_budget != null ? `${c.daily_budget} €/j` : "budget ?"}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <span className={`rounded-md border px-2 py-1 text-[11px] font-medium ${st.tone}`}>{st.label}</span>
+        <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-orange-300 transition" />
+      </div>
+    </Link>
   );
 }
 
