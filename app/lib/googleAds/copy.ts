@@ -34,17 +34,22 @@ function clamp(s: string, n: number): string {
 }
 const dedupe = (arr: string[]) => Array.from(new Set(arr.map((s) => s.trim()).filter(Boolean)));
 
-/** Mots-clés rule-based à partir du service ciblé + ville. */
-export function fallbackKeywords(service: string, ville: string): Keyword[] {
+/**
+ * Mots-clés rule-based à partir du service ciblé — SANS ville.
+ * La ville n'est volontairement PAS dans le mot-clé : le ciblage géographique de
+ * proximité (cf. create.ts) localise déjà la diffusion. Mettre la ville dedans
+ * combinait deux restrictions géo et donnait des mots-clés « Volume de recherche
+ * faible / Non éligible » qui ne diffusaient jamais.
+ */
+export function fallbackKeywords(service: string): Keyword[] {
   const s = service.toLowerCase().trim();
-  const v = ville.toLowerCase().trim();
   const bases = [
-    `${s} ${v}`,
-    `${s} urgence ${v}`,
-    `${s} pas cher ${v}`,
-    `devis ${s} ${v}`,
-    `${s} rapide ${v}`,
-    `${s} ${v} pro`,
+    s,
+    `devis ${s}`,
+    `${s} pas cher`,
+    `${s} urgence`,
+    `${s} rapide`,
+    `${s} prix`,
   ].filter((x) => x.replace(/\s+/g, " ").trim().length > 3);
 
   const uniq = dedupe(bases);
@@ -94,7 +99,7 @@ export async function generateAdContent(a: {
   service: string;
 }): Promise<{ keywords: Keyword[]; ad: AdCopy; source: "claude" | "fallback" }> {
   const fb = {
-    keywords: fallbackKeywords(a.service, a.ville),
+    keywords: fallbackKeywords(a.service),
     ad: fallbackAdCopy(a.service, a.ville, a.metier),
     source: "fallback" as const,
   };
@@ -113,8 +118,10 @@ export async function generateAdContent(a: {
             `Métier: "${a.metier}". Ville: "${a.ville}". Service à pousser: "${a.service}". ` +
             `Génère une campagne Search. Contraintes STRICTES : titres ≤ 30 caractères, ` +
             `descriptions ≤ 90 caractères, pas de MAJUSCULES entières, pas de "!!!", chiffres bienvenus. ` +
-            `Donne 8 expressions de mots-clés à forte intention commerciale (incluant la ville), ` +
-            `15 titres et 4 descriptions. ` +
+            `Donne 8 expressions de mots-clés à forte intention commerciale SANS le nom de la ville ` +
+            `(le ciblage géographique localise déjà la diffusion ; mettre la ville dans le mot-clé ` +
+            `le rend "Volume de recherche faible" et il ne diffuse jamais). La ville reste autorisée ` +
+            `dans les titres et descriptions. Donne aussi 15 titres et 4 descriptions. ` +
             `Réponds STRICTEMENT en JSON: {"keywords":["..."],"headlines":["..."],"descriptions":["..."]}`,
         },
       ],

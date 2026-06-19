@@ -11,7 +11,8 @@
 import { leadToCampaignParams, type EligibiliteLead, type CampaignParams } from "./mapping";
 import { negativesFor } from "./negatives";
 import { generateAdContent, type Keyword, type AdCopy } from "./copy";
-import { MCC_ID, googleAdsConfigured } from "./client";
+import { MCC_ID, googleAdsConfigured, mccCustomer } from "./client";
+import { bestKeywordsForLead } from "./keywordIdeas";
 import { recordAdsAccount, existingCampaignForLead } from "./persistence";
 import { createOrReuseAccount, inviteUser, createPausedCampaign } from "./create";
 
@@ -32,6 +33,8 @@ export interface CampaignPlan {
   ad: AdCopy;
   callTracking: CallTrackingPlan;
   copySource: "claude" | "fallback";
+  /** Provenance des mots-clés : API Google (volume réel), Claude, ou rule-based. */
+  keywordSource: "keyword_ideas" | "claude" | "fallback";
   warnings: string[];
 }
 
@@ -50,13 +53,40 @@ export interface CreateResult {
 /** Construit le plan complet (mapping + contenu Claude + négatifs + call tracking). */
 export async function buildPlan(lead: EligibiliteLead): Promise<CampaignPlan> {
   const params = leadToCampaignParams(lead);
-  const { keywords, ad, source } = await generateAdContent({
+  const { keywords: copyKeywords, ad, source } = await generateAdContent({
     metier: params.metier,
     ville: params.ville,
     service: params.serviceCible,
   });
 
   const warnings: string[] = [];
+
+  // Mots-clés "réels" via le Keyword Plan Idea Service (volume réel par zone, SANS
+  // ville). On interroge via le MCC (read-only, pas de billing requis). À défaut
+  // (pas de credentials, zone vide, erreur API), on retombe sur les mots-clés de
+  // copy.ts (désormais eux aussi city-free).
+  let keywords = copyKeywords;
+  let keywordSource: CampaignPlan["keywordSource"] = source;
+  if (googleAdsConfigured()) {
+    try {
+      const { keywords: apiKw, geoUsed } = await bestKeywordsForLead(mccCustomer(), MCC_ID, {
+        metier: params.metier,
+        service: params.serviceCible,
+        ville: params.ville,
+        department: null,
+        url: params.finalUrl || lead.site_url || null,
+      });
+      if (apiKw.length) {
+        keywords = apiKw;
+        keywordSource = "keyword_ideas";
+        console.log(`[google-ads][kw] ${apiKw.length / 2} mots-clés via API (géo: ${geoUsed}) pour lead ${lead.id}`);
+      } else {
+        warnings.push("Keyword Ideas n'a renvoyé aucun mot-clé diffusable : repli sur les mots-clés rule-based.");
+      }
+    } catch (e) {
+      warnings.push(`Keyword Ideas indisponible (${e instanceof Error ? e.message : e}) : repli rule-based.`);
+    }
+  }
   if (!params.finalUrl) warnings.push("site_url manquant : final URL obligatoire pour diffuser.");
   if (!params.callPhoneE164) warnings.push("téléphone non exploitable : pas de call asset ni de conversion appel.");
   if (params.geo.kind === "city" && !params.ville) warnings.push("ni lat/lon ni ville : ciblage géographique impossible.");
@@ -74,6 +104,7 @@ export async function buildPlan(lead: EligibiliteLead): Promise<CampaignPlan> {
       callPhoneE164: params.callPhoneE164,
     },
     copySource: source,
+    keywordSource,
     warnings,
   };
 }
