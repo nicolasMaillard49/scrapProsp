@@ -40,9 +40,24 @@ export interface IgProfile {
   fullName?: string | null;
   biography?: string | null;
   externalUrl?: string | null;
+  externalUrls?: Array<{ url?: string }> | string[] | null;
   followersCount?: number | null;
+  followsCount?: number | null;
+  postsCount?: number | null;
   businessCategoryName?: string | null;
+  isBusinessAccount?: boolean | null;
+  verified?: boolean | null;
   private?: boolean;
+  profilePicUrl?: string | null;
+  // Contact public exposé par les comptes pro/business — noms de champs variables
+  // selon la version de l'actor : on couvre les alias connus.
+  public_email?: string | null;
+  businessEmail?: string | null;
+  public_phone_number?: string | null;
+  businessPhoneNumber?: string | null;
+  contactPhoneNumber?: string | null;
+  // Tout le reste du profil renvoyé par l'actor (conservé en `raw`).
+  [key: string]: unknown;
 }
 
 /**

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { apifyConfigured, fetchHashtagUsernames, fetchProfiles } from "@/app/lib/apify";
-import { isProspect, detectMetier, detectVille, detectBookingPlatform } from "@/app/lib/instagram";
+import { isProspect, detectMetier, detectVille, detectBookingPlatform, pickContact } from "@/app/lib/instagram";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel : laisse le temps aux runs Apify
@@ -13,6 +13,7 @@ interface DiscoverBody {
   hashtag?: string;
   target?: number;
   dryRun?: boolean;
+  keepAll?: boolean; // true = capture TOUS les profils (+ has_website), pas seulement les sans-site
 }
 
 /**
@@ -35,6 +36,7 @@ export async function POST(req: NextRequest) {
   if (!hashtag) return NextResponse.json({ error: "hashtag requis" }, { status: 400 });
   const target = Math.min(Math.max(Number(body.target) || 100, 1), 300);
   const dryRun = body.dryRun === true;
+  const keepAll = body.keepAll === true;
 
   // 1) Sur-récupération des usernames depuis le hashtag.
   const overfetch = Math.min(target * 5, 500);
@@ -63,10 +65,19 @@ export async function POST(req: NextRequest) {
     bio: string | null;
     external_url: string | null;
     followers: number | null;
+    follows_count: number | null;
+    posts_count: number | null;
     category: string | null;
     metier: string;
     ville: string;
     booking_platform: string | null;
+    email: string | null;
+    phone: string | null;
+    is_business: boolean | null;
+    verified: boolean | null;
+    has_website: boolean;
+    profile_pic_url: string | null;
+    raw: unknown;
     hashtag_source: string;
   }
   const qualified: QualRow[] = [];
@@ -89,17 +100,29 @@ export async function POST(req: NextRequest) {
     const batchRows: QualRow[] = [];
     for (const p of profiles) {
       if (qualified.length + batchRows.length >= target) break;
-      if (!isProspect(p)) continue; // a un vrai site -> écarté
+      const prospect = isProspect(p); // sans vrai site = prospect
+      // keepAll=false (flux DM) : on n'garde que les sans-site. keepAll=true : on garde tout.
+      if (!keepAll && !prospect) continue;
+      const { email, phone } = pickContact(p);
       batchRows.push({
         username: p.username,
         full_name: p.fullName ?? null,
         bio: p.biography ?? null,
         external_url: p.externalUrl ?? null,
         followers: typeof p.followersCount === "number" ? p.followersCount : null,
+        follows_count: typeof p.followsCount === "number" ? p.followsCount : null,
+        posts_count: typeof p.postsCount === "number" ? p.postsCount : null,
         category: p.businessCategoryName ?? null,
         metier: detectMetier(p.businessCategoryName, p.biography),
         ville: detectVille(hashtag, p.biography),
         booking_platform: detectBookingPlatform(p.externalUrl, p.biography),
+        email,
+        phone,
+        is_business: typeof p.isBusinessAccount === "boolean" ? p.isBusinessAccount : null,
+        verified: typeof p.verified === "boolean" ? p.verified : null,
+        has_website: !prospect,
+        profile_pic_url: typeof p.profilePicUrl === "string" ? p.profilePicUrl : null,
+        raw: p,
         hashtag_source: hashtag,
       });
     }
@@ -111,7 +134,9 @@ export async function POST(req: NextRequest) {
       const { data, error } = await supabase
         .from("instagram_prospects")
         .upsert(batchRows, { onConflict: "username", ignoreDuplicates: true })
-        .select("id, username, full_name, bio, followers, category, metier, ville, booking_platform, status");
+        .select(
+          "id, username, full_name, bio, followers, follows_count, posts_count, category, metier, ville, booking_platform, email, phone, is_business, verified, has_website, profile_pic_url, status",
+        );
       if (error) {
         console.error("insert batch failed:", error.message);
       } else {

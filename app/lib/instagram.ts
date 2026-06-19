@@ -11,7 +11,7 @@ import type { IgProfile } from "./apify";
  * ce ne sont PAS de vrais sites, c'est même un argument de vente.
  * ──────────────────────────────────────────────────────────── */
 const AGGREGATOR_HOSTS = [
-  "beacons.ai", "beacons.page", "taplink", "lnk.bio",
+  "linktr.ee", "linktree", "beacons.ai", "beacons.page", "taplink", "lnk.bio",
   "linkin.bio", "linktw.in", "campsite.bio", "bio.link", "msha.ke", "withkoji",
   "planity.com", "treatwell", "fresha.com", "booksy.com", "kiute", "flowkey",
   "wa.me", "whatsapp.com", "instagram.com", "facebook.com", "fb.me", "fb.com",
@@ -137,6 +137,54 @@ export function detectBookingPlatform(externalUrl: string | null | undefined, bi
     }
   }
   return null;
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Extraction de contact (cœur « IG email extractor ») — email + téléphone
+ * depuis les champs business de l'actor ET depuis le texte de la bio.
+ * ──────────────────────────────────────────────────────────── */
+const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
+// Téléphones FR : 0X xx xx xx xx, +33 X…, séparateurs variés (espace, ., -, /).
+const PHONE_FR_RE = /(?:(?:\+33|0033)\s?[1-9]|0[1-9])(?:[\s.\-/]?\d{2}){4}/g;
+
+/** Emails trouvés dans un texte (bio), dédupliqués, en minuscules. */
+export function extractEmails(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const found = [...text.matchAll(EMAIL_RE)].map((m) => m[0].toLowerCase());
+  return Array.from(new Set(found));
+}
+
+/** Numéros FR trouvés dans un texte, normalisés en `0X XX XX XX XX`. */
+export function extractPhonesFr(text: string | null | undefined): string[] {
+  if (!text) return [];
+  const out = new Set<string>();
+  for (const m of text.matchAll(PHONE_FR_RE)) {
+    let digits = m[0].replace(/[^\d+]/g, "");
+    digits = digits.replace(/^(?:\+33|0033)/, "0"); // format national
+    if (digits.length === 10 && digits.startsWith("0")) {
+      out.add(digits.replace(/(\d{2})(?=\d)/g, "$1 ").trim());
+    }
+  }
+  return Array.from(out);
+}
+
+/**
+ * Email + téléphone d'un profil : priorité aux champs business de l'actor (alias
+ * multiples), repli sur la bio. C'est ce qui alimente le CSV « max d'infos ».
+ */
+export function pickContact(profile: {
+  public_email?: string | null;
+  businessEmail?: string | null;
+  public_phone_number?: string | null;
+  businessPhoneNumber?: string | null;
+  contactPhoneNumber?: string | null;
+  biography?: string | null;
+}): { email: string | null; phone: string | null } {
+  const fieldEmail = (profile.public_email || profile.businessEmail || "").trim().toLowerCase() || null;
+  const fieldPhone = (profile.public_phone_number || profile.businessPhoneNumber || profile.contactPhoneNumber || "").trim() || null;
+  const email = fieldEmail || extractEmails(profile.biography)[0] || null;
+  const phone = fieldPhone || extractPhonesFr(profile.biography)[0] || null;
+  return { email, phone };
 }
 
 export interface IgDmInput {

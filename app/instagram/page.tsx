@@ -67,9 +67,12 @@ export default function InstagramPage() {
 
   const loadLeads = useCallback(async () => {
     if (!supabaseConfigured) return;
+    // Sémantique « sans site » de cette page : on exclut les profils avec un vrai
+    // site (insérés par le pipeline /instagram/prospection avec keepAll=true).
     const { data } = await supabase
       .from("instagram_prospects")
       .select("*")
+      .or("has_website.is.null,has_website.eq.false")
       .order("discovered_at", { ascending: false })
       .limit(1000);
     setLeads((data ?? []) as IgLead[]);
@@ -155,10 +158,18 @@ export default function InstagramPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-secondary)]">
-            <Users className="w-4 h-4" />
-            <span className="font-mono-num">{leads.length}</span>
-            <span className="hidden sm:inline">leads</span>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/instagram/prospection"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-accent)]/30 text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] transition no-underline"
+            >
+              <Hash className="w-3.5 h-3.5" /> Hashtags + export
+            </Link>
+            <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-secondary)]">
+              <Users className="w-4 h-4" />
+              <span className="font-mono-num">{leads.length}</span>
+              <span className="hidden sm:inline">leads</span>
+            </div>
           </div>
         </div>
       </header>
