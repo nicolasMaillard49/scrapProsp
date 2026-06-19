@@ -8,6 +8,7 @@
  * warnings — l'appelant complète alors avec la config en base.
  */
 import { clientCustomer } from "./client";
+import { describeAdsError } from "./errors";
 
 export interface Metrics {
   impressions: number;
@@ -153,7 +154,7 @@ export async function fetchCampaignReport(customerId: string, campaignId: string
       warnings.push("Campagne introuvable via l'API (id inconnu ou compte non lié).");
     }
   } catch (e) {
-    warnings.push(`Données live indisponibles : ${e instanceof Error ? e.message : String(e)}`);
+    warnings.push(`Données live indisponibles : ${describeAdsError(e)}`);
     return base; // pas la peine de tenter le reste si l'état échoue
   }
 
