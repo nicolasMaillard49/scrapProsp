@@ -9,11 +9,15 @@
 import { enums } from "google-ads-api";
 import type { Keyword } from "./copy";
 
-/** Opération mutate (forme tolérante, comme dans create.ts). */
+/**
+ * Opération mutate (forme tolérante, comme dans create.ts).
+ * `mutateResources` lit `resource` comme valeur du oneof d'opération :
+ *  - create → un objet ressource
+ *  - remove → la **string** resource_name (sinon `{ remove: undefined }` → oneof vide).
+ */
 export interface MutateOp {
   entity: string;
   operation: "create" | "remove";
-  resource_name?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   resource?: any;
 }
@@ -31,7 +35,7 @@ export function buildKeywordRefreshOps(
   const removes: MutateOp[] = existingKeywordResourceNames.map((rn) => ({
     entity: "ad_group_criterion",
     operation: "remove",
-    resource_name: rn,
+    resource: rn, // string resource_name = valeur du oneof `remove`
   }));
 
   const creates: MutateOp[] = newKeywords.map((kw) => ({

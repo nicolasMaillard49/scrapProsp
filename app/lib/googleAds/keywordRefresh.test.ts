@@ -19,7 +19,9 @@ test("buildKeywordRefreshOps: supprime les anciens criteria et crée les nouveau
   assert.equal(removes.length, 2);
   assert.equal(creates.length, 2);
   assert.ok(removes.every((o) => o.entity === "ad_group_criterion"));
-  assert.deepEqual(removes.map((o) => o.resource_name).sort(), [...existing].sort());
+  // La lib lit `resource` comme valeur du oneof : pour un remove, c'est la string
+  // resource_name (PAS un champ `resource_name`, sinon oneof vide → erreur Google).
+  assert.deepEqual(removes.map((o) => o.resource).sort(), [...existing].sort());
 });
 
 test("buildKeywordRefreshOps: les créations ciblent le bon ad group avec text + match_type", () => {
