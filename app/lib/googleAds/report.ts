@@ -133,7 +133,7 @@ export async function fetchCampaignReport(customerId: string, campaignId: string
   try {
     const rows = await q(
       `SELECT campaign.id, campaign.name, campaign.status, campaign.serving_status, ` +
-        `campaign.bidding_strategy_type, campaign.start_date, campaign.end_date, ` +
+        `campaign.bidding_strategy_type, ` +
         `campaign_budget.amount_micros ` +
         `FROM campaign WHERE campaign.id = ${campaignId} LIMIT 1`,
     );
@@ -147,8 +147,6 @@ export async function fetchCampaignReport(customerId: string, campaignId: string
       base.campaign.status = enumName(c.status);
       base.campaign.servingStatus = enumName(c.serving_status);
       base.campaign.biddingStrategy = enumName(c.bidding_strategy_type);
-      base.campaign.startDate = (c.start_date as string) ?? null;
-      base.campaign.endDate = (c.end_date as string) ?? null;
       base.budget.dailyEur = r.campaign_budget?.amount_micros != null ? microsToEur(r.campaign_budget.amount_micros) : null;
     } else {
       warnings.push("Campagne introuvable via l'API (id inconnu ou compte non lié).");
@@ -173,6 +171,10 @@ export async function fetchCampaignReport(customerId: string, campaignId: string
         `ORDER BY metrics.clicks DESC LIMIT 5`,
     ),
   ]);
+
+  for (const [label, res] of [["perf 30 j", m30], ["perf 7 j", m7], ["approbation", approval], ["mots-clés", kws]] as const) {
+    if (res.status === "rejected") warnings.push(`${label} : ${describeAdsError(res.reason)}`);
+  }
 
   if (m30.status === "fulfilled" && m30.value[0]) base.metrics30d = normalizeMetrics(m30.value[0]);
   if (m7.status === "fulfilled" && m7.value[0]) base.metrics7d = normalizeMetrics(m7.value[0]);
