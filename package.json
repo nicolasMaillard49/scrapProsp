@@ -12,7 +12,8 @@
     "migrate:005": "node scripts/apply-migration-005.mjs",
     "migrate:006": "node scripts/apply-migration-006.mjs",
     "migrate:013": "node scripts/apply-migration-013.mjs",
-    "migrate:014": "node scripts/apply-migration-014.mjs"
+    "migrate:014": "node scripts/apply-migration-014.mjs",
+    "migrate:016": "node scripts/apply-migration-016.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

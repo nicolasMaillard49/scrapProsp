@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractEmails, extractPhonesFr, pickContact, hasRealWebsite } from "./instagram";
+import {
+  extractEmails, extractPhonesFr, pickContact, hasRealWebsite,
+  extractLastPostAt, isActiveSince, prospectScore, detectMetier,
+} from "./instagram";
 
 test("extractEmails: trouve, déduplique, minuscule", () => {
   assert.deepEqual(extractEmails("Contact: Jean.Dupont@Salon.FR ou jean.dupont@salon.fr"), ["jean.dupont@salon.fr"]);
@@ -32,4 +35,47 @@ test("hasRealWebsite: vrai site vs agrégateur (sanity, inchangé)", () => {
   assert.equal(hasRealWebsite("https://mon-salon.fr"), true);
   assert.equal(hasRealWebsite("https://linktr.ee/x"), false);
   assert.equal(hasRealWebsite(""), false);
+});
+
+test("extractLastPostAt: prend le timestamp le plus récent de latestPosts", () => {
+  const raw = { latestPosts: [{ timestamp: "2026-05-01T10:00:00.000Z" }, { timestamp: "2026-06-15T08:00:00.000Z" }, { noTs: true }] };
+  assert.equal(extractLastPostAt(raw), "2026-06-15T08:00:00.000Z");
+  assert.equal(extractLastPostAt({}), null);
+  assert.equal(extractLastPostAt(null), null);
+  assert.equal(extractLastPostAt({ latestPosts: [] }), null);
+});
+
+test("isActiveSince: fenêtre 3 mois (règle double check)", () => {
+  const now = Date.parse("2026-07-01T00:00:00Z");
+  assert.equal(isActiveSince("2026-06-01T00:00:00Z", 3, now), true); // 1 mois
+  assert.equal(isActiveSince("2026-01-01T00:00:00Z", 3, now), false); // 6 mois
+  assert.equal(isActiveSince(null, 3, now), false);
+  assert.equal(isActiveSince("pas-une-date", 3, now), false);
+});
+
+test("prospectScore: cumul des signaux + tiers", () => {
+  const now = Date.parse("2026-07-01T00:00:00Z");
+  // Cas parfait : tout coche → 100, hot
+  const hot = prospectScore({
+    has_website: false, last_post_at: "2026-06-20T00:00:00Z", followers: 800,
+    email: "a@b.fr", phone: null, is_business: true, bio: "Devis gratuit, dispo en MP",
+  }, now);
+  assert.deepEqual(hot, { score: 100, tier: "hot" });
+  // Sans site + actif → 50, warm
+  const warm = prospectScore({ has_website: false, last_post_at: "2026-06-20T00:00:00Z", followers: 50_000 }, now);
+  assert.deepEqual(warm, { score: 50, tier: "warm" });
+  // A un site, inactif, rien → 0, cold
+  const cold = prospectScore({ has_website: true, last_post_at: null, followers: null }, now);
+  assert.deepEqual(cold, { score: 0, tier: "cold" });
+});
+
+test("detectMetier: métiers artisans détectés (catégorie ou bio)", () => {
+  assert.equal(detectMetier("Menuiserie", ""), "menuisier");
+  assert.equal(detectMetier(null, "Paysagiste — aménagement extérieur & élagage"), "paysagiste");
+  assert.equal(detectMetier(null, "Pose carrelage et faïence"), "carreleur");
+  assert.equal(detectMetier(null, "Couvreur zingueur, rénovation toiture"), "couvreur");
+  assert.equal(detectMetier(null, "Électricien à Bordeaux, domotique"), "electricien");
+  assert.equal(detectMetier(null, "Plombier chauffagiste"), "plombier"); // 1re règle qui matche
+  assert.equal(detectMetier(null, "Maçonnerie générale"), "macon");
+  assert.equal(detectMetier(null, "juste un compte perso"), "");
 });

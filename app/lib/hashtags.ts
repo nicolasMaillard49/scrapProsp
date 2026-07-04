@@ -13,11 +13,11 @@ const COMMUNES = communesData as Commune[]; // déjà trié par population décr
 
 export interface HashtagRow {
   hashtag: string;
-  ville: string;
-  population: number;
-  dept: string;
+  ville: string; // "" pour un hashtag métier pur (sans ville)
+  population: number; // 0 pour un hashtag métier pur
+  dept: string; // "" pour un hashtag métier pur
   metier: string; // synonyme utilisé
-  pattern: "metier+ville" | "ville+metier";
+  pattern: "metier+ville" | "ville+metier" | "metier" | "transversal";
 }
 
 export interface GenerateOptions {
@@ -47,7 +47,97 @@ const METIER_SYNONYMS: Record<string, string[]> = {
   tatoueur: ["tatoueur", "tattoo", "tatouage"],
   photographe: ["photographe", "photographemariage"],
   boulanger: ["boulanger", "boulangerie", "patisserie"],
+  // Artisans du bâtiment (métiers visuels = les plus présents sur Instagram)
+  menuisier: ["menuisier", "menuiserie", "ebeniste", "ebenisterie", "agencement"],
+  paysagiste: ["paysagiste", "paysagisme", "amenagementexterieur"],
+  carreleur: ["carreleur", "carrelage"],
+  peintre: ["peintre", "peintreendecoration", "peintrebatiment"],
+  macon: ["macon", "maconnerie"],
+  couvreur: ["couvreur", "couverture", "toiture"],
+  charpentier: ["charpentier", "charpente"],
+  ferronnier: ["ferronnier", "ferronnerie", "metallerie"],
+  plaquiste: ["plaquiste", "platrier", "placo"],
+  cuisiniste: ["cuisiniste", "cuisinesurmesure"],
+  plombier: ["plombier", "plomberie"],
+  electricien: ["electricien", "electricite"],
+  chauffagiste: ["chauffagiste", "chauffage"],
 };
+
+/**
+ * Bibliothèque de hashtags MÉTIER PURS (sans ville) — testés comme les plus
+ * utilisés par les artisans/indés FR sur Instagram. Ce sont les plus qualifiés :
+ * on scrape directement dessus, la géo n'a pas d'importance (méthode hashtag).
+ */
+const METIER_HASHTAGS: Record<string, string[]> = {
+  menuisier: ["menuisier", "menuiserie", "ebeniste", "ebenisterie", "menuisiersurmesure", "menuiseriesurmesure", "agencement", "agencementsurmesure", "artisanmenuisier", "travaildubois", "atelierbois", "mobiliersurmesure"],
+  paysagiste: ["paysagiste", "paysagisme", "amenagementexterieur", "amenagementpaysager", "jardinsurmesure", "creationjardin", "entretienjardin", "terrasseetjardin", "artisanpaysagiste"],
+  carreleur: ["carreleur", "carrelage", "posecarrelage", "faience", "carrelagesalledebain", "artisancarreleur", "carrelagedesign"],
+  peintre: ["peintre", "peintreendecoration", "peintrebatiment", "peintureinterieure", "decorationinterieure", "renovationpeinture", "artisanpeintre"],
+  macon: ["macon", "maconnerie", "maconneriegenerale", "macontraditionnel", "pierredetaille", "grosoeuvre", "extensionmaison"],
+  couvreur: ["couvreur", "couverture", "toiture", "zinguerie", "renovationtoiture", "artisancouvreur"],
+  charpentier: ["charpentier", "charpente", "charpentebois", "ossaturebois"],
+  ferronnier: ["ferronnerie", "ferronnierdart", "metallerie", "metallier", "gardecorps", "portailsurmesure"],
+  plaquiste: ["plaquiste", "platrier", "placo", "platrerie", "isolation", "cloisonseche"],
+  cuisiniste: ["cuisiniste", "cuisinesurmesure", "amenagementcuisine", "renovationsalledebain", "salledebainsurmesure"],
+  plombier: ["plombier", "plomberie", "artisanplombier", "salledebain"],
+  electricien: ["electricien", "electricite", "artisanelectricien", "renovationelectrique", "domotique"],
+  chauffagiste: ["chauffagiste", "chauffage", "pompeachaleur", "climatisation"],
+  coiffeur: ["coiffeur", "coiffure", "barbier", "salondecoiffure", "coiffeurcoloriste", "balayage", "coiffeuse"],
+  restaurant: ["restaurant", "resto", "restaurantfrancais", "faitmaison", "bistrot", "traiteur"],
+  estheticienne: ["estheticienne", "institutbeaute", "ongles", "nailart", "prothesisteongulaire", "extensiondecils", "microblading"],
+  fleuriste: ["fleuriste", "fleurs", "artisanfleuriste", "bouquetdefleurs", "fleuristecreateur"],
+  tatoueur: ["tatoueur", "tattoo", "tatouage", "tatoueurfrancais", "inked"],
+  photographe: ["photographe", "photographemariage", "photographeportrait", "photographefrancais", "seancephoto"],
+  boulanger: ["boulanger", "boulangerie", "patisserie", "artisanboulanger", "painaulevain", "patissier"],
+};
+
+/**
+ * Hashtags TRANSVERSAUX bâtiment/artisanat : gros volume mais bruités
+ * (marques, fournisseurs, particuliers) → à filtrer sévèrement derrière
+ * (qualification IA + double check). Signalés `pattern: "transversal"`.
+ */
+const TRANSVERSAL_HASHTAGS = [
+  "renovation", "renovationmaison", "renovationinterieure", "artisandubatiment",
+  "artisanat", "artisanfrancais", "btp", "travaux", "chantier", "avantapres",
+  "faitmain", "savoirfaire", "madeinfrance",
+];
+
+/**
+ * Génère les hashtags MÉTIER PURS (sans ville) pour un métier donné :
+ * bibliothèque dédiée si connue, sinon synonymes slugifiés. Ajoute les
+ * transversaux si `includeTransversal`. C'est le mode le plus qualifié.
+ */
+export function generateMetierHashtags(
+  metier: string,
+  opts: { includeTransversal?: boolean } = {},
+): HashtagRow[] {
+  const slug = slugify(metier);
+  if (!slug) return [];
+  // Retrouve la clé canonique (le métier lui-même ou l'un de ses synonymes).
+  let key: string | null = null;
+  for (const [k, syns] of Object.entries(METIER_SYNONYMS)) {
+    if (slug === slugify(k) || syns.includes(slug)) {
+      key = k;
+      break;
+    }
+  }
+  const tags = key && METIER_HASHTAGS[key] ? METIER_HASHTAGS[key] : metierSynonyms(metier);
+  const rows: HashtagRow[] = [];
+  const seen = new Set<string>();
+  for (const tag of tags) {
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    rows.push({ hashtag: tag, ville: "", population: 0, dept: "", metier: key ?? slug, pattern: "metier" });
+  }
+  if (opts.includeTransversal) {
+    for (const tag of TRANSVERSAL_HASHTAGS) {
+      if (seen.has(tag)) continue;
+      seen.add(tag);
+      rows.push({ hashtag: tag, ville: "", population: 0, dept: "", metier: key ?? slug, pattern: "transversal" });
+    }
+  }
+  return rows;
+}
 
 export function metierSynonyms(metier: string): string[] {
   const slug = slugify(metier);

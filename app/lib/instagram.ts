@@ -57,7 +57,11 @@ export function isProspect(profile: IgProfile): boolean {
  * Déduction de la niche (metier) — depuis catégorie business + bio.
  * Renvoie un code aligné sur les kits de template (nicheKits.ts).
  * ──────────────────────────────────────────────────────────── */
-type Niche = "coiffeur" | "restaurant" | "estheticienne" | "fleuriste" | "tatoueur" | "";
+type Niche =
+  | "coiffeur" | "restaurant" | "estheticienne" | "fleuriste" | "tatoueur"
+  | "menuisier" | "paysagiste" | "carreleur" | "peintre" | "macon" | "couvreur"
+  | "charpentier" | "ferronnier" | "plaquiste" | "cuisiniste" | "plombier"
+  | "electricien" | "chauffagiste" | "";
 
 const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   { niche: "coiffeur", re: /(coiff|barbi|barber|\bhair\b|hairdress|hairstyl|coloris|salon de coiff)/i },
@@ -65,6 +69,20 @@ const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   { niche: "estheticienne", re: /(esth[eé]|institut|beaut|beauty|cosmetic|ongl|nail|spa|maquill|makeup|[eé]pil|cils|lash|sourcil|massage|bien-?[eê]tre)/i },
   { niche: "fleuriste", re: /(fleurist|fleurs|floral|florist|bouquet)/i },
   { niche: "tatoueur", re: /(tatou|tattoo|\bink\b|piercing)/i },
+  // Artisans du bâtiment (ordre : du plus spécifique au plus générique)
+  { niche: "menuisier", re: /(menuis|[eé]b[eé]nist|agencement|mobilier sur[- ]?mesure|travail du bois)/i },
+  { niche: "paysagiste", re: /(paysag|jardinier|am[eé]nagement (ext[eé]rieur|paysager)|espaces? verts?|[eé]lagage)/i },
+  { niche: "carreleur", re: /(carrel|fa[iï]ence|mosa[iï]que)/i },
+  { niche: "couvreur", re: /(couvreur|couverture|toiture|zingu|ardoise|tuile)/i },
+  { niche: "charpentier", re: /(charpent|ossature bois)/i },
+  { niche: "ferronnier", re: /(ferronn|m[eé]tallerie|m[eé]tallier|serrur|garde[- ]?corps|portail)/i },
+  { niche: "plaquiste", re: /(plaquiste|pl[aâ]trier|placo|pl[aâ]trerie|cloison)/i },
+  { niche: "cuisiniste", re: /(cuisiniste|cuisines? sur[- ]?mesure|am[eé]nagement de cuisine)/i },
+  { niche: "plombier", re: /(plombier|plomberie|sanitaire|salle de bain)/i },
+  { niche: "electricien", re: /([eé]lectricien|[eé]lectricit[eé]|domotique)/i },
+  { niche: "chauffagiste", re: /(chauffag|pompe [aà] chaleur|\bpac\b|climatisation|clim\b)/i },
+  { niche: "macon", re: /(ma[cç]on|gros [oœ]uvre|pierre de taille|terrass)/i },
+  { niche: "peintre", re: /(peintre|peinture (int[eé]rieure|ext[eé]rieure|d[eé]co)|d[eé]corat)/i },
 ];
 
 export function detectMetier(category?: string | null, bio?: string | null): Niche {
@@ -112,6 +130,19 @@ const NICHE_COPY: Record<string, { intro: (loc: string) => string; hook: string;
   estheticienne: { intro: (l) => `En cherchant des instituts ${l}, je suis tombé sur ton compte`, hook: "ton univers donne envie de prendre soin de soi", value: "la prise de RDV en ligne" },
   fleuriste: { intro: (l) => `En cherchant des fleuristes ${l}, je suis tombé sur ta boutique`, hook: "tes compositions sont superbes", value: "une vitrine et les commandes en ligne" },
   tatoueur: { intro: (l) => `En cherchant des tatoueurs ${l}, je suis tombé sur ton compte`, hook: "ton travail est impressionnant", value: "un book en ligne et les demandes de RDV" },
+  menuisier: { intro: (l) => `En cherchant des menuisiers ${l}, je suis tombé sur ton compte`, hook: "tes réalisations sont super propres", value: "un site qui présente tes chantiers et ramène des demandes de devis" },
+  paysagiste: { intro: (l) => `En cherchant des paysagistes ${l}, je suis tombé sur ton compte`, hook: "tes aménagements rendent vraiment bien", value: "un site qui met en avant tes réalisations et ramène des demandes de devis" },
+  carreleur: { intro: (l) => `En cherchant des carreleurs ${l}, je suis tombé sur ton compte`, hook: "tes poses sont nickel", value: "un site qui présente tes chantiers et ramène des demandes de devis" },
+  peintre: { intro: (l) => `En cherchant des peintres ${l}, je suis tombé sur ton compte`, hook: "tes finitions rendent super bien", value: "un site qui présente tes chantiers et ramène des demandes de devis" },
+  macon: { intro: (l) => `En cherchant des maçons ${l}, je suis tombé sur ton compte`, hook: "tes chantiers sont impressionnants", value: "un site qui présente tes réalisations et ramène des demandes de devis" },
+  couvreur: { intro: (l) => `En cherchant des couvreurs ${l}, je suis tombé sur ton compte`, hook: "tes avant/après parlent d'eux-mêmes", value: "un site qui présente tes chantiers et ramène des demandes de devis" },
+  charpentier: { intro: (l) => `En cherchant des charpentiers ${l}, je suis tombé sur ton compte`, hook: "ton travail du bois est superbe", value: "un site qui présente tes réalisations et ramène des demandes de devis" },
+  ferronnier: { intro: (l) => `En cherchant des ferronniers ${l}, je suis tombé sur ton compte`, hook: "tes pièces sont magnifiques", value: "un site vitrine qui présente ton travail et ramène des commandes" },
+  plaquiste: { intro: (l) => `En cherchant des plaquistes ${l}, je suis tombé sur ton compte`, hook: "tes chantiers sont propres", value: "un site qui présente tes réalisations et ramène des demandes de devis" },
+  cuisiniste: { intro: (l) => `En cherchant des cuisinistes ${l}, je suis tombé sur ton compte`, hook: "tes cuisines rendent super bien", value: "un site qui présente tes réalisations et ramène des projets" },
+  plombier: { intro: (l) => `En cherchant des plombiers ${l}, je suis tombé sur ton compte`, hook: "tes interventions sont propres", value: "un site qui ramène des demandes de dépannage et de devis" },
+  electricien: { intro: (l) => `En cherchant des électriciens ${l}, je suis tombé sur ton compte`, hook: "tes installs sont nickel", value: "un site qui ramène des demandes d'intervention et de devis" },
+  chauffagiste: { intro: (l) => `En cherchant des chauffagistes ${l}, je suis tombé sur ton compte`, hook: "tes installations sont propres", value: "un site qui ramène des demandes de devis" },
   "": { intro: (l) => `Je suis tombé sur ton compte ${l}`, hook: "j'ai bien aimé ce que tu fais", value: "une vraie présence en ligne" },
 };
 
@@ -231,4 +262,68 @@ export function instagramDmMsg(p: IgDmInput, demoLink: string): IgDmVariants {
       `alors je t'ai préparé un aperçu gratuit pour te montrer ce que ça pourrait donner avec ${copy.value}. ` +
       `Je te l'envoie ? 🙂`,
   };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Activité récente — « double check » automatisé.
+ * Règle métier (méthode prospection) : un profil inactif depuis
+ * plus de 3 mois est écarté (profil dormant → taux de réponse nul).
+ * ──────────────────────────────────────────────────────────── */
+
+/** Date du dernier post, extraite du `raw` de l'actor Apify (latestPosts[].timestamp). */
+export function extractLastPostAt(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const posts = (raw as { latestPosts?: unknown }).latestPosts;
+  if (!Array.isArray(posts) || !posts.length) return null;
+  let best: number | null = null;
+  for (const p of posts) {
+    const ts = (p as { timestamp?: unknown })?.timestamp;
+    if (typeof ts !== "string") continue;
+    const ms = Date.parse(ts);
+    if (!Number.isNaN(ms) && (best === null || ms > best)) best = ms;
+  }
+  return best === null ? null : new Date(best).toISOString();
+}
+
+/** Vrai si le dernier post date de moins de `months` mois (défaut 3 — règle du double check). */
+export function isActiveSince(lastPostAt: string | null | undefined, months = 3, now = Date.now()): boolean {
+  if (!lastPostAt) return false;
+  const ms = Date.parse(lastPostAt);
+  if (Number.isNaN(ms)) return false;
+  return now - ms <= months * 30.5 * 24 * 3600 * 1000;
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Score d'opportunité 0–100 + tier (hot/warm/cold).
+ * Combine les signaux de la méthode de prospection :
+ *  - pas de vrai site        +30  (le cœur du pitch NMF)
+ *  - actif < 3 mois          +20  (double check)
+ *  - 100–2500 abonnés        +15  (bande avatar : artisan/indé, ni mort ni influenceur)
+ *  - contact direct dispo    +15  (email ou tél → multi-canal)
+ *  - compte business          +10  (intention pro)
+ *  - signaux de besoin (bio)  +10  (devis, dispo, contact…)
+ * ──────────────────────────────────────────────────────────── */
+export interface ScoreInput {
+  has_website?: boolean | null;
+  last_post_at?: string | null;
+  followers?: number | null;
+  email?: string | null;
+  phone?: string | null;
+  is_business?: boolean | null;
+  bio?: string | null;
+}
+
+const NEED_SIGNALS_RE = /(devis|disponib|dispo\b|contactez|contacte[- ]?moi|sur rdv|sur rendez|dm\b|mp\b|renseignement|estimation gratuite|intervention)/i;
+
+export function prospectScore(p: ScoreInput, now = Date.now()): { score: number; tier: "hot" | "warm" | "cold" } {
+  let score = 0;
+  if (p.has_website === false) score += 30;
+  if (isActiveSince(p.last_post_at, 3, now)) score += 20;
+  const f = typeof p.followers === "number" ? p.followers : null;
+  if (f !== null && f >= 100 && f <= 2500) score += 15;
+  if ((p.email && p.email.trim()) || (p.phone && p.phone.trim())) score += 15;
+  if (p.is_business === true) score += 10;
+  if (p.bio && NEED_SIGNALS_RE.test(p.bio)) score += 10;
+  const tier = score >= 70 ? "hot" : score >= 45 ? "warm" : "cold";
+  return { score, tier };
 }

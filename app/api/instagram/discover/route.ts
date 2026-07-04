@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { apifyConfigured, fetchHashtagUsernames, fetchProfiles } from "@/app/lib/apify";
-import { isProspect, detectMetier, detectVille, detectBookingPlatform, pickContact } from "@/app/lib/instagram";
+import { isProspect, detectMetier, detectVille, detectBookingPlatform, pickContact, extractLastPostAt, prospectScore } from "@/app/lib/instagram";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel : laisse le temps aux runs Apify
@@ -79,6 +79,9 @@ export async function POST(req: NextRequest) {
     profile_pic_url: string | null;
     raw: unknown;
     hashtag_source: string;
+    last_post_at: string | null;
+    score: number;
+    score_tier: "hot" | "warm" | "cold";
   }
   const qualified: QualRow[] = [];
   const insertedRows: Record<string, unknown>[] = [];
@@ -104,6 +107,17 @@ export async function POST(req: NextRequest) {
       // keepAll=false (flux DM) : on n'garde que les sans-site. keepAll=true : on garde tout.
       if (!keepAll && !prospect) continue;
       const { email, phone } = pickContact(p);
+      // Double check automatisé : activité récente + score d'opportunité.
+      const lastPostAt = extractLastPostAt(p);
+      const { score, tier } = prospectScore({
+        has_website: !prospect,
+        last_post_at: lastPostAt,
+        followers: typeof p.followersCount === "number" ? p.followersCount : null,
+        email,
+        phone,
+        is_business: typeof p.isBusinessAccount === "boolean" ? p.isBusinessAccount : null,
+        bio: p.biography ?? null,
+      });
       batchRows.push({
         username: p.username,
         full_name: p.fullName ?? null,
@@ -124,6 +138,9 @@ export async function POST(req: NextRequest) {
         profile_pic_url: typeof p.profilePicUrl === "string" ? p.profilePicUrl : null,
         raw: p,
         hashtag_source: hashtag,
+        last_post_at: lastPostAt,
+        score,
+        score_tier: tier,
       });
     }
     qualified.push(...batchRows);
@@ -135,7 +152,7 @@ export async function POST(req: NextRequest) {
         .from("instagram_prospects")
         .upsert(batchRows, { onConflict: "username", ignoreDuplicates: true })
         .select(
-          "id, username, full_name, bio, followers, follows_count, posts_count, category, metier, ville, booking_platform, email, phone, is_business, verified, has_website, profile_pic_url, status",
+          "id, username, full_name, bio, followers, follows_count, posts_count, category, metier, ville, booking_platform, email, phone, is_business, verified, has_website, profile_pic_url, status, last_post_at, score, score_tier",
         );
       if (error) {
         console.error("insert batch failed:", error.message);

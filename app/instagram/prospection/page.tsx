@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Hash, Loader2, Download, Play, ListChecks, Mail, Globe } from "lucide-react";
+import { ArrowLeft, Hash, Loader2, Download, Play, ListChecks, Mail, Globe, Sparkles, Flame } from "lucide-react";
 import { toCsv } from "@/app/lib/csv";
 import type { HashtagRow } from "@/app/lib/hashtags";
 
@@ -12,18 +12,24 @@ interface RunProgress {
   profiles: number;
   withEmail: number;
   withoutSite: number;
+  hot: number;
   currentTag: string;
 }
 
 interface DiscoverResultRow {
   email?: string | null;
   has_website?: boolean | null;
+  score_tier?: string | null;
 }
 
 const MAX_RUN = 25; // borne dure de hashtags lancés par session (coût Apify)
 
+type HashtagMode = "metier" | "villes";
+
 export default function ProspectionPage() {
   const [metier, setMetier] = useState("");
+  const [mode, setMode] = useState<HashtagMode>("metier");
+  const [includeTransversal, setIncludeTransversal] = useState(false);
   const [departments, setDepartments] = useState("");
   const [limitTowns, setLimitTowns] = useState(100);
   const [perHashtag, setPerHashtag] = useState(20);
@@ -37,6 +43,13 @@ export default function ProspectionPage() {
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [runMsg, setRunMsg] = useState<string | null>(null);
 
+  // Qualification IA (méthode « filtrage ChatGPT » automatisée, lots de 40)
+  const [avatarProfession, setAvatarProfession] = useState("");
+  const [minFollowers, setMinFollowers] = useState(0);
+  const [maxFollowers, setMaxFollowers] = useState(2500);
+  const [qualifying, setQualifying] = useState(false);
+  const [qualifyMsg, setQualifyMsg] = useState<string | null>(null);
+
   const generate = useCallback(async () => {
     if (!metier.trim()) {
       setGenMsg("Entre un métier (ex. coiffeur).");
@@ -49,7 +62,11 @@ export default function ProspectionPage() {
       const res = await fetch("/api/instagram/hashtags", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ metier: metier.trim(), departments: depts, limitTowns }),
+        body: JSON.stringify(
+          mode === "metier"
+            ? { metier: metier.trim(), mode, includeTransversal }
+            : { metier: metier.trim(), mode, departments: depts, limitTowns },
+        ),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -58,15 +75,25 @@ export default function ProspectionPage() {
       }
       const list = (json.rows ?? []) as HashtagRow[];
       setRows(list);
-      // Pré-sélection des 10 premiers (villes les plus peuplées = plus actives).
-      setSelected(new Set(list.slice(0, 10).map((r) => r.hashtag)));
-      setGenMsg(`${list.length} hashtags générés sur ${json.towns} villes.`);
+      // Pré-sélection : mode métier → tous les hashtags métier (pas les transversaux) ;
+      // mode villes → les 10 premières villes (les plus peuplées = plus actives).
+      setSelected(
+        mode === "metier"
+          ? new Set(list.filter((r) => r.pattern === "metier").map((r) => r.hashtag))
+          : new Set(list.slice(0, 10).map((r) => r.hashtag)),
+      );
+      setGenMsg(
+        mode === "metier"
+          ? `${list.length} hashtags métier générés (les plus qualifiés — la géo ne compte pas).`
+          : `${list.length} hashtags générés sur ${json.towns} villes.`,
+      );
+      if (!avatarProfession.trim()) setAvatarProfession(metier.trim());
     } catch (e) {
       setGenMsg(`Erreur réseau : ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setGenerating(false);
     }
-  }, [metier, departments, limitTowns]);
+  }, [metier, mode, includeTransversal, departments, limitTowns, avatarProfession]);
 
   const toggle = useCallback((tag: string) => {
     setSelected((prev) => {
@@ -108,11 +135,12 @@ export default function ProspectionPage() {
     let profiles = 0;
     let withEmail = 0;
     let withoutSite = 0;
-    setProgress({ current: 0, total: tags.length, profiles: 0, withEmail: 0, withoutSite: 0, currentTag: "" });
+    let hot = 0;
+    setProgress({ current: 0, total: tags.length, profiles: 0, withEmail: 0, withoutSite: 0, hot: 0, currentTag: "" });
 
     for (let i = 0; i < tags.length; i++) {
       const tag = tags[i];
-      setProgress({ current: i, total: tags.length, profiles, withEmail, withoutSite, currentTag: tag });
+      setProgress({ current: i, total: tags.length, profiles, withEmail, withoutSite, hot, currentTag: tag });
       try {
         const res = await fetch("/api/instagram/discover", {
           method: "POST",
@@ -125,22 +153,63 @@ export default function ProspectionPage() {
             profiles++;
             if (r.email) withEmail++;
             if (!r.has_website) withoutSite++;
+            if (r.score_tier === "hot") hot++;
           }
         }
       } catch {
         /* un hashtag qui échoue ne stoppe pas le run */
       }
     }
-    setProgress({ current: tags.length, total: tags.length, profiles, withEmail, withoutSite, currentTag: "" });
-    setRunMsg(`Terminé : ${profiles} profils (${withEmail} avec email, ${withoutSite} sans site).`);
+    setProgress({ current: tags.length, total: tags.length, profiles, withEmail, withoutSite, hot, currentTag: "" });
+    setRunMsg(`Terminé : ${profiles} profils (${withEmail} avec email, ${withoutSite} sans site, ${hot} 🔥 hot).`);
     setRunning(false);
   }, [rows, selected, perHashtag]);
 
-  const exportProfilesCsv = useCallback(() => {
+  const exportProfilesCsv = useCallback((filters?: { tier?: string; qualification?: string }) => {
     const u = new URL("/api/instagram/export", window.location.origin);
     if (metier.trim()) u.searchParams.set("metier", metier.trim());
+    if (filters?.tier) u.searchParams.set("tier", filters.tier);
+    if (filters?.qualification) u.searchParams.set("qualification", filters.qualification);
     window.open(u.toString(), "_blank");
   }, [metier]);
+
+  /** Qualification IA : trie les profils en base par lots de 40 (verdict + score). */
+  const runQualify = useCallback(async () => {
+    if (!avatarProfession.trim()) {
+      setQualifyMsg("Décris la profession de ton avatar client (ex. artisan menuisier).");
+      return;
+    }
+    setQualifying(true);
+    setQualifyMsg(null);
+    try {
+      const res = await fetch("/api/instagram/qualify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          metier: metier.trim() || undefined,
+          onlyUnqualified: true,
+          avatar: { profession: avatarProfession.trim(), minFollowers, maxFollowers },
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setQualifyMsg(`Erreur : ${json.error ?? res.status}`);
+        return;
+      }
+      if (!json.processed) {
+        setQualifyMsg(json.note ?? "Aucun profil à qualifier.");
+      } else {
+        setQualifyMsg(
+          `IA : ${json.processed} profils triés — ✅ ${json.qualified} qualifiés · 🟡 ${json.borderline} limites · ❌ ${json.rejected} écartés.` +
+            (json.note ? ` ${json.note}` : ""),
+        );
+      }
+    } catch (e) {
+      setQualifyMsg(`Erreur réseau : ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setQualifying(false);
+    }
+  }, [avatarProfession, minFollowers, maxFollowers, metier]);
 
   const selectedCount = selected.size;
   const summary = useMemo(() => progress && progress.current >= progress.total && progress.total > 0 ? progress : null, [progress]);
@@ -167,7 +236,42 @@ export default function ProspectionPage() {
 
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* Étape 1 — générateur */}
-        <section className="glass-card rounded-2xl p-4 sm:p-5">
+        <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-3">
+          {/* Mode : hashtags métier purs (recommandé) vs métier × villes */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setMode("metier")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                mode === "metier"
+                  ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
+                  : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
+              }`}
+            >
+              Hashtags métier (recommandé)
+            </button>
+            <button
+              onClick={() => setMode("villes")}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
+                mode === "villes"
+                  ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
+                  : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
+              }`}
+            >
+              Métier × petites villes
+            </button>
+            {mode === "metier" && (
+              <label className="inline-flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)] cursor-pointer ml-1">
+                <input
+                  type="checkbox"
+                  checked={includeTransversal}
+                  onChange={(e) => setIncludeTransversal(e.target.checked)}
+                  className="accent-[var(--color-accent)]"
+                />
+                + transversaux (rénovation, btp… gros volume, bruités)
+              </label>
+            )}
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Métier</label>
@@ -175,30 +279,34 @@ export default function ProspectionPage() {
                 value={metier}
                 onChange={(e) => setMetier(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && !generating && generate()}
-                placeholder="coiffeur"
+                placeholder="menuisier, paysagiste, coiffeur…"
                 className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
               />
             </div>
-            <div className="w-full sm:w-40">
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Départements (option)</label>
-              <input
-                value={departments}
-                onChange={(e) => setDepartments(e.target.value)}
-                placeholder="33, 40, 64"
-                className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
-              />
-            </div>
-            <div className="w-full sm:w-28">
-              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Nb villes</label>
-              <input
-                type="number"
-                min={1}
-                max={300}
-                value={limitTowns}
-                onChange={(e) => setLimitTowns(Math.max(1, Math.min(300, Number(e.target.value) || 1)))}
-                className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
-              />
-            </div>
+            {mode === "villes" && (
+              <>
+                <div className="w-full sm:w-40">
+                  <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Départements (option)</label>
+                  <input
+                    value={departments}
+                    onChange={(e) => setDepartments(e.target.value)}
+                    placeholder="33, 40, 64"
+                    className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
+                  />
+                </div>
+                <div className="w-full sm:w-28">
+                  <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Nb villes</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={300}
+                    value={limitTowns}
+                    onChange={(e) => setLimitTowns(Math.max(1, Math.min(300, Number(e.target.value) || 1)))}
+                    className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
+                  />
+                </div>
+              </>
+            )}
             <div className="flex items-end">
               <button
                 onClick={generate}
@@ -210,7 +318,7 @@ export default function ProspectionPage() {
               </button>
             </div>
           </div>
-          {genMsg && <p className="mt-3 text-sm text-[var(--color-text-secondary)]">{genMsg}</p>}
+          {genMsg && <p className="text-sm text-[var(--color-text-secondary)]">{genMsg}</p>}
         </section>
 
         {/* Étape 2 — sélection des hashtags */}
@@ -237,7 +345,13 @@ export default function ProspectionPage() {
                     <input type="checkbox" checked={on} onChange={() => toggle(r.hashtag)} className="accent-[var(--color-accent)]" />
                     <span className="font-medium text-sm text-[var(--color-text-primary)]">#{r.hashtag}</span>
                     <span className="flex-1" />
-                    <span className="text-xs text-[var(--color-text-muted)]">{r.ville} ({r.dept}) · {r.population.toLocaleString("fr-FR")} hab</span>
+                    <span className="text-xs text-[var(--color-text-muted)]">
+                      {r.ville
+                        ? `${r.ville} (${r.dept}) · ${r.population.toLocaleString("fr-FR")} hab`
+                        : r.pattern === "transversal"
+                          ? "transversal · gros volume, à filtrer"
+                          : "métier · le plus qualifié"}
+                    </span>
                   </label>
                 );
               })}
@@ -286,18 +400,90 @@ export default function ProspectionPage() {
               <span className="text-[var(--color-text-primary)] font-semibold">{progress.profiles} profils</span>
               <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400"><Mail className="w-4 h-4" /> {progress.withEmail} avec email</span>
               <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"><Globe className="w-4 h-4" /> {progress.withoutSite} sans site</span>
+              <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400"><Flame className="w-4 h-4" /> {progress.hot} hot</span>
             </div>
             {runMsg && <p className="text-sm text-[var(--color-text-secondary)]">{runMsg}</p>}
-            {summary && (
-              <button
-                onClick={exportProfilesCsv}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white bg-[var(--color-accent)] hover:opacity-90 cursor-pointer"
-              >
-                <Download className="w-4 h-4" /> Export profils CSV
-              </button>
-            )}
           </section>
         )}
+
+        {/* Étape 4 — qualification IA (tri par lots de 40, façon « filtrage ChatGPT » automatisé) */}
+        <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[var(--color-accent)]" />
+            <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Qualification IA</h2>
+            <span className="text-xs text-[var(--color-text-muted)]">
+              trie les profils en base par lots de 40 (nom, pseudo, abonnés, bio uniquement) → qualifié / limite / écarté + score
+            </span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Avatar client (profession)</label>
+              <input
+                value={avatarProfession}
+                onChange={(e) => setAvatarProfession(e.target.value)}
+                placeholder="artisan menuisier / paysagiste (TPE, solo…)"
+                className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
+              />
+            </div>
+            <div className="w-full sm:w-32">
+              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Abonnés min</label>
+              <input
+                type="number" min={0} value={minFollowers}
+                onChange={(e) => setMinFollowers(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
+              />
+            </div>
+            <div className="w-full sm:w-32">
+              <label className="block text-xs font-semibold text-[var(--color-text-secondary)] mb-1.5">Abonnés max</label>
+              <input
+                type="number" min={0} value={maxFollowers}
+                onChange={(e) => setMaxFollowers(Math.max(0, Number(e.target.value) || 0))}
+                className="w-full glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={runQualify}
+                disabled={qualifying}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-all cursor-pointer disabled:opacity-60 bg-[var(--color-accent)] hover:opacity-90"
+              >
+                {qualifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {qualifying ? "Tri IA en cours..." : "Qualifier avec l'IA"}
+              </button>
+            </div>
+          </div>
+          {qualifyMsg && <p className="text-sm text-[var(--color-text-secondary)]">{qualifyMsg}</p>}
+        </section>
+
+        {/* Étape 5 — exports */}
+        <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-3">
+          <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Exports CSV (triés par score)</h2>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => exportProfilesCsv()}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[var(--color-accent)] hover:opacity-90 cursor-pointer"
+            >
+              <Download className="w-4 h-4" /> Tous les profils
+            </button>
+            <button
+              onClick={() => exportProfilesCsv({ tier: "hot" })}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-500/10 cursor-pointer"
+            >
+              <Flame className="w-4 h-4" /> 🔥 Hot uniquement
+            </button>
+            <button
+              onClick={() => exportProfilesCsv({ qualification: "qualified" })}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" /> Qualifiés IA
+            </button>
+          </div>
+          {summary && (
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Dernier scan : {summary.profiles} profils · {summary.withEmail} emails · {summary.withoutSite} sans site · {summary.hot} hot.
+            </p>
+          )}
+        </section>
       </main>
     </div>
   );
