@@ -224,6 +224,8 @@ export interface IgDmInput {
   bookingPlatform?: string | null;
   /** Prénom du prospect (1er mot du full_name) — personnalise l'accroche. */
   firstName?: string | null;
+  /** Profession détectée par l'IA de qualification — prioritaire sur `metier` pour l'accroche. */
+  professionIa?: string | null;
 }
 
 export interface IgDmVariants {
@@ -284,13 +286,27 @@ const BATIMENT = new Set([
   "electricien", "chauffagiste",
 ]);
 
-/** Libellé « service » du métier pour l'accroche. */
-const METIER_ACCROCHE: Record<string, string> = {
-  coiffeur: "tes prestations coiffure",
-  restaurant: "ton restaurant",
-  estheticienne: "tes prestations beauté",
-  fleuriste: "tes créations florales",
-  tatoueur: "tes tatouages",
+/** Nom de métier naturel pour l'accroche « j'ai vu que tu étais X, c'est toujours le cas ? ». */
+const METIER_NOUN: Record<string, string> = {
+  menuisier: "menuisier",
+  paysagiste: "paysagiste",
+  carreleur: "carreleur",
+  peintre: "peintre",
+  macon: "maçon",
+  couvreur: "couvreur",
+  charpentier: "charpentier",
+  ferronnier: "ferronnier",
+  plaquiste: "plaquiste",
+  cuisiniste: "cuisiniste",
+  plombier: "plombier",
+  electricien: "électricien",
+  chauffagiste: "chauffagiste",
+  coiffeur: "coiffeur(se)",
+  estheticienne: "esthéticienne",
+  fleuriste: "fleuriste",
+  tatoueur: "tatoueur(se)",
+  photographe: "photographe",
+  boulanger: "boulanger",
 };
 
 /** Vocabulaire « douleur » selon la niche (demandes / stabilité). */
@@ -321,7 +337,14 @@ export interface IgDmStep {
 export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] {
   const copy = NICHE_COPY[p.metier] ?? NICHE_COPY[""];
   const hello = p.firstName && p.firstName.trim() ? `Hello ${p.firstName.trim()}` : "Hello";
-  const service = METIER_ACCROCHE[p.metier] ?? (BATIMENT.has(p.metier) ? `tes services de ${p.metier}` : "tes services");
+  // Accroche : la profession IA (précise) prime sur le métier détecté par regex.
+  const noun = (p.professionIa && p.professionIa.trim().toLowerCase()) || METIER_NOUN[p.metier] || null;
+  const accroche =
+    p.metier === "restaurant" && !p.professionIa
+      ? `${hello} ! J'ai vu que tu tenais un restaurant, c'est toujours le cas ?`
+      : noun
+        ? `${hello} ! J'ai vu que tu étais ${noun}, c'est toujours le cas ?`
+        : `${hello} ! J'ai vu ton compte en scrollant — tu es toujours en activité en ce moment ?`;
   const avatar = BATIMENT.has(p.metier)
     ? "les artisans du bâtiment"
     : "les indépendants et commerces de proximité";
@@ -332,7 +355,7 @@ export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] 
     {
       step: "M1",
       title: "Accroche (à varier d'un prospect à l'autre)",
-      text: `${hello} ! Tu proposes toujours ${service} ?`,
+      text: accroche,
     },
     {
       step: "M2",

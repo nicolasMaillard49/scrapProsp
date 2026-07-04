@@ -85,8 +85,9 @@ test("instagramDmSequence: trame complète, aucun lien avant M8, questionnaire e
   // M8 porte l'aperçu démo, M9 le questionnaire.
   assert.ok(steps.find((s) => s.step === "M8")!.text.includes(demo));
   assert.ok(steps.find((s) => s.step === "M9")!.text.includes(QUESTIONNAIRE_URL));
-  // Personnalisation : prénom dans l'accroche, avatar artisan dans la présentation.
+  // Personnalisation : prénom + métier naturel dans l'accroche, avatar artisan dans la présentation.
   assert.ok(steps[0].text.startsWith("Hello Karim"));
+  assert.ok(steps[0].text.includes("j'ai vu que tu étais menuisier".replace("j'ai", "J'ai")));
   assert.ok(steps.find((s) => s.step === "M3")!.text.includes("artisans du bâtiment"));
   // Douleur adaptée artisan (devis).
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("devis"));
@@ -101,6 +102,23 @@ test("instagramDmSequence: sans prénom ni démo, variante plateforme de résa",
   assert.ok(!steps.find((s) => s.step === "M8")!.text.includes("http")); // pas de démo → pas de lien
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("Planity"));
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("RDV")); // vocabulaire salon
+});
+
+test("instagramDmSequence: accroche naturelle — profession IA prioritaire, fallback générique", () => {
+  // Profession IA fournie → elle prime sur le métier regex.
+  const ia = instagramDmSequence(
+    { metier: "estheticienne", ville: "", professionIa: "Prothésiste ongulaire" },
+    "",
+  );
+  assert.ok(ia[0].text.includes("j'ai vu que tu étais prothésiste ongulaire".replace("j'ai", "J'ai")));
+  // Plus jamais de « tes prestations beauté ».
+  assert.ok(!ia[0].text.toLowerCase().includes("prestation"));
+  // Métier inconnu, pas d'IA → accroche générique naturelle.
+  const generic = instagramDmSequence({ metier: "", ville: "" }, "");
+  assert.ok(generic[0].text.includes("toujours en activité"));
+  // Restaurant → formulation dédiée.
+  const resto = instagramDmSequence({ metier: "restaurant", ville: "" }, "");
+  assert.ok(resto[0].text.includes("tenais un restaurant"));
 });
 
 test("detectMetier: métiers artisans détectés (catégorie ou bio)", () => {

@@ -549,6 +549,7 @@ export default function InstagramPage() {
                     ville: l.ville ?? "",
                     bookingPlatform: l.booking_platform,
                     firstName: l.full_name ? l.full_name.split(/\s+/)[0] : null,
+                    professionIa: l.profession_ia,
                   },
                   link,
                 );
