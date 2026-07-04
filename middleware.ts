@@ -45,6 +45,7 @@ export function middleware(req: NextRequest) {
     pathname === "/api/sms/status" ||
     pathname === "/api/cron/run-blasts" ||
     pathname === "/api/cron/radar" ||
+    pathname === "/api/cron/ig-digest" ||
     pathname === "/api/demo/track" ||
     pathname === "/api/stripe/webhook" ||
     pathname.startsWith("/_next/")

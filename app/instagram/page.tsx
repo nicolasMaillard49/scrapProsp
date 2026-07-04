@@ -6,10 +6,11 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Users, Loader2, ArrowLeft } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Users, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { instagramDmSequence } from "@/app/lib/instagram";
+import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
 import ProspectionTool from "./ProspectionTool";
 
@@ -37,6 +38,28 @@ interface IgLead {
   qualification_reason: string | null;
   profession_ia: string | null;
   last_post_at: string | null;
+  stage: string | null;
+  followup_count: number | null;
+  next_followup_at: string | null;
+  contacted_by: string | null;
+}
+
+interface IgAccount {
+  id: string;
+  username: string;
+  status: "warmup" | "chaud" | "pause";
+  started_at: string;
+  caps: { hourly: number; daily: number; day: number };
+  sentHour: number;
+  sentDay: number;
+}
+
+interface DueFollowup {
+  id: string;
+  username: string;
+  stage: string | null;
+  followup_count: number;
+  next_followup_at: string;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -90,9 +113,123 @@ export default function InstagramPage() {
   const [origin, setOrigin] = useState("");
   const [expandedDm, setExpandedDm] = useState<string | null>(null);
 
+  // ── Cockpit (comptes émetteurs, quotas, relances) ──
+  const [accounts, setAccounts] = useState<IgAccount[]>([]);
+  const [due, setDue] = useState<DueFollowup[]>([]);
+  const [activeAccount, setActiveAccount] = useState<string>("");
+  const [newAccount, setNewAccount] = useState("");
+  const [cockpitMsg, setCockpitMsg] = useState<string | null>(null);
+
   useEffect(() => {
     setOrigin(window.location.origin);
+    setActiveAccount(localStorage.getItem("ig_active_account") ?? "");
   }, []);
+
+  const loadCockpit = useCallback(async () => {
+    try {
+      const res = await fetch("/api/instagram/accounts");
+      if (!res.ok) return;
+      const json = await res.json();
+      setAccounts(json.accounts ?? []);
+      setDue(json.due ?? []);
+    } catch {
+      /* silencieux */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCockpit();
+  }, [loadCockpit]);
+
+  const pickAccount = useCallback((id: string) => {
+    setActiveAccount(id);
+    localStorage.setItem("ig_active_account", id);
+  }, []);
+
+  const addAccount = useCallback(async () => {
+    const username = newAccount.replace(/^@/, "").trim();
+    if (!username) return;
+    const res = await fetch("/api/instagram/accounts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setCockpitMsg(`Erreur : ${json.error ?? res.status}`);
+      return;
+    }
+    setNewAccount("");
+    setCockpitMsg(`Compte @${username} ajouté (chauffe J1 : 5/h · 15/j).`);
+    await loadCockpit();
+  }, [newAccount, loadCockpit]);
+
+  const setAccountStatus = useCallback(async (id: string, status: string) => {
+    await fetch(`/api/instagram/accounts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    await loadCockpit();
+  }, [loadCockpit]);
+
+  const sendDigest = useCallback(async () => {
+    setCockpitMsg("Envoi du récap Telegram…");
+    const res = await fetch("/api/instagram/digest", { method: "POST" });
+    const json = await res.json();
+    setCockpitMsg(res.ok ? "📊 Récap envoyé sur Telegram." : `Erreur : ${json.error ?? res.status}`);
+  }, []);
+
+  /** Marque une étape de la séquence comme envoyée (compte actif requis). */
+  const markSent = useCallback(async (prospectId: string, step: string) => {
+    if (!activeAccount) {
+      setCockpitMsg("Sélectionne d'abord un compte émetteur actif dans le cockpit.");
+      return;
+    }
+    const res = await fetch("/api/instagram/dm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prospect_id: prospectId, account_id: activeAccount, step }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      setCockpitMsg(json.error ?? `Erreur ${res.status}`);
+      return;
+    }
+    const p = json.prospect as Partial<IgLead>;
+    setLeads((prev) => prev.map((l) => (l.id === prospectId ? { ...l, ...p } : l)));
+    const acc = accounts.find((a) => a.id === activeAccount);
+    setCockpitMsg(`${step} noté envoyé${acc ? ` avec @${acc.username} (${json.counters.day}/${json.counters.caps.daily} aujourd'hui)` : ""}.`);
+    await loadCockpit();
+  }, [activeAccount, accounts, loadCockpit]);
+
+  /** « Vu sans réponse » → programme la relance suivante (R1 +1 h…). */
+  const markSeen = useCallback(async (prospectId: string) => {
+    const res = await fetch(`/api/instagram/${prospectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seen: true }),
+    });
+    const json = await res.json();
+    if (res.ok) {
+      setLeads((prev) => prev.map((l) => (l.id === prospectId ? { ...l, ...json.prospect } : l)));
+      await loadCockpit();
+    }
+  }, [loadCockpit]);
+
+  /** Transition manuelle du pipeline (call booké / perdu). */
+  const setStage = useCallback(async (prospectId: string, stage: Stage) => {
+    const res = await fetch(`/api/instagram/${prospectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage }),
+    });
+    const json = await res.json();
+    if (res.ok) {
+      setLeads((prev) => prev.map((l) => (l.id === prospectId ? { ...l, ...json.prospect } : l)));
+      await loadCockpit();
+    }
+  }, [loadCockpit]);
 
   // Charge TOUS les prospects, du plus récent au plus ancien.
   const loadLeads = useCallback(async () => {
@@ -185,6 +322,122 @@ export default function InstagramPage() {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         {/* ─── L'OUTIL DE PROSPECTION (en haut) ─── */}
         <ProspectionTool onDataChanged={loadLeads} />
+
+        {/* ─── COCKPIT D'ENVOI (comptes, quotas, relances) ─── */}
+        <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Gauge className="w-4 h-4 text-[var(--color-accent)]" />
+            <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Cockpit d'envoi</h2>
+            <span className="text-xs text-[var(--color-text-muted)]">
+              envoi 100 % manuel — l'outil trace, compte les quotas et programme les relances
+            </span>
+            <span className="flex-1" />
+            <button
+              onClick={sendDigest}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-accent)]/30 text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] cursor-pointer"
+            >
+              <Bell className="w-3.5 h-3.5" /> Récap Telegram
+            </button>
+          </div>
+
+          {/* Comptes émetteurs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {accounts.map((a) => {
+              const dayPct = a.caps.daily ? Math.min(100, (a.sentDay / a.caps.daily) * 100) : 100;
+              const hourPct = a.caps.hourly ? Math.min(100, (a.sentHour / a.caps.hourly) * 100) : 100;
+              const full = a.caps.daily > 0 && a.sentDay >= a.caps.daily;
+              const active = activeAccount === a.id;
+              return (
+                <div
+                  key={a.id}
+                  className={`rounded-xl border p-3 transition-colors ${
+                    active ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]" : "border-[var(--color-border)]"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="radio"
+                      name="activeAccount"
+                      checked={active}
+                      onChange={() => pickAccount(a.id)}
+                      className="accent-[var(--color-accent)] cursor-pointer"
+                      title="Compte actif (utilisé par « Marquer envoyé »)"
+                    />
+                    <span className="font-bold text-sm text-[var(--color-text-primary)]">@{a.username}</span>
+                    <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
+                      a.status === "chaud"
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : a.status === "pause"
+                          ? "bg-slate-500/10 text-slate-500"
+                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    }`}>
+                      {a.status === "chaud" ? "CHAUD" : a.status === "pause" ? "PAUSE" : `CHAUFFE J${a.caps.day}`}
+                    </span>
+                    <span className="flex-1" />
+                    <select
+                      value={a.status}
+                      onChange={(e) => setAccountStatus(a.id, e.target.value)}
+                      className="glass-input rounded px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer text-[var(--color-text-secondary)]"
+                    >
+                      <option value="warmup">chauffe</option>
+                      <option value="chaud">chaud</option>
+                      <option value="pause">pause</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <QuotaBar label="Heure" val={a.sentHour} cap={a.caps.hourly} pct={hourPct} />
+                    <QuotaBar label="Jour" val={a.sentDay} cap={a.caps.daily} pct={dayPct} />
+                  </div>
+                  {full && <p className="mt-1.5 text-[11px] font-semibold text-rose-500">Plafond jour atteint — stop jusqu'à demain 8 h.</p>}
+                </div>
+              );
+            })}
+            {/* Ajout de compte */}
+            <div className="rounded-xl border border-dashed border-[var(--color-border)] p-3 flex items-center gap-2">
+              <input
+                value={newAccount}
+                onChange={(e) => setNewAccount(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addAccount()}
+                placeholder="@compte_prospection"
+                className="flex-1 glass-input rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] outline-none min-w-0"
+              />
+              <button
+                onClick={addAccount}
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg text-white bg-[var(--color-accent)] hover:opacity-90 cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" /> Ajouter
+              </button>
+            </div>
+          </div>
+
+          {/* File de relances dues */}
+          {due.length > 0 && (
+            <div className="pt-1">
+              <p className="text-xs font-bold text-[var(--color-text-primary)] mb-1.5">
+                🔁 À relancer maintenant ({due.length})
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {due.map((d) => (
+                  <button
+                    key={d.id}
+                    onClick={() => {
+                      setSearchText(d.username);
+                      setStatusFilter("all");
+                      setTierFilter("all");
+                      setQualifFilter("all");
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-full border border-rose-400/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                    title={`Relance R${(d.followup_count ?? 0) + 1} · ${d.stage ? STAGE_LABEL[d.stage as Stage] ?? d.stage : "—"}`}
+                  >
+                    @{d.username} · R{(d.followup_count ?? 0) + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {cockpitMsg && <p className="text-sm text-[var(--color-text-secondary)]">{cockpitMsg}</p>}
+        </section>
 
         {/* ─── LA LISTE DES PROSPECTS (en dessous, du plus récent au plus ancien) ─── */}
         <div className="pt-2 border-t-2 border-[var(--color-border)]">
@@ -330,6 +583,16 @@ export default function InstagramPage() {
                               {qualif.label}
                             </span>
                           )}
+                          {l.stage && (
+                            <span className="text-[10px] font-bold rounded-full px-2 py-0.5 border border-[var(--color-accent)]/40 text-[var(--color-accent)]">
+                              {STAGE_LABEL[l.stage as Stage] ?? l.stage}
+                            </span>
+                          )}
+                          {l.next_followup_at && new Date(l.next_followup_at) <= new Date() && l.stage !== "call_booke" && l.stage !== "perdu" && (
+                            <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 animate-pulse">
+                              🔁 relance due
+                            </span>
+                          )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs text-[var(--color-text-muted)]">
                           <span>{new Date(l.discovered_at).toLocaleDateString("fr-FR")}</span>
@@ -388,16 +651,25 @@ export default function InstagramPage() {
                                     style={{ color: isRelance ? "var(--color-text-muted)" : "var(--color-accent)" }}>
                                     {s.step} · {s.title}
                                   </span>
-                                  <button
-                                    onClick={() => copy(key, s.text)}
-                                    className="shrink-0 flex items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:opacity-80 transition cursor-pointer"
-                                  >
-                                    {copied === key ? (
-                                      <><Check className="w-3 h-3" /> Copie</>
-                                    ) : (
-                                      <><Copy className="w-3 h-3" /> Copier</>
-                                    )}
-                                  </button>
+                                  <span className="shrink-0 flex items-center gap-2">
+                                    <button
+                                      onClick={() => copy(key, s.text)}
+                                      className="flex items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:opacity-80 transition cursor-pointer"
+                                    >
+                                      {copied === key ? (
+                                        <><Check className="w-3 h-3" /> Copie</>
+                                      ) : (
+                                        <><Copy className="w-3 h-3" /> Copier</>
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={() => markSent(l.id, s.step)}
+                                      title={activeAccount ? "Journalise l'envoi (quota + stade + relance)" : "Sélectionne un compte actif dans le cockpit"}
+                                      className="flex items-center gap-1 text-xs font-semibold rounded px-1.5 py-0.5 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition cursor-pointer"
+                                    >
+                                      <Send className="w-3 h-3" /> Envoyé ✓
+                                    </button>
+                                  </span>
                                 </div>
                                 <p className="text-xs text-[var(--color-text-secondary)] whitespace-pre-line leading-relaxed">
                                   {s.text}
@@ -431,6 +703,31 @@ export default function InstagramPage() {
                           Apercu
                         </a>
                       )}
+                      {l.status === "contacted" && l.stage !== "call_booke" && l.stage !== "perdu" && (
+                        <button
+                          onClick={() => markSeen(l.id)}
+                          title="Il a vu sans répondre → programme la relance (R1 +1 h, R2 +7 h…)"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> Vu sans réponse
+                        </button>
+                      )}
+                      {l.stage !== "call_booke" && (
+                        <button
+                          onClick={() => setStage(l.id, "call_booke")}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition cursor-pointer"
+                        >
+                          <PhoneCall className="w-3 h-3" /> Call booké
+                        </button>
+                      )}
+                      {l.stage !== "perdu" && (
+                        <button
+                          onClick={() => setStage(l.id, "perdu")}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                        >
+                          <XCircle className="w-3 h-3" /> Perdu
+                        </button>
+                      )}
                       <span className="flex-1" />
                       {(["contacted", "positive", "negative"] as const).map((s) => {
                         const st = STATUS_STYLES[s];
@@ -455,6 +752,22 @@ export default function InstagramPage() {
           )}
         </div>
       </main>
+    </div>
+  );
+}
+
+/** Jauge de quota (heure / jour) — verte → ambre (80 %) → rouge (100 %). */
+function QuotaBar({ label, val, cap, pct }: { label: string; val: number; cap: number; pct: number }) {
+  const color = pct >= 100 ? "#f43f5e" : pct >= 80 ? "#f59e0b" : "#10b981";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-10 shrink-0 text-[10px] font-semibold text-[var(--color-text-muted)]">{label}</span>
+      <div className="h-1.5 flex-1 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pct)}%`, background: color }} />
+      </div>
+      <span className="w-12 shrink-0 text-right text-[11px] font-semibold tabular-nums text-[var(--color-text-secondary)]">
+        {val}/{cap}
+      </span>
     </div>
   );
 }
