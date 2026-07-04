@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Copy, Check, ExternalLink, Send, Eye, Users, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { instagramDmMsg } from "@/app/lib/instagram";
+import { instagramDmSequence } from "@/app/lib/instagram";
 import { shortCode } from "@/app/lib/links";
 import ProspectionTool from "./ProspectionTool";
 
@@ -290,7 +290,15 @@ export default function InstagramPage() {
             <div className="space-y-3">
               {shown.map((l) => {
                 const link = origin ? `${origin}/di/${shortCode(l.id)}` : "";
-                const dm = instagramDmMsg({ metier: l.metier ?? "", ville: l.ville ?? "", bookingPlatform: l.booking_platform }, link);
+                const dmSteps = instagramDmSequence(
+                  {
+                    metier: l.metier ?? "",
+                    ville: l.ville ?? "",
+                    bookingPlatform: l.booking_platform,
+                    firstName: l.full_name ? l.full_name.split(/\s+/)[0] : null,
+                  },
+                  link,
+                );
                 const dmExpanded = expandedDm === l.id;
                 const sty = STATUS_STYLES[l.status] ?? STATUS_STYLES.todo;
                 const qualif = l.qualification ? QUALIF_BADGE[l.qualification] : null;
@@ -360,33 +368,44 @@ export default function InstagramPage() {
                       onClick={() => setExpandedDm(dmExpanded ? null : l.id)}
                       className="text-xs font-semibold text-[var(--color-accent)] hover:underline cursor-pointer mb-2"
                     >
-                      {dmExpanded ? "Masquer les messages" : "Voir les messages DM"}
+                      {dmExpanded ? "Masquer la séquence DM" : "Voir la séquence DM (trame en 9 étapes + relances)"}
                     </button>
 
                     {dmExpanded && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3 animate-slide-up">
-                        {([["Avec lien", dm.withLink, `${l.id}-w`], ["Tease", dm.tease, `${l.id}-t`]] as const).map(([title, text, key]) => (
-                          <div key={key} className="glass-input rounded-lg p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
-                                {title}
-                              </span>
-                              <button
-                                onClick={() => copy(key, text)}
-                                className="flex items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:opacity-80 transition cursor-pointer"
-                              >
-                                {copied === key ? (
-                                  <><Check className="w-3 h-3" /> Copie</>
-                                ) : (
-                                  <><Copy className="w-3 h-3" /> Copier</>
-                                )}
-                              </button>
-                            </div>
-                            <p className="text-xs text-[var(--color-text-secondary)] whitespace-pre-line leading-relaxed">
-                              {text}
-                            </p>
-                          </div>
-                        ))}
+                      <div className="mb-3 animate-slide-up space-y-2">
+                        <p className="text-[11px] text-[var(--color-text-muted)]">
+                          Envoie les messages <b>un par un</b> selon ses réponses (jamais de pavé, jamais de lien avant M8).
+                          Max 15 DM/h, 60/j — varie les formulations.
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                          {dmSteps.map((s) => {
+                            const key = `${l.id}-${s.step}`;
+                            const isRelance = s.step.startsWith("R");
+                            return (
+                              <div key={key} className="glass-input rounded-lg p-3">
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider truncate" title={s.title}
+                                    style={{ color: isRelance ? "var(--color-text-muted)" : "var(--color-accent)" }}>
+                                    {s.step} · {s.title}
+                                  </span>
+                                  <button
+                                    onClick={() => copy(key, s.text)}
+                                    className="shrink-0 flex items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:opacity-80 transition cursor-pointer"
+                                  >
+                                    {copied === key ? (
+                                      <><Check className="w-3 h-3" /> Copie</>
+                                    ) : (
+                                      <><Copy className="w-3 h-3" /> Copier</>
+                                    )}
+                                  </button>
+                                </div>
+                                <p className="text-xs text-[var(--color-text-secondary)] whitespace-pre-line leading-relaxed">
+                                  {s.text}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
 

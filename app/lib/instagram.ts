@@ -222,6 +222,8 @@ export interface IgDmInput {
   metier: string;
   ville: string;
   bookingPlatform?: string | null;
+  /** Prénom du prospect (1er mot du full_name) — personnalise l'accroche. */
+  firstName?: string | null;
 }
 
 export interface IgDmVariants {
@@ -262,6 +264,148 @@ export function instagramDmMsg(p: IgDmInput, demoLink: string): IgDmVariants {
       `alors je t'ai préparé un aperçu gratuit pour te montrer ce que ça pourrait donner avec ${copy.value}. ` +
       `Je te l'envoie ? 🙂`,
   };
+}
+
+/* ────────────────────────────────────────────────────────────
+ * Séquence DM « trame de prospection » (méthode organique) :
+ * accroche → présentation en 3 messages → connexion → focus → douleur →
+ * proposition d'appel (l'aperçu démo sert de ressource) → questionnaire.
+ * Règles de forme respectées : messages courts et découpés, question à
+ * chaque fin, AUCUN lien avant l'accord (le lien démo n'arrive qu'à la
+ * proposition d'appel, le questionnaire après le « oui »).
+ * ──────────────────────────────────────────────────────────── */
+
+/** Lien du questionnaire pré-appel (formulaire de diagnostic NMF). */
+export const QUESTIONNAIRE_URL = "https://bienvenue.nmf-agence.com";
+
+const BATIMENT = new Set([
+  "menuisier", "paysagiste", "carreleur", "peintre", "macon", "couvreur",
+  "charpentier", "ferronnier", "plaquiste", "cuisiniste", "plombier",
+  "electricien", "chauffagiste",
+]);
+
+/** Libellé « service » du métier pour l'accroche. */
+const METIER_ACCROCHE: Record<string, string> = {
+  coiffeur: "tes prestations coiffure",
+  restaurant: "ton restaurant",
+  estheticienne: "tes prestations beauté",
+  fleuriste: "tes créations florales",
+  tatoueur: "tes tatouages",
+};
+
+/** Vocabulaire « douleur » selon la niche (demandes / stabilité). */
+function painWording(metier: string): { demandes: string; stable: string } {
+  if (BATIMENT.has(metier)) {
+    return { demandes: "des demandes de devis régulières", stable: "un planning rempli plusieurs semaines à l'avance" };
+  }
+  if (metier === "restaurant") {
+    return { demandes: "des réservations régulières", stable: "une salle bien remplie toute la semaine" };
+  }
+  if (metier === "coiffeur" || metier === "estheticienne" || metier === "tatoueur") {
+    return { demandes: "des demandes de RDV régulières", stable: "un agenda bien rempli" };
+  }
+  return { demandes: "des demandes régulières", stable: "une activité stable" };
+}
+
+export interface IgDmStep {
+  step: string; // "M1", "M2"… "R1"…
+  title: string;
+  text: string;
+}
+
+/**
+ * Construit la séquence complète de messages (9 étapes + 3 relances),
+ * à copier une par une selon les réponses du prospect.
+ * `demoLink` = aperçu /di/<code> (envoyé SEULEMENT à la proposition d'appel).
+ */
+export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] {
+  const copy = NICHE_COPY[p.metier] ?? NICHE_COPY[""];
+  const hello = p.firstName && p.firstName.trim() ? `Hello ${p.firstName.trim()}` : "Hello";
+  const service = METIER_ACCROCHE[p.metier] ?? (BATIMENT.has(p.metier) ? `tes services de ${p.metier}` : "tes services");
+  const avatar = BATIMENT.has(p.metier)
+    ? "les artisans du bâtiment"
+    : "les indépendants et commerces de proximité";
+  const pain = painWording(p.metier);
+  const bk = p.bookingPlatform;
+
+  return [
+    {
+      step: "M1",
+      title: "Accroche (à varier d'un prospect à l'autre)",
+      text: `${hello} ! Tu proposes toujours ${service} ?`,
+    },
+    {
+      step: "M2",
+      title: "Présentation 1/3 — contexte (après son oui)",
+      text:
+        `Ok top ! Parce qu'en fait je suis tombé sur ton profil Instagram en scrollant et ${copy.hook}. ` +
+        `Du coup je me suis dit que ça valait le coup de te contacter — pas pour te vendre un truc à tout prix, ` +
+        `mais pour échanger et te partager un max de valeur utile`,
+    },
+    {
+      step: "M3",
+      title: "Présentation 2/3 — qui je suis",
+      text:
+        `Pour me présenter rapidement, moi c'est Nicolas, ça fait 6 ans que je suis dans le digital ` +
+        `et je suis spécialisé dans l'acquisition de clients pour ${avatar} — aujourd'hui j'aide des pros comme toi ` +
+        `à avoir ${pain.demandes} sans dépendre du bouche-à-oreille.`,
+    },
+    {
+      step: "M4",
+      title: "Présentation 3/3 — la question",
+      text: `Est-ce que du coup ça te dérangerait qu'on échange par rapport à ton activité ? :)`,
+    },
+    {
+      step: "M5",
+      title: "Connexion",
+      text: `D'ailleurs je me demandais, ça fait combien de temps que tu fais ça ? J'ai pas trouvé l'info sur ton compte 🙂`,
+    },
+    {
+      step: "M6",
+      title: "Focus",
+      text: `Ok je vois, c'est top ! Et en ce moment tu te concentres sur quoi — plutôt ton cœur de métier, la recherche de nouveaux clients, ou t'es sur autre chose ?`,
+    },
+    {
+      step: "M7",
+      title: "Recherche de douleur",
+      text:
+        `Et comment ça se passe à ce niveau ? Tu arrives à avoir ${pain.demandes} et ${pain.stable}, ` +
+        `ou ça reste un peu aléatoire honnêtement ?` +
+        (bk ? `\n\n(Variante ${bk} : « J'ai vu que tu passais par ${bk} — ça te convient niveau commissions, ou ça commence à chiffrer ? »)` : ""),
+    },
+    {
+      step: "M8",
+      title: "Proposition d'appel (le lien démo arrive ICI, pas avant)",
+      text:
+        `Ok je vois ! De mon côté j'ai quelques ressources qui te permettraient d'avoir une première solution à ce niveau-là` +
+        (demoLink ? ` — et je t'ai même préparé un aperçu gratuit de ce que ça pourrait donner pour toi : ${demoLink}` : "") +
+        `. Ça te dirait qu'on se prenne 15-20 min ensemble pour personnaliser tout ça à ton activité et te créer un plan d'action concret ? :)`,
+    },
+    {
+      step: "M9",
+      title: "Questionnaire (après son oui, avant de bloquer le créneau)",
+      text:
+        `Super ! Juste avant que je bloque ça de mon côté, j'aurais besoin que tu remplisses un petit questionnaire — ` +
+        `ça me permet d'avoir plus de visibilité sur ton activité et de t'apporter un max de valeur pendant l'appel. ` +
+        `À la fin tu as automatiquement accès aux ressources 👉 ${QUESTIONNAIRE_URL}\n\n` +
+        `Je te laisse me faire un retour quand c'est fait, ça prend 2 min max ;)`,
+    },
+    {
+      step: "R1",
+      title: "Relance — 1 h après un vu (jamais entre 20 h et 8 h)",
+      text: `Tu as eu le temps de checker mon message${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
+    },
+    {
+      step: "R2",
+      title: "Relance — nouveau vu (attendre 6-8 h)",
+      text: `Toujours avec moi${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
+    },
+    {
+      step: "R3",
+      title: "Relance — nouveau vu (5-8 h) ; ensuite image humour puis mème perso",
+      text: `${p.firstName ? p.firstName.trim() : "Alors"} ?? 😄`,
+    },
+  ];
 }
 
 /* ────────────────────────────────────────────────────────────

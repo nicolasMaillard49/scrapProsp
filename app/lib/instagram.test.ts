@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractEmails, extractPhonesFr, pickContact, hasRealWebsite,
   extractLastPostAt, isActiveSince, prospectScore, detectMetier,
+  instagramDmSequence, QUESTIONNAIRE_URL,
 } from "./instagram";
 
 test("extractEmails: trouve, déduplique, minuscule", () => {
@@ -67,6 +68,39 @@ test("prospectScore: cumul des signaux + tiers", () => {
   // A un site, inactif, rien → 0, cold
   const cold = prospectScore({ has_website: true, last_post_at: null, followers: null }, now);
   assert.deepEqual(cold, { score: 0, tier: "cold" });
+});
+
+test("instagramDmSequence: trame complète, aucun lien avant M8, questionnaire en M9", () => {
+  const demo = "https://x.fr/di/abc";
+  const steps = instagramDmSequence(
+    { metier: "menuisier", ville: "Angers", firstName: "Karim" },
+    demo,
+  );
+  assert.equal(steps.length, 12); // M1-M9 + R1-R3
+  assert.deepEqual(steps.slice(0, 3).map((s) => s.step), ["M1", "M2", "M3"]);
+  // Règle de la méthode : AUCUN lien avant la proposition d'appel (M8).
+  for (const s of steps.filter((x) => ["M1", "M2", "M3", "M4", "M5", "M6", "M7"].includes(x.step))) {
+    assert.ok(!/https?:\/\//.test(s.text), `${s.step} ne doit contenir aucun lien`);
+  }
+  // M8 porte l'aperçu démo, M9 le questionnaire.
+  assert.ok(steps.find((s) => s.step === "M8")!.text.includes(demo));
+  assert.ok(steps.find((s) => s.step === "M9")!.text.includes(QUESTIONNAIRE_URL));
+  // Personnalisation : prénom dans l'accroche, avatar artisan dans la présentation.
+  assert.ok(steps[0].text.startsWith("Hello Karim"));
+  assert.ok(steps.find((s) => s.step === "M3")!.text.includes("artisans du bâtiment"));
+  // Douleur adaptée artisan (devis).
+  assert.ok(steps.find((s) => s.step === "M7")!.text.includes("devis"));
+});
+
+test("instagramDmSequence: sans prénom ni démo, variante plateforme de résa", () => {
+  const steps = instagramDmSequence(
+    { metier: "coiffeur", ville: "", bookingPlatform: "Planity" },
+    "",
+  );
+  assert.ok(steps[0].text.startsWith("Hello !"));
+  assert.ok(!steps.find((s) => s.step === "M8")!.text.includes("http")); // pas de démo → pas de lien
+  assert.ok(steps.find((s) => s.step === "M7")!.text.includes("Planity"));
+  assert.ok(steps.find((s) => s.step === "M7")!.text.includes("RDV")); // vocabulaire salon
 });
 
 test("detectMetier: métiers artisans détectés (catégorie ou bio)", () => {
