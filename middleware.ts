@@ -46,6 +46,9 @@ export function middleware(req: NextRequest) {
     pathname === "/api/cron/run-blasts" ||
     pathname === "/api/cron/radar" ||
     pathname === "/api/cron/ig-digest" ||
+    // KPI agrégés du cockpit IG (compteurs journaliers, aucune donnée nominative)
+    // — consommé par l'Apps Script du Google Sheet de tracking.
+    pathname === "/api/instagram/kpi" ||
     pathname === "/api/demo/track" ||
     pathname === "/api/stripe/webhook" ||
     pathname.startsWith("/_next/")
