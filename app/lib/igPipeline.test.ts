@@ -4,14 +4,15 @@ import { warmupCaps, clampToWindow, nextFollowup, stageForStep, VALID_STEPS } fr
 
 const day = (n: number, base = Date.parse("2026-07-01T12:00:00")) => base + (n - 1) * 24 * 3600 * 1000;
 
-test("warmupCaps: plan de chauffe progressif, jamais > 15/h ni 60/j", () => {
+test("warmupCaps: chauffe J1 5/j, J2 10/j, J3 15/j puis +5/jour, jamais > 15/h ni 60/j", () => {
   const start = "2026-07-01T00:00:00";
-  assert.deepEqual(warmupCaps(start, "warmup", day(1)), { hourly: 5, daily: 15, day: 1 });
-  assert.deepEqual(warmupCaps(start, "warmup", day(3)), { hourly: 10, daily: 20, day: 3 });
-  assert.deepEqual(warmupCaps(start, "warmup", day(6)), { hourly: 10, daily: 25, day: 6 });
-  assert.deepEqual(warmupCaps(start, "warmup", day(9)), { hourly: 15, daily: 30, day: 9 });
-  assert.deepEqual(warmupCaps(start, "warmup", day(12)), { hourly: 15, daily: 40, day: 12 });
-  assert.deepEqual(warmupCaps(start, "warmup", day(20)), { hourly: 15, daily: 60, day: 20 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(1)), { hourly: 5, daily: 5, day: 1 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(2)), { hourly: 10, daily: 10, day: 2 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(3)), { hourly: 15, daily: 15, day: 3 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(4)), { hourly: 15, daily: 20, day: 4 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(8)), { hourly: 15, daily: 40, day: 8 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(12)), { hourly: 15, daily: 60, day: 12 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(30)), { hourly: 15, daily: 60, day: 30 });
   // Statut chaud → plafonds max direct ; pause → zéro envoi.
   assert.deepEqual(warmupCaps(start, "chaud", day(1)).daily, 60);
   assert.deepEqual(warmupCaps(start, "pause", day(20)), { hourly: 0, daily: 0, day: 0 });

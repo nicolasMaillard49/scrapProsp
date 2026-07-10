@@ -74,6 +74,69 @@ export async function getDueFollowups(now = new Date(), limit = 25): Promise<Due
   return ((data ?? []) as DueFollowup[]).filter((p) => p.stage !== "call_booke" && p.stage !== "perdu");
 }
 
+/* ────────────────────────────────────────────────────────────
+ * Suivi global d'activité — journalier / hebdo / mensuel (heure de Paris).
+ * Source : ig_dm_log (envois M1-M9 + relances) et instagram_prospects (ajouts).
+ * ──────────────────────────────────────────────────────────── */
+
+/** Lundi 00:00 Europe/Paris de la semaine courante. */
+export function parisWeekStart(now = new Date()): Date {
+  const dayStart = parisDayStart(now);
+  const paris = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
+  const dow = (paris.getDay() + 6) % 7; // 0 = lundi
+  return new Date(dayStart.getTime() - dow * 24 * 3600_000);
+}
+
+/** 1er du mois 00:00 Europe/Paris. */
+export function parisMonthStart(now = new Date()): Date {
+  const dayStart = parisDayStart(now);
+  const paris = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
+  return new Date(dayStart.getTime() - (paris.getDate() - 1) * 24 * 3600_000);
+}
+
+export interface PeriodStats {
+  sent: number; // tous les envois (M + R)
+  m1: number; // nouvelles accroches = nouveaux prospects contactés
+  relances: number; // R1-R3
+  added: number; // prospects ajoutés (scan)
+}
+
+export interface SendStats {
+  day: PeriodStats;
+  week: PeriodStats;
+  month: PeriodStats;
+}
+
+/** Statistiques d'activité sur les 3 fenêtres (jour / semaine / mois, Paris). */
+export async function getSendStats(now = new Date()): Promise<SendStats> {
+  const starts = { day: parisDayStart(now), week: parisWeekStart(now), month: parisMonthStart(now) };
+  // La semaine peut commencer avant le 1er du mois : on requête depuis le plus ancien des deux.
+  const sinceIso = new Date(Math.min(starts.week.getTime(), starts.month.getTime())).toISOString();
+  const [{ data: logs }, { data: added }] = await Promise.all([
+    supabase.from("ig_dm_log").select("step, sent_at").gte("sent_at", sinceIso).limit(10_000),
+    supabase.from("instagram_prospects").select("discovered_at").gte("discovered_at", sinceIso).limit(10_000),
+  ]);
+  const empty = (): PeriodStats => ({ sent: 0, m1: 0, relances: 0, added: 0 });
+  const out: SendStats = { day: empty(), week: empty(), month: empty() };
+  const bump = (t: number, f: (p: PeriodStats) => void) => {
+    if (Number.isNaN(t)) return;
+    if (t >= starts.month.getTime()) f(out.month);
+    if (t >= starts.week.getTime()) f(out.week);
+    if (t >= starts.day.getTime()) f(out.day);
+  };
+  for (const r of (logs ?? []) as { step: string; sent_at: string }[]) {
+    bump(Date.parse(r.sent_at), (p) => {
+      p.sent++;
+      if (r.step === "M1") p.m1++;
+      if (r.step.startsWith("R")) p.relances++;
+    });
+  }
+  for (const r of (added ?? []) as { discovered_at: string }[]) {
+    bump(Date.parse(r.discovered_at), (p) => p.added++);
+  }
+  return out;
+}
+
 /** Compte les prospects par stade (funnel). */
 export async function getFunnelCounts(): Promise<Record<string, number>> {
   const { data } = await supabase
@@ -90,13 +153,18 @@ export async function getFunnelCounts(): Promise<Record<string, number>> {
 
 /** Construit + envoie le récap Telegram. Renvoie le texte (pour debug/aperçu). */
 export async function sendCockpitDigest(now = new Date()): Promise<string> {
-  const [accounts, due, funnel] = await Promise.all([
+  const [accounts, due, funnel, stats] = await Promise.all([
     getAccountsWithCounters(now),
     getDueFollowups(now),
     getFunnelCounts(),
+    getSendStats(now),
   ]);
 
   const lines: string[] = ["📊 <b>Prospection IG — récap</b>"];
+  lines.push(
+    `✉️ Jour <b>${stats.day.sent}</b> (${stats.day.m1} accroches · ${stats.day.relances} relances) · ` +
+      `Semaine <b>${stats.week.sent}</b> · Mois <b>${stats.month.sent}</b>`,
+  );
   if (!accounts.length) {
     lines.push("Aucun compte émetteur configuré.");
   }

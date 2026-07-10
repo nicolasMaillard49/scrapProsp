@@ -64,14 +64,10 @@ type Niche =
   | "electricien" | "chauffagiste" | "";
 
 const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
-  { niche: "coiffeur", re: /(coiff|barbi|barber|\bhair\b|hairdress|hairstyl|coloris|salon de coiff)/i },
-  { niche: "restaurant", re: /(restaur|resto|bistrot|brasserie|pizz|burger|traiteur|cuisine|chef|food|caf[eé]|coffee|sushi|tacos|kebab|cr[eê]perie)/i },
-  { niche: "estheticienne", re: /(esth[eé]|institut|beaut|beauty|cosmetic|ongl|nail|spa|maquill|makeup|[eé]pil|cils|lash|sourcil|massage|bien-?[eê]tre)/i },
-  { niche: "fleuriste", re: /(fleurist|fleurs|floral|florist|bouquet)/i },
-  { niche: "tatoueur", re: /(tatou|tattoo|\bink\b|piercing)/i },
-  // Artisans du bâtiment (ordre : du plus spécifique au plus générique)
+  // Artisans du bâtiment EN PREMIER (cible NMF) — leurs bios contiennent souvent
+  // des mots « beauté / embellir / spa (de nage) » qui matchaient à tort l'esthétique.
   { niche: "menuisier", re: /(menuis|[eé]b[eé]nist|agencement|mobilier sur[- ]?mesure|travail du bois)/i },
-  { niche: "paysagiste", re: /(paysag|jardinier|am[eé]nagement (ext[eé]rieur|paysager)|espaces? verts?|[eé]lagage)/i },
+  { niche: "paysagiste", re: /(paysag|jardinier|am[eé]nagement (ext[eé]rieur|paysager)|espaces? verts?|[eé]lagage|cr[eé]ation de jardins?)/i },
   { niche: "carreleur", re: /(carrel|fa[iï]ence|mosa[iï]que)/i },
   { niche: "couvreur", re: /(couvreur|couverture|toiture|zingu|ardoise|tuile)/i },
   { niche: "charpentier", re: /(charpent|ossature bois)/i },
@@ -82,7 +78,13 @@ const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   { niche: "electricien", re: /([eé]lectricien|[eé]lectricit[eé]|domotique)/i },
   { niche: "chauffagiste", re: /(chauffag|pompe [aà] chaleur|\bpac\b|climatisation|clim\b)/i },
   { niche: "macon", re: /(ma[cç]on|gros [oœ]uvre|pierre de taille|terrass)/i },
-  { niche: "peintre", re: /(peintre|peinture (int[eé]rieure|ext[eé]rieure|d[eé]co)|d[eé]corat)/i },
+  { niche: "peintre", re: /(peintre|peinture (int[eé]rieure|ext[eé]rieure|d[eé]co))/i },
+  // Autres niches locales
+  { niche: "coiffeur", re: /(coiff|barbi|barber|\bhair\b|hairdress|hairstyl|coloris|salon de coiff)/i },
+  { niche: "restaurant", re: /(restaur|resto|bistrot|brasserie|pizz|burger|traiteur|cuisine|chef|food|caf[eé]|coffee|sushi|tacos|kebab|cr[eê]perie)/i },
+  { niche: "estheticienne", re: /(esth[eé]t|institut de beaut|beauty|cosm[eé]t|ongl|nail|maquill|makeup|[eé]pilation|\bcils\b|lash|sourcil|massage|bien-?[eê]tre|\bspa\b)/i },
+  { niche: "fleuriste", re: /(fleurist|fleurs|floral|florist|bouquet)/i },
+  { niche: "tatoueur", re: /(tatou|tattoo|\bink\b|piercing)/i },
 ];
 
 export function detectMetier(category?: string | null, bio?: string | null): Niche {
@@ -329,27 +331,140 @@ export interface IgDmStep {
   text: string;
 }
 
+/* ────────────────────────────────────────────────────────────
+ * Choix de trame (règle Notion « trames à pattern ») :
+ *  - trame 1 « éléments non visibles » → TUTOIEMENT (solopreneur, artisan solo) ;
+ *  - trame 2 « éléments visibles »     → VOUVOIEMENT (entreprise : agence, PME, équipe).
+ * Signaux « entreprise » : forme juridique, vocabulaire d'équipe, bio en « nous ».
+ * ──────────────────────────────────────────────────────────── */
+export type TrameKind = "solo" | "entreprise";
+
+const ENTREPRISE_RE =
+  /\b(sarl|sasu?|eurl|sci|holding|groupe|agence|[eé]quipe|team|nos (clients|[eé]quipes|artisans|chantiers|r[eé]alisations)|notre (entreprise|soci[eé]t[eé]|[eé]quipe|savoir[- ]?faire|atelier)|nous (sommes|r[eé]alisons|intervenons|proposons|concevons|installons))\b/i;
+
+/** Trame suggérée pour un profil (surchargeable dans l'UI). */
+export function detectTrame(fullName?: string | null, bio?: string | null): TrameKind {
+  return ENTREPRISE_RE.test(`${fullName ?? ""} ${bio ?? ""}`) ? "entreprise" : "solo";
+}
+
+export const TRAME_LABEL: Record<TrameKind, string> = {
+  solo: "Solo — tutoiement",
+  entreprise: "Entreprise — vouvoiement",
+};
+
 /**
  * Construit la séquence complète de messages (9 étapes + 3 relances),
  * à copier une par une selon les réponses du prospect.
  * `demoLink` = aperçu /di/<code> (envoyé SEULEMENT à la proposition d'appel).
+ * `trame` : "solo" (tutoiement, trame 1) ou "entreprise" (vouvoiement, trame 2).
  */
-export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] {
+export function instagramDmSequence(p: IgDmInput, demoLink: string, trame: TrameKind = "solo"): IgDmStep[] {
   const copy = NICHE_COPY[p.metier] ?? NICHE_COPY[""];
   const hello = p.firstName && p.firstName.trim() ? `Hello ${p.firstName.trim()}` : "Hello";
   // Accroche : la profession IA (précise) prime sur le métier détecté par regex.
   const noun = (p.professionIa && p.professionIa.trim().toLowerCase()) || METIER_NOUN[p.metier] || null;
+  const avatar = BATIMENT.has(p.metier)
+    ? "les artisans du bâtiment"
+    : "les indépendants et commerces de proximité";
+  const pain = painWording(p.metier);
+  const bk = p.bookingPlatform;
+
+  if (trame === "entreprise") {
+    const accrocheVous =
+      p.metier === "restaurant" && !p.professionIa
+        ? `${hello} ! J'ai vu que vous teniez un restaurant, c'est toujours le cas ?`
+        : noun
+          ? `${hello} ! J'ai vu que vous étiez ${noun}, c'est toujours le cas ?`
+          : `${hello} ! Je suis tombé sur votre compte en scrollant — vous êtes toujours en activité en ce moment ?`;
+    return [
+      {
+        step: "M1",
+        title: "Accroche (vouvoiement — à varier d'un prospect à l'autre)",
+        text: accrocheVous,
+      },
+      {
+        step: "M2",
+        title: "Présentation 1/3 — contexte (après son oui)",
+        text:
+          `Parfait ! En fait je me baladais sur Instagram et votre dernier post est remonté dans mon feed, ` +
+          `ce qui m'a fait cliquer sur votre profil. En creusant un peu, certains détails précis sur votre présence en ligne ` +
+          `m'ont mis la puce à l'oreille. Je me suis dit que ça valait le coup de vous écrire pour échanger ` +
+          `et vous partager quelques pistes de réflexion sur ces éléments.`,
+      },
+      {
+        step: "M3",
+        title: "Présentation 2/3 — qui je suis",
+        text:
+          `Pour me présenter rapidement, je m'appelle Nicolas — ça fait 6 ans que je suis dans le digital ` +
+          `et j'accompagne ${avatar} sur l'acquisition de clients, pour avoir ${pain.demandes} sans dépendre du bouche-à-oreille.`,
+      },
+      {
+        step: "M4",
+        title: "Présentation 3/3 — la question",
+        text: `Est-ce que vous seriez fermé à l'idée que je vous partage les points qui ont retenu mon attention ? :)`,
+      },
+      {
+        step: "M5",
+        title: "Connexion",
+        text:
+          `Super ! Juste avant, j'avais quelques questions pour clarifier mon ressenti — ` +
+          `je me demandais depuis combien de temps vous développiez l'activité ? Je n'ai pas vu l'info sur votre profil 🙂`,
+      },
+      {
+        step: "M6",
+        title: "Focus",
+        text: `Ok je vois ! Et vous êtes sur quoi en ce moment — plutôt votre cœur de métier, la recherche de nouveaux clients, ou vous êtes sur autre chose ?`,
+      },
+      {
+        step: "M7",
+        title: "Recherche de douleur",
+        text:
+          `Et comment ça se passe à ce niveau ? Vous arrivez à avoir ${pain.demandes} et ${pain.stable}, ` +
+          `ou ça reste un peu aléatoire honnêtement ?` +
+          (bk ? `\n\n(Variante ${bk} : « J'ai vu que vous passiez par ${bk} — ça vous convient niveau commissions, ou ça commence à chiffrer ? »)` : ""),
+      },
+      {
+        step: "M8",
+        title: "Proposition d'appel (le lien démo arrive ICI, pas avant)",
+        text:
+          `Ok je vois ! Ce que je peux vous proposer, c'est qu'on se prenne 15-20 min ensemble pour vous partager ` +
+          `les points que j'ai identifiés par rapport à votre présence en ligne, et ce que l'on met en place chez nos clients` +
+          (demoLink ? ` — je vous ai d'ailleurs préparé un aperçu gratuit de ce que ça pourrait donner : ${demoLink}` : "") +
+          `. Est-ce que vous auriez un moment cette semaine ? :)`,
+      },
+      {
+        step: "M9",
+        title: "Questionnaire (après son oui, avant de bloquer le créneau)",
+        text:
+          `Super ! Juste avant que je bloque ça de mon côté, j'aurais besoin que vous remplissiez un petit questionnaire — ` +
+          `ça me permettra d'avoir plus de visibilité sur votre activité et de vous apporter davantage de valeur pendant l'appel. ` +
+          `À la fin, vous aurez automatiquement accès aux ressources 👉 ${QUESTIONNAIRE_URL}\n\n` +
+          `Je vous laisse me faire un retour une fois que c'est fait, ça prend 2 min max ;)`,
+      },
+      {
+        step: "R1",
+        title: "Relance — 1 h après un vu (jamais entre 20 h et 8 h)",
+        text: `Vous avez eu le temps de checker mon message${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
+      },
+      {
+        step: "R2",
+        title: "Relance — nouveau vu (attendre 6-8 h)",
+        text: `Toujours avec moi${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
+      },
+      {
+        step: "R3",
+        title: "Relance — nouveau vu (5-8 h) ; ensuite image humour puis mème perso",
+        text: `${p.firstName ? p.firstName.trim() : "Alors"} ?? 😄`,
+      },
+    ];
+  }
+
   const accroche =
     p.metier === "restaurant" && !p.professionIa
       ? `${hello} ! J'ai vu que tu tenais un restaurant, c'est toujours le cas ?`
       : noun
         ? `${hello} ! J'ai vu que tu étais ${noun}, c'est toujours le cas ?`
         : `${hello} ! J'ai vu ton compte en scrollant — tu es toujours en activité en ce moment ?`;
-  const avatar = BATIMENT.has(p.metier)
-    ? "les artisans du bâtiment"
-    : "les indépendants et commerces de proximité";
-  const pain = painWording(p.metier);
-  const bk = p.bookingPlatform;
 
   return [
     {

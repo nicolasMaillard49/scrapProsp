@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractEmails, extractPhonesFr, pickContact, hasRealWebsite,
   extractLastPostAt, isActiveSince, prospectScore, detectMetier,
-  instagramDmSequence, QUESTIONNAIRE_URL,
+  instagramDmSequence, detectTrame, QUESTIONNAIRE_URL,
 } from "./instagram";
 
 test("extractEmails: trouve, déduplique, minuscule", () => {
@@ -130,4 +130,49 @@ test("detectMetier: métiers artisans détectés (catégorie ou bio)", () => {
   assert.equal(detectMetier(null, "Plombier chauffagiste"), "plombier"); // 1re règle qui matche
   assert.equal(detectMetier(null, "Maçonnerie générale"), "macon");
   assert.equal(detectMetier(null, "juste un compte perso"), "");
+});
+
+test("detectMetier: les artisans priment — plus de faux positifs esthéticienne", () => {
+  // « la beauté de vos jardins » matchait l'esthétique avant le fix.
+  assert.equal(detectMetier(null, "Paysagiste passionné — la beauté de vos jardins, spa de nage & terrasses"), "paysagiste");
+  assert.equal(detectMetier(null, "Création de jardins et espaces verts pour embellir vos extérieurs"), "paysagiste");
+  // Les vraies esthéticiennes restent détectées.
+  assert.equal(detectMetier("Institut de beauté", ""), "estheticienne");
+  assert.equal(detectMetier(null, "Esthéticienne diplômée — épilation, soins visage, cils"), "estheticienne");
+  assert.equal(detectMetier(null, "Prothésiste ongulaire, nail art"), "estheticienne");
+});
+
+test("detectTrame: solo par défaut, entreprise sur signaux (forme juridique, équipe, « nous »)", () => {
+  assert.equal(detectTrame("Karim Menuiserie", "Menuisier passionné, je réalise vos projets sur mesure"), "solo");
+  assert.equal(detectTrame(null, null), "solo");
+  assert.equal(detectTrame("Dupont Paysage SARL", "Aménagement extérieur"), "entreprise");
+  assert.equal(detectTrame("Vert & Co", "Notre équipe intervient sur toute la Gironde"), "entreprise");
+  assert.equal(detectTrame(null, "Nous réalisons vos terrasses et jardins depuis 2010"), "entreprise");
+});
+
+test("instagramDmSequence trame entreprise: vouvoiement, structure trame 2, liens aux bons endroits", () => {
+  const demo = "https://x.fr/di/abc";
+  const steps = instagramDmSequence(
+    { metier: "paysagiste", ville: "Angers", firstName: "Julie" },
+    demo,
+    "entreprise",
+  );
+  assert.equal(steps.length, 12);
+  // Vouvoiement partout, aucun tutoiement résiduel (frontières Unicode : « êtes » ≠ « tes »).
+  const tutoie = /(?:^|[^\p{L}])(tu|toi|ton|tes)(?:[^\p{L}]|$)/iu;
+  for (const s of steps.filter((x) => x.step.startsWith("M"))) {
+    assert.ok(!tutoie.test(s.text), `${s.step} ne doit pas tutoyer : ${s.text}`);
+  }
+  assert.ok(steps[0].text.includes("vous étiez paysagiste"));
+  // Trame 2 : pivot sur les détails observés + « fermé à l'idée ».
+  assert.ok(steps.find((s) => s.step === "M2")!.text.includes("puce à l'oreille"));
+  assert.ok(steps.find((s) => s.step === "M4")!.text.includes("fermé à l'idée"));
+  // Aucun lien avant M8 ; démo en M8, questionnaire en M9.
+  for (const s of steps.filter((x) => ["M1", "M2", "M3", "M4", "M5", "M6", "M7"].includes(x.step))) {
+    assert.ok(!/https?:\/\//.test(s.text), `${s.step} ne doit contenir aucun lien`);
+  }
+  assert.ok(steps.find((s) => s.step === "M8")!.text.includes(demo));
+  assert.ok(steps.find((s) => s.step === "M9")!.text.includes(QUESTIONNAIRE_URL));
+  // Douleur adaptée artisan (devis) même en vouvoiement.
+  assert.ok(steps.find((s) => s.step === "M7")!.text.includes("devis"));
 });

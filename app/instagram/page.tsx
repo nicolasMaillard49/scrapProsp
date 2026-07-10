@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Copy, Check, ExternalLink, Send, Eye, Users, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { instagramDmSequence } from "@/app/lib/instagram";
+import { instagramDmSequence, detectMetier, detectTrame, TRAME_LABEL, type TrameKind } from "@/app/lib/instagram";
 import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
 import ProspectionTool from "./ProspectionTool";
@@ -60,6 +60,19 @@ interface DueFollowup {
   stage: string | null;
   followup_count: number;
   next_followup_at: string;
+}
+
+interface PeriodStats {
+  sent: number;
+  m1: number;
+  relances: number;
+  added: number;
+}
+
+interface SendStats {
+  day: PeriodStats;
+  week: PeriodStats;
+  month: PeriodStats;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -116,9 +129,12 @@ export default function InstagramPage() {
   // ── Cockpit (comptes émetteurs, quotas, relances) ──
   const [accounts, setAccounts] = useState<IgAccount[]>([]);
   const [due, setDue] = useState<DueFollowup[]>([]);
+  const [stats, setStats] = useState<SendStats | null>(null);
   const [activeAccount, setActiveAccount] = useState<string>("");
   const [newAccount, setNewAccount] = useState("");
   const [cockpitMsg, setCockpitMsg] = useState<string | null>(null);
+  // Trame choisie par prospect (défaut : suggestion detectTrame, surchargeable).
+  const [trameChoice, setTrameChoice] = useState<Record<string, TrameKind>>({});
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -132,6 +148,7 @@ export default function InstagramPage() {
       const json = await res.json();
       setAccounts(json.accounts ?? []);
       setDue(json.due ?? []);
+      setStats(json.stats ?? null);
     } catch {
       /* silencieux */
     }
@@ -160,7 +177,7 @@ export default function InstagramPage() {
       return;
     }
     setNewAccount("");
-    setCockpitMsg(`Compte @${username} ajouté (chauffe J1 : 5/h · 15/j).`);
+    setCockpitMsg(`Compte @${username} ajouté (chauffe J1 : 5 messages/jour).`);
     await loadCockpit();
   }, [newAccount, loadCockpit]);
 
@@ -445,6 +462,27 @@ export default function InstagramPage() {
             Prospects obtenus <span className="text-sm font-normal text-[var(--color-text-muted)]">— du plus récent au plus ancien</span>
           </h2>
 
+          {/* Suivi global d'activité — jour / semaine / mois */}
+          {stats && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              {([
+                ["Aujourd'hui", stats.day],
+                ["Cette semaine", stats.week],
+                ["Ce mois", stats.month],
+              ] as const).map(([label, s]) => (
+                <div key={label} className="glass-card rounded-xl p-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-1">{label}</p>
+                  <p className="text-lg font-bold text-[var(--color-text-primary)]">
+                    {s.sent} <span className="text-xs font-semibold text-[var(--color-text-secondary)]">DM envoyés</span>
+                  </p>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
+                    {s.m1} accroche{s.m1 > 1 ? "s" : ""} · {s.relances} relance{s.relances > 1 ? "s" : ""} · {s.added} prospect{s.added > 1 ? "s" : ""} ajouté{s.added > 1 ? "s" : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Filtres statut */}
           <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 mb-3">
             {(["all", "todo", "contacted", "positive", "negative"] as const).map((s) => {
@@ -543,15 +581,20 @@ export default function InstagramPage() {
             <div className="space-y-3">
               {shown.map((l) => {
                 const link = origin ? `${origin}/di/${shortCode(l.id)}` : "";
+                // Métier effectif : la profession IA (précise) prime sur le métier stocké au scan.
+                const metierEff = detectMetier(l.profession_ia, null) || l.metier || "";
+                const trameSuggested = detectTrame(l.full_name, l.bio);
+                const trame = trameChoice[l.id] ?? trameSuggested;
                 const dmSteps = instagramDmSequence(
                   {
-                    metier: l.metier ?? "",
+                    metier: metierEff,
                     ville: l.ville ?? "",
                     bookingPlatform: l.booking_platform,
                     firstName: l.full_name ? l.full_name.split(/\s+/)[0] : null,
                     professionIa: l.profession_ia,
                   },
                   link,
+                  trame,
                 );
                 const dmExpanded = expandedDm === l.id;
                 const sty = STATUS_STYLES[l.status] ?? STATUS_STYLES.todo;
@@ -637,9 +680,27 @@ export default function InstagramPage() {
 
                     {dmExpanded && (
                       <div className="mb-3 animate-slide-up space-y-2">
+                        {/* Choix de trame : solo (tutoiement) / entreprise (vouvoiement) */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-bold text-[var(--color-text-secondary)]">Trame :</span>
+                          {(["solo", "entreprise"] as const).map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => setTrameChoice((prev) => ({ ...prev, [l.id]: t }))}
+                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-full border transition cursor-pointer ${
+                                trame === t
+                                  ? "bg-[var(--color-accent)] text-white border-transparent"
+                                  : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
+                              }`}
+                            >
+                              {t === "solo" ? "🧑 " : "🏢 "}{TRAME_LABEL[t]}
+                              {t === trameSuggested ? " · suggérée" : ""}
+                            </button>
+                          ))}
+                        </div>
                         <p className="text-[11px] text-[var(--color-text-muted)]">
                           Envoie les messages <b>un par un</b> selon ses réponses (jamais de pavé, jamais de lien avant M8).
-                          Max 15 DM/h, 60/j — varie les formulations.
+                          Respecte le quota du cockpit — varie les formulations.
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                           {dmSteps.map((s) => {
