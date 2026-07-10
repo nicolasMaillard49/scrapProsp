@@ -67,7 +67,7 @@ const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   // Artisans du bâtiment EN PREMIER (cible NMF) — leurs bios contiennent souvent
   // des mots « beauté / embellir / spa (de nage) » qui matchaient à tort l'esthétique.
   { niche: "menuisier", re: /(menuis|[eé]b[eé]nist|agencement|mobilier sur[- ]?mesure|travail du bois)/i },
-  { niche: "paysagiste", re: /(paysag|jardinier|am[eé]nagement (ext[eé]rieur|paysager)|espaces? verts?|[eé]lagage|cr[eé]ation de jardins?)/i },
+  { niche: "paysagiste", re: /(paysag|jardinier|garden|am[eé]nagement (ext[eé]rieur|paysager)|espaces? verts?|[eé]lagage|cr[eé]ation de jardins?)/i },
   { niche: "carreleur", re: /(carrel|fa[iï]ence|mosa[iï]que)/i },
   { niche: "couvreur", re: /(couvreur|couverture|toiture|zingu|ardoise|tuile)/i },
   { niche: "charpentier", re: /(charpent|ossature bois)/i },
@@ -77,7 +77,7 @@ const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   { niche: "plombier", re: /(plombier|plomberie|sanitaire|salle de bain)/i },
   { niche: "electricien", re: /([eé]lectricien|[eé]lectricit[eé]|domotique)/i },
   { niche: "chauffagiste", re: /(chauffag|pompe [aà] chaleur|\bpac\b|climatisation|clim\b)/i },
-  { niche: "macon", re: /(ma[cç]on|gros [oœ]uvre|pierre de taille|terrass)/i },
+  { niche: "macon", re: /(ma[cç]on|gros [oœ]uvre|pierre de taille|terrassement)/i },
   { niche: "peintre", re: /(peintre|peinture (int[eé]rieure|ext[eé]rieure|d[eé]co))/i },
   // Autres niches locales
   { niche: "coiffeur", re: /(coiff|barbi|barber|\bhair\b|hairdress|hairstyl|coloris|salon de coiff)/i },

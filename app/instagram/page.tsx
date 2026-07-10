@@ -581,8 +581,13 @@ export default function InstagramPage() {
             <div className="space-y-3">
               {shown.map((l) => {
                 const link = origin ? `${origin}/di/${shortCode(l.id)}` : "";
-                // Métier effectif : la profession IA (précise) prime sur le métier stocké au scan.
-                const metierEff = detectMetier(l.profession_ia, null) || l.metier || "";
+                // Métier effectif : profession IA (précise) > redétection catégorie/pseudo/bio
+                // (règles corrigées) > métier stocké au scan (peut être périmé).
+                const metierEff =
+                  detectMetier(l.profession_ia, null) ||
+                  detectMetier(l.category, `${l.username} ${l.bio ?? ""}`) ||
+                  l.metier ||
+                  "";
                 const trameSuggested = detectTrame(l.full_name, l.bio);
                 const trame = trameChoice[l.id] ?? trameSuggested;
                 const dmSteps = instagramDmSequence(
