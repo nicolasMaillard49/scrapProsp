@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Copy, Check, ExternalLink, Send, Eye, Users, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { instagramDmSequence, detectMetier, detectTrame, TRAME_LABEL, type TrameKind } from "@/app/lib/instagram";
+import { instagramDmSequence, detectMetier, detectTrame, competitorHook, TRAME_LABEL, type TrameKind } from "@/app/lib/instagram";
 import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
 import type { IgCompetitorReport } from "@/app/lib/igCompetitor";
@@ -815,6 +815,28 @@ export default function InstagramPage() {
                                 <span className="font-semibold text-[var(--color-accent)]">
                                   💸 {r.adsCount}/{r.total} font des ads{r.sponsoredCount ? ` (dont ${r.sponsoredCount} sponsorisés)` : ""}
                                 </span>
+                                <button
+                                  onClick={() =>
+                                    copy(
+                                      `hook-${l.id}`,
+                                      competitorHook({
+                                        metier: r.metier,
+                                        ville: r.ville,
+                                        selfRank: r.selfRank,
+                                        adsCount: r.adsCount,
+                                        firstName: l.full_name ? l.full_name.split(/\s+/)[0] : null,
+                                        trame,
+                                      }),
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 font-semibold text-[var(--color-accent)] hover:opacity-80 transition cursor-pointer"
+                                >
+                                  {copied === `hook-${l.id}` ? (
+                                    <><Check className="w-3 h-3" /> Accroche copiée</>
+                                  ) : (
+                                    <><Copy className="w-3 h-3" /> Copier l'accroche DM</>
+                                  )}
+                                </button>
                               </div>
                               <div className="space-y-0.5 max-h-72 overflow-y-auto">
                                 {r.competitors.map((c) => (

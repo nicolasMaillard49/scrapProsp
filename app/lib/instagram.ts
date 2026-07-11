@@ -123,6 +123,39 @@ export function detectVille(hashtag?: string | null, bio?: string | null): strin
   return "";
 }
 
+/**
+ * Accroche DM « angle Ads », construite depuis le rapport concurrentiel :
+ * classement Google du prospect + nombre de concurrents qui font des ads.
+ * S'adapte à la trame (tutoiement solo / vouvoiement entreprise).
+ */
+export function competitorHook(input: {
+  metier: string;
+  ville: string;
+  selfRank: number | null;
+  adsCount: number;
+  firstName?: string | null;
+  trame?: TrameKind;
+}): string {
+  const { metier, ville, selfRank, adsCount } = input;
+  const vous = input.trame === "entreprise";
+  const hello = vous ? "Bonjour" : `Hello${input.firstName ? ` ${input.firstName}` : ""}`;
+  const requete = `« ${metier} ${ville} »`;
+  const place =
+    selfRank === null
+      ? vous
+        ? "vous n'apparaissez pas dans les résultats"
+        : "t'apparais pas dans les résultats"
+      : vous
+        ? `vous êtes #${selfRank}`
+        : `t'es #${selfRank}`;
+  const concurrence =
+    adsCount > 0
+      ? `${adsCount} concurrent${adsCount > 1 ? "s" : ""} paie${adsCount > 1 ? "nt" : ""} déjà pour capter ces appels`
+      : "personne ne paie pour ces recherches en ce moment — la place est à prendre";
+  const cta = vous ? "Ça vous intéresse d'en profiter ?" : "Ça t'intéresse d'en profiter ?";
+  return `${hello} ! J'ai regardé ${requete} sur Google : ${place}, et ${concurrence}. ${cta}`;
+}
+
 /* ────────────────────────────────────────────────────────────
  * Génération du DM (tutoiement, 2 variantes : avec lien / tease).
  * ──────────────────────────────────────────────────────────── */
