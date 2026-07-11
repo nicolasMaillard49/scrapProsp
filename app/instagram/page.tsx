@@ -130,6 +130,7 @@ export default function InstagramPage() {
   const [compReports, setCompReports] = useState<Record<string, IgCompetitorReport>>({});
   const [compLoading, setCompLoading] = useState<string | null>(null);
   const [compError, setCompError] = useState<Record<string, string>>({});
+  const [villeInput, setVilleInput] = useState<Record<string, string>>({});
 
   // ── Cockpit (comptes émetteurs, quotas, relances) ──
   const [accounts, setAccounts] = useState<IgAccount[]>([]);
@@ -283,6 +284,27 @@ export default function InstagramPage() {
       }
     },
     [expandedComp, compReports, compLoading],
+  );
+
+  /** Enregistre une ville saisie à la main (prospect sans ville) puis lance le rapport. */
+  const saveVilleAndAnalyze = useCallback(
+    async (prospectId: string) => {
+      const ville = (villeInput[prospectId] ?? "").trim();
+      if (!ville) return;
+      const res = await fetch(`/api/instagram/${prospectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ville }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setCompError((prev) => ({ ...prev, [prospectId]: json.error ?? `Erreur ${res.status}` }));
+        return;
+      }
+      setLeads((prev) => prev.map((l) => (l.id === prospectId ? { ...l, ville } : l)));
+      await toggleCompetitors(prospectId);
+    },
+    [villeInput, toggleCompetitors],
   );
 
   // Charge TOUS les prospects, du plus récent au plus ancien.
@@ -783,14 +805,38 @@ export default function InstagramPage() {
                       </div>
                     )}
 
-                    {/* Rapport concurrentiel — collapsible, chargé à la demande */}
-                    <button
-                      onClick={() => toggleCompetitors(l.id)}
-                      className="text-xs font-semibold text-[var(--color-accent)] hover:underline cursor-pointer mb-2 flex items-center gap-1"
-                    >
-                      <Gauge className="w-3 h-3" />
-                      {expandedComp === l.id ? "Masquer le rapport concurrentiel" : "Rapport concurrentiel (classement Google + qui fait des ads)"}
-                    </button>
+                    {/* Rapport concurrentiel — collapsible, chargé à la demande.
+                        Sans ville détectée : on ne propose pas l'analyse (elle échouerait),
+                        on offre un petit champ pour saisir la ville à la main. */}
+                    {l.ville && l.ville.trim() ? (
+                      <button
+                        onClick={() => toggleCompetitors(l.id)}
+                        className="text-xs font-semibold text-[var(--color-accent)] hover:underline cursor-pointer mb-2 flex items-center gap-1"
+                      >
+                        <Gauge className="w-3 h-3" />
+                        {expandedComp === l.id ? "Masquer le rapport concurrentiel" : "Rapport concurrentiel (classement Google + qui fait des ads)"}
+                      </button>
+                    ) : (
+                      <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
+                          <Gauge className="w-3 h-3" /> Analyse concurrentielle — ville manquante :
+                        </span>
+                        <input
+                          value={villeInput[l.id] ?? ""}
+                          onChange={(e) => setVilleInput((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveVilleAndAnalyze(l.id); }}
+                          placeholder="Ville…"
+                          className="glass-input rounded-lg px-2 py-1 text-xs w-32"
+                        />
+                        <button
+                          onClick={() => saveVilleAndAnalyze(l.id)}
+                          disabled={!(villeInput[l.id] ?? "").trim()}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg border border-[var(--color-accent)]/30 text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Gauge className="w-3 h-3" /> Analyser
+                        </button>
+                      </div>
+                    )}
 
                     {expandedComp === l.id && (
                       <div className="mb-3 animate-slide-up">

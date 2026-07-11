@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
   const { id } = await params;
 
-  let body: { status?: string; notes?: string; seen?: boolean; stage?: string };
+  let body: { status?: string; notes?: string; seen?: boolean; stage?: string; ville?: string };
   try {
     body = await req.json();
   } catch {
@@ -31,6 +31,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     patch.status = body.status;
   }
   if (typeof body.notes === "string") patch.notes = body.notes;
+  // Ville saisie à la main (prospect sans ville détectée) → débloque le rapport concurrentiel.
+  if (typeof body.ville === "string" && body.ville.trim()) patch.ville = body.ville.trim();
 
   if (typeof body.stage === "string") {
     if (!STAGES.includes(body.stage as Stage)) {
@@ -65,7 +67,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .from("instagram_prospects")
     .update(patch)
     .eq("id", id)
-    .select("id, status, notes, stage, followup_count, next_followup_at")
+    .select("id, status, notes, stage, followup_count, next_followup_at, ville")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
