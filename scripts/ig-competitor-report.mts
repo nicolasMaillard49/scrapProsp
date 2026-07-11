@@ -1,19 +1,18 @@
-// Rapport concurrentiel d'un prospect Instagram.
+// Rapport concurrentiel d'un prospect Instagram (CLI).
 //
-// À partir d'un prospect IG (métier + ville), interroge le scraper Maps
-// (POST {SCRAPER_URL}/scrape) pour :
-//   1. son CLASSEMENT sur « métier ville » (rang dans le pack Maps, ou absent) ;
+// À partir d'un prospect IG (métier + ville), utilise la lib partagée
+// app/lib/igCompetitor.ts (même code que l'endpoint cockpit) pour :
+//   1. son CLASSEMENT sur « métier ville » (rang Maps, ou absent) ;
 //   2. la LISTE de ses concurrents (noms, note, avis) ;
-//   3. QUI fait des Google Ads : résultat sponsorisé Maps ("/aclk…") = ads en
-//      direct ; sinon on va lire leur site et on cherche le tag de conversion Ads.
+//   3. QUI fait des Google Ads (sponsorisé "/aclk…" en direct, ou tag de
+//      conversion détecté sur leur site).
 //
 // Usage :
 //   npx tsx scripts/ig-competitor-report.mts <username|uuid> [--full] [--json]
-//   --full : scrape complet (quick:false, ~4× plus lent) si le mode rapide ne
-//            remonte pas les résultats sponsorisés.
-//   --json : sort le rapport en JSON brut (pour brancher une UI ensuite).
+//   --full : scrape complet (plus lent) ; --json : rapport JSON brut.
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
+import { buildCompetitorReport } from "../app/lib/igCompetitor";
 
 const env = Object.fromEntries(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8")
@@ -33,7 +32,6 @@ if (!arg) {
   process.exit(1);
 }
 
-const SCRAPER_URL = env.SCRAPER_URL || "http://51.255.200.169:8001";
 const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SECRET_KEY!);
 
 // ── Prospect IG ──────────────────────────────────────────────────────────────
@@ -44,137 +42,28 @@ if (!found?.length && /^[0-9a-f-]{6,}$/i.test(arg)) {
 }
 const p = found?.[0];
 if (!p) {
-  console.error(`Prospect introuvable : « ${arg} » (essaie le username exact ou l'UUID complet).`);
+  console.error(`Prospect introuvable : « ${arg} » (username exact ou UUID complet).`);
   process.exit(1);
 }
 
 const metier = (p.profession_ia || p.metier || "").trim();
 const ville = (p.ville || "").trim();
 if (!metier || !ville) {
-  console.error(
-    `Impossible de classer @${p.username} : ${!metier ? "métier" : ""}${!metier && !ville ? " et " : ""}${!ville ? "ville" : ""} manquant en base.`,
-  );
+  console.error(`Impossible de classer @${p.username} : ${!metier ? "métier" : ""}${!metier && !ville ? " et " : ""}${!ville ? "ville" : ""} manquant en base.`);
   process.exit(1);
 }
 
-// ── Scraper Maps ─────────────────────────────────────────────────────────────
-interface Comp {
-  name: string;
-  rating?: string;
-  reviews?: string;
-  website?: string;
-  phone?: string;
-  address?: string;
-  maps_url?: string;
-}
+// ── Rapport (lib partagée) ───────────────────────────────────────────────────
 const LIMIT = 20;
 console.error(`Scrape « ${metier} ${ville} » (limit ${LIMIT}, ${FULL ? "complet" : "rapide"})…`);
-const res = await fetch(`${SCRAPER_URL}/scrape`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ metier, ville, limit: LIMIT, quick: !FULL }),
-  signal: AbortSignal.timeout(FULL ? 240_000 : 120_000),
-});
-if (!res.ok) {
-  console.error(`Scraper HTTP ${res.status} : ${await res.text().catch(() => "")}`);
-  process.exit(1);
-}
-const competitors: Comp[] = (await res.json()).competitors ?? [];
-if (!competitors.length) {
-  console.error("Le scraper n'a renvoyé aucun résultat pour cette recherche.");
-  process.exit(1);
-}
-
-// ── Détection Google Ads ─────────────────────────────────────────────────────
-const isSponsored = (c: Comp) => (c.website ?? "").trim().startsWith("/aclk");
-const cleanSite = (c: Comp) => {
-  const w = (c.website ?? "").trim();
-  return w.startsWith("http") ? w : null;
-};
-async function hasGoogleAdsTag(url: string): Promise<boolean> {
-  try {
-    const r = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36" },
-      signal: AbortSignal.timeout(12_000),
-      redirect: "follow",
-    });
-    if (!r.ok) return false;
-    const html = await r.text();
-    return /AW-\d{6,}/.test(html) || /googleads\.g\.doubleclick\.net|googleadservices\.com/.test(html);
-  } catch {
-    return false;
-  }
-}
-
-// Signal ads par concurrent : "sponso" (annonce Maps en direct), "tag" (tag de
-// conversion Ads sur le site), ou "non". Les checks site tournent en parallèle.
-const tagChecks = await Promise.all(
-  competitors.map(async (c) => {
-    if (isSponsored(c)) return "sponso" as const;
-    const site = cleanSite(c);
-    return site && (await hasGoogleAdsTag(site)) ? ("tag" as const) : ("non" as const);
-  }),
+const r = await buildCompetitorReport(
+  { metier, ville, fullName: p.full_name, username: p.username },
+  { scraperUrl: env.SCRAPER_URL, limit: LIMIT, full: FULL },
 );
 
-// ── Rang du prospect (match par nom) ─────────────────────────────────────────
-const norm = (s: string) =>
-  (s || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-const rawTokens = (s: string) => norm(s).split(" ").filter(Boolean);
-// Mots à ignorer pour le match : génériques + LA VILLE et LE MÉTIER cherchés
-// (sinon on matche un concurrent sur « biarritz » ou « paysagiste », qui sont
-// dans la requête et donc du bruit). C'est ce qui créait le faux positif.
-const STOP = new Set([
-  "paysagiste", "paysagisme", "elagage", "jardin", "jardins", "espace", "vert", "verts",
-  "sarl", "eurl", "entreprise", "sas", "fils", "and", "et", "de", "la", "le", "les", "du", "des",
-  ...rawTokens(ville),
-  ...rawTokens(metier),
-]);
-const tokens = (s: string) => rawTokens(s).filter((t) => t.length >= 4 && !STOP.has(t));
-
-const pTokens = new Set([...tokens(p.full_name || ""), ...tokens(p.username)]);
-let selfRank = -1;
-let selfMatchName = "";
-competitors.forEach((c, i) => {
-  if (selfRank !== -1) return;
-  const cTok = tokens(c.name);
-  const overlap = cTok.filter((t) => pTokens.has(t));
-  if (overlap.length >= 1) {
-    selfRank = i + 1;
-    selfMatchName = c.name;
-  }
-});
-
 // ── Sortie ───────────────────────────────────────────────────────────────────
-const adsCount = tagChecks.filter((t) => t !== "non").length;
-const sponsoCount = tagChecks.filter((t) => t === "sponso").length;
-
 if (JSON_OUT) {
-  console.log(
-    JSON.stringify(
-      {
-        prospect: { username: p.username, name: p.full_name, metier, ville },
-        self_rank: selfRank === -1 ? null : selfRank,
-        self_match: selfMatchName || null,
-        ads_advertisers: adsCount,
-        sponsored_now: sponsoCount,
-        competitors: competitors.map((c, i) => ({
-          rank: i + 1,
-          name: c.name,
-          rating: c.rating ?? null,
-          reviews: c.reviews ?? null,
-          website: isSponsored(c) ? null : cleanSite(c),
-          ads: tagChecks[i],
-        })),
-      },
-      null,
-      2,
-    ),
-  );
+  console.log(JSON.stringify({ prospect: { username: p.username, name: p.full_name, metier, ville }, ...r }, null, 2));
   process.exit(0);
 }
 
@@ -184,26 +73,26 @@ console.log(`═══ Rapport concurrentiel — @${p.username} ═══`);
 console.log(`  ${p.full_name || "?"} · ${metier} · ${ville}`);
 console.log("");
 console.log(
-  selfRank === -1
-    ? `  📍 Classement Google Maps : ABSENT du top ${LIMIT} — invisible quand un client cherche « ${metier} ${ville} ».`
-    : `  📍 Classement Google Maps : #${selfRank}/${competitors.length} (fiche « ${selfMatchName} »).`,
+  r.selfRank === null
+    ? `  📍 Classement Google Maps : ABSENT du top ${r.total} — invisible quand un client cherche « ${metier} ${ville} ».`
+    : `  📍 Classement Google Maps : #${r.selfRank}/${r.total} (fiche « ${r.selfMatch} »).`,
 );
-console.log(`  💸 Concurrents qui font des Google Ads : ${adsCount}/${competitors.length}  (dont ${sponsoCount} sponsorisés en direct).`);
+console.log(`  💸 Concurrents qui font des Google Ads : ${r.adsCount}/${r.total}  (dont ${r.sponsoredCount} sponsorisés en direct).`);
 console.log("");
 console.log("  Rang  Ads                    Note   Avis   Concurrent");
 console.log("  ────  ─────────────────────  ─────  ─────  ──────────────────────────────");
-competitors.forEach((c, i) => {
-  const me = selfRank === i + 1 ? " ← LUI" : "";
-  const rating = c.rating ? String(c.rating).padStart(4) : "   –";
-  const reviews = c.reviews ? String(c.reviews).padStart(4) : "   –";
-  console.log(`  #${String(i + 1).padStart(2)}   ${LABEL[tagChecks[i]].padEnd(21)}  ${rating}   ${reviews}   ${c.name}${me}`);
-});
+for (const c of r.competitors) {
+  const me = c.isSelf ? " ← LUI" : "";
+  const rating = c.rating != null ? String(c.rating).padStart(4) : "   –";
+  const reviews = c.reviews != null ? String(c.reviews).padStart(4) : "   –";
+  console.log(`  #${String(c.rank).padStart(2)}   ${LABEL[c.ads].padEnd(21)}  ${rating}   ${reviews}   ${c.name}${me}`);
+}
 console.log("");
 console.log("  Pour le DM :");
-if (selfRank === -1) {
-  console.log(`  « J'ai regardé "${metier} ${ville}" sur Google : t'apparais pas dans les résultats,`);
-} else {
-  console.log(`  « J'ai regardé "${metier} ${ville}" sur Google : t'es #${selfRank},`);
-}
-console.log(`    et ${adsCount} de tes concurrents paient déjà pour passer devant toi. »`);
+console.log(
+  r.selfRank === null
+    ? `  « J'ai regardé "${metier} ${ville}" sur Google : t'apparais pas dans les résultats,`
+    : `  « J'ai regardé "${metier} ${ville}" sur Google : t'es #${r.selfRank},`,
+);
+console.log(`    et ${r.adsCount} de tes concurrents paient déjà pour passer devant toi. »`);
 console.log("");

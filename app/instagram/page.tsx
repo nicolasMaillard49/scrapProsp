@@ -12,6 +12,7 @@ import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { instagramDmSequence, detectMetier, detectTrame, TRAME_LABEL, type TrameKind } from "@/app/lib/instagram";
 import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
+import type { IgCompetitorReport } from "@/app/lib/igCompetitor";
 import ProspectionTool from "./ProspectionTool";
 
 interface IgLead {
@@ -124,6 +125,11 @@ export default function InstagramPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [expandedDm, setExpandedDm] = useState<string | null>(null);
+  // Rapport concurrentiel par prospect (panneau repliable, chargé à la demande).
+  const [expandedComp, setExpandedComp] = useState<string | null>(null);
+  const [compReports, setCompReports] = useState<Record<string, IgCompetitorReport>>({});
+  const [compLoading, setCompLoading] = useState<string | null>(null);
+  const [compError, setCompError] = useState<Record<string, string>>({});
 
   // ── Cockpit (comptes émetteurs, quotas, relances) ──
   const [accounts, setAccounts] = useState<IgAccount[]>([]);
@@ -246,6 +252,38 @@ export default function InstagramPage() {
       await loadCockpit();
     }
   }, [loadCockpit]);
+
+  /**
+   * Ouvre/ferme le rapport concurrentiel d'un prospect. Charge à la demande
+   * (scrape Maps + détection Ads, plusieurs secondes) et met en cache dans l'état :
+   * ré-ouvrir n'entraîne pas un nouveau scrape.
+   */
+  const toggleCompetitors = useCallback(
+    async (prospectId: string) => {
+      if (expandedComp === prospectId) {
+        setExpandedComp(null);
+        return;
+      }
+      setExpandedComp(prospectId);
+      if (compReports[prospectId] || compLoading === prospectId) return;
+      setCompLoading(prospectId);
+      setCompError((prev) => {
+        const { [prospectId]: _drop, ...rest } = prev;
+        return rest;
+      });
+      try {
+        const res = await fetch(`/api/instagram/${prospectId}/competitors`);
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? `Erreur ${res.status}`);
+        setCompReports((prev) => ({ ...prev, [prospectId]: json as IgCompetitorReport }));
+      } catch (e) {
+        setCompError((prev) => ({ ...prev, [prospectId]: e instanceof Error ? e.message : String(e) }));
+      } finally {
+        setCompLoading((cur) => (cur === prospectId ? null : cur));
+      }
+    },
+    [expandedComp, compReports, compLoading],
+  );
 
   // Charge TOUS les prospects, du plus récent au plus ancien.
   const loadLeads = useCallback(async () => {
@@ -742,6 +780,68 @@ export default function InstagramPage() {
                             );
                           })}
                         </div>
+                      </div>
+                    )}
+
+                    {/* Rapport concurrentiel — collapsible, chargé à la demande */}
+                    <button
+                      onClick={() => toggleCompetitors(l.id)}
+                      className="text-xs font-semibold text-[var(--color-accent)] hover:underline cursor-pointer mb-2 flex items-center gap-1"
+                    >
+                      <Gauge className="w-3 h-3" />
+                      {expandedComp === l.id ? "Masquer le rapport concurrentiel" : "Rapport concurrentiel (classement Google + qui fait des ads)"}
+                    </button>
+
+                    {expandedComp === l.id && (
+                      <div className="mb-3 animate-slide-up">
+                        {compLoading === l.id && (
+                          <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] py-2">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Analyse Google Maps en cours (~30 s)…
+                          </div>
+                        )}
+                        {compError[l.id] && (
+                          <p className="text-xs text-rose-600 dark:text-rose-400 py-2">{compError[l.id]}</p>
+                        )}
+                        {compReports[l.id] && (() => {
+                          const r = compReports[l.id];
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                                <span className="font-semibold">
+                                  📍 {r.selfRank
+                                    ? `#${r.selfRank}/${r.total} sur « ${r.metier} ${r.ville} »`
+                                    : `ABSENT du top ${r.total} sur « ${r.metier} ${r.ville} »`}
+                                </span>
+                                <span className="font-semibold text-[var(--color-accent)]">
+                                  💸 {r.adsCount}/{r.total} font des ads{r.sponsoredCount ? ` (dont ${r.sponsoredCount} sponsorisés)` : ""}
+                                </span>
+                              </div>
+                              <div className="space-y-0.5 max-h-72 overflow-y-auto">
+                                {r.competitors.map((c) => (
+                                  <div
+                                    key={c.rank}
+                                    className={`flex items-center gap-2 text-xs rounded px-2 py-1 ${c.isSelf ? "bg-[var(--color-accent-soft)] font-semibold" : ""}`}
+                                  >
+                                    <span className="w-7 shrink-0 font-mono-num text-[var(--color-text-muted)]">#{c.rank}</span>
+                                    <span className={`shrink-0 text-[10px] font-bold rounded-full px-1.5 py-0.5 border ${
+                                      c.ads === "sponso"
+                                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                                        : c.ads === "tag"
+                                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                                        : "text-[var(--color-text-muted)] border-[var(--color-border)]"
+                                    }`} title={c.ads === "sponso" ? "Annonce sponsorisée Maps (paie des ads en direct)" : c.ads === "tag" ? "Tag de conversion Google Ads détecté sur son site" : "Aucun signal d'ads"}>
+                                      {c.ads === "sponso" ? "ADS" : c.ads === "tag" ? "ads?" : "—"}
+                                    </span>
+                                    <span className="truncate flex-1">{c.name}{c.isSelf ? " ← lui" : ""}</span>
+                                    {c.rating != null && (
+                                      <span className="shrink-0 text-[var(--color-text-muted)] font-mono-num">{c.rating}★ {c.reviews ?? 0}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
 
