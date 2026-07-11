@@ -15,7 +15,7 @@ interface Body {
 /**
  * POST /api/instagram/dm  { prospect_id, account_id, step }
  * Marque un message de la séquence comme ENVOYÉ (par un humain) :
- * vérifie les quotas du compte (heure glissante + jour Paris, plan de chauffe),
+ * vérifie le quota jour du compte (jour Paris, plan de chauffe — limite par JOUR, pas par heure),
  * journalise, avance le stade du prospect, programme la relance par défaut (+48 h),
  * et alerte sur Telegram à l'approche / à l'atteinte du plafond jour.
  */
@@ -47,26 +47,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `@${account.username} est en pause — aucun envoi autorisé.` }, { status: 429 });
   }
 
-  // Compteurs (heure glissante + jour Paris).
-  const hourAgo = new Date(now.getTime() - 3600_000).toISOString();
+  // Compteur du jour (jour Paris).
   const dayStart = parisDayStart(now).toISOString();
-  const [{ count: sentHour }, { count: sentDay }] = await Promise.all([
-    supabase.from("ig_dm_log").select("id", { count: "exact", head: true }).eq("account_id", account_id).gte("sent_at", hourAgo),
-    supabase.from("ig_dm_log").select("id", { count: "exact", head: true }).eq("account_id", account_id).gte("sent_at", dayStart),
-  ]);
-  const hour = sentHour ?? 0;
+  const { count: sentDay } = await supabase
+    .from("ig_dm_log")
+    .select("id", { count: "exact", head: true })
+    .eq("account_id", account_id)
+    .gte("sent_at", dayStart);
   const day = sentDay ?? 0;
 
   if (day >= caps.daily) {
     void sendTelegram(`🚫 <b>@${account.username}</b> : plafond JOUR atteint (${day}/${caps.daily}) — stop jusqu'à demain 8 h.`);
     return NextResponse.json(
-      { error: `Plafond jour atteint pour @${account.username} (${day}/${caps.daily}). Reprise demain.`, counters: { hour, day, caps } },
-      { status: 429 },
-    );
-  }
-  if (hour >= caps.hourly) {
-    return NextResponse.json(
-      { error: `Plafond horaire atteint pour @${account.username} (${hour}/${caps.hourly}). Attends un peu.`, counters: { hour, day, caps } },
+      { error: `Plafond jour atteint pour @${account.username} (${day}/${caps.daily}). Reprise demain.`, counters: { day, caps } },
       { status: 429 },
     );
   }
@@ -119,6 +112,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     prospect: updated,
-    counters: { hour: hour + 1, day: newDay, caps },
+    counters: { day: newDay, caps },
   });
 }

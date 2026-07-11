@@ -1,13 +1,12 @@
 // Pipeline de prospection Instagram — logique PURE (quotas, chauffe, relances).
 // Encode les règles de la méthode (source : assistance Meta via Notion Generate.io) :
-//  - chauffe : J1 5/j, J2 10/j, J3 15/j, puis +5/jour — jamais > 15/h ni 60/j ;
+//  - chauffe : J1 5/j, J2 10/j, J3 15/j, puis +5/jour — jamais > 60/j (limite PAR JOUR, pas par heure) ;
 //  - relances jamais entre 20 h et 8 h ;
 //  - vu sans réponse → R1 +1 h, puis R2 +6-8 h, R3 +5-8 h ; pas de vu → +48 h.
 
 export type AccountStatus = "warmup" | "chaud" | "pause";
 
 export interface Caps {
-  hourly: number;
   daily: number;
   /** Jour du plan de chauffe (1-indexé) ; 0 si compte chaud/pause. */
   day: number;
@@ -16,17 +15,17 @@ export interface Caps {
 const DAY_MS = 24 * 3600 * 1000;
 
 /**
- * Plafonds du jour selon le plan de chauffe (démarré à `started_at`).
+ * Plafond du jour selon le plan de chauffe (démarré à `started_at`).
  * J1 : 5/j → J2 : 10/j → J3 : 15/j, puis +5/jour jusqu'au plafond Meta
- * (15/h · 60/j, atteint à J12). Statut chaud : plafond max direct. Pause : 0/0.
+ * (60/j, atteint à J12). Statut chaud : plafond max direct. Pause : 0.
  */
 export function warmupCaps(startedAt: string | Date, status: AccountStatus, now = Date.now()): Caps {
-  if (status === "pause") return { hourly: 0, daily: 0, day: 0 };
-  if (status === "chaud") return { hourly: 15, daily: 60, day: 0 };
+  if (status === "pause") return { daily: 0, day: 0 };
+  if (status === "chaud") return { daily: 60, day: 0 };
   const start = typeof startedAt === "string" ? Date.parse(startedAt) : startedAt.getTime();
   const day = Math.max(1, Math.floor((now - start) / DAY_MS) + 1);
   const daily = Math.min(60, day <= 3 ? day * 5 : 15 + (day - 3) * 5);
-  return { hourly: Math.min(15, daily), daily, day };
+  return { daily, day };
 }
 
 /** Reporte une date hors fenêtre d'envoi (8 h-20 h, heure locale) au créneau valide suivant. */

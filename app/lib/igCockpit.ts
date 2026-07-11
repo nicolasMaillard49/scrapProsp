@@ -15,7 +15,6 @@ export interface AccountRow {
 
 export interface AccountWithCounters extends AccountRow {
   caps: Caps;
-  sentHour: number; // heure glissante
   sentDay: number; // depuis minuit (Europe/Paris)
 }
 
@@ -27,7 +26,7 @@ export function parisDayStart(now = new Date()): Date {
   return new Date(paris.getTime() + offset);
 }
 
-/** Comptes + compteurs (heure glissante / jour Paris) + plafonds du plan de chauffe. */
+/** Comptes + compteur du jour (jour Paris) + plafond du plan de chauffe. */
 export async function getAccountsWithCounters(now = new Date()): Promise<AccountWithCounters[]> {
   const { data: accounts, error } = await supabase
     .from("ig_accounts")
@@ -35,18 +34,17 @@ export async function getAccountsWithCounters(now = new Date()): Promise<Account
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
 
-  const hourAgo = new Date(now.getTime() - 3600_000).toISOString();
   const dayStart = parisDayStart(now).toISOString();
   const out: AccountWithCounters[] = [];
   for (const a of (accounts ?? []) as AccountRow[]) {
-    const [{ count: sentHour }, { count: sentDay }] = await Promise.all([
-      supabase.from("ig_dm_log").select("id", { count: "exact", head: true }).eq("account_id", a.id).gte("sent_at", hourAgo),
-      supabase.from("ig_dm_log").select("id", { count: "exact", head: true }).eq("account_id", a.id).gte("sent_at", dayStart),
-    ]);
+    const { count: sentDay } = await supabase
+      .from("ig_dm_log")
+      .select("id", { count: "exact", head: true })
+      .eq("account_id", a.id)
+      .gte("sent_at", dayStart);
     out.push({
       ...a,
       caps: warmupCaps(a.started_at, a.status, now.getTime()),
-      sentHour: sentHour ?? 0,
       sentDay: sentDay ?? 0,
     });
   }
@@ -170,7 +168,7 @@ export async function sendCockpitDigest(now = new Date()): Promise<string> {
   }
   for (const a of accounts) {
     const statut = a.status === "chaud" ? "chaud" : a.status === "pause" ? "⏸ pause" : `chauffe J${a.caps.day}`;
-    lines.push(`@${a.username} (${statut}) : <b>${a.sentDay}/${a.caps.daily}</b> aujourd'hui · ${a.sentHour}/${a.caps.hourly} dernière heure`);
+    lines.push(`@${a.username} (${statut}) : <b>${a.sentDay}/${a.caps.daily}</b> aujourd'hui`);
   }
   if (due.length) {
     const top = due.slice(0, 5).map((d) => `@${d.username}`).join(", ");

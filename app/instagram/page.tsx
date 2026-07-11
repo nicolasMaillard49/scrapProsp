@@ -49,8 +49,7 @@ interface IgAccount {
   username: string;
   status: "warmup" | "chaud" | "pause";
   started_at: string;
-  caps: { hourly: number; daily: number; day: number };
-  sentHour: number;
+  caps: { daily: number; day: number };
   sentDay: number;
 }
 
@@ -361,7 +360,6 @@ export default function InstagramPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {accounts.map((a) => {
               const dayPct = a.caps.daily ? Math.min(100, (a.sentDay / a.caps.daily) * 100) : 100;
-              const hourPct = a.caps.hourly ? Math.min(100, (a.sentHour / a.caps.hourly) * 100) : 100;
               const full = a.caps.daily > 0 && a.sentDay >= a.caps.daily;
               const active = activeAccount === a.id;
               return (
@@ -402,7 +400,6 @@ export default function InstagramPage() {
                     </select>
                   </div>
                   <div className="space-y-1.5">
-                    <QuotaBar label="Heure" val={a.sentHour} cap={a.caps.hourly} pct={hourPct} />
                     <QuotaBar label="Jour" val={a.sentDay} cap={a.caps.daily} pct={dayPct} />
                   </div>
                   {full && <p className="mt-1.5 text-[11px] font-semibold text-rose-500">Plafond jour atteint — stop jusqu'à demain 8 h.</p>}
