@@ -42,7 +42,10 @@ export function slugify(s: string): string {
 const METIER_SYNONYMS: Record<string, string[]> = {
   coiffeur: ["coiffeur", "coiffure", "barbier", "salondecoiffure"],
   restaurant: ["restaurant", "resto"],
-  estheticienne: ["estheticienne", "institutbeaute", "ongles", "nailart"],
+  estheticienne: [
+    "estheticienne", "institutbeaute", "ongles", "nailart",
+    "prothesisteongulaire", "extensiondecils", "epilationlaser", "microblading",
+  ],
   fleuriste: ["fleuriste", "fleurs", "artisanfleuriste"],
   tatoueur: ["tatoueur", "tattoo", "tatouage"],
   photographe: ["photographe", "photographemariage"],
@@ -84,7 +87,19 @@ const METIER_HASHTAGS: Record<string, string[]> = {
   chauffagiste: ["chauffagiste", "chauffage", "pompeachaleur", "climatisation"],
   coiffeur: ["coiffeur", "coiffure", "barbier", "salondecoiffure", "coiffeurcoloriste", "balayage", "coiffeuse"],
   restaurant: ["restaurant", "resto", "restaurantfrancais", "faitmaison", "bistrot", "traiteur"],
-  estheticienne: ["estheticienne", "institutbeaute", "ongles", "nailart", "prothesisteongulaire", "extensiondecils", "microblading"],
+  // Beauté — biais volontaire haut ticket (laser, cils, ongles, dermo) :
+  // prestations 80–300 €, vraie culture Insta, budget pub envisageable.
+  estheticienne: [
+    "estheticienne", "institutbeaute", "institutdebeaute",
+    // ongles
+    "prothesisteongulaire", "onglerie", "nailart", "ongles",
+    // cils / sourcils
+    "extensiondecils", "rehaussementdecils", "volumerusse", "lashartist",
+    "microblading", "dermopigmentation", "maquillagepermanent", "browartist",
+    // épilation / soins techniques
+    "epilationlaser", "epilationdefinitive", "cryolipolyse", "hifu",
+    "microneedling", "soinvisage",
+  ],
   fleuriste: ["fleuriste", "fleurs", "artisanfleuriste", "bouquetdefleurs", "fleuristecreateur"],
   tatoueur: ["tatoueur", "tattoo", "tatouage", "tatoueurfrancais", "inked"],
   photographe: ["photographe", "photographemariage", "photographeportrait", "photographefrancais", "seancephoto"],

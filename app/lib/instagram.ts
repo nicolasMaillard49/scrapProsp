@@ -82,7 +82,7 @@ const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   // Autres niches locales
   { niche: "coiffeur", re: /(coiff|barbi|barber|\bhair\b|hairdress|hairstyl|coloris|salon de coiff)/i },
   { niche: "restaurant", re: /(restaur|resto|bistrot|brasserie|pizz|burger|traiteur|cuisine|chef|food|caf[eé]|coffee|sushi|tacos|kebab|cr[eê]perie)/i },
-  { niche: "estheticienne", re: /(esth[eé]t|institut de beaut|beauty|cosm[eé]t|ongl|nail|maquill|makeup|[eé]pilation|\bcils\b|lash|sourcil|massage|bien-?[eê]tre|\bspa\b)/i },
+  { niche: "estheticienne", re: /(esth[eé]t|institut de beaut|beauty|cosm[eé]t|ongl|nail|maquill|makeup|[eé]pilation|\bcils\b|lash|sourcil|microblading|dermopigment|cryolip|\bhifu\b|microneedling|massage|bien-?[eê]tre|\bspa\b)/i },
   { niche: "fleuriste", re: /(fleurist|fleurs|floral|florist|bouquet)/i },
   { niche: "tatoueur", re: /(tatou|tattoo|\bink\b|piercing)/i },
 ];
