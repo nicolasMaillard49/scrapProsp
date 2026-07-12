@@ -127,6 +127,8 @@ export function detectVille(hashtag?: string | null, bio?: string | null): strin
  * Accroche DM « angle Ads », construite depuis le rapport concurrentiel :
  * classement Google du prospect + nombre de concurrents qui font des ads.
  * S'adapte à la trame (tutoiement solo / vouvoiement entreprise).
+ * Règle de la trame : pure observation + question de curiosité — AUCUNE
+ * mention de l'offre (elle n'arrive qu'à la proposition d'appel, M8).
  */
 export function competitorHook(input: {
   metier: string;
@@ -154,9 +156,9 @@ export function competitorHook(input: {
   const concurrence =
     adsCount > 0
       ? `${adsCount} concurrent${adsCount > 1 ? "s" : ""} paie${adsCount > 1 ? "nt" : ""} déjà pour capter ${cible}`
-      : "personne ne paie pour ces recherches en ce moment — la place est à prendre";
-  const cta = vous ? "Ça vous intéresse d'en profiter ?" : "Ça t'intéresse d'en profiter ?";
-  return `${hello} ! J'ai regardé ${requete} sur Google : ${place}, et ${concurrence}. ${cta}`;
+      : "personne ne paie pour ces recherches en ce moment";
+  const question = vous ? "Vous l'aviez remarqué ?" : "Tu l'avais remarqué ?";
+  return `${hello} ! Par curiosité j'ai tapé ${requete} sur Google : ${place}, et ${concurrence}. ${question}`;
 }
 
 /* ────────────────────────────────────────────────────────────

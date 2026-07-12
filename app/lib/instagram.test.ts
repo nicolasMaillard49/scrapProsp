@@ -190,4 +190,10 @@ test("competitorHook: appels pour artisans, réservations pour métiers à RDV",
   assert.ok(solo.includes("Hello Julie") && solo.includes("t'es #4"));
   const ent = competitorHook({ ...base, metier: "esthéticienne", trame: "entreprise" });
   assert.ok(ent.includes("Bonjour") && ent.includes("vous êtes #4"));
+  // Règle de la trame : observation + curiosité, jamais de pitch de l'offre.
+  for (const msg of [solo, ent]) {
+    assert.ok(!/profiter|proposer|offre|accompagn|campagne/i.test(msg), `pas de pitch : ${msg}`);
+  }
+  assert.ok(solo.endsWith("Tu l'avais remarqué ?"));
+  assert.ok(ent.endsWith("Vous l'aviez remarqué ?"));
 });
