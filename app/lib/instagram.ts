@@ -140,6 +140,9 @@ export function competitorHook(input: {
   const vous = input.trame === "entreprise";
   const hello = vous ? "Bonjour" : `Hello${input.firstName ? ` ${input.firstName}` : ""}`;
   const requete = `« ${metier} ${ville} »`;
+  // Artisans = business téléphone-first ; métiers à RDV (beauté, resto…) = réservations.
+  const RDV_METIERS = new Set<string>(["estheticienne", "coiffeur", "tatoueur", "restaurant"]);
+  const cible = RDV_METIERS.has(detectMetier(metier, null)) ? "ces réservations" : "ces appels";
   const place =
     selfRank === null
       ? vous
@@ -150,7 +153,7 @@ export function competitorHook(input: {
         : `t'es #${selfRank}`;
   const concurrence =
     adsCount > 0
-      ? `${adsCount} concurrent${adsCount > 1 ? "s" : ""} paie${adsCount > 1 ? "nt" : ""} déjà pour capter ces appels`
+      ? `${adsCount} concurrent${adsCount > 1 ? "s" : ""} paie${adsCount > 1 ? "nt" : ""} déjà pour capter ${cible}`
       : "personne ne paie pour ces recherches en ce moment — la place est à prendre";
   const cta = vous ? "Ça vous intéresse d'en profiter ?" : "Ça t'intéresse d'en profiter ?";
   return `${hello} ! J'ai regardé ${requete} sur Google : ${place}, et ${concurrence}. ${cta}`;

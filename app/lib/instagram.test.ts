@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractEmails, extractPhonesFr, pickContact, hasRealWebsite,
   extractLastPostAt, isActiveSince, prospectScore, detectMetier,
-  instagramDmSequence, detectTrame, QUESTIONNAIRE_URL,
+  instagramDmSequence, detectTrame, QUESTIONNAIRE_URL, competitorHook,
 } from "./instagram";
 
 test("extractEmails: trouve, déduplique, minuscule", () => {
@@ -175,4 +175,19 @@ test("instagramDmSequence trame entreprise: vouvoiement, structure trame 2, lien
   assert.ok(steps.find((s) => s.step === "M9")!.text.includes(QUESTIONNAIRE_URL));
   // Douleur adaptée artisan (devis) même en vouvoiement.
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("devis"));
+});
+
+test("competitorHook: appels pour artisans, réservations pour métiers à RDV", () => {
+  const base = { ville: "Bordeaux", selfRank: 4, adsCount: 3 };
+  // Artisan téléphone-first → « ces appels ».
+  assert.ok(competitorHook({ ...base, metier: "plombier" }).includes("capter ces appels"));
+  // Beauté / RDV → « ces réservations », y compris via texte libre avec accents.
+  assert.ok(competitorHook({ ...base, metier: "esthéticienne" }).includes("capter ces réservations"));
+  assert.ok(competitorHook({ ...base, metier: "institut de beauté" }).includes("capter ces réservations"));
+  assert.ok(competitorHook({ ...base, metier: "coiffeur" }).includes("capter ces réservations"));
+  // Structure : classement + trame (tutoiement par défaut, vouvoiement entreprise).
+  const solo = competitorHook({ ...base, metier: "esthéticienne", firstName: "Julie" });
+  assert.ok(solo.includes("Hello Julie") && solo.includes("t'es #4"));
+  const ent = competitorHook({ ...base, metier: "esthéticienne", trame: "entreprise" });
+  assert.ok(ent.includes("Bonjour") && ent.includes("vous êtes #4"));
 });
