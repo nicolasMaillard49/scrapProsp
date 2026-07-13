@@ -223,7 +223,7 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
   return (
     <div className="space-y-6">
         {/* Étape 1 — générateur */}
-        <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-3">
+        <section className="space-y-3">
           {/* Mode : hashtags métier purs (recommandé) vs métier × villes */}
           <div className="flex flex-wrap items-center gap-2">
             <button
@@ -310,7 +310,7 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
 
         {/* Étape 2 — sélection des hashtags */}
         {rows.length > 0 && (
-          <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-4">
+          <section className="space-y-4 border-t border-[var(--color-border)] pt-5">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-[var(--color-text-primary)]">
                 {selectedCount} / {rows.length} sélectionnés
@@ -373,7 +373,7 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
 
         {/* Étape 3 — progression / résumé / export */}
         {progress && (
-          <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-3">
+          <section className="space-y-3 border-t border-[var(--color-border)] pt-5">
             <div className="w-full bg-[var(--color-surface-2)] rounded-full h-2 overflow-hidden">
               <div
                 className="h-full bg-[var(--color-accent)] transition-all"
@@ -394,10 +394,9 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
         )}
 
         {/* Étape 4 — qualification IA (tri par lots de 40, façon « filtrage ChatGPT » automatisé) */}
-        <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[var(--color-accent)]" />
-            <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Qualification IA</h2>
+        <section className="space-y-3 border-t border-[var(--color-border)] pt-5">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Qualification IA</h2>
             <span className="text-xs text-[var(--color-text-muted)]">
               trie les profils en base par lots de 40 (nom, pseudo, abonnés, bio uniquement) → qualifié / limite / écarté + score
             </span>
@@ -443,26 +442,26 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
         </section>
 
         {/* Étape 5 — exports */}
-        <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-3">
-          <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Exports CSV (triés par score)</h2>
+        <section className="space-y-3 border-t border-[var(--color-border)] pt-5">
+          <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Exports CSV <span className="font-normal text-xs text-[var(--color-text-muted)]">— triés par score</span></h2>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => exportProfilesCsv()}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-[var(--color-accent)] hover:opacity-90 cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium text-white bg-[var(--color-accent)] hover:opacity-90 transition-opacity cursor-pointer"
             >
-              <Download className="w-4 h-4" /> Tous les profils
+              <Download className="w-3.5 h-3.5" /> Tous les profils
             </button>
             <button
               onClick={() => exportProfilesCsv({ tier: "hot" })}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-red-500/40 text-red-600 dark:text-red-400 hover:bg-red-500/10 cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium border border-[var(--color-border)] text-red-700 dark:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
             >
-              <Flame className="w-4 h-4" /> 🔥 Hot uniquement
+              <Flame className="w-3.5 h-3.5" /> Hot uniquement
             </button>
             <button
               onClick={() => exportProfilesCsv({ qualification: "qualified" })}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-medium border border-[var(--color-border)] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
             >
-              <Sparkles className="w-4 h-4" /> Qualifiés IA
+              <Sparkles className="w-3.5 h-3.5" /> Qualifiés IA
             </button>
           </div>
           {summary && (

@@ -227,6 +227,13 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 .animate-pulse-ring { animation: pulse-ring 2s cubic-bezier(0.66, 0, 0, 1) infinite; }
 .animate-slide-up { animation: slide-up 200ms ease-out; }
 .animate-fade-in { animation: fade-in 200ms ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse-ring, .animate-slide-up, .animate-fade-in, .animate-confetti,
+  .stagger-1, .stagger-2, .stagger-3, .stagger-4, .skeleton {
+    animation: none;
+  }
+}
 .animate-confetti { animation: confetti-pop 800ms ease-out forwards; }
 .stagger-1 { animation: stagger-in 400ms ease-out 0ms both; }
 .stagger-2 { animation: stagger-in 400ms ease-out 80ms both; }

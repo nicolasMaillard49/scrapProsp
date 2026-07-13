@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Users, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { instagramDmSequence, detectMetier, detectTrame, competitorHook, TRAME_LABEL, type TrameKind } from "@/app/lib/instagram";
@@ -82,39 +82,44 @@ const STATUS_LABEL: Record<string, string> = {
   negative: "Negatif",
 };
 
+/* Statuts : teinte douce + texte coloré (l'aplat saturé est réservé à la sélection). */
 const STATUS_STYLES: Record<string, { pill: string; pillActive: string }> = {
   todo: {
-    pill: "border-[var(--color-border)] text-[var(--color-text-muted)]",
-    pillActive: "bg-[var(--color-text-muted)] text-white border-transparent",
+    pill: "border-[var(--color-border)] text-[var(--color-text-secondary)] bg-[var(--color-surface)]",
+    pillActive: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-400/40",
   },
   contacted: {
-    pill: "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400",
+    pill: "border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-400 bg-blue-500/5",
     pillActive: "bg-blue-600 text-white border-transparent",
   },
   positive: {
-    pill: "border-emerald-300 text-emerald-600 dark:border-emerald-700 dark:text-emerald-400",
+    pill: "border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/5",
     pillActive: "bg-emerald-600 text-white border-transparent",
   },
   negative: {
-    pill: "border-rose-300 text-rose-600 dark:border-rose-700 dark:text-rose-400",
+    pill: "border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-400 bg-rose-500/5",
     pillActive: "bg-rose-600 text-white border-transparent",
   },
 };
 
-const TIER_BADGE: Record<string, string> = {
-  hot: "bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/30",
-  warm: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
-  cold: "bg-slate-500/10 text-slate-500 border-slate-400/30",
+/* Score : pastille discrète (couleur = état, jamais déco) + valeur tabulaire. */
+const TIER_DOT: Record<string, { dot: string; text: string; label: string }> = {
+  hot: { dot: "bg-red-500", text: "text-red-600 dark:text-red-400", label: "Hot" },
+  warm: { dot: "bg-amber-500", text: "text-amber-600 dark:text-amber-400", label: "Warm" },
+  cold: { dot: "bg-slate-400", text: "text-slate-500 dark:text-slate-400", label: "Cold" },
 };
 
 const QUALIF_BADGE: Record<string, { label: string; cls: string }> = {
-  qualified: { label: "✓ Qualifié IA", cls: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" },
-  borderline: { label: "~ Limite", cls: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30" },
-  rejected: { label: "✗ Écarté IA", cls: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30" },
+  qualified: { label: "Qualifié IA", cls: "text-emerald-700 dark:text-emerald-400" },
+  borderline: { label: "Limite IA", cls: "text-amber-700 dark:text-amber-400" },
+  rejected: { label: "Écarté IA", cls: "text-rose-700 dark:text-rose-400" },
 };
 
 export default function InstagramPage() {
   const [leads, setLeads] = useState<IgLead[]>([]);
+  // Le scraper sert quelques fois par semaine ; la file d'envoi sert tous les
+  // jours → l'outil est replié par défaut pour laisser le cockpit en tête.
+  const [toolOpen, setToolOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [metierFilter, setMetierFilter] = useState<string>("all");
   const [tierFilter, setTierFilter] = useState<string>("all");
@@ -369,54 +374,70 @@ export default function InstagramPage() {
   return (
     <div className="min-h-screen bg-[var(--color-background)]">
       {/* Header */}
-      <header className="sticky top-0 z-30 glass border-b border-[var(--color-border)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link
-              href="/"
-              className="shrink-0 p-1.5 rounded-lg hover:bg-[var(--color-surface-2)] transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-[var(--color-text-secondary)]" />
-            </Link>
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-[var(--color-text-primary)] truncate">
-                Prospection Instagram
-              </h1>
-              <p className="text-xs text-[var(--color-text-muted)] hidden sm:block">
-                Hashtags → scan → qualification IA → DM. La liste des prospects est en dessous.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-text-secondary)]">
-            <Users className="w-4 h-4" />
-            <span className="font-mono-num">{leads.length}</span>
-            <span className="hidden sm:inline">prospects</span>
-          </div>
+      <header className="sticky top-0 z-30 bg-[var(--color-surface)]/90 backdrop-blur-sm border-b border-[var(--color-border)]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
+          <Link
+            href="/"
+            className="shrink-0 p-1.5 -ml-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
+            <ArrowLeft className="w-4.5 h-4.5" />
+          </Link>
+          <h1 className="font-display text-xl sm:text-2xl text-[var(--color-text-primary)] truncate">
+            Prospection Instagram
+          </h1>
+          <span className="flex-1" />
+          <span className="text-sm text-[var(--color-text-secondary)]">
+            <span className="font-mono-num font-medium text-[var(--color-text-primary)]">{leads.length.toLocaleString("fr-FR")}</span>
+            <span className="hidden sm:inline"> prospects en base</span>
+          </span>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* ─── L'OUTIL DE PROSPECTION (en haut) ─── */}
-        <ProspectionTool onDataChanged={loadLeads} />
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+        {/* ─── SCRAPER (replié par défaut — la file d'envoi d'abord) ─── */}
+        <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+          <button
+            onClick={() => setToolOpen((o) => !o)}
+            aria-expanded={toolOpen}
+            className="w-full flex items-center gap-3 px-4 sm:px-5 py-3.5 text-left cursor-pointer group"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-accent-soft)] text-[var(--color-accent)] shrink-0">
+              <Hash className="w-4 h-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-[var(--color-text-primary)]">Trouver de nouveaux prospects</span>
+              <span className="block text-xs text-[var(--color-text-muted)] truncate">Hashtags → scan Apify → qualification IA → exports</span>
+            </span>
+            <ChevronRight
+              className={`w-4 h-4 shrink-0 text-[var(--color-text-muted)] transition-transform duration-200 group-hover:text-[var(--color-text-secondary)] ${toolOpen ? "rotate-90" : ""}`}
+            />
+          </button>
+          {toolOpen && (
+            <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-[var(--color-border)] animate-fade-in">
+              <div className="pt-4">
+                <ProspectionTool onDataChanged={loadLeads} />
+              </div>
+            </div>
+          )}
+        </section>
 
         {/* ─── COCKPIT D'ENVOI (comptes, quotas, relances) ─── */}
-        <section className="glass-card rounded-2xl p-4 sm:p-5 space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Gauge className="w-4 h-4 text-[var(--color-accent)]" />
-            <h2 className="text-sm font-bold text-[var(--color-text-primary)]">Cockpit d'envoi</h2>
-            <span className="text-xs text-[var(--color-text-muted)]">
+        <section className="space-y-4">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Cockpit d'envoi</h2>
+            <p className="text-xs text-[var(--color-text-muted)]">
               envoi 100 % manuel — l'outil trace, compte les quotas et programme les relances
-            </span>
+            </p>
             <span className="flex-1" />
             <button
               onClick={sendDigest}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-accent)]/30 text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
             >
               <Bell className="w-3.5 h-3.5" /> Récap Telegram
             </button>
           </div>
 
-          {/* Comptes émetteurs */}
+          {/* Comptes émetteurs — la carte entière sélectionne le compte actif */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {accounts.map((a) => {
               const dayPct = a.caps.daily ? Math.min(100, (a.sentDay / a.caps.daily) * 100) : 100;
@@ -425,49 +446,49 @@ export default function InstagramPage() {
               return (
                 <div
                   key={a.id}
-                  className={`rounded-xl border p-3 transition-colors ${
-                    active ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]" : "border-[var(--color-border)]"
+                  onClick={() => pickAccount(a.id)}
+                  role="radio"
+                  aria-checked={active}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pickAccount(a.id); } }}
+                  title="Compte actif (utilisé par « Marquer envoyé »)"
+                  className={`rounded-xl border p-3.5 transition-all cursor-pointer ${
+                    active
+                      ? "border-[var(--color-accent)] bg-[var(--color-surface)] shadow-[0_0_0_1px_var(--color-accent)]"
+                      : "border-[var(--color-border)] bg-[var(--color-surface)] hover:border-[var(--color-border-strong)]"
                   }`}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <input
-                      type="radio"
-                      name="activeAccount"
-                      checked={active}
-                      onChange={() => pickAccount(a.id)}
-                      className="accent-[var(--color-accent)] cursor-pointer"
-                      title="Compte actif (utilisé par « Marquer envoyé »)"
-                    />
-                    <span className="font-bold text-sm text-[var(--color-text-primary)]">@{a.username}</span>
-                    <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${
+                  <div className="flex items-center gap-2 mb-2.5">
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${active ? "bg-[var(--color-accent)]" : "bg-[var(--color-border-strong)]"}`} />
+                    <span className="font-semibold text-sm text-[var(--color-text-primary)] truncate">@{a.username}</span>
+                    <span className={`text-[11px] font-medium rounded-md px-1.5 py-0.5 ${
                       a.status === "chaud"
-                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                         : a.status === "pause"
                           ? "bg-slate-500/10 text-slate-500"
-                          : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
                     }`}>
-                      {a.status === "chaud" ? "CHAUD" : a.status === "pause" ? "PAUSE" : `CHAUFFE J${a.caps.day}`}
+                      {a.status === "chaud" ? "Chaud" : a.status === "pause" ? "Pause" : `Chauffe J${a.caps.day}`}
                     </span>
                     <span className="flex-1" />
                     <select
                       value={a.status}
                       onChange={(e) => setAccountStatus(a.id, e.target.value)}
-                      className="glass-input rounded px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer text-[var(--color-text-secondary)]"
+                      onClick={(e) => e.stopPropagation()}
+                      className="glass-input rounded-md px-1.5 py-0.5 text-[11px] font-medium cursor-pointer text-[var(--color-text-secondary)]"
                     >
                       <option value="warmup">chauffe</option>
                       <option value="chaud">chaud</option>
                       <option value="pause">pause</option>
                     </select>
                   </div>
-                  <div className="space-y-1.5">
-                    <QuotaBar label="Jour" val={a.sentDay} cap={a.caps.daily} pct={dayPct} />
-                  </div>
-                  {full && <p className="mt-1.5 text-[11px] font-semibold text-rose-500">Plafond jour atteint — stop jusqu'à demain 8 h.</p>}
+                  <QuotaBar label="Jour" val={a.sentDay} cap={a.caps.daily} pct={dayPct} />
+                  {full && <p className="mt-2 text-[11px] font-medium text-rose-600 dark:text-rose-400">Plafond jour atteint — stop jusqu'à demain 8 h.</p>}
                 </div>
               );
             })}
             {/* Ajout de compte */}
-            <div className="rounded-xl border border-dashed border-[var(--color-border)] p-3 flex items-center gap-2">
+            <div className="rounded-xl border border-dashed border-[var(--color-border-strong)] p-3.5 flex items-center gap-2">
               <input
                 value={newAccount}
                 onChange={(e) => setNewAccount(e.target.value)}
@@ -477,18 +498,37 @@ export default function InstagramPage() {
               />
               <button
                 onClick={addAccount}
-                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-lg text-white bg-[var(--color-accent)] hover:opacity-90 cursor-pointer shrink-0"
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-medium rounded-lg text-white bg-[var(--color-accent)] hover:opacity-90 transition-opacity cursor-pointer shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" /> Ajouter
               </button>
             </div>
           </div>
 
+          {/* Activité — bandeau discret jour / semaine / mois */}
+          {stats && (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-[var(--color-border)]">
+              {([
+                ["Aujourd'hui", stats.day],
+                ["Cette semaine", stats.week],
+                ["Ce mois", stats.month],
+              ] as const).map(([label, s]) => (
+                <div key={label} className="px-4 py-3 flex items-baseline gap-2.5 min-w-0">
+                  <span className="font-mono-num text-xl font-semibold text-[var(--color-text-primary)]">{s.sent}</span>
+                  <span className="text-xs text-[var(--color-text-secondary)] truncate">
+                    DM · {label.toLowerCase()}
+                    <span className="text-[var(--color-text-muted)]"> — {s.m1} accroches, {s.relances} relances, {s.added} ajoutés</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* File de relances dues */}
           {due.length > 0 && (
-            <div className="pt-1">
-              <p className="text-xs font-bold text-[var(--color-text-primary)] mb-1.5">
-                🔁 À relancer maintenant ({due.length})
+            <div className="rounded-xl border border-rose-200 dark:border-rose-500/25 bg-rose-50/60 dark:bg-rose-500/5 px-4 py-3">
+              <p className="text-xs font-semibold text-rose-700 dark:text-rose-300 mb-2">
+                À relancer maintenant · {due.length}
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {due.map((d) => (
@@ -500,7 +540,7 @@ export default function InstagramPage() {
                       setTierFilter("all");
                       setQualifFilter("all");
                     }}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-full border border-rose-400/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                    className="px-2.5 py-1 text-xs font-medium rounded-md bg-[var(--color-surface)] border border-rose-200 dark:border-rose-500/30 text-rose-700 dark:text-rose-300 hover:border-rose-400 transition-colors cursor-pointer"
                     title={`Relance R${(d.followup_count ?? 0) + 1} · ${d.stage ? STAGE_LABEL[d.stage as Stage] ?? d.stage : "—"}`}
                   >
                     @{d.username} · R{(d.followup_count ?? 0) + 1}
@@ -513,35 +553,19 @@ export default function InstagramPage() {
           {cockpitMsg && <p className="text-sm text-[var(--color-text-secondary)]">{cockpitMsg}</p>}
         </section>
 
-        {/* ─── LA LISTE DES PROSPECTS (en dessous, du plus récent au plus ancien) ─── */}
-        <div className="pt-2 border-t-2 border-[var(--color-border)]">
-          <h2 className="text-base font-bold text-[var(--color-text-primary)] mt-4 mb-3">
-            Prospects obtenus <span className="text-sm font-normal text-[var(--color-text-muted)]">— du plus récent au plus ancien</span>
-          </h2>
-
-          {/* Suivi global d'activité — jour / semaine / mois */}
-          {stats && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              {([
-                ["Aujourd'hui", stats.day],
-                ["Cette semaine", stats.week],
-                ["Ce mois", stats.month],
-              ] as const).map(([label, s]) => (
-                <div key={label} className="glass-card rounded-xl p-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-1">{label}</p>
-                  <p className="text-lg font-bold text-[var(--color-text-primary)]">
-                    {s.sent} <span className="text-xs font-semibold text-[var(--color-text-secondary)]">DM envoyés</span>
-                  </p>
-                  <p className="text-xs text-[var(--color-text-secondary)] mt-0.5">
-                    {s.m1} accroche{s.m1 > 1 ? "s" : ""} · {s.relances} relance{s.relances > 1 ? "s" : ""} · {s.added} prospect{s.added > 1 ? "s" : ""} ajouté{s.added > 1 ? "s" : ""}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* ─── LA LISTE DES PROSPECTS (du plus récent au plus ancien) ─── */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Prospects</h2>
+            <p className="text-xs text-[var(--color-text-muted)]">du plus récent au plus ancien</p>
+            <span className="flex-1" />
+            <span className="text-xs text-[var(--color-text-muted)]">
+              <span className="font-mono-num">{shown.length}</span> affichés
+            </span>
+          </div>
 
           {/* Filtres statut */}
-          <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 mb-3">
+          <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
             {(["all", "todo", "contacted", "positive", "negative"] as const).map((s) => {
               const active = statusFilter === s;
               const styles = STATUS_STYLES[s] ?? STATUS_STYLES.todo;
@@ -549,29 +573,27 @@ export default function InstagramPage() {
                 <button
                   key={s}
                   onClick={() => setStatusFilter(s)}
-                  className={`shrink-0 px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-all cursor-pointer ${
+                  className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
                     active
                       ? s === "all"
                         ? "bg-[var(--color-text-primary)] text-[var(--color-background)] border-transparent"
                         : styles.pillActive
-                      : s === "all"
-                        ? "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
-                        : `${styles.pill} hover:opacity-80`
+                      : "border-transparent text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)]"
                   }`}
                 >
                   {s === "all" ? "Tous" : STATUS_LABEL[s]}
-                  <span className="ml-1.5 font-mono-num">{counts[s] ?? 0}</span>
+                  <span className={`ml-1.5 font-mono-num ${active ? "" : "text-[var(--color-text-muted)]"}`}>{counts[s] ?? 0}</span>
                 </button>
               );
             })}
           </div>
 
           {/* Filtres secondaires : métier, priorité, verdict IA, sans site, recherche */}
-          <div className="flex flex-wrap items-center gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={metierFilter}
               onChange={(e) => setMetierFilter(e.target.value)}
-              className="glass-input rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] outline-none cursor-pointer"
+              className="glass-input rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--color-text-primary)] outline-none cursor-pointer"
             >
               <option value="all">Métier : tous</option>
               {metiers.map((m) => (
@@ -581,25 +603,25 @@ export default function InstagramPage() {
             <select
               value={tierFilter}
               onChange={(e) => setTierFilter(e.target.value)}
-              className="glass-input rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] outline-none cursor-pointer"
+              className="glass-input rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--color-text-primary)] outline-none cursor-pointer"
             >
               <option value="all">Priorité : toutes</option>
-              <option value="hot">🔥 Hot</option>
+              <option value="hot">Hot</option>
               <option value="warm">Warm</option>
               <option value="cold">Cold</option>
             </select>
             <select
               value={qualifFilter}
               onChange={(e) => setQualifFilter(e.target.value)}
-              className="glass-input rounded-lg px-3 py-2 text-xs font-semibold text-[var(--color-text-primary)] outline-none cursor-pointer"
+              className="glass-input rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--color-text-primary)] outline-none cursor-pointer"
             >
               <option value="all">IA : tous</option>
-              <option value="qualified">✓ Qualifiés</option>
-              <option value="borderline">~ Limites</option>
-              <option value="rejected">✗ Écartés</option>
+              <option value="qualified">Qualifiés</option>
+              <option value="borderline">Limites</option>
+              <option value="rejected">Écartés</option>
               <option value="none">Pas encore triés</option>
             </select>
-            <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-text-secondary)] cursor-pointer">
+            <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={noSiteOnly}
@@ -608,34 +630,36 @@ export default function InstagramPage() {
               />
               Sans site uniquement
             </label>
-            <div className="flex-1 min-w-40">
+            <div className="flex-1 min-w-44">
               <div className="flex items-center glass-input rounded-lg px-3">
                 <Search className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
                 <input
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   placeholder="Rechercher (pseudo, nom, ville, bio…)"
-                  className="flex-1 bg-transparent border-none outline-none px-2 py-2 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+                  className="flex-1 bg-transparent border-none outline-none px-2 py-2 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)]"
                 />
               </div>
             </div>
-            <span className="text-xs text-[var(--color-text-muted)] font-mono-num">{shown.length} affichés</span>
           </div>
 
           {/* Liste */}
           {loading && leads.length === 0 ? (
-            <div className="text-center py-16 glass-card rounded-2xl">
-              <Loader2 className="w-8 h-8 text-[var(--color-text-muted)] mx-auto animate-spin opacity-50" />
+            <div className="text-center py-16 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+              <Loader2 className="w-7 h-7 text-[var(--color-text-muted)] mx-auto animate-spin opacity-50" />
             </div>
           ) : shown.length === 0 ? (
-            <div className="text-center py-16 glass-card rounded-2xl border-dashed">
-              <Search className="w-10 h-10 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
-              <p className="text-[var(--color-text-muted)] text-sm">
-                Aucun prospect avec ces filtres. Lance une prospection ci-dessus.
+            <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--color-border-strong)]">
+              <Search className="w-9 h-9 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
+              <p className="text-[var(--color-text-secondary)] text-sm">
+                Aucun prospect avec ces filtres.
+              </p>
+              <p className="text-[var(--color-text-muted)] text-xs mt-1">
+                Élargis les filtres, ou déplie « Trouver de nouveaux prospects » en haut de page.
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)] overflow-hidden">
               {shown.map((l) => {
                 const link = origin ? `${origin}/di/${shortCode(l.id)}` : "";
                 // Métier effectif : profession IA (précise) > redétection catégorie/pseudo/bio
@@ -662,63 +686,70 @@ export default function InstagramPage() {
                 const sty = STATUS_STYLES[l.status] ?? STATUS_STYLES.todo;
                 const qualif = l.qualification ? QUALIF_BADGE[l.qualification] : null;
 
+                const tier = l.score_tier ? TIER_DOT[l.score_tier] ?? TIER_DOT.cold : null;
+                const relanceDue =
+                  l.next_followup_at && new Date(l.next_followup_at) <= new Date() &&
+                  l.stage !== "call_booke" && l.stage !== "perdu";
+
                 return (
-                  <div key={l.id} className="glass-card rounded-2xl p-4 sm:p-5 animate-fade-in">
-                    {/* Top row: username + badges + statut */}
-                    <div className="flex items-start justify-between gap-3 mb-2">
+                  <div key={l.id} className="p-4 sm:p-5 transition-colors hover:bg-[var(--color-surface-2)]/60">
+                    {/* Top row: username + signaux + statut */}
+                    <div className="flex items-start justify-between gap-3 mb-1.5">
                       <div className="min-w-0">
-                        <div className="flex items-baseline gap-2 flex-wrap">
+                        <div className="flex items-baseline gap-x-2.5 gap-y-0.5 flex-wrap">
                           <a
                             href={`https://instagram.com/${l.username}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-bold text-[var(--color-accent)] hover:underline"
+                            className="font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-accent)] transition-colors"
                           >
                             @{l.username}
                           </a>
                           {l.full_name && (
                             <span className="text-sm text-[var(--color-text-secondary)]">{l.full_name}</span>
                           )}
-                          {l.score_tier && (
-                            <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 border ${TIER_BADGE[l.score_tier] ?? TIER_BADGE.cold}`}>
-                              {l.score_tier === "hot" ? "🔥 HOT" : l.score_tier.toUpperCase()}{typeof l.score === "number" ? ` ${l.score}` : ""}
+                          {tier && (
+                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${tier.text}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${tier.dot}`} />
+                              {tier.label}{typeof l.score === "number" ? <span className="font-mono-num"> {l.score}</span> : null}
                             </span>
                           )}
                           {qualif && (
-                            <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 border ${qualif.cls}`} title={l.qualification_reason ?? undefined}>
+                            <span className={`text-xs font-medium ${qualif.cls}`} title={l.qualification_reason ?? undefined}>
                               {qualif.label}
                             </span>
                           )}
                           {l.stage && (
-                            <span className="text-[10px] font-bold rounded-full px-2 py-0.5 border border-[var(--color-accent)]/40 text-[var(--color-accent)]">
+                            <span className="text-xs font-medium rounded-md px-1.5 py-0.5 bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
                               {STAGE_LABEL[l.stage as Stage] ?? l.stage}
                             </span>
                           )}
-                          {l.next_followup_at && new Date(l.next_followup_at) <= new Date() && l.stage !== "call_booke" && l.stage !== "perdu" && (
-                            <span className="text-[10px] font-bold rounded-full px-2 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 animate-pulse">
-                              🔁 relance due
+                          {relanceDue && (
+                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
+                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                              relance due
                             </span>
                           )}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs text-[var(--color-text-muted)]">
                           <span>{new Date(l.discovered_at).toLocaleDateString("fr-FR")}</span>
                           {l.followers != null && (
-                            <span className="font-mono-num">· {l.followers.toLocaleString("fr-FR")} abonnes</span>
+                            <span className="font-mono-num">· {l.followers.toLocaleString("fr-FR")} abonnés</span>
                           )}
                           {(l.profession_ia || l.metier) && <span>· {l.profession_ia || l.metier}</span>}
                           {l.ville && <span>· {l.ville}</span>}
-                          {l.email && <span className="text-emerald-600 dark:text-emerald-400">· {l.email}</span>}
-                          {l.phone && <span className="text-emerald-600 dark:text-emerald-400">· {l.phone}</span>}
+                          {l.email && <span className="text-[var(--color-text-secondary)]">· {l.email}</span>}
+                          {l.phone && <span className="text-[var(--color-text-secondary)]">· {l.phone}</span>}
                           {l.has_website === true && (
                             <span className="inline-flex items-center gap-0.5">· <ExternalLink className="w-3 h-3" /> a un site</span>
                           )}
                           {l.booking_platform && (
-                            <span className="text-amber-600 dark:text-amber-400 font-semibold">· {l.booking_platform}</span>
+                            <span className="text-amber-700 dark:text-amber-400 font-medium">· {l.booking_platform}</span>
                           )}
                           {l.hashtag_source && <span>· #{l.hashtag_source}</span>}
                         </div>
                       </div>
-                      <span className={`shrink-0 text-xs font-bold rounded-full px-2.5 py-0.5 border ${
+                      <span className={`shrink-0 text-xs font-medium rounded-md px-2 py-0.5 border ${
                         l.status === statusFilter && statusFilter !== "all" ? sty.pillActive : sty.pill
                       }`}>
                         {STATUS_LABEL[l.status] ?? l.status}
@@ -727,7 +758,7 @@ export default function InstagramPage() {
 
                     {/* Bio */}
                     {l.bio && (
-                      <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-line mb-3 line-clamp-2">
+                      <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-line mb-2.5 line-clamp-2 max-w-[75ch]">
                         {l.bio}
                       </p>
                     )}
@@ -735,53 +766,58 @@ export default function InstagramPage() {
                     {/* DM section — collapsible */}
                     <button
                       onClick={() => setExpandedDm(dmExpanded ? null : l.id)}
-                      className="text-xs font-semibold text-[var(--color-accent)] hover:underline cursor-pointer mb-2"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors cursor-pointer mb-1.5 mr-4"
                     >
-                      {dmExpanded ? "Masquer la séquence DM" : "Voir la séquence DM (trame en 9 étapes + relances)"}
+                      <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${dmExpanded ? "rotate-90" : ""}`} />
+                      Séquence DM
+                      <span className="text-[var(--color-text-muted)] font-normal">· 9 étapes + relances</span>
                     </button>
 
                     {dmExpanded && (
-                      <div className="mb-3 animate-slide-up space-y-2">
+                      <div className="mb-3 mt-1 animate-slide-up space-y-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]/50 p-3.5">
                         {/* Choix de trame : solo (tutoiement) / entreprise (vouvoiement) */}
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-[11px] font-bold text-[var(--color-text-secondary)]">Trame :</span>
-                          {(["solo", "entreprise"] as const).map((t) => (
-                            <button
-                              key={t}
-                              onClick={() => setTrameChoice((prev) => ({ ...prev, [l.id]: t }))}
-                              className={`px-2.5 py-1 text-[11px] font-semibold rounded-full border transition cursor-pointer ${
-                                trame === t
-                                  ? "bg-[var(--color-accent)] text-white border-transparent"
-                                  : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
-                              }`}
-                            >
-                              {t === "solo" ? "🧑 " : "🏢 "}{TRAME_LABEL[t]}
-                              {t === trameSuggested ? " · suggérée" : ""}
-                            </button>
-                          ))}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-medium text-[var(--color-text-secondary)]">Trame</span>
+                          <div className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
+                            {(["solo", "entreprise"] as const).map((t) => (
+                              <button
+                                key={t}
+                                onClick={() => setTrameChoice((prev) => ({ ...prev, [l.id]: t }))}
+                                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                                  trame === t
+                                    ? "bg-[var(--color-accent)] text-white"
+                                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                                }`}
+                              >
+                                {TRAME_LABEL[t]}
+                                {t === trameSuggested ? " · suggérée" : ""}
+                              </button>
+                            ))}
+                          </div>
+                          <span className="text-xs text-[var(--color-text-muted)]">
+                            un message à la fois, jamais de lien avant M8 — varie les formulations
+                          </span>
                         </div>
-                        <p className="text-[11px] text-[var(--color-text-muted)]">
-                          Envoie les messages <b>un par un</b> selon ses réponses (jamais de pavé, jamais de lien avant M8).
-                          Respecte le quota du cockpit — varie les formulations.
-                        </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
                           {dmSteps.map((s) => {
                             const key = `${l.id}-${s.step}`;
                             const isRelance = s.step.startsWith("R");
                             return (
-                              <div key={key} className="glass-input rounded-lg p-3">
+                              <div key={key} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
                                 <div className="flex items-center justify-between gap-2 mb-1.5">
-                                  <span className="text-[10px] font-bold uppercase tracking-wider truncate" title={s.title}
-                                    style={{ color: isRelance ? "var(--color-text-muted)" : "var(--color-accent)" }}>
-                                    {s.step} · {s.title}
+                                  <span
+                                    className={`font-mono-num text-[11px] font-semibold truncate ${isRelance ? "text-[var(--color-text-muted)]" : "text-[var(--color-accent)]"}`}
+                                    title={s.title}
+                                  >
+                                    {s.step} <span className="font-sans font-normal text-[var(--color-text-muted)]">· {s.title}</span>
                                   </span>
-                                  <span className="shrink-0 flex items-center gap-2">
+                                  <span className="shrink-0 flex items-center gap-1">
                                     <button
                                       onClick={() => copy(key, s.text)}
-                                      className="flex items-center gap-1 text-xs font-semibold text-[var(--color-accent)] hover:opacity-80 transition cursor-pointer"
+                                      className="flex items-center gap-1 text-xs font-medium rounded-md px-1.5 py-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
                                     >
                                       {copied === key ? (
-                                        <><Check className="w-3 h-3" /> Copie</>
+                                        <><Check className="w-3 h-3 text-emerald-600" /> Copié</>
                                       ) : (
                                         <><Copy className="w-3 h-3" /> Copier</>
                                       )}
@@ -789,9 +825,9 @@ export default function InstagramPage() {
                                     <button
                                       onClick={() => markSent(l.id, s.step)}
                                       title={activeAccount ? "Journalise l'envoi (quota + stade + relance)" : "Sélectionne un compte actif dans le cockpit"}
-                                      className="flex items-center gap-1 text-xs font-semibold rounded px-1.5 py-0.5 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition cursor-pointer"
+                                      className="flex items-center gap-1 text-xs font-medium rounded-md px-1.5 py-1 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
                                     >
-                                      <Send className="w-3 h-3" /> Envoyé ✓
+                                      <Send className="w-3 h-3" /> Envoyé
                                     </button>
                                   </span>
                                 </div>
@@ -811,15 +847,16 @@ export default function InstagramPage() {
                     {l.ville && l.ville.trim() ? (
                       <button
                         onClick={() => toggleCompetitors(l.id)}
-                        className="text-xs font-semibold text-[var(--color-accent)] hover:underline cursor-pointer mb-2 flex items-center gap-1"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] transition-colors cursor-pointer mb-1.5"
                       >
-                        <Gauge className="w-3 h-3" />
-                        {expandedComp === l.id ? "Masquer le rapport concurrentiel" : "Rapport concurrentiel (classement Google + qui fait des ads)"}
+                        <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${expandedComp === l.id ? "rotate-90" : ""}`} />
+                        Rapport concurrentiel
+                        <span className="text-[var(--color-text-muted)] font-normal">· classement Google + qui fait des ads</span>
                       </button>
                     ) : (
-                      <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+                      <div className="mb-1.5 flex items-center gap-1.5 flex-wrap">
                         <span className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
-                          <Gauge className="w-3 h-3" /> Analyse concurrentielle — ville manquante :
+                          <Gauge className="w-3.5 h-3.5" /> Rapport concurrentiel — ville manquante :
                         </span>
                         <input
                           value={villeInput[l.id] ?? ""}
@@ -831,36 +868,37 @@ export default function InstagramPage() {
                         <button
                           onClick={() => saveVilleAndAnalyze(l.id)}
                           disabled={!(villeInput[l.id] ?? "").trim()}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-lg border border-[var(--color-accent)]/30 text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          <Gauge className="w-3 h-3" /> Analyser
+                          Analyser
                         </button>
                       </div>
                     )}
 
                     {expandedComp === l.id && (
-                      <div className="mb-3 animate-slide-up">
+                      <div className="mb-3 mt-1 animate-slide-up rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]/50 p-3.5">
                         {compLoading === l.id && (
-                          <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] py-2">
+                          <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)] py-1">
                             <Loader2 className="w-4 h-4 animate-spin" /> Analyse Google Maps en cours (~30 s)…
                           </div>
                         )}
                         {compError[l.id] && (
-                          <p className="text-xs text-rose-600 dark:text-rose-400 py-2">{compError[l.id]}</p>
+                          <p className="text-xs text-rose-600 dark:text-rose-400 py-1">{compError[l.id]}</p>
                         )}
                         {compReports[l.id] && (() => {
                           const r = compReports[l.id];
                           return (
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-                                <span className="font-semibold">
-                                  📍 {r.selfRank
-                                    ? `#${r.selfRank}/${r.total} sur « ${r.metier} ${r.ville} »`
-                                    : `ABSENT du top ${r.total} sur « ${r.metier} ${r.ville} »`}
+                            <div className="space-y-2.5">
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs">
+                                <span className="font-medium text-[var(--color-text-primary)]">
+                                  {r.selfRank
+                                    ? <>#{r.selfRank}/{r.total} sur « {r.metier} {r.ville} »</>
+                                    : <>Absent du top {r.total} sur « {r.metier} {r.ville} »</>}
                                 </span>
-                                <span className="font-semibold text-[var(--color-accent)]">
-                                  💸 {r.adsCount}/{r.total} font des ads{r.sponsoredCount ? ` (dont ${r.sponsoredCount} sponsorisés)` : ""}
+                                <span className="font-medium text-[var(--color-text-secondary)]">
+                                  {r.adsCount}/{r.total} font des ads{r.sponsoredCount ? ` (dont ${r.sponsoredCount} sponsorisés)` : ""}
                                 </span>
+                                <span className="flex-1" />
                                 <button
                                   onClick={() =>
                                     copy(
@@ -875,7 +913,7 @@ export default function InstagramPage() {
                                       }),
                                     )
                                   }
-                                  className="inline-flex items-center gap-1 font-semibold text-[var(--color-accent)] hover:opacity-80 transition cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer"
                                 >
                                   {copied === `hook-${l.id}` ? (
                                     <><Check className="w-3 h-3" /> Accroche copiée</>
@@ -884,23 +922,23 @@ export default function InstagramPage() {
                                   )}
                                 </button>
                               </div>
-                              <div className="space-y-0.5 max-h-72 overflow-y-auto">
+                              <div className="max-h-72 overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)]">
                                 {r.competitors.map((c) => (
                                   <div
                                     key={c.rank}
-                                    className={`flex items-center gap-2 text-xs rounded px-2 py-1 ${c.isSelf ? "bg-[var(--color-accent-soft)] font-semibold" : ""}`}
+                                    className={`flex items-center gap-2.5 text-xs px-2.5 py-1.5 ${c.isSelf ? "bg-[var(--color-accent-soft)] font-medium" : ""}`}
                                   >
                                     <span className="w-7 shrink-0 font-mono-num text-[var(--color-text-muted)]">#{c.rank}</span>
-                                    <span className={`shrink-0 text-[10px] font-bold rounded-full px-1.5 py-0.5 border ${
+                                    <span className={`w-9 shrink-0 text-center text-[11px] font-medium rounded px-1 py-px ${
                                       c.ads === "sponso"
-                                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+                                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                                         : c.ads === "tag"
-                                        ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                                        : "text-[var(--color-text-muted)] border-[var(--color-border)]"
+                                        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                                        : "text-[var(--color-text-muted)]"
                                     }`} title={c.ads === "sponso" ? "Annonce sponsorisée Maps (paie des ads en direct)" : c.ads === "tag" ? "Tag de conversion Google Ads détecté sur son site" : "Aucun signal d'ads"}>
-                                      {c.ads === "sponso" ? "ADS" : c.ads === "tag" ? "ads?" : "—"}
+                                      {c.ads === "sponso" ? "Ads" : c.ads === "tag" ? "ads?" : "—"}
                                     </span>
-                                    <span className="truncate flex-1">{c.name}{c.isSelf ? " ← lui" : ""}</span>
+                                    <span className="truncate flex-1 text-[var(--color-text-primary)]">{c.name}{c.isSelf ? " ← lui" : ""}</span>
                                     {c.rating != null && (
                                       <span className="shrink-0 text-[var(--color-text-muted)] font-mono-num">{c.rating}★ {c.reviews ?? 0}</span>
                                     )}
@@ -914,12 +952,12 @@ export default function InstagramPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[var(--color-border)]">
+                    <div className="flex flex-wrap items-center gap-1.5 pt-2.5 mt-1 border-t border-[var(--color-border)]">
                       <a
                         href={`https://instagram.com/${l.username}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--color-text-primary)] text-[var(--color-background)] hover:opacity-90 transition no-underline"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity no-underline"
                       >
                         <Send className="w-3 h-3" />
                         Ouvrir le DM
@@ -929,17 +967,17 @@ export default function InstagramPage() {
                           href={link}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-accent)]/30 text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)] transition no-underline"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors no-underline"
                         >
                           <Eye className="w-3 h-3" />
-                          Apercu
+                          Aperçu
                         </a>
                       )}
                       {l.status === "contacted" && l.stage !== "call_booke" && l.stage !== "perdu" && (
                         <button
                           onClick={() => markSeen(l.id)}
                           title="Il a vu sans répondre → programme la relance (R1 +1 h, R2 +7 h…)"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer"
                         >
                           <Eye className="w-3 h-3" /> Vu sans réponse
                         </button>
@@ -947,7 +985,7 @@ export default function InstagramPage() {
                       {l.stage !== "call_booke" && (
                         <button
                           onClick={() => setStage(l.id, "call_booke")}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
                         >
                           <PhoneCall className="w-3 h-3" /> Call booké
                         </button>
@@ -955,27 +993,34 @@ export default function InstagramPage() {
                       {l.stage !== "perdu" && (
                         <button
                           onClick={() => setStage(l.id, "perdu")}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                         >
                           <XCircle className="w-3 h-3" /> Perdu
                         </button>
                       )}
                       <span className="flex-1" />
-                      {(["contacted", "positive", "negative"] as const).map((s) => {
-                        const st = STATUS_STYLES[s];
-                        const active = l.status === s;
-                        return (
-                          <button
-                            key={s}
-                            onClick={() => setStatus(l.id, s)}
-                            className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition cursor-pointer ${
-                              active ? st.pillActive : st.pill
-                            } hover:opacity-80`}
-                          >
-                            {STATUS_LABEL[s]}
-                          </button>
-                        );
-                      })}
+                      <span className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
+                        {(["contacted", "positive", "negative"] as const).map((s) => {
+                          const active = l.status === s;
+                          const activeCls =
+                            s === "positive"
+                              ? "bg-emerald-600 text-white"
+                              : s === "negative"
+                                ? "bg-rose-600 text-white"
+                                : "bg-blue-600 text-white";
+                          return (
+                            <button
+                              key={s}
+                              onClick={() => setStatus(l.id, s)}
+                              className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors cursor-pointer ${
+                                active ? activeCls : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                              }`}
+                            >
+                              {STATUS_LABEL[s]}
+                            </button>
+                          );
+                        })}
+                      </span>
                     </div>
                   </div>
                 );
