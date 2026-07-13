@@ -375,7 +375,7 @@ export default function InstagramPage() {
     <div className="min-h-screen bg-[var(--color-background)]">
       {/* Header */}
       <header className="sticky top-0 z-30 bg-[var(--color-surface)]/90 backdrop-blur-sm border-b border-[var(--color-border)]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-4">
+        <div className="px-4 sm:px-6 xl:px-8 h-14 flex items-center gap-4">
           <Link
             href="/"
             className="shrink-0 p-1.5 -ml-1.5 rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors"
@@ -393,7 +393,7 @@ export default function InstagramPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      <main className="px-4 sm:px-6 xl:px-8 py-8 space-y-8">
         {/* ─── SCRAPER (replié par défaut — la file d'envoi d'abord) ─── */}
         <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
           <button
@@ -421,8 +421,9 @@ export default function InstagramPage() {
           )}
         </section>
 
-        {/* ─── COCKPIT D'ENVOI (comptes, quotas, relances) ─── */}
-        <section className="space-y-4">
+        {/* ─── COCKPIT (colonne latérale ≥ xl) + LISTE — la page occupe toute la largeur ─── */}
+        <div className="grid grid-cols-1 xl:grid-cols-[400px_minmax(0,1fr)] 2xl:grid-cols-[440px_minmax(0,1fr)] gap-8 items-start">
+        <section className="space-y-4 min-w-0 xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Cockpit d'envoi</h2>
             <p className="text-xs text-[var(--color-text-muted)]">
@@ -438,7 +439,7 @@ export default function InstagramPage() {
           </div>
 
           {/* Comptes émetteurs — la carte entière sélectionne le compte actif */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-1 gap-3">
             {accounts.map((a) => {
               const dayPct = a.caps.daily ? Math.min(100, (a.sentDay / a.caps.daily) * 100) : 100;
               const full = a.caps.daily > 0 && a.sentDay >= a.caps.daily;
@@ -507,7 +508,7 @@ export default function InstagramPage() {
 
           {/* Activité — bandeau discret jour / semaine / mois */}
           {stats && (
-            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-[var(--color-border)]">
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-1 divide-y sm:divide-y-0 sm:divide-x xl:divide-x-0 xl:divide-y divide-[var(--color-border)]">
               {([
                 ["Aujourd'hui", stats.day],
                 ["Cette semaine", stats.week],
@@ -554,7 +555,7 @@ export default function InstagramPage() {
         </section>
 
         {/* ─── LA LISTE DES PROSPECTS (du plus récent au plus ancien) ─── */}
-        <div className="space-y-3">
+        <div className="space-y-3 min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Prospects</h2>
             <p className="text-xs text-[var(--color-text-muted)]">du plus récent au plus ancien</p>
@@ -1027,6 +1028,7 @@ export default function InstagramPage() {
               })}
             </div>
           )}
+        </div>
         </div>
       </main>
     </div>
