@@ -38,11 +38,16 @@ export interface IgAccount {
   username: string;
   account_type: string;
   media_count: number;
+  followers_count?: number;
+  follows_count?: number;
+  profile_picture_url?: string;
 }
 
 /** Profil du compte connecté. */
 export function getAccount(): Promise<IgAccount> {
-  return graph<IgAccount>("me", { fields: "user_id,username,account_type,media_count" });
+  return graph<IgAccount>("me", {
+    fields: "user_id,username,account_type,media_count,followers_count,follows_count,profile_picture_url",
+  });
 }
 
 export interface IgMedia {
@@ -94,10 +99,58 @@ export async function getAccountInsights(
 /** Insights d'un média précis (reach, likes, comments, saved, shares…). */
 export async function getMediaInsights(
   mediaId: string,
-  metrics: string[] = ["reach", "likes", "comments", "saved", "shares"],
+  metrics: string[] = ["reach", "likes", "comments", "saved", "shares", "total_interactions"],
 ): Promise<IgInsight[]> {
   const json = await graph<{ data: IgInsight[] }>(`${mediaId}/insights`, { metric: metrics.join(",") });
   return json.data ?? [];
+}
+
+export interface IgMediaEnriched extends IgMedia {
+  reach: number;
+  saved: number;
+  shares: number;
+  total_interactions: number;
+  /** likes + commentaires + saves + partages (score d'engagement absolu). */
+  engagement: number;
+  /** engagement / reach en % (taux d'engagement sur la couverture). */
+  engagementRate: number | null;
+}
+
+/**
+ * Médias enrichis de leurs insights (reach/saves/shares…), triés du plus
+ * engageant au moins engageant. Un appel insights par média, en parallèle ;
+ * un média dont les insights échouent (ex. trop récent) garde des valeurs à 0.
+ */
+export async function getMediaWithInsights(limit = 12): Promise<IgMediaEnriched[]> {
+  const media = await getMedia(limit);
+  const enriched = await Promise.all(
+    media.map(async (m): Promise<IgMediaEnriched> => {
+      const val = (ins: IgInsight[], name: string) =>
+        ins.find((i) => i.name === name)?.values?.[0]?.value ?? 0;
+      let ins: IgInsight[] = [];
+      try {
+        ins = await getMediaInsights(m.id);
+      } catch {
+        /* média sans insights (trop récent / type non supporté) → 0 */
+      }
+      const reach = val(ins, "reach");
+      const likes = m.like_count ?? val(ins, "likes");
+      const comments = m.comments_count ?? val(ins, "comments");
+      const saved = val(ins, "saved");
+      const shares = val(ins, "shares");
+      const total = val(ins, "total_interactions") || likes + comments + saved + shares;
+      return {
+        ...m,
+        reach,
+        saved,
+        shares,
+        total_interactions: total,
+        engagement: total,
+        engagementRate: reach > 0 ? Math.round((total / reach) * 1000) / 10 : null,
+      };
+    }),
+  );
+  return enriched.sort((a, b) => b.engagement - a.engagement);
 }
 
 // ─── Publication (2 temps : conteneur puis publication) ─────────────────────

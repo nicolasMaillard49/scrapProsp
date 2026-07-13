@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import {
   instagramGraphConfigured,
   getAccount,
-  getMedia,
+  getMediaWithInsights,
   getAccountInsights,
 } from "@/app/lib/instagramGraph";
 
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/instagram/graph — état du compte @nmfagence via l'API Graph :
- * profil, derniers médias (avec stats) et insights compte. Lecture seule.
+ * GET /api/instagram/graph — performance du compte @nmfagence via l'API Graph :
+ * profil (followers/follows/média), posts enrichis d'insights (reach, saves,
+ * engagement) triés du plus performant, et insights compte. Lecture seule.
  */
 export async function GET() {
   if (!instagramGraphConfigured) {
@@ -19,7 +20,7 @@ export async function GET() {
   try {
     const [account, media, insights] = await Promise.all([
       getAccount(),
-      getMedia(12),
+      getMediaWithInsights(12),
       getAccountInsights(["reach", "profile_views", "follower_count"], "day").catch(() => []),
     ]);
     return NextResponse.json({ account, media, insights });

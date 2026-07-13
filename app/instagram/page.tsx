@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { instagramDmSequence, detectMetier, detectTrame, competitorHook, TRAME_LABEL, type TrameKind } from "@/app/lib/instagram";
@@ -386,6 +386,12 @@ export default function InstagramPage() {
             Prospection Instagram
           </h1>
           <span className="flex-1" />
+          <Link
+            href="/instagram/stats"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors no-underline"
+          >
+            <BarChart3 className="w-3.5 h-3.5" /> Performance
+          </Link>
           <span className="text-sm text-[var(--color-text-secondary)]">
             <span className="font-mono-num font-medium text-[var(--color-text-primary)]">{leads.length.toLocaleString("fr-FR")}</span>
             <span className="hidden sm:inline"> prospects en base</span>
