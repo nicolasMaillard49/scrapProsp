@@ -71,6 +71,15 @@ Permet de programmer un envoi SMS depuis `/sms` (heure + nombre de prospects) qu
    Avec le bon en-tête → `{ "ran": [...], "count": n }`.
 4. Les envois se créent depuis `/sms` → « Programmer un envoi ». Le cron exécute les jobs `scheduled_blasts` en `status=pending` dont l'heure est passée ; chaque job envoie aux prospects `status=todo` (mobiles uniques), avec garde-fou légal 8h-20h hors dimanche (un job hors créneau est remis en attente, pas perdu).
 
+## Bilan KPI quotidien → Slack #04-kpis (cron Vercel)
+
+Poste chaque jour le bilan de prospection IG (envois, relances, réponses, calls bookés) dans le canal Slack **#04-kpis** du workspace Generate.io.
+
+- Route : `GET/POST /api/cron/kpi-slack` — auth `x-cron-secret` (VPS) **ou** `Authorization: Bearer CRON_SECRET` (cron Vercel, envoyé automatiquement).
+- Déclencheur : cron Vercel dans `vercel.json` — `0 17 * * *` UTC (≈ 19 h Paris l'été).
+- Env Vercel requis : `CRON_SECRET` (déjà posé) + `SLACK_KPI_WEBHOOK_URL` (webhook entrant Slack du canal #04-kpis : api.slack.com/apps → créer une app → Incoming Webhooks → Add New Webhook → choisir #04-kpis).
+- Test sans poster : `curl "https://prospects.nmf-agence.com/api/cron/kpi-slack?dry=1" -H "x-cron-secret: VOTRE_CRON_SECRET"` → renvoie `{ dry, message }`.
+
 ## Radar de nouveaux prospects (script VPS — `vps/radar.mjs`)
 
 Détecte chaque nuit les nouvelles fiches Google Maps (sans site web) par métier×région, les insère en base et envoie **1 SMS récap** au `0615907873` s'il y a ≥ 1 nouveau prospect.
