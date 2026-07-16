@@ -88,7 +88,8 @@ export async function POST(req: NextRequest) {
     stage: newStage,
     followup_count: followupCount,
     // Relance par défaut : +48 h sans nouvelle (le bouton « Vu sans réponse » resserre à +1 h).
-    next_followup_at: nextFollowup(now, followupCount, false).toISOString(),
+    // null passé R1 : le prospect sort de la file de relance.
+    next_followup_at: nextFollowup(now, followupCount, false)?.toISOString() ?? null,
   };
   if (prospect.status === "todo") patch.status = "contacted";
 

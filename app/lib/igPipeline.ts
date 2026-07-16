@@ -41,19 +41,19 @@ export function clampToWindow(date: Date): Date {
   return d;
 }
 
+/** Nombre de relances programmées après un M1. Au-delà, plus rien n'est mis en file. */
+export const MAX_FOLLOWUPS = 1;
+
 /**
- * Prochaine relance à programmer.
- * `seen=true` (vu sans réponse) : R1 +1 h, R2 +7 h, R3 +6 h, ensuite +24 h.
- * `seen=false` (pas de vu) : +48 h. Toujours clampé à la fenêtre 8 h-20 h.
+ * Prochaine relance à programmer, ou `null` s'il n'y en a plus.
+ * R1 seule : +1 h après un vu, +48 h sans vu. Clampé à la fenêtre 8 h-20 h.
+ * Le plafond jour d'un compte est partagé entre relances et M1 : chaque relance
+ * programmée est un M1 en moins. Mesuré le 16/07/2026 sur 47 prospects relancés,
+ * aucun n'a répondu au-delà de R1 — R2/R3 consommaient le quota pour rien.
  */
-export function nextFollowup(now: Date, followupCount: number, seen: boolean): Date {
-  let delayH: number;
-  if (!seen) delayH = 48;
-  else if (followupCount <= 0) delayH = 1;
-  else if (followupCount === 1) delayH = 7;
-  else if (followupCount === 2) delayH = 6;
-  else delayH = 24;
-  return clampToWindow(new Date(now.getTime() + delayH * 3600 * 1000));
+export function nextFollowup(now: Date, followupCount: number, seen: boolean): Date | null {
+  if (followupCount >= MAX_FOLLOWUPS) return null;
+  return clampToWindow(new Date(now.getTime() + (seen ? 1 : 48) * 3600 * 1000));
 }
 
 /** Stades du pipeline (ordre d'avancement). */

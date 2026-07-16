@@ -51,14 +51,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (body.seen === true) {
-    // « Vu sans réponse » : la relance se cale sur le compteur actuel (R1 +1 h, R2 +7 h…).
+    // « Vu sans réponse » : resserre R1 à +1 h ; null si R1 est déjà passée (plus de relance).
     const { data: cur } = await supabase
       .from("instagram_prospects")
       .select("followup_count")
       .eq("id", id)
       .single();
     const count = (cur?.followup_count as number | undefined) ?? 0;
-    patch.next_followup_at = nextFollowup(new Date(), count, true).toISOString();
+    patch.next_followup_at = nextFollowup(new Date(), count, true)?.toISOString() ?? null;
   }
 
   if (!Object.keys(patch).length) return NextResponse.json({ error: "rien à mettre à jour" }, { status: 400 });

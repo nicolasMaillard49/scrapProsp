@@ -30,17 +30,23 @@ test("clampToWindow: jamais entre 20 h et 8 h", () => {
   assert.equal(at(6).getDate(), 10);
 });
 
-test("nextFollowup: vu → R1 +1h, R2 +7h, R3 +6h ; pas de vu → +48h", () => {
-  const now = new Date(2026, 6, 10, 10, 0, 0, 0); // 10 h : la fenêtre absorbe +1 h/+7 h
-  assert.equal(nextFollowup(now, 0, true).getHours(), 11); // +1 h
-  assert.equal(nextFollowup(now, 1, true).getHours(), 17); // +7 h
-  assert.equal(nextFollowup(now, 2, true).getHours(), 16); // +6 h
-  const noSeen = nextFollowup(now, 0, false); // +48 h
+test("nextFollowup: R1 seule — vu → +1 h, pas de vu → +48 h", () => {
+  const now = new Date(2026, 6, 10, 10, 0, 0, 0); // 10 h : la fenêtre absorbe +1 h
+  assert.equal(nextFollowup(now, 0, true)!.getHours(), 11); // +1 h
+  const noSeen = nextFollowup(now, 0, false)!; // +48 h
   assert.equal(noSeen.getDate(), 12);
-  // Clamp : +7 h depuis 15 h = 22 h → lendemain 8 h.
-  const late = nextFollowup(new Date(2026, 6, 10, 15, 0), 1, true);
-  assert.equal(late.getHours(), 8);
+  // Clamp : +48 h depuis 19 h = 19 h le surlendemain, dans la fenêtre.
+  const late = nextFollowup(new Date(2026, 6, 10, 23, 0), 0, true)!;
+  assert.equal(late.getHours(), 8); // 23 h + 1 h = minuit → clampé à 8 h
   assert.equal(late.getDate(), 11);
+});
+
+test("nextFollowup: plus de relance après R1 (R2/R3 supprimées)", () => {
+  const now = new Date(2026, 6, 10, 10, 0, 0, 0);
+  assert.equal(nextFollowup(now, 1, true), null);
+  assert.equal(nextFollowup(now, 1, false), null);
+  assert.equal(nextFollowup(now, 2, true), null);
+  assert.equal(nextFollowup(now, 5, false), null);
 });
 
 test("stageForStep: mapping M1→accroche … M9→questionnaire, Rn→null", () => {
