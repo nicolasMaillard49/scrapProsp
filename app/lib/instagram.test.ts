@@ -136,10 +136,15 @@ test("detectMetier: les artisans priment — plus de faux positifs esthéticienn
   // « la beauté de vos jardins » matchait l'esthétique avant le fix.
   assert.equal(detectMetier(null, "Paysagiste passionné — la beauté de vos jardins, spa de nage & terrasses"), "paysagiste");
   assert.equal(detectMetier(null, "Création de jardins et espaces verts pour embellir vos extérieurs"), "paysagiste");
+  // « bien-être » seul ne suffit plus : formule marketing employée par tout commerce.
+  // Cas réel (artisanfrancefenetre, 16/07) — un poseur de fenêtres classé esthéticienne.
+  assert.equal(detectMetier(null, "Notre priorité : votre bien-être et votre satisfaction !"), "");
+  assert.equal(detectMetier(null, "Votre bien-être avant tout"), "");
   // Les vraies esthéticiennes restent détectées.
   assert.equal(detectMetier("Institut de beauté", ""), "estheticienne");
   assert.equal(detectMetier(null, "Esthéticienne diplômée — épilation, soins visage, cils"), "estheticienne");
   assert.equal(detectMetier(null, "Prothésiste ongulaire, nail art"), "estheticienne");
+  assert.equal(detectMetier(null, "Institut bien-être : massages et soins du corps"), "estheticienne");
 });
 
 test("detectTrame: solo par défaut, entreprise sur signaux (forme juridique, équipe, « nous »)", () => {
