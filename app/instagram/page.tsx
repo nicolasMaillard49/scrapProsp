@@ -6,10 +6,10 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, BarChart3 } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, BarChart3, Sheet } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { instagramDmSequence, detectMetier, detectTrame, competitorHook, TRAME_LABEL, type TrameKind } from "@/app/lib/instagram";
+import { instagramDmSequence, detectMetier, firstNameOf, competitorHook } from "@/app/lib/instagram";
 import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
 import type { IgCompetitorReport } from "@/app/lib/igCompetitor";
@@ -144,8 +144,6 @@ export default function InstagramPage() {
   const [activeAccount, setActiveAccount] = useState<string>("");
   const [newAccount, setNewAccount] = useState("");
   const [cockpitMsg, setCockpitMsg] = useState<string | null>(null);
-  // Trame choisie par prospect (défaut : suggestion detectTrame, surchargeable).
-  const [trameChoice, setTrameChoice] = useState<Record<string, TrameKind>>({});
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -386,6 +384,14 @@ export default function InstagramPage() {
             Prospection Instagram
           </h1>
           <span className="flex-1" />
+          <a
+            href="https://docs.google.com/spreadsheets/d/11XFKK4UUUh0TOkreUsBchTv-Uon9TvTKfZ3pHWJmpmo/edit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors no-underline"
+          >
+            <Sheet className="w-3.5 h-3.5" /> Tracking
+          </a>
           <Link
             href="/instagram/stats"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors no-underline"
@@ -676,18 +682,15 @@ export default function InstagramPage() {
                   detectMetier(l.category, `${l.username} ${l.bio ?? ""}`) ||
                   l.metier ||
                   "";
-                const trameSuggested = detectTrame(l.full_name, l.bio);
-                const trame = trameChoice[l.id] ?? trameSuggested;
                 const dmSteps = instagramDmSequence(
                   {
                     metier: metierEff,
                     ville: l.ville ?? "",
                     bookingPlatform: l.booking_platform,
-                    firstName: l.full_name ? l.full_name.split(/\s+/)[0] : null,
+                    firstName: firstNameOf(l.full_name),
                     professionIa: l.profession_ia,
                   },
                   link,
-                  trame,
                 );
                 const dmExpanded = expandedDm === l.id;
                 const sty = STATUS_STYLES[l.status] ?? STATUS_STYLES.todo;
@@ -782,25 +785,7 @@ export default function InstagramPage() {
 
                     {dmExpanded && (
                       <div className="mb-3 mt-1 animate-slide-up space-y-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-2)]/50 p-3.5">
-                        {/* Choix de trame : solo (tutoiement) / entreprise (vouvoiement) */}
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-medium text-[var(--color-text-secondary)]">Trame</span>
-                          <div className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
-                            {(["solo", "entreprise"] as const).map((t) => (
-                              <button
-                                key={t}
-                                onClick={() => setTrameChoice((prev) => ({ ...prev, [l.id]: t }))}
-                                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer ${
-                                  trame === t
-                                    ? "bg-[var(--color-accent)] text-white"
-                                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
-                                }`}
-                              >
-                                {TRAME_LABEL[t]}
-                                {t === trameSuggested ? " · suggérée" : ""}
-                              </button>
-                            ))}
-                          </div>
                           <span className="text-xs text-[var(--color-text-muted)]">
                             un message à la fois, jamais de lien avant M8 — varie les formulations
                           </span>
@@ -915,8 +900,7 @@ export default function InstagramPage() {
                                         ville: r.ville,
                                         selfRank: r.selfRank,
                                         adsCount: r.adsCount,
-                                        firstName: l.full_name ? l.full_name.split(/\s+/)[0] : null,
-                                        trame,
+                                        firstName: firstNameOf(l.full_name),
                                       }),
                                     )
                                   }

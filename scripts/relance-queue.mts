@@ -2,7 +2,7 @@
 // dont next_followup_at est échu, avec le step R1/R2/R3 selon followup_count et le texte exact.
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { instagramDmSequence, detectMetier, detectTrame } from "../app/lib/instagram";
+import { instagramDmSequence, detectMetier, firstNameOf } from "../app/lib/instagram";
 import { shortCode } from "../app/lib/links";
 
 const env = Object.fromEntries(
@@ -37,17 +37,15 @@ const queue = (data ?? [])
   .map((l) => {
     const metierEff =
       detectMetier(l.profession_ia, null) || detectMetier(l.category, `${l.username} ${l.bio ?? ""}`) || l.metier || "";
-    const trame = detectTrame(l.full_name, l.bio);
     const steps = instagramDmSequence(
       {
         metier: metierEff,
         ville: l.ville ?? "",
         bookingPlatform: l.booking_platform,
-        firstName: l.full_name ? l.full_name.split(/\s+/)[0] : null,
+        firstName: firstNameOf(l.full_name),
         professionIa: l.profession_ia,
       },
       `${ORIGIN}/di/${shortCode(l.id)}`,
-      trame,
     );
     const stepName = R_BY_COUNT[l.followup_count ?? 0];
     const step = steps.find((s) => s.step === stepName)!;

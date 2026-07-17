@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractEmails, extractPhonesFr, pickContact, hasRealWebsite,
   extractLastPostAt, isActiveSince, prospectScore, detectMetier,
-  instagramDmSequence, detectTrame, QUESTIONNAIRE_URL, competitorHook,
+  instagramDmSequence, firstNameOf, QUESTIONNAIRE_URL, competitorHook,
 } from "./instagram";
 
 test("extractEmails: trouve, déduplique, minuscule", () => {
@@ -87,7 +87,7 @@ test("instagramDmSequence: trame complète, aucun lien avant M8, questionnaire e
   assert.ok(steps.find((s) => s.step === "M9")!.text.includes(QUESTIONNAIRE_URL));
   // Personnalisation : prénom + métier naturel dans l'accroche, avatar artisan dans la présentation.
   assert.ok(steps[0].text.startsWith("Hello Karim"));
-  assert.ok(steps[0].text.includes("j'ai vu que tu étais menuisier".replace("j'ai", "J'ai")));
+  assert.ok(steps[0].text.includes("J'ai vu que vous étiez menuisier"));
   assert.ok(steps.find((s) => s.step === "M3")!.text.includes("artisans du bâtiment"));
   // Douleur adaptée artisan (devis).
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("devis"));
@@ -110,15 +110,21 @@ test("instagramDmSequence: accroche naturelle — profession IA prioritaire, fal
     { metier: "estheticienne", ville: "", professionIa: "Prothésiste ongulaire" },
     "",
   );
-  assert.ok(ia[0].text.includes("j'ai vu que tu étais prothésiste ongulaire".replace("j'ai", "J'ai")));
+  assert.ok(ia[0].text.includes("J'ai vu que vous étiez prothésiste ongulaire"));
   // Plus jamais de « tes prestations beauté ».
   assert.ok(!ia[0].text.toLowerCase().includes("prestation"));
   // Métier inconnu, pas d'IA → accroche générique naturelle.
   const generic = instagramDmSequence({ metier: "", ville: "" }, "");
   assert.ok(generic[0].text.includes("toujours en activité"));
-  // Restaurant → formulation dédiée.
+  // Établissements → formulation au lieu, jamais « vous étiez coiffeur(se) ».
   const resto = instagramDmSequence({ metier: "restaurant", ville: "" }, "");
-  assert.ok(resto[0].text.includes("tenais un restaurant"));
+  assert.ok(resto[0].text.includes("teniez un restaurant"));
+  const salon = instagramDmSequence({ metier: "coiffeur", ville: "" }, "");
+  assert.ok(salon[0].text.includes("teniez un salon de coiffure"));
+  assert.ok(!salon[0].text.includes("(se)"));
+  // La profession IA reste prioritaire sur la formulation au lieu.
+  const barbier = instagramDmSequence({ metier: "coiffeur", ville: "", professionIa: "Barbier" }, "");
+  assert.ok(barbier[0].text.includes("vous étiez barbier"));
 });
 
 test("detectMetier: métiers artisans détectés (catégorie ou bio)", () => {
@@ -147,37 +153,40 @@ test("detectMetier: les artisans priment — plus de faux positifs esthéticienn
   assert.equal(detectMetier(null, "Institut bien-être : massages et soins du corps"), "estheticienne");
 });
 
-test("detectTrame: solo par défaut, entreprise sur signaux (forme juridique, équipe, « nous »)", () => {
-  assert.equal(detectTrame("Karim Menuiserie", "Menuisier passionné, je réalise vos projets sur mesure"), "solo");
-  assert.equal(detectTrame(null, null), "solo");
-  assert.equal(detectTrame("Dupont Paysage SARL", "Aménagement extérieur"), "entreprise");
-  assert.equal(detectTrame("Vert & Co", "Notre équipe intervient sur toute la Gironde"), "entreprise");
-  assert.equal(detectTrame(null, "Nous réalisons vos terrasses et jardins depuis 2010"), "entreprise");
+test("firstNameOf: prénom seulement si fiable — sinon null (cas réels du 17/07)", () => {
+  // Vrais prénoms : normalisés en capitale initiale.
+  assert.equal(firstNameOf("Karim Menuiserie"), "Karim");
+  assert.equal(firstNameOf("Samuel Berson Bsm"), "Samuel");
+  assert.equal(firstNameOf("stéphane"), "Stéphane");
+  // Enseignes : le 1er mot n'est pas un prénom → null (« Hello ! » seul).
+  assert.equal(firstNameOf("Bois et jardins"), null); // « Hello Bois ! »
+  assert.equal(firstNameOf("Atelier"), null); // « Hello Atelier ! »
+  assert.equal(firstNameOf("Les Tables Vatel"), null); // « Hello Les ! »
+  assert.equal(firstNameOf("Couvreur Pessac"), null); // métier, pas prénom
+  assert.equal(firstNameOf("Hôtel Restaurant LA BÂTISSE"), null);
+  assert.equal(firstNameOf("GARDE IMPERIAL BARBERSHOP"), null); // capitales = marque
+  assert.equal(firstNameOf("LE B11"), null); // chiffre
+  assert.equal(firstNameOf("CP Rénovation"), null); // sigle trop court
+  assert.equal(firstNameOf("Sud Déco 34 | Décoratrice d'intérieur"), null); // séparateur
+  assert.equal(firstNameOf("ADELINE MAISON & JARDIN"), null); // « & » = enseigne
+  assert.equal(firstNameOf("Marié Stéphane | Couvreur Bordeaux"), null); // séparateur → prudence
+  assert.equal(firstNameOf(""), null);
+  assert.equal(firstNameOf(null), null);
 });
 
-test("instagramDmSequence trame entreprise: vouvoiement, structure trame 2, liens aux bons endroits", () => {
+test("instagramDmSequence: vouvoiement systématique, aucun tutoiement résiduel", () => {
   const demo = "https://x.fr/di/abc";
-  const steps = instagramDmSequence(
-    { metier: "paysagiste", ville: "Angers", firstName: "Julie" },
-    demo,
-    "entreprise",
-  );
+  const steps = instagramDmSequence({ metier: "paysagiste", ville: "Angers", firstName: "Julie" }, demo);
   assert.equal(steps.length, 12);
-  // Vouvoiement partout, aucun tutoiement résiduel (frontières Unicode : « êtes » ≠ « tes »).
+  // Vouvoiement partout (frontières Unicode : « êtes » ≠ « tes »).
   const tutoie = /(?:^|[^\p{L}])(tu|toi|ton|tes)(?:[^\p{L}]|$)/iu;
-  for (const s of steps.filter((x) => x.step.startsWith("M"))) {
+  for (const s of steps) {
     assert.ok(!tutoie.test(s.text), `${s.step} ne doit pas tutoyer : ${s.text}`);
   }
   assert.ok(steps[0].text.includes("vous étiez paysagiste"));
-  // Trame 2 : pivot sur les détails observés + « fermé à l'idée ».
+  // Pivot sur les détails observés + « fermé à l'idée ».
   assert.ok(steps.find((s) => s.step === "M2")!.text.includes("puce à l'oreille"));
   assert.ok(steps.find((s) => s.step === "M4")!.text.includes("fermé à l'idée"));
-  // Aucun lien avant M8 ; démo en M8, questionnaire en M9.
-  for (const s of steps.filter((x) => ["M1", "M2", "M3", "M4", "M5", "M6", "M7"].includes(x.step))) {
-    assert.ok(!/https?:\/\//.test(s.text), `${s.step} ne doit contenir aucun lien`);
-  }
-  assert.ok(steps.find((s) => s.step === "M8")!.text.includes(demo));
-  assert.ok(steps.find((s) => s.step === "M9")!.text.includes(QUESTIONNAIRE_URL));
   // Douleur adaptée artisan (devis) même en vouvoiement.
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("devis"));
 });
@@ -190,15 +199,20 @@ test("competitorHook: appels pour artisans, réservations pour métiers à RDV",
   assert.ok(competitorHook({ ...base, metier: "esthéticienne" }).includes("capter ces réservations"));
   assert.ok(competitorHook({ ...base, metier: "institut de beauté" }).includes("capter ces réservations"));
   assert.ok(competitorHook({ ...base, metier: "coiffeur" }).includes("capter ces réservations"));
-  // Structure : classement + trame (tutoiement par défaut, vouvoiement entreprise).
-  const solo = competitorHook({ ...base, metier: "esthéticienne", firstName: "Julie" });
-  assert.ok(solo.includes("Hello Julie") && solo.includes("t'es #4"));
-  const ent = competitorHook({ ...base, metier: "esthéticienne", trame: "entreprise" });
-  assert.ok(ent.includes("Bonjour") && ent.includes("vous êtes #4"));
+  // Structure : classement + vouvoiement systématique, prénom optionnel.
+  const avecPrenom = competitorHook({ ...base, metier: "esthéticienne", firstName: "Julie" });
+  assert.ok(avecPrenom.includes("Hello Julie") && avecPrenom.includes("vous êtes #4"));
+  const sansPrenom = competitorHook({ ...base, metier: "esthéticienne" });
+  assert.ok(sansPrenom.startsWith("Hello !") && sansPrenom.includes("vous êtes #4"));
+  // Non classé → formulation dédiée, toujours en vouvoiement.
+  const absent = competitorHook({ ...base, metier: "plombier", selfRank: null });
+  assert.ok(absent.includes("vous n'apparaissez pas dans les résultats"));
   // Règle de la trame : observation + curiosité, jamais de pitch de l'offre.
-  for (const msg of [solo, ent]) {
+  // Aucun tutoiement résiduel.
+  const tutoie = /(?:^|[^\p{L}])(tu|toi|ton|tes)(?:[^\p{L}]|$)/iu;
+  for (const msg of [avecPrenom, sansPrenom, absent]) {
     assert.ok(!/profiter|proposer|offre|accompagn|campagne/i.test(msg), `pas de pitch : ${msg}`);
+    assert.ok(!tutoie.test(msg), `pas de tutoiement : ${msg}`);
+    assert.ok(msg.endsWith("Vous l'aviez remarqué ?"));
   }
-  assert.ok(solo.endsWith("Tu l'avais remarqué ?"));
-  assert.ok(ent.endsWith("Vous l'aviez remarqué ?"));
 });

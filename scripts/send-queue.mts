@@ -10,7 +10,7 @@
 // en parallèle pour comparer leurs taux de réponse.
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { instagramDmSequence, detectMetier, detectTrame } from "../app/lib/instagram";
+import { instagramDmSequence, detectMetier, firstNameOf } from "../app/lib/instagram";
 import { shortCode } from "../app/lib/links";
 
 const env = Object.fromEntries(
@@ -78,17 +78,15 @@ console.error(
 
 const queue = melange.map((l) => {
   const metierEff = metierOf(l);
-  const trame = detectTrame(l.full_name, l.bio);
   const steps = instagramDmSequence(
     {
       metier: metierEff,
       ville: l.ville ?? "",
       bookingPlatform: l.booking_platform,
-      firstName: l.full_name ? l.full_name.split(/\s+/)[0] : null,
+      firstName: firstNameOf(l.full_name),
       professionIa: l.profession_ia,
     },
     `${ORIGIN}/di/${shortCode(l.id)}`,
-    trame,
   );
   const m1 = steps.find((s) => s.step === "M1") ?? steps[0];
   return {
@@ -98,7 +96,6 @@ const queue = melange.map((l) => {
     score: l.score,
     tier: l.score_tier,
     metier: metierEff,
-    trame,
     m1: m1.text,
     profile: `https://www.instagram.com/${l.username}/`,
   };

@@ -128,7 +128,7 @@ export function detectVille(hashtag?: string | null, bio?: string | null): strin
 /**
  * Accroche DM « angle Ads », construite depuis le rapport concurrentiel :
  * classement Google du prospect + nombre de concurrents qui font des ads.
- * S'adapte à la trame (tutoiement solo / vouvoiement entreprise).
+ * Vouvoiement systématique (décidé le 2026-07-17).
  * Règle de la trame : pure observation + question de curiosité — AUCUNE
  * mention de l'offre (elle n'arrive qu'à la proposition d'appel, M8).
  */
@@ -138,29 +138,19 @@ export function competitorHook(input: {
   selfRank: number | null;
   adsCount: number;
   firstName?: string | null;
-  trame?: TrameKind;
 }): string {
   const { metier, ville, selfRank, adsCount } = input;
-  const vous = input.trame === "entreprise";
-  const hello = vous ? "Bonjour" : `Hello${input.firstName ? ` ${input.firstName}` : ""}`;
+  const hello = `Hello${input.firstName ? ` ${input.firstName}` : ""}`;
   const requete = `« ${metier} ${ville} »`;
   // Artisans = business téléphone-first ; métiers à RDV (beauté, resto…) = réservations.
   const RDV_METIERS = new Set<string>(["estheticienne", "coiffeur", "tatoueur", "restaurant"]);
   const cible = RDV_METIERS.has(detectMetier(metier, null)) ? "ces réservations" : "ces appels";
-  const place =
-    selfRank === null
-      ? vous
-        ? "vous n'apparaissez pas dans les résultats"
-        : "t'apparais pas dans les résultats"
-      : vous
-        ? `vous êtes #${selfRank}`
-        : `t'es #${selfRank}`;
+  const place = selfRank === null ? "vous n'apparaissez pas dans les résultats" : `vous êtes #${selfRank}`;
   const concurrence =
     adsCount > 0
       ? `${adsCount} concurrent${adsCount > 1 ? "s" : ""} paie${adsCount > 1 ? "nt" : ""} déjà pour capter ${cible}`
       : "personne ne paie pour ces recherches en ce moment";
-  const question = vous ? "Vous l'aviez remarqué ?" : "Tu l'avais remarqué ?";
-  return `${hello} ! Par curiosité j'ai tapé ${requete} sur Google : ${place}, et ${concurrence}. ${question}`;
+  return `${hello} ! Par curiosité j'ai tapé ${requete} sur Google : ${place}, et ${concurrence}. Vous l'aviez remarqué ?`;
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -260,11 +250,52 @@ export function pickContact(profile: {
   return { email, phone };
 }
 
+/** Mots d'enseigne / articles qui ne sont jamais un prénom en tête de `full_name`. */
+const NON_PRENOM = new Set([
+  "le", "la", "les", "du", "de", "des", "au", "aux", "un", "une", "chez",
+  "atelier", "maison", "hotel", "hôtel", "restaurant", "bar", "brasserie", "cafe", "café",
+  "boutique", "magasin", "salon", "institut", "garage", "entreprise", "societe", "société",
+  "groupe", "agence", "team", "studio", "espace", "bois", "jardin", "jardins", "paysage",
+  "paysages", "deco", "déco", "design", "renovation", "rénovation", "batiment", "bâtiment",
+  "travaux", "service", "services", "sarl", "sas", "sasu", "eurl", "sci", "sud", "nord",
+  "est", "ouest", "france",
+]);
+
+/**
+ * Prénom exploitable depuis un `full_name`, ou `null` si rien de fiable.
+ *
+ * Le 1er mot d'un `full_name` n'est un prénom que rarement : sans filtre l'accroche
+ * sortait « Hello Bois ! » (Bois et jardins), « Hello CP ! », « Hello GARDE ! ».
+ * On préfère `null` au moindre doute — l'accroche retombe alors sur « Hello » seul,
+ * qui n'est jamais faux. Conséquence assumée : quelques vrais prénoms sont perdus
+ * (« Marié Stéphane | Couvreur » → null à cause du séparateur).
+ */
+export function firstNameOf(fullName?: string | null): string | null {
+  const nom = (fullName ?? "").trim();
+  if (!nom) return null;
+  // Séparateurs et symboles = mise en forme d'enseigne, pas un état civil.
+  if (/[|&/•·@_\d]/.test(nom)) return null;
+  const mots = nom.split(/\s+/);
+  if (mots.length > 3) return null;
+  // « GARDE IMPERIAL BARBERSHOP » : capitales sur plusieurs mots = marque.
+  if (mots.length > 1 && nom === nom.toUpperCase()) return null;
+
+  const premier = mots[0];
+  if (!/^\p{L}+$/u.test(premier)) return null;
+  if (premier.length < 3 || premier.length > 15) return null;
+  const bas = premier.toLowerCase();
+  if (NON_PRENOM.has(bas)) return null;
+  if (detectMetier(premier, null)) return null;
+
+  // « ADELINE » → « Adeline », « stéphane » → « Stéphane ».
+  return premier[0].toUpperCase() + premier.slice(1).toLowerCase();
+}
+
 export interface IgDmInput {
   metier: string;
   ville: string;
   bookingPlatform?: string | null;
-  /** Prénom du prospect (1er mot du full_name) — personnalise l'accroche. */
+  /** Prénom du prospect — utiliser `firstNameOf()`, jamais le 1er mot brut du full_name. */
   firstName?: string | null;
   /** Profession détectée par l'IA de qualification — prioritaire sur `metier` pour l'accroche. */
   professionIa?: string | null;
@@ -329,6 +360,12 @@ const BATIMENT = new Set([
 ]);
 
 /** Nom de métier naturel pour l'accroche « j'ai vu que tu étais X, c'est toujours le cas ? ». */
+/** Métiers formulés « vous teniez un … » (établissement) plutôt que « vous étiez … ». */
+const METIER_LIEU: Record<string, string> = {
+  restaurant: "un restaurant",
+  coiffeur: "un salon de coiffure",
+};
+
 const METIER_NOUN: Record<string, string> = {
   menuisier: "menuisier",
   paysagiste: "paysagiste",
@@ -343,7 +380,7 @@ const METIER_NOUN: Record<string, string> = {
   plombier: "plombier",
   electricien: "électricien",
   chauffagiste: "chauffagiste",
-  coiffeur: "coiffeur(se)",
+  coiffeur: "coiffeur",
   estheticienne: "esthéticienne",
   fleuriste: "fleuriste",
   tatoueur: "tatoueur(se)",
@@ -371,35 +408,14 @@ export interface IgDmStep {
   text: string;
 }
 
-/* ────────────────────────────────────────────────────────────
- * Choix de trame (règle Notion « trames à pattern ») :
- *  - trame 1 « éléments non visibles » → TUTOIEMENT (solopreneur, artisan solo) ;
- *  - trame 2 « éléments visibles »     → VOUVOIEMENT (entreprise : agence, PME, équipe).
- * Signaux « entreprise » : forme juridique, vocabulaire d'équipe, bio en « nous ».
- * ──────────────────────────────────────────────────────────── */
-export type TrameKind = "solo" | "entreprise";
-
-const ENTREPRISE_RE =
-  /\b(sarl|sasu?|eurl|sci|holding|groupe|agence|[eé]quipe|team|nos (clients|[eé]quipes|artisans|chantiers|r[eé]alisations)|notre (entreprise|soci[eé]t[eé]|[eé]quipe|savoir[- ]?faire|atelier)|nous (sommes|r[eé]alisons|intervenons|proposons|concevons|installons))\b/i;
-
-/** Trame suggérée pour un profil (surchargeable dans l'UI). */
-export function detectTrame(fullName?: string | null, bio?: string | null): TrameKind {
-  return ENTREPRISE_RE.test(`${fullName ?? ""} ${bio ?? ""}`) ? "entreprise" : "solo";
-}
-
-export const TRAME_LABEL: Record<TrameKind, string> = {
-  solo: "Solo — tutoiement",
-  entreprise: "Entreprise — vouvoiement",
-};
-
 /**
  * Construit la séquence complète de messages (9 étapes + 3 relances),
  * à copier une par une selon les réponses du prospect.
  * `demoLink` = aperçu /di/<code> (envoyé SEULEMENT à la proposition d'appel).
- * `trame` : "solo" (tutoiement, trame 1) ou "entreprise" (vouvoiement, trame 2).
+ * Vouvoiement systématique (décidé le 2026-07-17) : la trame « solo » au
+ * tutoiement est supprimée, on ne s'adresse plus qu'en « vous ».
  */
-export function instagramDmSequence(p: IgDmInput, demoLink: string, trame: TrameKind = "solo"): IgDmStep[] {
-  const copy = NICHE_COPY[p.metier] ?? NICHE_COPY[""];
+export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] {
   const hello = p.firstName && p.firstName.trim() ? `Hello ${p.firstName.trim()}` : "Hello";
   // Accroche : la profession IA (précise) prime sur le métier détecté par regex.
   const noun = (p.professionIa && p.professionIa.trim().toLowerCase()) || METIER_NOUN[p.metier] || null;
@@ -409,102 +425,14 @@ export function instagramDmSequence(p: IgDmInput, demoLink: string, trame: Trame
   const pain = painWording(p.metier);
   const bk = p.bookingPlatform;
 
-  if (trame === "entreprise") {
-    const accrocheVous =
-      p.metier === "restaurant" && !p.professionIa
-        ? `${hello} ! J'ai vu que vous teniez un restaurant, c'est toujours le cas ?`
-        : noun
-          ? `${hello} ! J'ai vu que vous étiez ${noun}, c'est toujours le cas ?`
-          : `${hello} ! Je suis tombé sur votre compte en scrollant — vous êtes toujours en activité en ce moment ?`;
-    return [
-      {
-        step: "M1",
-        title: "Accroche (vouvoiement — à varier d'un prospect à l'autre)",
-        text: accrocheVous,
-      },
-      {
-        step: "M2",
-        title: "Présentation 1/3 — contexte (après son oui)",
-        text:
-          `Parfait ! En fait je me baladais sur Instagram et votre dernier post est remonté dans mon feed, ` +
-          `ce qui m'a fait cliquer sur votre profil. En creusant un peu, certains détails précis sur votre présence en ligne ` +
-          `m'ont mis la puce à l'oreille. Je me suis dit que ça valait le coup de vous écrire pour échanger ` +
-          `et vous partager quelques pistes de réflexion sur ces éléments.`,
-      },
-      {
-        step: "M3",
-        title: "Présentation 2/3 — qui je suis",
-        text:
-          `Pour me présenter rapidement, je m'appelle Nicolas — ça fait 6 ans que je suis dans le digital ` +
-          `et j'accompagne ${avatar} sur l'acquisition de clients, pour avoir ${pain.demandes} sans dépendre du bouche-à-oreille.`,
-      },
-      {
-        step: "M4",
-        title: "Présentation 3/3 — la question",
-        text: `Est-ce que vous seriez fermé à l'idée que je vous partage les points qui ont retenu mon attention ? :)`,
-      },
-      {
-        step: "M5",
-        title: "Connexion",
-        text:
-          `Super ! Juste avant, j'avais quelques questions pour clarifier mon ressenti — ` +
-          `je me demandais depuis combien de temps vous développiez l'activité ? Je n'ai pas vu l'info sur votre profil 🙂`,
-      },
-      {
-        step: "M6",
-        title: "Focus",
-        text: `Ok je vois ! Et vous êtes sur quoi en ce moment — plutôt votre cœur de métier, la recherche de nouveaux clients, ou vous êtes sur autre chose ?`,
-      },
-      {
-        step: "M7",
-        title: "Recherche de douleur",
-        text:
-          `Et comment ça se passe à ce niveau ? Vous arrivez à avoir ${pain.demandes} et ${pain.stable}, ` +
-          `ou ça reste un peu aléatoire honnêtement ?` +
-          (bk ? `\n\n(Variante ${bk} : « J'ai vu que vous passiez par ${bk} — ça vous convient niveau commissions, ou ça commence à chiffrer ? »)` : ""),
-      },
-      {
-        step: "M8",
-        title: "Proposition d'appel (le lien démo arrive ICI, pas avant)",
-        text:
-          `Ok je vois ! Ce que je peux vous proposer, c'est qu'on se prenne 15-20 min ensemble pour vous partager ` +
-          `les points que j'ai identifiés par rapport à votre présence en ligne, et ce que l'on met en place chez nos clients` +
-          (demoLink ? ` — je vous ai d'ailleurs préparé un aperçu gratuit de ce que ça pourrait donner : ${demoLink}` : "") +
-          `. Est-ce que vous auriez un moment cette semaine ? :)`,
-      },
-      {
-        step: "M9",
-        title: "Questionnaire (après son oui, avant de bloquer le créneau)",
-        text:
-          `Super ! Juste avant que je bloque ça de mon côté, j'aurais besoin que vous remplissiez un petit questionnaire — ` +
-          `ça me permettra d'avoir plus de visibilité sur votre activité et de vous apporter davantage de valeur pendant l'appel. ` +
-          `À la fin, vous aurez automatiquement accès aux ressources 👉 ${QUESTIONNAIRE_URL}\n\n` +
-          `Je vous laisse me faire un retour une fois que c'est fait, ça prend 2 min max ;)`,
-      },
-      {
-        step: "R1",
-        title: "Relance — 1 h après un vu (jamais entre 20 h et 8 h)",
-        text: `Vous avez eu le temps de checker mon message${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
-      },
-      {
-        step: "R2",
-        title: "Relance — nouveau vu (attendre 6-8 h)",
-        text: `Toujours avec moi${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
-      },
-      {
-        step: "R3",
-        title: "Relance — nouveau vu (5-8 h) ; ensuite image humour puis mème perso",
-        text: `${p.firstName ? p.firstName.trim() : "Alors"} ?? 😄`,
-      },
-    ];
-  }
-
-  const accroche =
-    p.metier === "restaurant" && !p.professionIa
-      ? `${hello} ! J'ai vu que tu tenais un restaurant, c'est toujours le cas ?`
-      : noun
-        ? `${hello} ! J'ai vu que tu étais ${noun}, c'est toujours le cas ?`
-        : `${hello} ! J'ai vu ton compte en scrollant — tu es toujours en activité en ce moment ?`;
+  // Un établissement se « tient », un métier se « est » : « vous étiez coiffeur(se) »
+  // sonnait comme un formulaire — un salon ou un resto se formule au lieu.
+  const lieu = p.professionIa ? null : METIER_LIEU[p.metier];
+  const accroche = lieu
+    ? `${hello} ! J'ai vu que vous teniez ${lieu}, c'est toujours le cas ?`
+    : noun
+      ? `${hello} ! J'ai vu que vous étiez ${noun}, c'est toujours le cas ?`
+      : `${hello} ! Je suis tombé sur votre compte en scrollant — vous êtes toujours en activité en ce moment ?`;
 
   return [
     {
@@ -516,62 +444,65 @@ export function instagramDmSequence(p: IgDmInput, demoLink: string, trame: Trame
       step: "M2",
       title: "Présentation 1/3 — contexte (après son oui)",
       text:
-        `Ok top ! Parce qu'en fait je suis tombé sur ton profil Instagram en scrollant et ${copy.hook}. ` +
-        `Du coup je me suis dit que ça valait le coup de te contacter — pas pour te vendre un truc à tout prix, ` +
-        `mais pour échanger et te partager un max de valeur utile`,
+        `Parfait ! En fait je me baladais sur Instagram et votre dernier post est remonté dans mon feed, ` +
+        `ce qui m'a fait cliquer sur votre profil. En creusant un peu, certains détails précis sur votre présence en ligne ` +
+        `m'ont mis la puce à l'oreille. Je me suis dit que ça valait le coup de vous écrire pour échanger ` +
+        `et vous partager quelques pistes de réflexion sur ces éléments.`,
     },
     {
       step: "M3",
       title: "Présentation 2/3 — qui je suis",
       text:
-        `Pour me présenter rapidement, moi c'est Nicolas, ça fait 6 ans que je suis dans le digital ` +
-        `et je suis spécialisé dans l'acquisition de clients pour ${avatar} — aujourd'hui j'aide des pros comme toi ` +
-        `à avoir ${pain.demandes} sans dépendre du bouche-à-oreille.`,
+        `Pour me présenter rapidement, je m'appelle Nicolas — ça fait 6 ans que je suis dans le digital ` +
+        `et j'accompagne ${avatar} sur l'acquisition de clients, pour avoir ${pain.demandes} sans dépendre du bouche-à-oreille.`,
     },
     {
       step: "M4",
       title: "Présentation 3/3 — la question",
-      text: `Est-ce que du coup ça te dérangerait qu'on échange par rapport à ton activité ? :)`,
+      text: `Est-ce que vous seriez fermé à l'idée que je vous partage les points qui ont retenu mon attention ? :)`,
     },
     {
       step: "M5",
       title: "Connexion",
-      text: `D'ailleurs je me demandais, ça fait combien de temps que tu fais ça ? J'ai pas trouvé l'info sur ton compte 🙂`,
+      text:
+        `Super ! Juste avant, j'avais quelques questions pour clarifier mon ressenti — ` +
+        `je me demandais depuis combien de temps vous développiez l'activité ? Je n'ai pas vu l'info sur votre profil 🙂`,
     },
     {
       step: "M6",
       title: "Focus",
-      text: `Ok je vois, c'est top ! Et en ce moment tu te concentres sur quoi — plutôt ton cœur de métier, la recherche de nouveaux clients, ou t'es sur autre chose ?`,
+      text: `Ok je vois ! Et vous êtes sur quoi en ce moment — plutôt votre cœur de métier, la recherche de nouveaux clients, ou vous êtes sur autre chose ?`,
     },
     {
       step: "M7",
       title: "Recherche de douleur",
       text:
-        `Et comment ça se passe à ce niveau ? Tu arrives à avoir ${pain.demandes} et ${pain.stable}, ` +
+        `Et comment ça se passe à ce niveau ? Vous arrivez à avoir ${pain.demandes} et ${pain.stable}, ` +
         `ou ça reste un peu aléatoire honnêtement ?` +
-        (bk ? `\n\n(Variante ${bk} : « J'ai vu que tu passais par ${bk} — ça te convient niveau commissions, ou ça commence à chiffrer ? »)` : ""),
+        (bk ? `\n\n(Variante ${bk} : « J'ai vu que vous passiez par ${bk} — ça vous convient niveau commissions, ou ça commence à chiffrer ? »)` : ""),
     },
     {
       step: "M8",
       title: "Proposition d'appel (le lien démo arrive ICI, pas avant)",
       text:
-        `Ok je vois ! De mon côté j'ai quelques ressources qui te permettraient d'avoir une première solution à ce niveau-là` +
-        (demoLink ? ` — et je t'ai même préparé un aperçu gratuit de ce que ça pourrait donner pour toi : ${demoLink}` : "") +
-        `. Ça te dirait qu'on se prenne 15-20 min ensemble pour personnaliser tout ça à ton activité et te créer un plan d'action concret ? :)`,
+        `Ok je vois ! Ce que je peux vous proposer, c'est qu'on se prenne 15-20 min ensemble pour vous partager ` +
+        `les points que j'ai identifiés par rapport à votre présence en ligne, et ce que l'on met en place chez nos clients` +
+        (demoLink ? ` — je vous ai d'ailleurs préparé un aperçu gratuit de ce que ça pourrait donner : ${demoLink}` : "") +
+        `. Est-ce que vous auriez un moment cette semaine ? :)`,
     },
     {
       step: "M9",
       title: "Questionnaire (après son oui, avant de bloquer le créneau)",
       text:
-        `Super ! Juste avant que je bloque ça de mon côté, j'aurais besoin que tu remplisses un petit questionnaire — ` +
-        `ça me permet d'avoir plus de visibilité sur ton activité et de t'apporter un max de valeur pendant l'appel. ` +
-        `À la fin tu as automatiquement accès aux ressources 👉 ${QUESTIONNAIRE_URL}\n\n` +
-        `Je te laisse me faire un retour quand c'est fait, ça prend 2 min max ;)`,
+        `Super ! Juste avant que je bloque ça de mon côté, j'aurais besoin que vous remplissiez un petit questionnaire — ` +
+        `ça me permettra d'avoir plus de visibilité sur votre activité et de vous apporter davantage de valeur pendant l'appel. ` +
+        `À la fin, vous aurez automatiquement accès aux ressources 👉 ${QUESTIONNAIRE_URL}\n\n` +
+        `Je vous laisse me faire un retour une fois que c'est fait, ça prend 2 min max ;)`,
     },
     {
       step: "R1",
       title: "Relance — 1 h après un vu (jamais entre 20 h et 8 h)",
-      text: `Tu as eu le temps de checker mon message${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
+      text: `Vous avez eu le temps de checker mon message${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
     },
     {
       step: "R2",
