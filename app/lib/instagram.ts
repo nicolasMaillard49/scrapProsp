@@ -258,7 +258,8 @@ const NON_PRENOM = new Set([
   "groupe", "agence", "team", "studio", "espace", "bois", "jardin", "jardins", "paysage",
   "paysages", "deco", "déco", "design", "renovation", "rénovation", "batiment", "bâtiment",
   "travaux", "service", "services", "sarl", "sas", "sasu", "eurl", "sci", "sud", "nord",
-  "est", "ouest", "france",
+  "est", "ouest", "france", "artisan", "artisans", "espaces", "verts", "creation",
+  "création", "creations", "créations", "concept", "pro", "eco", "éco",
 ]);
 
 /**

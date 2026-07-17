@@ -170,6 +170,7 @@ test("firstNameOf: prénom seulement si fiable — sinon null (cas réels du 17/
   assert.equal(firstNameOf("Sud Déco 34 | Décoratrice d'intérieur"), null); // séparateur
   assert.equal(firstNameOf("ADELINE MAISON & JARDIN"), null); // « & » = enseigne
   assert.equal(firstNameOf("Marié Stéphane | Couvreur Bordeaux"), null); // séparateur → prudence
+  assert.equal(firstNameOf("Artisan France Fenetre"), null); // « Hello Artisan ! »
   assert.equal(firstNameOf(""), null);
   assert.equal(firstNameOf(null), null);
 });
