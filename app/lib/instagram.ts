@@ -250,16 +250,57 @@ export function pickContact(profile: {
   return { email, phone };
 }
 
-/** Mots d'enseigne / articles qui ne sont jamais un prénom en tête de `full_name`. */
-const NON_PRENOM = new Set([
-  "le", "la", "les", "du", "de", "des", "au", "aux", "un", "une", "chez",
-  "atelier", "maison", "hotel", "hôtel", "restaurant", "bar", "brasserie", "cafe", "café",
-  "boutique", "magasin", "salon", "institut", "garage", "entreprise", "societe", "société",
-  "groupe", "agence", "team", "studio", "espace", "bois", "jardin", "jardins", "paysage",
-  "paysages", "deco", "déco", "design", "renovation", "rénovation", "batiment", "bâtiment",
-  "travaux", "service", "services", "sarl", "sas", "sasu", "eurl", "sci", "sud", "nord",
-  "est", "ouest", "france", "artisan", "artisans", "espaces", "verts", "creation",
-  "création", "creations", "créations", "concept", "pro", "eco", "éco",
+/**
+ * Prénoms admis pour l'accroche — liste blanche, et non plus liste noire d'enseignes.
+ *
+ * La blacklist perdait la course : chaque scrape ramenait de nouveaux faux prénoms
+ * (« Hello Millionaire ! », « Hello Boiseries ! », « Hello Woodery ! »). Un nom de
+ * marque est imprévisible, un prénom ne l'est pas — on inverse donc le test. Un
+ * prénom absent d'ici retombe sur « Hello » seul, qui n'est jamais faux.
+ */
+const PRENOMS = new Set([
+  // Femmes
+  "marie", "nathalie", "isabelle", "sylvie", "catherine", "françoise", "francoise",
+  "martine", "christine", "monique", "sandrine", "stephanie", "stéphanie", "veronique",
+  "véronique", "valerie", "valérie", "julie", "aurelie", "aurélie", "celine", "céline",
+  "sophie", "laurence", "corinne", "patricia", "chantal", "brigitte", "dominique",
+  "helene", "hélène", "anne", "claire", "camille", "laura", "manon", "chloe", "chloé",
+  "emma", "sarah", "lea", "léa", "clara", "julia", "elodie", "élodie", "amandine",
+  "pauline", "charlotte", "marion", "audrey", "emilie", "émilie", "caroline", "delphine",
+  "virginie", "karine", "severine", "séverine", "myriam", "nadia", "samia", "fatima",
+  "leila", "leïla", "yasmine", "ines", "inès", "lina", "assmae", "anastasia", "melanie",
+  "mélanie", "justine", "morgane", "oceane", "océane", "alicia", "jessica", "cindy",
+  "vanessa", "laetitia", "lætitia", "angelique", "angélique", "estelle", "florence",
+  "beatrice", "béatrice", "agnes", "agnès", "cecile", "cécile", "sabrina", "elise",
+  "élise", "adeline", "coralie", "maud", "solene", "solène", "gaelle", "gaëlle",
+  "lucie", "eva", "louise", "alice", "jade", "lola", "romane", "margaux", "noemie",
+  "noémie", "clemence", "clémence", "axelle", "fanny", "marina", "sonia", "rachel",
+  "nina", "kelly", "melissa", "mélissa", "priscilla", "tatiana", "olivia", "ludivine",
+  // Hommes
+  "jean", "pierre", "michel", "philippe", "alain", "patrick", "christophe", "nicolas",
+  "laurent", "eric", "éric", "pascal", "david", "frederic", "frédéric", "stephane",
+  "stéphane", "olivier", "thierry", "sebastien", "sébastien", "julien", "vincent",
+  "franck", "francois", "françois", "bernard", "daniel", "jacques", "claude", "gerard",
+  "gérard", "andre", "andré", "marc", "guillaume", "thomas", "alexandre", "maxime",
+  "antoine", "romain", "florian", "kevin", "kévin", "anthony", "jonathan", "jeremy",
+  "jérémy", "damien", "cedric", "cédric", "gregory", "grégory", "mathieu", "matthieu",
+  "benjamin", "clement", "clément", "quentin", "adrien", "baptiste", "hugo", "lucas",
+  "theo", "théo", "enzo", "nathan", "raphael", "raphaël", "gabriel", "arthur", "louis",
+  "paul", "victor", "jules", "leo", "léo", "noah", "ethan", "axel", "corentin", "dylan",
+  "yann", "yannick", "loic", "loïc", "ludovic", "sylvain", "fabrice", "fabien", "denis",
+  "didier", "gilles", "herve", "hervé", "bruno", "serge", "yves", "rene", "rené",
+  "roger", "robert", "henri", "georges", "joseph", "charles", "emmanuel", "xavier",
+  "arnaud", "aurelien", "aurélien", "bastien", "valentin", "tristan", "simon", "martin",
+  "mickael", "mickaël", "michael", "steve", "tony", "jerome", "jérôme", "gaetan",
+  "gaëtan", "thibaud", "thibault", "thibaut", "edouard", "édouard", "come", "côme",
+  "karim", "mehdi", "rachid", "samir", "yacine", "amine", "youssef", "hakim", "farid",
+  "mohamed", "ali", "omar", "bilal", "sofiane", "ryan", "jordan", "alan", "alex",
+  "matteo", "mattéo", "mateo", "elias", "adam", "isaac", "eliott", "eliot", "milan",
+  "samuel", "raphael", "jeremie", "jérémie", "benoit", "benoît", "cyril", "regis",
+  "régis", "dimitri", "jerome", "gautier", "gauthier", "lionel", "pascal", "roland",
+  "christian", "guy", "alexis", "theophile", "théophile", "aymeric", "amaury", "hadrien",
+  "gaspard", "ambroise", "constant", "leon", "léon", "marius", "sacha", "noe", "noé",
+  "timothe", "timothée", "timothee", "augustin", "felix", "félix", "oscar", "achille",
 ]);
 
 /**
@@ -269,7 +310,8 @@ const NON_PRENOM = new Set([
  * sortait « Hello Bois ! » (Bois et jardins), « Hello CP ! », « Hello GARDE ! ».
  * On préfère `null` au moindre doute — l'accroche retombe alors sur « Hello » seul,
  * qui n'est jamais faux. Conséquence assumée : quelques vrais prénoms sont perdus
- * (« Marié Stéphane | Couvreur » → null à cause du séparateur).
+ * (« Marié Stéphane | Couvreur » → null à cause du séparateur, un prénom rare
+ * absent de `PRENOMS`).
  */
 export function firstNameOf(fullName?: string | null): string | null {
   const nom = (fullName ?? "").trim();
@@ -284,9 +326,13 @@ export function firstNameOf(fullName?: string | null): string | null {
   const premier = mots[0];
   if (!/^\p{L}+$/u.test(premier)) return null;
   if (premier.length < 3 || premier.length > 15) return null;
+
+  // Liste blanche : « Thibaud » passe, « Boiseries » / « Millionaire » non.
+  // On teste aussi la forme sans accent — « Frédéric » saisi « Frederic » et
+  // inversement doivent tomber sur la même entrée.
   const bas = premier.toLowerCase();
-  if (NON_PRENOM.has(bas)) return null;
-  if (detectMetier(premier, null)) return null;
+  const sansAccent = bas.normalize("NFD").replace(/\p{Diacritic}/gu, "");
+  if (!PRENOMS.has(bas) && !PRENOMS.has(sansAccent)) return null;
 
   // « ADELINE » → « Adeline », « stéphane » → « Stéphane ».
   return premier[0].toUpperCase() + premier.slice(1).toLowerCase();
