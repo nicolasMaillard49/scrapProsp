@@ -10,7 +10,7 @@
 // en parallèle pour comparer leurs taux de réponse.
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "fs";
-import { instagramDmSequence, detectMetier, firstNameOf } from "../app/lib/instagram";
+import { instagramDmSequence, detectMetier, firstNameOf, isHorsCible } from "../app/lib/instagram";
 import { shortCode } from "../app/lib/links";
 
 const env = Object.fromEntries(
@@ -52,8 +52,11 @@ const metierOf = (l: (typeof data)[number]) =>
 
 // Groupe par métier, chaque groupe restant trié par score (l'ordre du fetch).
 const groupes = new Map<string, typeof data>();
+let ecartes = 0;
 for (const l of data ?? []) {
   if (l.qualification === "rejected") continue;
+  // Hors zone francophone / hors cible : un DM en français y est perdu d'avance.
+  if (isHorsCible(l)) { ecartes++; continue; }
   const m = metierOf(l).toLowerCase() || "(inconnu)";
   if (ONLY.length && !ONLY.includes(m)) continue;
   if (!groupes.has(m)) groupes.set(m, []);
@@ -73,7 +76,8 @@ for (let i = 0; melange.length < N && files.some((f) => f.length > i); i++) {
 }
 
 console.error(
-  `Mix : ${[...groupes.entries()].map(([m, f]) => `${m}=${f.length}`).join(", ")} → ${melange.length} sélectionnés`,
+  `Mix : ${[...groupes.entries()].map(([m, f]) => `${m}=${f.length}`).join(", ")} → ${melange.length} sélectionnés` +
+    ` (${ecartes} écartés hors-cible)`,
 );
 
 const queue = melange.map((l) => {

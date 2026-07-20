@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractEmails, extractPhonesFr, pickContact, hasRealWebsite,
   extractLastPostAt, isActiveSince, prospectScore, detectMetier,
-  instagramDmSequence, firstNameOf, QUESTIONNAIRE_URL, competitorHook,
+  instagramDmSequence, firstNameOf, QUESTIONNAIRE_URL, competitorHook, isHorsCible,
 } from "./instagram";
 
 test("extractEmails: trouve, déduplique, minuscule", () => {
@@ -216,4 +216,23 @@ test("competitorHook: appels pour artisans, réservations pour métiers à RDV",
     assert.ok(!tutoie.test(msg), `pas de tutoiement : ${msg}`);
     assert.ok(msg.endsWith("Vous l'aviez remarqué ?"));
   }
+});
+
+test("isHorsCible: ecarte hors zone francophone, fournisseurs B2B et blogs perso", () => {
+  // Cas reels de la file du 20/07/2026.
+  assert.equal(isHorsCible({ bio: "Lashista certificada 6 años Exp", full_name: "LASHES & INK" }), true);
+  assert.equal(isHorsCible({ bio: "Termine ab 16j. > AGB's lesen", full_name: "nastys" }), true);
+  assert.equal(isHorsCible({ bio: "Meseria Tatuator", full_name: "rada" }), true);
+  assert.equal(isHorsCible({ bio: "Jalan Letkol Iskandar Telp/WA", full_name: "pempek" }), true);
+  assert.equal(isHorsCible({ bio: "Hair Extensions 📍 Winter Garden & Winter Park, FL", full_name: "x" }), true);
+  assert.equal(isHorsCible({ bio: "🍃 20 jardineries partout au Québec", full_name: "Botanix" }), true);
+  assert.equal(isHorsCible({ bio: "Vente des machines pour l'usinage du bois", full_name: "hasky" }), true);
+  assert.equal(isHorsCible({ bio: "Le logiciel des menuisiers & ébénistes", full_name: "sizelio" }), true);
+  assert.equal(isHorsCible({ bio: "Déco / Lifestyle", category: "Personal blog", full_name: "clara" }), true);
+  // Vrais prospects : conserves.
+  assert.equal(isHorsCible({ bio: "Artisan Menuisier à Bordeaux, agencement", full_name: "Woodpeck" }), false);
+  assert.equal(isHorsCible({ bio: "Paysagiste depuis 1971 📍 Dinard (Bretagne)", full_name: "Emeraude" }), false);
+  assert.equal(isHorsCible({ bio: "BAR À VINS - BRASSERIE - MONS", full_name: "Le Cosmo" }), false);
+  // Bio vide : on laisse passer (accroche generique).
+  assert.equal(isHorsCible({ bio: "", full_name: "" }), false);
 });

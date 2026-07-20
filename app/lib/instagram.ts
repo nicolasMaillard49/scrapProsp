@@ -338,6 +338,61 @@ export function firstNameOf(fullName?: string | null): string | null {
   return premier[0].toUpperCase() + premier.slice(1).toLowerCase();
 }
 
+/* ────────────────────────────────────────────────────────────
+ * Hors-cible : ce qui ne doit jamais entrer dans une file d'envoi.
+ * Constaté le 20/07/2026 — sur 45 prospects tirés, ~13 étaient
+ * injoignables ou inutiles : comptes hors zone francophone (Porto Rico,
+ * Indonésie, Floride, Québec, Roumanie, Maroc), fournisseurs B2B
+ * (machines, logiciels pour menuisiers), blogs perso et chaînes.
+ * Un DM en français leur coûte du quota pour zéro réponse possible.
+ * ──────────────────────────────────────────────────────────── */
+
+/** Marqueurs de langue non francophone dans une bio. */
+const LANGUE_ETRANGERE = [
+  // Allemand
+  /\bab \d+j\b/i, /\bAGB'?s?\b/i, /\bTermine\b/, /\bdeine?\b/i,
+  // Espagnol
+  /\bcertificad[ao]\b/i, /\ba[nñ]os\b/i, /\bcitas?\b/i, /\bpesta[nñ]as\b/i,
+  // Roumain
+  /\bmeseria\b/i, /\btatuator\b/i,
+  // Indonésien / malais
+  /\bjalan\b/i, /\btelp\b/i, /\bharga\b/i, /\bpemesanan\b/i,
+];
+
+/** Localisations hors zone francophone (FR/BE/CH/LU). */
+const HORS_ZONE = [
+  /\b(PR|FL|CA|TX|NY|QC)\b/, /\bPuerto Rico\b/i, /\bQu[ée]bec\b/i, /\bMaroc\b/i,
+  /\bMorocco\b/i, /\bTunisie\b/i, /\bAlg[ée]rie\b/i, /\bFlorida\b/i, /\bWinter (Garden|Park)\b/i,
+];
+
+/** Activités qui ne sont pas notre cible (on vise l'artisan / commerce de proximité). */
+const NON_CIBLE = [
+  /vente des machines/i, /machines pour l'usinage/i, /\ble logiciel des\b/i,
+  /\blogiciel\b.*\b(menuisier|artisan)/i, /\d+\s+(jardineries|magasins|boutiques)\b/i,
+];
+
+/** Catégories Instagram qui trahissent un compte non commercial. */
+const CATEGORIE_NON_CIBLE = new Set(["personal blog", "digital creator", "blogger"]);
+
+/**
+ * `true` si le prospect ne doit pas recevoir de DM : hors zone francophone,
+ * hors cible, ou compte non commercial. Volontairement conservateur — mieux
+ * vaut écarter un prospect douteux que brûler du quota sur un compte injoignable.
+ */
+export function isHorsCible(p: {
+  bio?: string | null;
+  full_name?: string | null;
+  category?: string | null;
+}): boolean {
+  const texte = `${p.full_name ?? ""} ${p.bio ?? ""}`;
+  if (!texte.trim()) return false; // Bio vide : on laisse passer, l'accroche générique reste vraie.
+
+  const cat = (p.category ?? "").trim().toLowerCase();
+  if (CATEGORIE_NON_CIBLE.has(cat)) return true;
+
+  return [...LANGUE_ETRANGERE, ...HORS_ZONE, ...NON_CIBLE].some((re) => re.test(texte));
+}
+
 export interface IgDmInput {
   metier: string;
   ville: string;
