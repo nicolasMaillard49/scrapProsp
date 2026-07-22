@@ -17,6 +17,10 @@
   --color-text-muted: #777777;
   --color-accent: #7c3aed;
   --color-accent-soft: rgba(124, 58, 237, 0.1);
+  /* Surface OPAQUE — pour les menus/popovers qui recouvrent du contenu.
+     `--color-surface` est semi-transparent en thème sombre : le texte du dessous
+     transparaît. Ne pas confondre les deux. */
+  --color-surface-solid: #ffffff;
   --font-display: var(--font-display);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -34,6 +38,7 @@
   --color-text-muted: #6b6b75;
   --color-accent: #8b5cf6;
   --color-accent-soft: rgba(139, 92, 246, 0.15);
+  --color-surface-solid: #16161a;
 }
 
 /* ── Thème de l'AGENDA uniquement ───────────────────────────────────────
@@ -190,6 +195,16 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 /* ── Fonts ── */
 .font-display { font-family: var(--font-display), Georgia, serif; }
 .font-mono-num { font-family: var(--font-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* Typo Helvetica, scopée à la page KPI Instagram (le reste de l'app garde Geist +
+   Instrument Serif). Stack système : vraie Helvetica Neue sur macOS, Arial —
+   métriquement identique — sur Windows. */
+.font-helvetica,
+.font-helvetica .font-display,
+.font-helvetica .font-mono-num {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+.font-helvetica .font-mono-num { font-variant-numeric: tabular-nums; }
 
 /* ── Animations ── */
 @keyframes pulse-ring {

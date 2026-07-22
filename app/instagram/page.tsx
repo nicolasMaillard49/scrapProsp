@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, BarChart3, Sheet } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { instagramDmSequence, detectMetier, firstNameOf, competitorHook } from "@/app/lib/instagram";
@@ -14,6 +14,8 @@ import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
 import type { IgCompetitorReport } from "@/app/lib/igCompetitor";
 import ProspectionTool from "./ProspectionTool";
+import PerformanceMenu from "./PerformanceMenu";
+import ReplyButton from "./ReplyButton";
 
 interface IgLead {
   id: string;
@@ -43,6 +45,9 @@ interface IgLead {
   followup_count: number | null;
   next_followup_at: string | null;
   contacted_by: string | null;
+  /** Réponses entrantes journalisées (migration 018) — null si la colonne n'existe pas encore. */
+  reply_count: number | null;
+  first_reply_at: string | null;
 }
 
 interface IgAccount {
@@ -384,20 +389,7 @@ export default function InstagramPage() {
             Prospection Instagram
           </h1>
           <span className="flex-1" />
-          <a
-            href="https://docs.google.com/spreadsheets/d/11XFKK4UUUh0TOkreUsBchTv-Uon9TvTKfZ3pHWJmpmo/edit"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors no-underline"
-          >
-            <Sheet className="w-3.5 h-3.5" /> Tracking
-          </a>
-          <Link
-            href="/instagram/stats"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors no-underline"
-          >
-            <BarChart3 className="w-3.5 h-3.5" /> Performance
-          </Link>
+          <PerformanceMenu />
           <span className="text-sm text-[var(--color-text-secondary)]">
             <span className="font-mono-num font-medium text-[var(--color-text-primary)]">{leads.length.toLocaleString("fr-FR")}</span>
             <span className="hidden sm:inline"> prospects en base</span>
@@ -963,6 +955,14 @@ export default function InstagramPage() {
                           <Eye className="w-3 h-3" />
                           Aperçu
                         </a>
+                      )}
+                      {l.status !== "todo" && (
+                        <ReplyButton
+                          prospectId={l.id}
+                          accountId={activeAccount}
+                          replyCount={l.reply_count ?? 0}
+                          onLogged={(p) => setLeads((prev) => prev.map((x) => (x.id === l.id ? { ...x, ...p } : x)))}
+                        />
                       )}
                       {l.status === "contacted" && l.stage !== "call_booke" && l.stage !== "perdu" && (
                         <button

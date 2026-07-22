@@ -44,3 +44,6 @@ previews/
 
 # Déploiement VPS — contient les chemins/accès VPS, ne pas committer
 scripts/deploy-vps.py
+
+# Scripts jetables de session (requêtes ponctuelles, debug) — non versionnés
+scripts/_tmp-*
