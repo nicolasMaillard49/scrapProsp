@@ -1,6 +1,6 @@
 // Pipeline de prospection Instagram — logique PURE (quotas, chauffe, relances).
 // Encode les règles de la méthode (source : assistance Meta via Notion Generate.io) :
-//  - chauffe : J1 5/j, J2 10/j, J3 15/j, puis +5/jour — jamais > 60/j (limite PAR JOUR, pas par heure) ;
+//  - chauffe : J1 5/j, J2 10/j, J3 15/j, puis +5/jour — jamais > 50/j (limite PAR JOUR, pas par heure) ;
 //  - relances jamais entre 20 h et 8 h ;
 //  - vu sans réponse → R1 +1 h, puis R2 +6-8 h, R3 +5-8 h ; pas de vu → +48 h.
 
@@ -15,16 +15,23 @@ export interface Caps {
 const DAY_MS = 24 * 3600 * 1000;
 
 /**
+ * Plafond ABSOLU de DM par jour et par compte. Décision Nicolas (22/07/2026) :
+ * on ne dépasse plus JAMAIS 50/jour, quel que soit le statut du compte.
+ * Descendu de 60 (ancien plafond Meta théorique) pour préserver les comptes.
+ */
+export const MAX_DAILY = 50;
+
+/**
  * Plafond du jour selon le plan de chauffe (démarré à `started_at`).
- * J1 : 5/j → J2 : 10/j → J3 : 15/j, puis +5/jour jusqu'au plafond Meta
- * (60/j, atteint à J12). Statut chaud : plafond max direct. Pause : 0.
+ * J1 : 5/j → J2 : 10/j → J3 : 15/j, puis +5/jour jusqu'à `MAX_DAILY`
+ * (50/j, atteint à J10). Statut chaud : plafond max direct. Pause : 0.
  */
 export function warmupCaps(startedAt: string | Date, status: AccountStatus, now = Date.now()): Caps {
   if (status === "pause") return { daily: 0, day: 0 };
-  if (status === "chaud") return { daily: 60, day: 0 };
+  if (status === "chaud") return { daily: MAX_DAILY, day: 0 };
   const start = typeof startedAt === "string" ? Date.parse(startedAt) : startedAt.getTime();
   const day = Math.max(1, Math.floor((now - start) / DAY_MS) + 1);
-  const daily = Math.min(60, day <= 3 ? day * 5 : 15 + (day - 3) * 5);
+  const daily = Math.min(MAX_DAILY, day <= 3 ? day * 5 : 15 + (day - 3) * 5);
   return { daily, day };
 }
 
@@ -104,3 +111,11 @@ export function stageForStep(step: string): Stage | null {
 }
 
 export const VALID_STEPS = new Set(["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "R1", "R2", "R3"]);
+
+/**
+ * Genres de réponse ENTRANTE (table `ig_replies`, migration 018).
+ * `autorepondeur` ne compte pas comme une réponse humaine : ni dans les KPI, ni
+ * pour sortir le prospect de la file de relance.
+ */
+export const REPLY_KINDS = ["positive", "neutre", "refus", "autorepondeur"] as const;
+export type ReplyKind = (typeof REPLY_KINDS)[number];

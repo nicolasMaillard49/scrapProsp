@@ -1,21 +1,30 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { warmupCaps, clampToWindow, nextFollowup, stageForStep, VALID_STEPS } from "./igPipeline";
+import { warmupCaps, clampToWindow, nextFollowup, stageForStep, VALID_STEPS, MAX_DAILY } from "./igPipeline";
 
 const day = (n: number, base = Date.parse("2026-07-01T12:00:00")) => base + (n - 1) * 24 * 3600 * 1000;
 
-test("warmupCaps: chauffe J1 5/j, J2 10/j, J3 15/j puis +5/jour, jamais > 60/j (limite par jour, pas par heure)", () => {
+test("warmupCaps: chauffe J1 5/j, J2 10/j, J3 15/j puis +5/jour, jamais > 50/j (limite par jour, pas par heure)", () => {
   const start = "2026-07-01T00:00:00";
   assert.deepEqual(warmupCaps(start, "warmup", day(1)), { daily: 5, day: 1 });
   assert.deepEqual(warmupCaps(start, "warmup", day(2)), { daily: 10, day: 2 });
   assert.deepEqual(warmupCaps(start, "warmup", day(3)), { daily: 15, day: 3 });
   assert.deepEqual(warmupCaps(start, "warmup", day(4)), { daily: 20, day: 4 });
   assert.deepEqual(warmupCaps(start, "warmup", day(8)), { daily: 40, day: 8 });
-  assert.deepEqual(warmupCaps(start, "warmup", day(12)), { daily: 60, day: 12 });
-  assert.deepEqual(warmupCaps(start, "warmup", day(30)), { daily: 60, day: 30 });
+  // Plafond atteint à J10 et jamais dépassé ensuite.
+  assert.deepEqual(warmupCaps(start, "warmup", day(10)), { daily: MAX_DAILY, day: 10 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(12)), { daily: MAX_DAILY, day: 12 });
+  assert.deepEqual(warmupCaps(start, "warmup", day(30)), { daily: MAX_DAILY, day: 30 });
   // Statut chaud → plafond max direct ; pause → zéro envoi.
-  assert.deepEqual(warmupCaps(start, "chaud", day(1)).daily, 60);
+  assert.deepEqual(warmupCaps(start, "chaud", day(1)).daily, MAX_DAILY);
   assert.deepEqual(warmupCaps(start, "pause", day(20)), { daily: 0, day: 0 });
+});
+
+test("MAX_DAILY est bien 50 — on ne dépasse plus jamais ce plafond", () => {
+  assert.equal(MAX_DAILY, 50);
+  for (const d of [1, 5, 10, 20, 100, 365]) {
+    assert.ok(warmupCaps("2026-07-01T00:00:00", "warmup", day(d)).daily <= 50);
+  }
 });
 
 test("clampToWindow: jamais entre 20 h et 8 h", () => {
