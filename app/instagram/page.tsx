@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, AlertTriangle, Shuffle, RotateCw, Zap } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { instagramDmSequence, detectMetier, firstNameOf, competitorHook } from "@/app/lib/instagram";
@@ -80,6 +80,12 @@ interface SendStats {
   month: PeriodStats;
 }
 
+interface StreakInfo {
+  current: number;
+  best: number;
+  todayDone: boolean;
+}
+
 const STATUS_LABEL: Record<string, string> = {
   todo: "A contacter",
   contacted: "Contacte",
@@ -94,6 +100,13 @@ const STATUS_LABEL: Record<string, string> = {
  */
 const PROSPECT_COLUMNS =
   "id,username,full_name,bio,external_url,followers,category,metier,ville,booking_platform,hashtag_source,status,notes,discovered_at,email,phone,has_website,score,score_tier,qualification,qualification_reason,profession_ia,last_post_at,stage,followup_count,next_followup_at,contacted_by,reply_count,first_reply_at";
+
+/**
+ * Nom d'onglet FIXE pour Instagram : chaque ouverture réutilise le même onglet
+ * (au lieu d'en empiler un nouveau à chaque prospect → Chrome saturé). `target`
+ * sur les liens + 2e argument de window.open.
+ */
+const INSTA_TAB = "nmf_insta";
 
 /* Statuts : teinte douce + texte coloré (l'aplat saturé est réservé à la sélection). */
 const STATUS_STYLES: Record<string, { pill: string; pillActive: string }> = {
@@ -133,12 +146,18 @@ export default function InstagramPage() {
   // Le scraper sert quelques fois par semaine ; la file d'envoi sert tous les
   // jours → l'outil est replié par défaut pour laisser le cockpit en tête.
   const [toolOpen, setToolOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  // La prospection commence par « À contacter » : c'est la file du jour.
+  const [statusFilter, setStatusFilter] = useState<string>("todo");
   const [metierFilter, setMetierFilter] = useState<string>("all");
   const [tierFilter, setTierFilter] = useState<string>("all");
   const [qualifFilter, setQualifFilter] = useState<string>("all");
   const [noSiteOnly, setNoSiteOnly] = useState(false);
+  // Filtre par nombre d'abonnés (chaînes : "" = pas de borne).
+  const [followersMin, setFollowersMin] = useState("");
+  const [followersMax, setFollowersMax] = useState("");
   const [searchText, setSearchText] = useState("");
+  // Suppression d'un lead non pertinent — confirmation en 2 temps (id en attente).
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // Premier chargement terminé ? Tant que non, on évite d'afficher un « 0 »
   // trompeur dans l'en-tête. `loadError` remonte une panne au lieu de la taire.
@@ -146,9 +165,9 @@ export default function InstagramPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   // Cockpit replié par défaut sur mobile (la file d'abord) ; toujours ouvert ≥ xl.
   const [cockpitOpen, setCockpitOpen] = useState(false);
-  // Ordre de la liste : « recent » (par défaut) ou « random » (rebattu à la demande).
+  // Ordre : « recent » (défaut), « followers » (abonnés décroissants) ou « random ».
   // Le seed rend le mélange STABLE entre deux rendus (sinon la liste sauterait sans cesse).
-  const [orderMode, setOrderMode] = useState<"recent" | "random">("recent");
+  const [orderMode, setOrderMode] = useState<"recent" | "followers" | "random">("recent");
   const [shuffleSeed, setShuffleSeed] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
@@ -167,20 +186,38 @@ export default function InstagramPage() {
   const [activeAccount, setActiveAccount] = useState<string>("");
   const [newAccount, setNewAccount] = useState("");
   const [cockpitMsg, setCockpitMsg] = useState<string | null>(null);
+  // ── Gamification : objectif du jour + série (streak) ──
+  const [streak, setStreak] = useState<StreakInfo | null>(null);
+  const [dailyGoal, setDailyGoal] = useState(20);
+  const [celebrate, setCelebrate] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
     setActiveAccount(localStorage.getItem("ig_active_account") ?? "");
-    if (localStorage.getItem("ig_order_mode") === "random") {
+    const savedOrder = localStorage.getItem("ig_order_mode");
+    if (savedOrder === "random") {
       setOrderMode("random");
       setShuffleSeed(Math.floor(Math.random() * 1e9) + 1);
+    } else if (savedOrder === "followers") {
+      setOrderMode("followers");
     }
+    const savedGoal = parseInt(localStorage.getItem("ig_daily_goal") ?? "", 10);
+    if (Number.isFinite(savedGoal) && savedGoal >= 5) setDailyGoal(savedGoal);
+  }, []);
+
+  /** Ajuste l'objectif quotidien (bornes 5–60), mémorisé. */
+  const changeGoal = useCallback((delta: number) => {
+    setDailyGoal((g) => {
+      const next = Math.max(5, Math.min(60, g + delta));
+      localStorage.setItem("ig_daily_goal", String(next));
+      return next;
+    });
   }, []);
 
   // Bascule Récents / Aléatoire — mémorisée, et (re)tire un seed frais à chaque
   // passage en aléatoire ou clic « Mélanger ».
   const reshuffle = useCallback(() => setShuffleSeed(Math.floor(Math.random() * 1e9) + 1), []);
-  const setOrder = useCallback((mode: "recent" | "random") => {
+  const setOrder = useCallback((mode: "recent" | "followers" | "random") => {
     setOrderMode(mode);
     localStorage.setItem("ig_order_mode", mode);
     if (mode === "random") setShuffleSeed(Math.floor(Math.random() * 1e9) + 1);
@@ -194,6 +231,7 @@ export default function InstagramPage() {
       setAccounts(json.accounts ?? []);
       setDue(json.due ?? []);
       setStats(json.stats ?? null);
+      setStreak(json.streak ?? null);
     } catch {
       /* silencieux */
     }
@@ -284,8 +322,8 @@ export default function InstagramPage() {
           })
           .catch(() => {});
       }
-      // 2) ouvre le profil Instagram (nouvel onglet, dans le geste)
-      window.open(`https://instagram.com/${l.username}`, "_blank", "noopener,noreferrer");
+      // 2) ouvre le profil Instagram DANS L'ONGLET RÉUTILISÉ (dans le geste)
+      window.open(`https://instagram.com/${l.username}`, INSTA_TAB);
       // 3) résout un compte émetteur valide (actif prioritaire, sinon 1er dispo)
       const isValid = (a: IgAccount) => a.status !== "pause" && a.caps.daily > 0 && a.sentDay < a.caps.daily;
       const accId =
@@ -451,6 +489,18 @@ export default function InstagramPage() {
     });
   }, []);
 
+  /** Supprime définitivement un lead non pertinent (base + état local). */
+  const deleteLead = useCallback(async (id: string) => {
+    const res = await fetch(`/api/instagram/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setLeads((prev) => prev.filter((l) => l.id !== id));
+      setConfirmDelete(null);
+    } else {
+      const j = await res.json().catch(() => ({}));
+      setCockpitMsg(j.error ?? `Suppression impossible (${res.status})`);
+    }
+  }, []);
+
   const copy = useCallback((key: string, text: string) => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(key);
@@ -465,17 +515,29 @@ export default function InstagramPage() {
     return Array.from(s).sort();
   }, [leads]);
 
-  const shown = useMemo(() => {
+  // Filtres SECONDAIRES (métier, priorité, IA, sans site, abonnés, recherche) —
+  // TOUT sauf le statut. Sert de base aux pastilles de statut ET à la liste.
+  const baseFiltered = useMemo(() => {
     const q = searchText.trim().toLowerCase();
-    const filtered = leads.filter((l) => {
-      if (statusFilter !== "all" && l.status !== statusFilter) return false;
+    const min = followersMin ? parseInt(followersMin, 10) : null;
+    const max = followersMax ? parseInt(followersMax, 10) : null;
+    return leads.filter((l) => {
       if (metierFilter !== "all" && l.metier !== metierFilter) return false;
       if (tierFilter !== "all" && l.score_tier !== tierFilter) return false;
       if (qualifFilter !== "all" && l.qualification !== (qualifFilter === "none" ? null : qualifFilter)) return false;
       if (noSiteOnly && l.has_website === true) return false;
+      if (min != null && (l.followers ?? 0) < min) return false;
+      if (max != null && (l.followers ?? 0) > max) return false;
       if (q && !`${l.username} ${l.full_name ?? ""} ${l.ville ?? ""} ${l.bio ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
+  }, [leads, metierFilter, tierFilter, qualifFilter, noSiteOnly, followersMin, followersMax, searchText]);
+
+  const shown = useMemo(() => {
+    const filtered = statusFilter === "all" ? baseFiltered : baseFiltered.filter((l) => l.status === statusFilter);
+    if (orderMode === "followers") {
+      return filtered.slice().sort((a, b) => (b.followers ?? 0) - (a.followers ?? 0));
+    }
     if (orderMode !== "random") return filtered; // « recent » = ordre de chargement (discovered_at desc)
     // Fisher-Yates seedé (LCG) : mélange STABLE tant que le seed et le filtre ne
     // changent pas → la liste ne saute pas à chaque rendu, mais « Mélanger » rebat tout.
@@ -487,19 +549,36 @@ export default function InstagramPage() {
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
-  }, [leads, statusFilter, metierFilter, tierFilter, qualifFilter, noSiteOnly, searchText, orderMode, shuffleSeed]);
+  }, [baseFiltered, statusFilter, orderMode, shuffleSeed]);
 
+  // Pastilles de statut : comptées sur la base filtrée → elles suivent les filtres actifs.
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: leads.length, todo: 0, contacted: 0, positive: 0, negative: 0 };
-    for (const l of leads) c[l.status] = (c[l.status] ?? 0) + 1;
+    const c: Record<string, number> = { all: baseFiltered.length, todo: 0, contacted: 0, positive: 0, negative: 0 };
+    for (const l of baseFiltered) c[l.status] = (c[l.status] ?? 0) + 1;
     return c;
-  }, [leads]);
+  }, [baseFiltered]);
 
   // Compte émetteur actif — alimente le résumé replié du cockpit sur mobile.
   const activeAcc = accounts.find((a) => a.id === activeAccount) ?? null;
 
+  // Objectif du jour = nouveaux prospects contactés (M1) aujourd'hui vs cible.
+  const todayM1 = stats?.day.m1 ?? 0;
+  const goalReached = dailyGoal > 0 && todayM1 >= dailyGoal;
+
+  // Célébration confettis une seule fois par jour, au franchissement de l'objectif.
+  useEffect(() => {
+    if (!goalReached) return;
+    const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
+    if (localStorage.getItem("ig_goal_celebrated") === todayKey) return;
+    localStorage.setItem("ig_goal_celebrated", todayKey);
+    setCelebrate(true);
+    const t = setTimeout(() => setCelebrate(false), 2600);
+    return () => clearTimeout(t);
+  }, [goalReached]);
+
   return (
     <div className="min-h-screen bg-[var(--color-background)]">
+      {celebrate && <Confetti />}
       {/* Header */}
       <header className="sticky top-0 z-30 bg-[var(--color-surface)]/90 backdrop-blur-sm border-b border-[var(--color-border)]">
         <div className="px-4 sm:px-6 xl:px-8 h-14 flex items-center gap-4">
@@ -579,9 +658,11 @@ export default function InstagramPage() {
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-semibold text-[var(--color-text-primary)]">Cockpit d&apos;envoi</span>
               <span className="block text-xs text-[var(--color-text-muted)] truncate">
-                {activeAcc
-                  ? `@${activeAcc.username} · ${activeAcc.sentDay}/${activeAcc.caps.daily} aujourd'hui`
-                  : "aucun compte actif — à choisir"}
+                <span className={goalReached ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-[var(--color-text-secondary)] font-semibold"}>
+                  {todayM1}/{dailyGoal}
+                </span>{" "}
+                aujourd&apos;hui{streak && streak.current > 0 ? ` · 🔥 ${streak.current}` : ""}
+                {activeAcc ? ` · @${activeAcc.username}` : " · aucun compte"}
                 {due.length > 0 ? ` · ${due.length} relance${due.length > 1 ? "s" : ""}` : ""}
               </span>
             </span>
@@ -595,6 +676,50 @@ export default function InstagramPage() {
 
           {/* Contenu du cockpit : replié sur mobile (sauf ouverture), toujours visible ≥ xl. */}
           <div className={`space-y-4 ${cockpitOpen ? "mt-4" : "hidden"} xl:block xl:mt-0`}>
+          {/* ── Objectif du jour (gamification sobre : anneau + série) ── */}
+          <div className={`rounded-xl border p-3.5 flex items-center gap-3.5 transition-colors ${
+            goalReached
+              ? "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/5"
+              : "border-[var(--color-border)] bg-[var(--color-surface)]"
+          }`}>
+            <GoalRing value={todayM1} goal={dailyGoal} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm font-semibold text-[var(--color-text-primary)]">Objectif du jour</span>
+                {streak && streak.current > 0 && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 dark:text-amber-400"
+                    title={`Record : ${streak.best} jour${streak.best > 1 ? "s" : ""} d'affilée`}
+                  >
+                    🔥 {streak.current}&nbsp;j
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                {goalReached
+                  ? "Atteint — beau travail 👏"
+                  : `Encore ${dailyGoal - todayM1} contact${dailyGoal - todayM1 > 1 ? "s" : ""} à faire`}
+              </p>
+              <div className="flex items-center gap-1.5 mt-2">
+                <span className="text-[11px] text-[var(--color-text-muted)]">Cible</span>
+                <button
+                  onClick={() => changeGoal(-5)}
+                  aria-label="Diminuer l'objectif"
+                  className="tap inline-flex items-center justify-center h-7 w-7 rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer leading-none"
+                >
+                  −
+                </button>
+                <span className="font-mono-num text-xs w-6 text-center text-[var(--color-text-primary)]">{dailyGoal}</span>
+                <button
+                  onClick={() => changeGoal(5)}
+                  aria-label="Augmenter l'objectif"
+                  className="tap inline-flex items-center justify-center h-7 w-7 rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer leading-none"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h2 className="hidden xl:block text-base font-semibold text-[var(--color-text-primary)]">Cockpit d&apos;envoi</h2>
             <p className="text-xs text-[var(--color-text-muted)]">
@@ -731,7 +856,11 @@ export default function InstagramPage() {
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Prospects</h2>
             <p className="text-xs text-[var(--color-text-muted)]">
-              {orderMode === "random" ? "ordre aléatoire" : "du plus récent au plus ancien"}
+              {orderMode === "random"
+                ? "ordre aléatoire"
+                : orderMode === "followers"
+                  ? "par abonnés (décroissant)"
+                  : "du plus récent au plus ancien"}
             </p>
             <span className="flex-1" />
             <span className="text-xs text-[var(--color-text-muted)]">
@@ -805,7 +934,31 @@ export default function InstagramPage() {
               />
               Sans site uniquement
             </label>
-            {/* Ordre : récents (défaut) ou aléatoire rebattu à la demande */}
+            {/* Abonnés : bornes min / max */}
+            <div className="inline-flex items-center gap-1 glass-input rounded-lg px-2 py-1">
+              <Users className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={followersMin}
+                onChange={(e) => setFollowersMin(e.target.value)}
+                placeholder="min"
+                className="w-14 bg-transparent border-none outline-none text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+              />
+              <span className="text-[var(--color-text-muted)] text-xs">–</span>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={followersMax}
+                onChange={(e) => setFollowersMax(e.target.value)}
+                placeholder="max"
+                className="w-14 bg-transparent border-none outline-none text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]"
+              />
+              <span className="text-[10px] text-[var(--color-text-muted)] pr-0.5">abonnés</span>
+            </div>
+            {/* Ordre : récents (défaut), abonnés (décroissant), ou aléatoire rebattu */}
             <div className="inline-flex items-center gap-1">
               <div className="ig-actions inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
                 <button
@@ -817,6 +970,16 @@ export default function InstagramPage() {
                   }`}
                 >
                   Récents
+                </button>
+                <button
+                  onClick={() => setOrder("followers")}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    orderMode === "followers"
+                      ? "bg-[var(--color-accent)] text-white"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  <Users className="w-3 h-3" /> Abonnés
                 </button>
                 <button
                   onClick={() => setOrder("random")}
@@ -922,8 +1085,7 @@ export default function InstagramPage() {
                         <div className="flex items-baseline gap-x-2.5 gap-y-0.5 flex-wrap">
                           <a
                             href={`https://instagram.com/${l.username}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            target={INSTA_TAB}
                             className="font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-accent)] transition-colors"
                           >
                             @{l.username}
@@ -1173,8 +1335,7 @@ export default function InstagramPage() {
                       ) : (
                         <a
                           href={`https://instagram.com/${l.username}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          target={INSTA_TAB}
                           className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity no-underline max-sm:flex-1"
                         >
                           <Send className="w-3 h-3" />
@@ -1225,6 +1386,32 @@ export default function InstagramPage() {
                           <XCircle className="w-3 h-3" /> Perdu
                         </button>
                       )}
+                      {/* Suppression d'un lead non pertinent — confirmation en 2 temps */}
+                      {confirmDelete === l.id ? (
+                        <span className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => deleteLead(l.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" /> Confirmer
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="inline-flex items-center px-2.5 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+                          >
+                            Annuler
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(l.id)}
+                          title="Supprimer ce lead (non pertinent)"
+                          aria-label="Supprimer ce lead"
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-transparent text-[var(--color-text-muted)] hover:text-rose-600 hover:border-[var(--color-border)] hover:bg-rose-500/5 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <span className="hidden sm:block flex-1" />
                       <span className="inline-flex max-sm:w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
                         {(["contacted", "positive", "negative"] as const).map((s) => {
@@ -1257,6 +1444,53 @@ export default function InstagramPage() {
         </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+/** Anneau de progression de l'objectif du jour (accent → émeraude une fois atteint). */
+function GoalRing({ value, goal }: { value: number; goal: number }) {
+  const pct = goal > 0 ? Math.min(1, value / goal) : 0;
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const done = goal > 0 && value >= goal;
+  return (
+    <div className="relative shrink-0 h-16 w-16">
+      <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-surface-2)" strokeWidth="6" />
+        <circle
+          cx="32" cy="32" r={r} fill="none"
+          stroke={done ? "#10b981" : "var(--color-accent)"}
+          strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          style={{ transition: "stroke-dashoffset .6s cubic-bezier(0.16,1,0.3,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono-num text-base font-semibold text-[var(--color-text-primary)] leading-none">{value}</span>
+        <span className="font-mono-num text-[10px] text-[var(--color-text-muted)] leading-none mt-0.5">/{goal}</span>
+      </div>
+    </div>
+  );
+}
+
+/** Pluie de confettis « objectif atteint » — décorative, coupée par reduced-motion. */
+function Confetti() {
+  const colors = ["#7c3aed", "#10b981", "#f59e0b", "#f43f5e", "#3b82f6"];
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-[60] overflow-hidden">
+      {Array.from({ length: 26 }).map((_, i) => (
+        <span
+          key={i}
+          className="animate-confetti-fall absolute top-0 h-2 w-2 rounded-[2px]"
+          style={{
+            left: `${(i * 3.8 + (i % 5) * 4) % 100}%`,
+            background: colors[i % colors.length],
+            animationDelay: `${(i % 7) * 90}ms`,
+            animationDuration: `${1200 + (i % 6) * 220}ms`,
+          }}
+        />
+      ))}
     </div>
   );
 }

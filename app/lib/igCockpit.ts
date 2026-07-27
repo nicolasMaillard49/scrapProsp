@@ -135,6 +135,55 @@ export async function getSendStats(now = new Date()): Promise<SendStats> {
   return out;
 }
 
+export interface StreakInfo {
+  current: number; // jours consécutifs (jusqu'à aujourd'hui/hier) avec ≥1 accroche M1
+  best: number; // record de série sur la fenêtre observée (~120 j)
+  todayDone: boolean; // au moins 1 M1 aujourd'hui
+}
+
+/**
+ * Série de jours consécutifs avec ≥1 accroche M1 (heure de Paris) — moteur de la
+ * gamification « objectif du jour ». La série d'hier tient encore tant qu'aujourd'hui
+ * n'est pas passé (on repart d'hier si aujourd'hui n'a pas encore de M1).
+ */
+export async function getStreak(now = new Date()): Promise<StreakInfo> {
+  const since = new Date(parisDayStart(now).getTime() - 120 * 24 * 3600_000).toISOString();
+  const { data } = await supabase
+    .from("ig_dm_log")
+    .select("step, sent_at")
+    .eq("step", "M1")
+    .gte("sent_at", since)
+    .limit(20_000);
+
+  const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }); // "YYYY-MM-DD"
+  const days = new Set<string>();
+  for (const r of (data ?? []) as { step: string; sent_at: string }[]) days.add(fmt.format(new Date(r.sent_at)));
+
+  const dayMs = 24 * 3600_000;
+  const todayKey = fmt.format(now);
+  const todayDone = days.has(todayKey);
+
+  // Série courante : part d'aujourd'hui si fait, sinon d'hier, puis remonte.
+  let current = 0;
+  let t = todayDone ? now.getTime() : now.getTime() - dayMs;
+  while (days.has(fmt.format(new Date(t)))) {
+    current++;
+    t -= dayMs;
+  }
+
+  // Record sur la fenêtre.
+  const sorted = [...days].sort();
+  let best = 0;
+  let run = 0;
+  let prev = "";
+  for (const k of sorted) {
+    run = prev && Math.round((Date.parse(k) - Date.parse(prev)) / dayMs) === 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+    prev = k;
+  }
+  return { current, best: Math.max(best, current), todayDone };
+}
+
 /** Compte les prospects par stade (funnel). */
 export async function getFunnelCounts(): Promise<Record<string, number>> {
   const { data } = await supabase

@@ -249,6 +249,13 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Confettis « objectif atteint » — chute + rotation, gérée par reduced-motion. */
+@keyframes confetti-fall {
+  0% { transform: translateY(-12px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(85vh) rotate(540deg); opacity: 0; }
+}
+.animate-confetti-fall { animation: confetti-fall linear forwards; }
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
@@ -259,7 +266,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 .animate-fade-in { animation: fade-in 200ms ease-out; }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-pulse-ring, .animate-slide-up, .animate-fade-in, .animate-confetti,
+  .animate-pulse-ring, .animate-slide-up, .animate-fade-in, .animate-confetti, .animate-confetti-fall,
   .stagger-1, .stagger-2, .stagger-3, .stagger-4, .skeleton {
     animation: none;
   }

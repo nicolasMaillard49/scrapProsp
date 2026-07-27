@@ -73,3 +73,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, prospect: data });
 }
+
+/**
+ * DELETE /api/instagram/[id] — supprime définitivement un prospect non pertinent.
+ * On retire d'abord ses lignes ig_dm_log (évite les contraintes de clé étrangère).
+ */
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
+  const { id } = await params;
+
+  await supabase.from("ig_dm_log").delete().eq("prospect_id", id);
+  const { error } = await supabase.from("instagram_prospects").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
