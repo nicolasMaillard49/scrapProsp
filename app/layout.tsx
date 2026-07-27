@@ -31,7 +31,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#f8f9fb",
+  // Passe sous l'encoche / les coins arrondis des téléphones (couplé aux
+  // paddings env(safe-area-inset-*) dans globals.css).
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f3f4f6" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0c" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

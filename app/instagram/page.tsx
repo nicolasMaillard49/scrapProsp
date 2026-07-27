@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, AlertTriangle, Shuffle, RotateCw, Zap } from "lucide-react";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { instagramDmSequence, detectMetier, firstNameOf, competitorHook } from "@/app/lib/instagram";
@@ -132,6 +132,16 @@ export default function InstagramPage() {
   const [noSiteOnly, setNoSiteOnly] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
+  // Premier chargement terminé ? Tant que non, on évite d'afficher un « 0 »
+  // trompeur dans l'en-tête. `loadError` remonte une panne au lieu de la taire.
+  const [firstLoaded, setFirstLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Cockpit replié par défaut sur mobile (la file d'abord) ; toujours ouvert ≥ xl.
+  const [cockpitOpen, setCockpitOpen] = useState(false);
+  // Ordre de la liste : « recent » (par défaut) ou « random » (rebattu à la demande).
+  // Le seed rend le mélange STABLE entre deux rendus (sinon la liste sauterait sans cesse).
+  const [orderMode, setOrderMode] = useState<"recent" | "random">("recent");
+  const [shuffleSeed, setShuffleSeed] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [expandedDm, setExpandedDm] = useState<string | null>(null);
@@ -153,6 +163,19 @@ export default function InstagramPage() {
   useEffect(() => {
     setOrigin(window.location.origin);
     setActiveAccount(localStorage.getItem("ig_active_account") ?? "");
+    if (localStorage.getItem("ig_order_mode") === "random") {
+      setOrderMode("random");
+      setShuffleSeed(Math.floor(Math.random() * 1e9) + 1);
+    }
+  }, []);
+
+  // Bascule Récents / Aléatoire — mémorisée, et (re)tire un seed frais à chaque
+  // passage en aléatoire ou clic « Mélanger ».
+  const reshuffle = useCallback(() => setShuffleSeed(Math.floor(Math.random() * 1e9) + 1), []);
+  const setOrder = useCallback((mode: "recent" | "random") => {
+    setOrderMode(mode);
+    localStorage.setItem("ig_order_mode", mode);
+    if (mode === "random") setShuffleSeed(Math.floor(Math.random() * 1e9) + 1);
   }, []);
 
   const loadCockpit = useCallback(async () => {
@@ -233,6 +256,60 @@ export default function InstagramPage() {
     setCockpitMsg(`${step} noté envoyé${acc ? ` avec @${acc.username} (${json.counters.day}/${json.counters.caps.daily} aujourd'hui)` : ""}.`);
     await loadCockpit();
   }, [activeAccount, accounts, loadCockpit]);
+
+  /**
+   * One-tap « Prendre contact » (surtout mobile) : copie le M1, ouvre le profil
+   * Instagram, et journalise l'envoi de M1 → statut « contacté » + KPI + quota +
+   * stade. Le compte émetteur est auto-résolu (actif si valide, sinon 1er compte
+   * non-en-pause sous son plafond jour). Les appels presse-papier / window.open
+   * restent SYNCHRONES dans le geste utilisateur (obligatoire sur mobile).
+   */
+  const quickContact = useCallback(
+    async (l: IgLead, m1text: string) => {
+      // 1) presse-papier (dans le geste)
+      if (m1text) {
+        navigator.clipboard
+          .writeText(m1text)
+          .then(() => {
+            setCopied(`quick-${l.id}`);
+            setTimeout(() => setCopied((c) => (c === `quick-${l.id}` ? null : c)), 1600);
+          })
+          .catch(() => {});
+      }
+      // 2) ouvre le profil Instagram (nouvel onglet, dans le geste)
+      window.open(`https://instagram.com/${l.username}`, "_blank", "noopener,noreferrer");
+      // 3) résout un compte émetteur valide (actif prioritaire, sinon 1er dispo)
+      const isValid = (a: IgAccount) => a.status !== "pause" && a.caps.daily > 0 && a.sentDay < a.caps.daily;
+      const accId =
+        (activeAccount && accounts.some((a) => a.id === activeAccount && isValid(a)) ? activeAccount : null) ??
+        accounts.find(isValid)?.id ??
+        "";
+      if (!accId) {
+        setCockpitMsg(
+          "M1 copié et Instagram ouvert — mais aucun compte émetteur disponible pour marquer « contacté » (ajoute/active un compte, ou plafond jour atteint).",
+        );
+        return;
+      }
+      // 4) journalise M1 → contacté + KPI + quota
+      const res = await fetch("/api/instagram/dm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prospect_id: l.id, account_id: accId, step: "M1" }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setCockpitMsg(json.error ?? `Erreur ${res.status}`);
+        return;
+      }
+      setLeads((prev) => prev.map((x) => (x.id === l.id ? { ...x, ...json.prospect } : x)));
+      const acc = accounts.find((a) => a.id === accId);
+      setCockpitMsg(
+        `@${l.username} contacté${acc ? ` via @${acc.username} (${json.counters.day}/${json.counters.caps.daily} aujourd'hui)` : ""} — M1 copié.`,
+      );
+      await loadCockpit();
+    },
+    [activeAccount, accounts, loadCockpit],
+  );
 
   /** « Vu sans réponse » → programme la relance suivante (R1 +1 h…). */
   const markSeen = useCallback(async (prospectId: string) => {
@@ -316,15 +393,40 @@ export default function InstagramPage() {
   );
 
   // Charge TOUS les prospects, du plus récent au plus ancien.
+  // Toute panne est remontée dans `loadError` (plus de « 0 » silencieux).
   const loadLeads = useCallback(async () => {
-    if (!supabaseConfigured) return;
+    if (!supabaseConfigured) {
+      // Cause n°1 d'un « 0 prospects » : les clés NEXT_PUBLIC_SUPABASE_* sont
+      // figées dans le build. Un `npm start` sur un build périmé sert des clés
+      // absentes/anciennes. → rebuild, ou lancer en `npm run dev`.
+      setLoadError(
+        "Connexion Supabase non configurée dans ce build. Reconstruis l'app (npm run build) puis relance, ou lance-la en développement (npm run dev).",
+      );
+      setFirstLoaded(true);
+      return;
+    }
     setLoading(true);
-    const { data } = await supabase
-      .from("instagram_prospects")
-      .select("*")
-      .order("discovered_at", { ascending: false })
-      .limit(2000);
-    setLeads((data ?? []) as IgLead[]);
+    // Jusqu'à 3 tentatives avec backoff : Supabase (free) peut sortir de veille
+    // ou dépasser le statement_timeout au 1er appel — le 2e passe presque toujours.
+    let lastErr: string | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await supabase
+        .from("instagram_prospects")
+        .select("*")
+        .order("discovered_at", { ascending: false })
+        .limit(2000);
+      if (!error) {
+        setLoadError(null);
+        setLeads((data ?? []) as IgLead[]);
+        setFirstLoaded(true);
+        setLoading(false);
+        return;
+      }
+      lastErr = error.message;
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    }
+    setLoadError(`Lecture des prospects impossible : ${lastErr}`);
+    setFirstLoaded(true);
     setLoading(false);
   }, []);
 
@@ -357,7 +459,7 @@ export default function InstagramPage() {
 
   const shown = useMemo(() => {
     const q = searchText.trim().toLowerCase();
-    return leads.filter((l) => {
+    const filtered = leads.filter((l) => {
       if (statusFilter !== "all" && l.status !== statusFilter) return false;
       if (metierFilter !== "all" && l.metier !== metierFilter) return false;
       if (tierFilter !== "all" && l.score_tier !== tierFilter) return false;
@@ -366,13 +468,27 @@ export default function InstagramPage() {
       if (q && !`${l.username} ${l.full_name ?? ""} ${l.ville ?? ""} ${l.bio ?? ""}`.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [leads, statusFilter, metierFilter, tierFilter, qualifFilter, noSiteOnly, searchText]);
+    if (orderMode !== "random") return filtered; // « recent » = ordre de chargement (discovered_at desc)
+    // Fisher-Yates seedé (LCG) : mélange STABLE tant que le seed et le filtre ne
+    // changent pas → la liste ne saute pas à chaque rendu, mais « Mélanger » rebat tout.
+    const arr = filtered.slice();
+    let s = shuffleSeed >>> 0 || 1;
+    const rand = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 0x100000000);
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }, [leads, statusFilter, metierFilter, tierFilter, qualifFilter, noSiteOnly, searchText, orderMode, shuffleSeed]);
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: leads.length, todo: 0, contacted: 0, positive: 0, negative: 0 };
     for (const l of leads) c[l.status] = (c[l.status] ?? 0) + 1;
     return c;
   }, [leads]);
+
+  // Compte émetteur actif — alimente le résumé replié du cockpit sur mobile.
+  const activeAcc = accounts.find((a) => a.id === activeAccount) ?? null;
 
   return (
     <div className="min-h-screen bg-[var(--color-background)]">
@@ -390,10 +506,25 @@ export default function InstagramPage() {
           </h1>
           <span className="flex-1" />
           <PerformanceMenu />
-          <span className="text-sm text-[var(--color-text-secondary)]">
-            <span className="font-mono-num font-medium text-[var(--color-text-primary)]">{leads.length.toLocaleString("fr-FR")}</span>
-            <span className="hidden sm:inline"> prospects en base</span>
-          </span>
+          {loadError ? (
+            <span
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 dark:text-amber-400"
+              title={loadError}
+            >
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Prospects indisponibles</span>
+            </span>
+          ) : !firstLoaded ? (
+            <span className="inline-flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span className="hidden sm:inline">Chargement…</span>
+            </span>
+          ) : (
+            <span className="text-sm text-[var(--color-text-secondary)]">
+              <span className="font-mono-num font-medium text-[var(--color-text-primary)]">{leads.length.toLocaleString("fr-FR")}</span>
+              <span className="hidden sm:inline"> prospects en base</span>
+            </span>
+          )}
         </div>
       </header>
 
@@ -427,16 +558,44 @@ export default function InstagramPage() {
 
         {/* ─── COCKPIT (colonne latérale ≥ xl) + LISTE — la page occupe toute la largeur ─── */}
         <div className="grid grid-cols-1 xl:grid-cols-[400px_minmax(0,1fr)] 2xl:grid-cols-[440px_minmax(0,1fr)] gap-8 items-start">
-        <section className="space-y-4 min-w-0 xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto">
+        <section className="min-w-0 xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto">
+          {/* Mobile : barre-résumé repliable — le cockpit ne doit jamais enterrer la file. */}
+          <button
+            onClick={() => setCockpitOpen((o) => !o)}
+            aria-expanded={cockpitOpen}
+            className="tap xl:hidden w-full flex items-center gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-left cursor-pointer"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-accent-soft)] text-[var(--color-accent)] shrink-0">
+              <Gauge className="w-4 h-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-[var(--color-text-primary)]">Cockpit d&apos;envoi</span>
+              <span className="block text-xs text-[var(--color-text-muted)] truncate">
+                {activeAcc
+                  ? `@${activeAcc.username} · ${activeAcc.sentDay}/${activeAcc.caps.daily} aujourd'hui`
+                  : "aucun compte actif — à choisir"}
+                {due.length > 0 ? ` · ${due.length} relance${due.length > 1 ? "s" : ""}` : ""}
+              </span>
+            </span>
+            {due.length > 0 && (
+              <span className="shrink-0 text-[11px] font-semibold rounded-md px-1.5 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 font-mono-num">
+                {due.length}
+              </span>
+            )}
+            <ChevronRight className={`w-4 h-4 shrink-0 text-[var(--color-text-muted)] transition-transform duration-200 ${cockpitOpen ? "rotate-90" : ""}`} />
+          </button>
+
+          {/* Contenu du cockpit : replié sur mobile (sauf ouverture), toujours visible ≥ xl. */}
+          <div className={`space-y-4 ${cockpitOpen ? "mt-4" : "hidden"} xl:block xl:mt-0`}>
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Cockpit d'envoi</h2>
+            <h2 className="hidden xl:block text-base font-semibold text-[var(--color-text-primary)]">Cockpit d&apos;envoi</h2>
             <p className="text-xs text-[var(--color-text-muted)]">
               envoi 100 % manuel — l'outil trace, compte les quotas et programme les relances
             </p>
             <span className="flex-1" />
             <button
               onClick={sendDigest}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+              className="tap inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
             >
               <Bell className="w-3.5 h-3.5" /> Récap Telegram
             </button>
@@ -480,7 +639,7 @@ export default function InstagramPage() {
                       value={a.status}
                       onChange={(e) => setAccountStatus(a.id, e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="glass-input rounded-md px-1.5 py-0.5 text-[11px] font-medium cursor-pointer text-[var(--color-text-secondary)]"
+                      className="tap glass-input rounded-md px-1.5 py-0.5 text-[11px] font-medium cursor-pointer text-[var(--color-text-secondary)]"
                     >
                       <option value="warmup">chauffe</option>
                       <option value="chaud">chaud</option>
@@ -556,13 +715,16 @@ export default function InstagramPage() {
           )}
 
           {cockpitMsg && <p className="text-sm text-[var(--color-text-secondary)]">{cockpitMsg}</p>}
+          </div>
         </section>
 
         {/* ─── LA LISTE DES PROSPECTS (du plus récent au plus ancien) ─── */}
         <div className="space-y-3 min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Prospects</h2>
-            <p className="text-xs text-[var(--color-text-muted)]">du plus récent au plus ancien</p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {orderMode === "random" ? "ordre aléatoire" : "du plus récent au plus ancien"}
+            </p>
             <span className="flex-1" />
             <span className="text-xs text-[var(--color-text-muted)]">
               <span className="font-mono-num">{shown.length}</span> affichés
@@ -635,6 +797,40 @@ export default function InstagramPage() {
               />
               Sans site uniquement
             </label>
+            {/* Ordre : récents (défaut) ou aléatoire rebattu à la demande */}
+            <div className="inline-flex items-center gap-1">
+              <div className="ig-actions inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
+                <button
+                  onClick={() => setOrder("recent")}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    orderMode === "recent"
+                      ? "bg-[var(--color-text-primary)] text-[var(--color-background)]"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  Récents
+                </button>
+                <button
+                  onClick={() => setOrder("random")}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    orderMode === "random"
+                      ? "bg-[var(--color-accent)] text-white"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  <Shuffle className="w-3 h-3" /> Aléatoire
+                </button>
+              </div>
+              {orderMode === "random" && (
+                <button
+                  onClick={reshuffle}
+                  title="Rebattre l'ordre"
+                  className="tap inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
             <div className="flex-1 min-w-44">
               <div className="flex items-center glass-input rounded-lg px-3">
                 <Search className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
@@ -649,7 +845,23 @@ export default function InstagramPage() {
           </div>
 
           {/* Liste */}
-          {loading && leads.length === 0 ? (
+          {loadError ? (
+            <div className="py-12 px-6 rounded-2xl border border-amber-200 dark:border-amber-500/25 bg-amber-50/60 dark:bg-amber-500/5 text-center">
+              <AlertTriangle className="w-9 h-9 text-amber-500 mx-auto mb-3" />
+              <p className="text-[var(--color-text-primary)] text-sm font-medium mb-1">
+                Impossible de charger les prospects
+              </p>
+              <p className="text-[var(--color-text-secondary)] text-xs max-w-md mx-auto mb-4">
+                {loadError}
+              </p>
+              <button
+                onClick={loadLeads}
+                className="tap inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                <Loader2 className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Réessayer
+              </button>
+            </div>
+          ) : loading && leads.length === 0 ? (
             <div className="text-center py-16 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
               <Loader2 className="w-7 h-7 text-[var(--color-text-muted)] mx-auto animate-spin opacity-50" />
             </div>
@@ -684,6 +896,7 @@ export default function InstagramPage() {
                   },
                   link,
                 );
+                const m1 = dmSteps.find((s) => s.step === "M1")?.text ?? "";
                 const dmExpanded = expandedDm === l.id;
                 const sty = STATUS_STYLES[l.status] ?? STATUS_STYLES.todo;
                 const qualif = l.qualification ? QUALIF_BADGE[l.qualification] : null;
@@ -798,7 +1011,7 @@ export default function InstagramPage() {
                                   <span className="shrink-0 flex items-center gap-1">
                                     <button
                                       onClick={() => copy(key, s.text)}
-                                      className="flex items-center gap-1 text-xs font-medium rounded-md px-1.5 py-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+                                      className="tap flex items-center gap-1 text-xs font-medium rounded-md px-2 py-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
                                     >
                                       {copied === key ? (
                                         <><Check className="w-3 h-3 text-emerald-600" /> Copié</>
@@ -809,7 +1022,7 @@ export default function InstagramPage() {
                                     <button
                                       onClick={() => markSent(l.id, s.step)}
                                       title={activeAccount ? "Journalise l'envoi (quota + stade + relance)" : "Sélectionne un compte actif dans le cockpit"}
-                                      className="flex items-center gap-1 text-xs font-medium rounded-md px-1.5 py-1 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                                      className="tap flex items-center gap-1 text-xs font-medium rounded-md px-2 py-1.5 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
                                     >
                                       <Send className="w-3 h-3" /> Envoyé
                                     </button>
@@ -935,16 +1148,31 @@ export default function InstagramPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex flex-wrap items-center gap-1.5 pt-2.5 mt-1 border-t border-[var(--color-border)]">
-                      <a
-                        href={`https://instagram.com/${l.username}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity no-underline"
-                      >
-                        <Send className="w-3 h-3" />
-                        Ouvrir le DM
-                      </a>
+                    <div className="ig-actions flex flex-wrap items-center gap-2 pt-3 mt-1 border-t border-[var(--color-border)]">
+                      {l.status === "todo" ? (
+                        // One-tap : M1 copié + Instagram ouvert + marqué « contacté » (KPI/quota).
+                        <button
+                          onClick={() => quickContact(l, m1)}
+                          title="Copie le M1, ouvre Instagram et marque « contacté » (KPI + quota + stade)"
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer max-sm:flex-1"
+                        >
+                          {copied === `quick-${l.id}` ? (
+                            <><Check className="w-3.5 h-3.5" /> M1 copié · Insta ouvert</>
+                          ) : (
+                            <><Zap className="w-3.5 h-3.5" /> Prendre contact</>
+                          )}
+                        </button>
+                      ) : (
+                        <a
+                          href={`https://instagram.com/${l.username}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity no-underline max-sm:flex-1"
+                        >
+                          <Send className="w-3 h-3" />
+                          Ouvrir le DM
+                        </a>
+                      )}
                       {link && (
                         <a
                           href={link}
@@ -989,8 +1217,8 @@ export default function InstagramPage() {
                           <XCircle className="w-3 h-3" /> Perdu
                         </button>
                       )}
-                      <span className="flex-1" />
-                      <span className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
+                      <span className="hidden sm:block flex-1" />
+                      <span className="inline-flex max-sm:w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
                         {(["contacted", "positive", "negative"] as const).map((s) => {
                           const active = l.status === s;
                           const activeCls =
@@ -1003,7 +1231,7 @@ export default function InstagramPage() {
                             <button
                               key={s}
                               onClick={() => setStatus(l.id, s)}
-                              className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors cursor-pointer ${
+                              className={`max-sm:flex-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md transition-colors cursor-pointer ${
                                 active ? activeCls : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
                               }`}
                             >
