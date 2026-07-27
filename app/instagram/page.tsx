@@ -5,12 +5,24 @@
 //  - EN DESSOUS : la liste des prospects obtenus, du plus récent au plus ancien,
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { instagramDmSequence, detectMetier, firstNameOf, competitorHook } from "@/app/lib/instagram";
-import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
+import { STAGE_LABEL, STAGE_SHORT, STAGES, stageTone, type Stage, type StageTone } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
 import type { IgCompetitorReport } from "@/app/lib/igCompetitor";
 import ProspectionTool from "./ProspectionTool";
@@ -86,6 +98,15 @@ interface StreakInfo {
   todayDone: boolean;
 }
 
+interface Engagement {
+  repliesToday: number;
+  conversations: number;
+  callsBooked: number;
+}
+
+/** Cible quotidienne de réponses reçues — 2ᵉ objectif (qualité) à côté des M1 (volume). */
+const REPLY_GOAL = 5;
+
 const STATUS_LABEL: Record<string, string> = {
   todo: "A contacter",
   contacted: "Contacte",
@@ -107,6 +128,12 @@ const PROSPECT_COLUMNS =
  * sur les liens + 2e argument de window.open.
  */
 const INSTA_TAB = "nmf_insta";
+
+/**
+ * Plafond d'abonnés : on ne démarche plus les comptes > 15 000 abonnés (trop gros,
+ * mauvais taux de réponse). Filtre DUR appliqué partout (liste + pipeline + compteurs).
+ */
+const MAX_FOLLOWERS = 15000;
 
 /* Statuts : teinte douce + texte coloré (l'aplat saturé est réservé à la sélection). */
 const STATUS_STYLES: Record<string, { pill: string; pillActive: string }> = {
@@ -140,6 +167,22 @@ const QUALIF_BADGE: Record<string, { label: string; cls: string }> = {
   borderline: { label: "Limite IA", cls: "text-amber-700 dark:text-amber-400" },
   rejected: { label: "Écarté IA", cls: "text-rose-700 dark:text-rose-400" },
 };
+
+/* Teinte des colonnes du pipeline par stade (rail d'en-tête + texte du titre). */
+const TONE_STYLES: Record<StageTone, { rail: string; text: string }> = {
+  todo: { rail: "bg-slate-300 dark:bg-slate-600", text: "text-slate-600 dark:text-slate-300" },
+  cold: { rail: "bg-sky-400", text: "text-sky-700 dark:text-sky-400" },
+  progress: { rail: "bg-blue-500", text: "text-blue-700 dark:text-blue-400" },
+  warm: { rail: "bg-violet-500", text: "text-violet-700 dark:text-violet-400" },
+  won: { rail: "bg-emerald-500", text: "text-emerald-700 dark:text-emerald-400" },
+  lost: { rail: "bg-slate-300 dark:bg-slate-600", text: "text-[var(--color-text-muted)]" },
+};
+
+/** Colonnes du pipeline : file « À contacter » (stade nul) + les 8 stades. */
+const PIPE_COLS: { key: string; label: string; tone: StageTone }[] = [
+  { key: "todo", label: "À contacter", tone: "todo" },
+  ...STAGES.map((s) => ({ key: s, label: STAGE_SHORT[s], tone: stageTone(s) })),
+];
 
 export default function InstagramPage() {
   const [leads, setLeads] = useState<IgLead[]>([]);
@@ -190,6 +233,15 @@ export default function InstagramPage() {
   const [streak, setStreak] = useState<StreakInfo | null>(null);
   const [dailyGoal, setDailyGoal] = useState(20);
   const [celebrate, setCelebrate] = useState(false);
+  const [engagement, setEngagement] = useState<Engagement | null>(null);
+  // Vue de la liste : « list » (fiche détaillée) ou « pipeline » (colonnes par stade).
+  const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
+  // Filtre par stade (vue liste) — le stade est l'axe de suivi.
+  const [stageFilter, setStageFilter] = useState<string>("all");
+  // Carte en cours de glisser-déposer (pour l'aperçu DragOverlay).
+  const [activeDrag, setActiveDrag] = useState<string | null>(null);
+  // Cockpit replié sur PC (≥ xl) pour donner toute la largeur au pipeline.
+  const [cockpitCollapsed, setCockpitCollapsed] = useState(false);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -203,6 +255,8 @@ export default function InstagramPage() {
     }
     const savedGoal = parseInt(localStorage.getItem("ig_daily_goal") ?? "", 10);
     if (Number.isFinite(savedGoal) && savedGoal >= 5) setDailyGoal(savedGoal);
+    if (localStorage.getItem("ig_view_mode") === "pipeline") setViewMode("pipeline");
+    if (localStorage.getItem("ig_cockpit_collapsed") === "1") setCockpitCollapsed(true);
   }, []);
 
   /** Ajuste l'objectif quotidien (bornes 5–60), mémorisé. */
@@ -223,6 +277,11 @@ export default function InstagramPage() {
     if (mode === "random") setShuffleSeed(Math.floor(Math.random() * 1e9) + 1);
   }, []);
 
+  const setView = useCallback((mode: "list" | "pipeline") => {
+    setViewMode(mode);
+    localStorage.setItem("ig_view_mode", mode);
+  }, []);
+
   const loadCockpit = useCallback(async () => {
     try {
       const res = await fetch("/api/instagram/accounts");
@@ -232,6 +291,7 @@ export default function InstagramPage() {
       setDue(json.due ?? []);
       setStats(json.stats ?? null);
       setStreak(json.streak ?? null);
+      setEngagement(json.engagement ?? null);
     } catch {
       /* silencieux */
     }
@@ -244,6 +304,28 @@ export default function InstagramPage() {
   const pickAccount = useCallback((id: string) => {
     setActiveAccount(id);
     localStorage.setItem("ig_active_account", id);
+  }, []);
+
+  /**
+   * Ouvre Instagram en RÉUTILISANT le même onglet. Le `target` nommé ne suffit pas :
+   * le SPA d'Instagram réécrit `window.name`, si bien que le navigateur ne retrouve
+   * plus l'onglet et en ouvre un neuf à chaque fois. On garde donc une référence
+   * directe à la fenêtre (WindowProxy) et on la re-navigue (autorisé cross-origin).
+   */
+  const instaWin = useRef<Window | null>(null);
+  const openInsta = useCallback((username: string) => {
+    const url = `https://instagram.com/${username}`;
+    const w = instaWin.current;
+    try {
+      if (w && !w.closed) {
+        w.location.href = url;
+        w.focus();
+        return;
+      }
+    } catch {
+      /* fenêtre invalide → on en rouvre une */
+    }
+    instaWin.current = window.open(url, INSTA_TAB);
   }, []);
 
   const addAccount = useCallback(async () => {
@@ -323,7 +405,7 @@ export default function InstagramPage() {
           .catch(() => {});
       }
       // 2) ouvre le profil Instagram DANS L'ONGLET RÉUTILISÉ (dans le geste)
-      window.open(`https://instagram.com/${l.username}`, INSTA_TAB);
+      openInsta(l.username);
       // 3) résout un compte émetteur valide (actif prioritaire, sinon 1er dispo)
       const isValid = (a: IgAccount) => a.status !== "pause" && a.caps.daily > 0 && a.sentDay < a.caps.daily;
       const accId =
@@ -354,7 +436,7 @@ export default function InstagramPage() {
       );
       await loadCockpit();
     },
-    [activeAccount, accounts, loadCockpit],
+    [activeAccount, accounts, loadCockpit, openInsta],
   );
 
   /** « Vu sans réponse » → programme la relance suivante (R1 +1 h…). */
@@ -371,7 +453,7 @@ export default function InstagramPage() {
     }
   }, [loadCockpit]);
 
-  /** Transition manuelle du pipeline (call booké / perdu). */
+  /** Transition manuelle du pipeline (call booké / perdu, ou déplacement drag-and-drop). */
   const setStage = useCallback(async (prospectId: string, stage: Stage) => {
     const res = await fetch(`/api/instagram/${prospectId}`, {
       method: "PATCH",
@@ -384,6 +466,34 @@ export default function InstagramPage() {
       await loadCockpit();
     }
   }, [loadCockpit]);
+
+  // ── Glisser-déposer du pipeline (souris ET tactile via dnd-kit) ──
+  // PointerSensor : seuil de 6 px → un clic sur un bouton/lien reste un clic.
+  // TouchSensor : appui long 200 ms → le scroll de la colonne reste possible au doigt.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+  );
+  const onDragStart = useCallback((e: DragStartEvent) => setActiveDrag(String(e.active.id)), []);
+  const onDragEnd = useCallback(
+    (e: DragEndEvent) => {
+      setActiveDrag(null);
+      const overId = e.over?.id ? String(e.over.id) : null;
+      const activeId = String(e.active.id);
+      // « À contacter » (stade nul) n'est pas une cible ; sinon on déplace vers le stade
+      // de la colonne — dans les DEUX sens (avancer comme reculer un prospect).
+      if (!overId || overId === "todo") return;
+      setStage(activeId, overId as Stage);
+    },
+    [setStage],
+  );
+  const toggleCockpit = useCallback(() => {
+    setCockpitCollapsed((c) => {
+      const next = !c;
+      localStorage.setItem("ig_cockpit_collapsed", next ? "1" : "0");
+      return next;
+    });
+  }, []);
 
   /**
    * Ouvre/ferme le rapport concurrentiel d'un prospect. Charge à la demande
@@ -489,6 +599,16 @@ export default function InstagramPage() {
     });
   }, []);
 
+  /** Enregistre une note prospect (sauvegarde au blur du champ inline). */
+  const saveNote = useCallback(async (id: string, notes: string) => {
+    setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, notes } : l)));
+    await fetch(`/api/instagram/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    });
+  }, []);
+
   /** Supprime définitivement un lead non pertinent (base + état local). */
   const deleteLead = useCallback(async (id: string) => {
     const res = await fetch(`/api/instagram/${id}`, { method: "DELETE" });
@@ -526,6 +646,8 @@ export default function InstagramPage() {
       if (tierFilter !== "all" && l.score_tier !== tierFilter) return false;
       if (qualifFilter !== "all" && l.qualification !== (qualifFilter === "none" ? null : qualifFilter)) return false;
       if (noSiteOnly && l.has_website === true) return false;
+      // Plafond dur : jamais de prospect > 15k abonnés.
+      if ((l.followers ?? 0) > MAX_FOLLOWERS) return false;
       if (min != null && (l.followers ?? 0) < min) return false;
       if (max != null && (l.followers ?? 0) > max) return false;
       if (q && !`${l.username} ${l.full_name ?? ""} ${l.ville ?? ""} ${l.bio ?? ""}`.toLowerCase().includes(q)) return false;
@@ -534,7 +656,10 @@ export default function InstagramPage() {
   }, [leads, metierFilter, tierFilter, qualifFilter, noSiteOnly, followersMin, followersMax, searchText]);
 
   const shown = useMemo(() => {
-    const filtered = statusFilter === "all" ? baseFiltered : baseFiltered.filter((l) => l.status === statusFilter);
+    let filtered = statusFilter === "all" ? baseFiltered : baseFiltered.filter((l) => l.status === statusFilter);
+    if (stageFilter !== "all") {
+      filtered = filtered.filter((l) => (stageFilter === "none" ? !l.stage : l.stage === stageFilter));
+    }
     if (orderMode === "followers") {
       return filtered.slice().sort((a, b) => (b.followers ?? 0) - (a.followers ?? 0));
     }
@@ -549,7 +674,33 @@ export default function InstagramPage() {
       [arr[i], arr[j]] = [arr[j], arr[i]];
     }
     return arr;
-  }, [baseFiltered, statusFilter, orderMode, shuffleSeed]);
+  }, [baseFiltered, statusFilter, stageFilter, orderMode, shuffleSeed]);
+
+  // Regroupement par stade pour la vue Pipeline (ignore le filtre statut/stade :
+  // les colonnes SONT l'axe stade). Tri intra-colonne : relance due, puis hot, puis récent.
+  const pipeline = useMemo(() => {
+    const cols: Record<string, IgLead[]> = { todo: [] };
+    for (const s of STAGES) cols[s] = [];
+    for (const l of baseFiltered) {
+      const key = l.stage && cols[l.stage] ? l.stage : "todo";
+      cols[key].push(l);
+    }
+    const now = Date.now();
+    const rank = (l: IgLead) => {
+      const due =
+        l.next_followup_at && new Date(l.next_followup_at).getTime() <= now && l.stage !== "call_booke" && l.stage !== "perdu";
+      const reply = (l.reply_count ?? 0) > 0;
+      if (reply) return 0; // à traiter en priorité : ils ont répondu
+      if (due) return 1;
+      if (l.score_tier === "hot") return 2;
+      if (l.score_tier === "warm") return 3;
+      return 4;
+    };
+    for (const k of Object.keys(cols)) {
+      cols[k].sort((a, b) => rank(a) - rank(b) || new Date(b.discovered_at).getTime() - new Date(a.discovered_at).getTime());
+    }
+    return cols;
+  }, [baseFiltered]);
 
   // Pastilles de statut : comptées sur la base filtrée → elles suivent les filtres actifs.
   const counts = useMemo(() => {
@@ -644,8 +795,8 @@ export default function InstagramPage() {
         </section>
 
         {/* ─── COCKPIT (colonne latérale ≥ xl) + LISTE — la page occupe toute la largeur ─── */}
-        <div className="grid grid-cols-1 xl:grid-cols-[400px_minmax(0,1fr)] 2xl:grid-cols-[440px_minmax(0,1fr)] gap-8 items-start">
-        <section className="min-w-0 xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto">
+        <div className={`grid grid-cols-1 gap-8 items-start ${cockpitCollapsed ? "" : "xl:grid-cols-[400px_minmax(0,1fr)] 2xl:grid-cols-[440px_minmax(0,1fr)]"}`}>
+        <section className={`min-w-0 xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto ${cockpitCollapsed ? "xl:hidden" : ""}`}>
           {/* Mobile : barre-résumé repliable — le cockpit ne doit jamais enterrer la file. */}
           <button
             onClick={() => setCockpitOpen((o) => !o)}
@@ -717,6 +868,28 @@ export default function InstagramPage() {
                 >
                   +
                 </button>
+              </div>
+            </div>
+          </div>
+          {/* ── 2ᵉ objectif : engagement (réponses reçues) — récompense la QUALITÉ ── */}
+          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5 flex items-center gap-3.5">
+            <EngagementRing value={engagement?.repliesToday ?? 0} goal={REPLY_GOAL} />
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-semibold text-[var(--color-text-primary)]">Réponses du jour</span>
+              <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                {(engagement?.repliesToday ?? 0) >= REPLY_GOAL
+                  ? "Belle journée d'échanges 💬"
+                  : "Chaque réponse rapproche d'un call"}
+              </p>
+              <div className="flex items-center gap-2.5 mt-1.5 text-xs">
+                <span className="inline-flex items-center gap-1 text-[#0f766e] dark:text-[#2dd4bf] font-medium">
+                  <MessageSquareReply className="w-3.5 h-3.5" />
+                  {engagement?.conversations ?? 0} en conversation
+                </span>
+                <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-medium">
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  {engagement?.callsBooked ?? 0} booké{(engagement?.callsBooked ?? 0) > 1 ? "s" : ""}
+                </span>
               </div>
             </div>
           </div>
@@ -853,22 +1026,61 @@ export default function InstagramPage() {
 
         {/* ─── LA LISTE DES PROSPECTS (du plus récent au plus ancien) ─── */}
         <div className="space-y-3 min-w-0">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Prospects</h2>
             <p className="text-xs text-[var(--color-text-muted)]">
-              {orderMode === "random"
-                ? "ordre aléatoire"
-                : orderMode === "followers"
-                  ? "par abonnés (décroissant)"
-                  : "du plus récent au plus ancien"}
+              {viewMode === "pipeline"
+                ? "suivi par stade — chaque colonne = une étape de conversation"
+                : orderMode === "random"
+                  ? "ordre aléatoire"
+                  : orderMode === "followers"
+                    ? "par abonnés (décroissant)"
+                    : "du plus récent au plus ancien"}
             </p>
             <span className="flex-1" />
-            <span className="text-xs text-[var(--color-text-muted)]">
-              <span className="font-mono-num">{shown.length}</span> affichés
-            </span>
+            {viewMode === "list" && (
+              <span className="text-xs text-[var(--color-text-muted)]">
+                <span className="font-mono-num">{shown.length}</span> affichés
+              </span>
+            )}
+            {/* Replier le cockpit (PC uniquement) → pleine largeur pour le pipeline */}
+            <button
+              onClick={toggleCockpit}
+              title={cockpitCollapsed ? "Afficher le cockpit" : "Masquer le cockpit (plein écran pipeline)"}
+              className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+            >
+              {cockpitCollapsed ? <PanelLeftOpen className="w-3.5 h-3.5" /> : <PanelLeftClose className="w-3.5 h-3.5" />}
+              {cockpitCollapsed ? "Cockpit" : "Masquer cockpit"}
+            </button>
+            {/* Bascule Liste / Pipeline */}
+            <div className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
+              <button
+                onClick={() => setView("list")}
+                aria-pressed={viewMode === "list"}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  viewMode === "list"
+                    ? "bg-[var(--color-accent)] text-white"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                }`}
+              >
+                <ListIcon className="w-3.5 h-3.5" /> Liste
+              </button>
+              <button
+                onClick={() => setView("pipeline")}
+                aria-pressed={viewMode === "pipeline"}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  viewMode === "pipeline"
+                    ? "bg-[var(--color-accent)] text-white"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Pipeline
+              </button>
+            </div>
           </div>
 
-          {/* Filtres statut */}
+          {/* Filtres statut (vue liste uniquement — en pipeline, les colonnes = les stades) */}
+          {viewMode === "list" && (
           <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0">
             {(["all", "todo", "contacted", "positive", "negative"] as const).map((s) => {
               const active = statusFilter === s;
@@ -891,6 +1103,7 @@ export default function InstagramPage() {
               );
             })}
           </div>
+          )}
 
           {/* Filtres secondaires : métier, priorité, verdict IA, sans site, recherche */}
           <div className="flex flex-wrap items-center gap-2">
@@ -925,6 +1138,19 @@ export default function InstagramPage() {
               <option value="rejected">Écartés</option>
               <option value="none">Pas encore triés</option>
             </select>
+            {viewMode === "list" && (
+              <select
+                value={stageFilter}
+                onChange={(e) => setStageFilter(e.target.value)}
+                className="glass-input rounded-lg px-2.5 py-2 text-xs font-medium text-[var(--color-text-primary)] outline-none cursor-pointer"
+              >
+                <option value="all">Stade : tous</option>
+                <option value="none">Pas encore contacté</option>
+                {STAGES.map((s) => (
+                  <option key={s} value={s}>{STAGE_SHORT[s]}</option>
+                ))}
+              </select>
+            )}
             <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-secondary)] cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -1036,7 +1262,7 @@ export default function InstagramPage() {
             <div className="text-center py-16 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
               <Loader2 className="w-7 h-7 text-[var(--color-text-muted)] mx-auto animate-spin opacity-50" />
             </div>
-          ) : shown.length === 0 ? (
+          ) : (viewMode === "list" ? shown.length === 0 : baseFiltered.length === 0) ? (
             <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--color-border-strong)]">
               <Search className="w-9 h-9 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
               <p className="text-[var(--color-text-secondary)] text-sm">
@@ -1046,6 +1272,47 @@ export default function InstagramPage() {
                 Élargis les filtres, ou déplie « Trouver de nouveaux prospects » en haut de page.
               </p>
             </div>
+          ) : viewMode === "pipeline" ? (
+            /* ─── VUE PIPELINE : une colonne par stade, glisser-déposer souris + tactile ─── */
+            <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)}>
+              <div className="overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0">
+                <div className="flex gap-3 min-w-min items-start">
+                  {PIPE_COLS.map((col) => (
+                    <PipelineColumn
+                      key={col.key}
+                      col={col}
+                      items={pipeline[col.key] ?? []}
+                      cardProps={{
+                        origin,
+                        activeAccount,
+                        copied,
+                        onQuickContact: quickContact,
+                        onSetStage: setStage,
+                        onSaveNote: saveNote,
+                        onOpenInsta: openInsta,
+                        onReplyLogged: (id, p) => setLeads((prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x))),
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <DragOverlay dropAnimation={null}>
+                {activeDrag
+                  ? (() => {
+                      const l = leads.find((x) => x.id === activeDrag);
+                      return l ? (
+                        <div className="w-[240px] rounded-xl border border-[var(--color-accent)] bg-[var(--color-surface)] p-3 shadow-xl rotate-2 cursor-grabbing">
+                          <div className="font-semibold text-[13px] text-[var(--color-text-primary)] truncate">@{l.username}</div>
+                          <div className="text-[11px] text-[var(--color-text-muted)] truncate">
+                            {l.profession_ia || l.metier || "—"}
+                            {l.ville ? ` · ${l.ville}` : ""}
+                          </div>
+                        </div>
+                      ) : null;
+                    })()
+                  : null}
+              </DragOverlay>
+            </DndContext>
           ) : (
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)] overflow-hidden">
               {shown.map((l) => {
@@ -1073,9 +1340,7 @@ export default function InstagramPage() {
                 const qualif = l.qualification ? QUALIF_BADGE[l.qualification] : null;
 
                 const tier = l.score_tier ? TIER_DOT[l.score_tier] ?? TIER_DOT.cold : null;
-                const relanceDue =
-                  l.next_followup_at && new Date(l.next_followup_at) <= new Date() &&
-                  l.stage !== "call_booke" && l.stage !== "perdu";
+                const rel = relanceLabel(l);
 
                 return (
                   <div key={l.id} className="p-4 sm:p-5 transition-colors hover:bg-[var(--color-surface-2)]/60">
@@ -1086,6 +1351,11 @@ export default function InstagramPage() {
                           <a
                             href={`https://instagram.com/${l.username}`}
                             target={INSTA_TAB}
+                            onClick={(e) => {
+                              if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                              e.preventDefault();
+                              openInsta(l.username);
+                            }}
                             className="font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-accent)] transition-colors"
                           >
                             @{l.username}
@@ -1109,10 +1379,24 @@ export default function InstagramPage() {
                               {STAGE_LABEL[l.stage as Stage] ?? l.stage}
                             </span>
                           )}
-                          {relanceDue && (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
-                              <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
-                              relance due
+                          {rel && (
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-xs font-medium ${
+                                rel.tone === "due"
+                                  ? "text-rose-600 dark:text-rose-400"
+                                  : rel.tone === "reply"
+                                    ? "text-[#0f766e] dark:text-[#2dd4bf]"
+                                    : "text-[var(--color-text-muted)]"
+                              }`}
+                            >
+                              {rel.tone === "due" ? (
+                                <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+                              ) : rel.tone === "reply" ? (
+                                <MessageSquareReply className="w-3 h-3" />
+                              ) : (
+                                <Clock className="w-3 h-3" />
+                              )}
+                              {rel.text}
                             </span>
                           )}
                         </div>
@@ -1147,6 +1431,11 @@ export default function InstagramPage() {
                         {l.bio}
                       </p>
                     )}
+
+                    {/* Notes internes — éditable inline, sauvegarde au blur */}
+                    <div className="mb-2.5 max-w-[75ch]">
+                      <NoteField id={l.id} value={l.notes} onSave={saveNote} />
+                    </div>
 
                     {/* DM section — collapsible */}
                     <button
@@ -1336,6 +1625,11 @@ export default function InstagramPage() {
                         <a
                           href={`https://instagram.com/${l.username}`}
                           target={INSTA_TAB}
+                          onClick={(e) => {
+                            if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                            e.preventDefault();
+                            openInsta(l.username);
+                          }}
                           className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity no-underline max-sm:flex-1"
                         >
                           <Send className="w-3 h-3" />
@@ -1507,6 +1801,299 @@ function QuotaBar({ label, val, cap, pct }: { label: string; val: number; cap: n
       <span className="w-12 shrink-0 text-right text-[11px] font-semibold tabular-nums text-[var(--color-text-secondary)]">
         {val}/{cap}
       </span>
+    </div>
+  );
+}
+
+/** Anneau du 2ᵉ objectif (réponses du jour) — teinte teal fixe (distinct de l'objectif M1). */
+function EngagementRing({ value, goal }: { value: number; goal: number }) {
+  const pct = goal > 0 ? Math.min(1, value / goal) : 0;
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="relative shrink-0 h-16 w-16">
+      <svg width="64" height="64" viewBox="0 0 64 64" className="-rotate-90">
+        <circle cx="32" cy="32" r={r} fill="none" stroke="var(--color-surface-2)" strokeWidth="6" />
+        <circle
+          cx="32" cy="32" r={r} fill="none"
+          stroke="#0d9488" strokeWidth="6" strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          style={{ transition: "stroke-dashoffset .6s cubic-bezier(0.16,1,0.3,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono-num text-base font-semibold text-[var(--color-text-primary)] leading-none">{value}</span>
+        <span className="font-mono-num text-[10px] text-[var(--color-text-muted)] leading-none mt-0.5">/{goal}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Délai de relance EN CLAIR (ou signal « a répondu »). Le stade booké/perdu coupe
+ * la relance ; une réponse reçue prime (on doit une réponse, pas une relance).
+ */
+function relanceLabel(l: IgLead): { text: string; tone: "due" | "wait" | "reply" } | null {
+  if (l.stage === "call_booke" || l.stage === "perdu") return null;
+  if ((l.reply_count ?? 0) > 0) return { text: "a répondu", tone: "reply" };
+  if (!l.next_followup_at) return null;
+  const diff = new Date(l.next_followup_at).getTime() - Date.now();
+  if (diff <= 0) return { text: "relance due", tone: "due" };
+  const h = Math.round(diff / 3_600_000);
+  if (h < 1) return { text: "relance imminente", tone: "wait" };
+  if (h < 24) return { text: `relance dans ${h} h`, tone: "wait" };
+  return { text: `relance dans ${Math.round(h / 24)} j`, tone: "wait" };
+}
+
+/**
+ * Champ de notes INLINE — sauvegarde au blur si le texte a changé. Sert la fiche
+ * liste (large) et la carte pipeline (`compact`). La colonne `notes` existe en base
+ * et l'API PATCH l'accepte déjà ; ce champ la rend enfin visible/éditable.
+ */
+function NoteField({
+  id,
+  value,
+  onSave,
+  compact,
+}: {
+  id: string;
+  value: string;
+  onSave: (id: string, notes: string) => void;
+  compact?: boolean;
+}) {
+  const [text, setText] = useState(value ?? "");
+  const [dirty, setDirty] = useState(false);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    setText(value ?? "");
+    setDirty(false);
+  }, [value, id]);
+  const commit = () => {
+    if (!dirty) return;
+    const next = text.trim();
+    if (next !== (value ?? "").trim()) {
+      onSave(id, next);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    }
+    setDirty(false);
+  };
+  const empty = !text.trim();
+  return (
+    <div className="flex items-start gap-1.5 rounded-lg border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface-2)]/50 px-2 py-1.5 focus-within:border-[var(--color-accent)] transition-colors">
+      <StickyNote className={`w-3 h-3 mt-0.5 shrink-0 ${empty ? "text-[var(--color-text-muted)]" : "text-[var(--color-accent)]"}`} />
+      <textarea
+        value={text}
+        onChange={(e) => {
+          setText(e.target.value);
+          setDirty(true);
+        }}
+        onBlur={commit}
+        placeholder="Ajouter une note…"
+        rows={compact ? 1 : 2}
+        aria-label="Note interne sur ce prospect"
+        className="flex-1 resize-none bg-transparent border-none outline-none text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] placeholder:italic leading-snug"
+      />
+      {saved && <Check className="w-3 h-3 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+    </div>
+  );
+}
+
+/** Poignées/handlers partagés entre la colonne et la carte du pipeline. */
+type PipelineCardHandlers = {
+  origin: string;
+  activeAccount: string;
+  copied: string | null;
+  onQuickContact: (l: IgLead, m1: string) => void;
+  onSetStage: (id: string, stage: Stage) => void;
+  onSaveNote: (id: string, notes: string) => void;
+  onOpenInsta: (username: string) => void;
+  onReplyLogged: (id: string, p: Record<string, unknown>) => void;
+};
+
+/** Colonne DROPPABLE du pipeline (dnd-kit) — surbrillance quand une carte la survole. */
+function PipelineColumn({
+  col,
+  items,
+  cardProps,
+}: {
+  col: { key: string; label: string; tone: StageTone };
+  items: IgLead[];
+  cardProps: PipelineCardHandlers;
+}) {
+  const droppable = col.key !== "todo";
+  const { setNodeRef, isOver } = useDroppable({ id: col.key });
+  const tone = TONE_STYLES[col.tone];
+  const CAP = 60;
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex flex-col w-[250px] shrink-0 rounded-xl p-1 -m-1 transition-colors ${
+        isOver && droppable ? "bg-[var(--color-accent-soft)] ring-1 ring-[var(--color-accent)]/40" : ""
+      }`}
+    >
+      <div className="flex items-baseline justify-between gap-2 px-1 pb-2">
+        <span className={`text-xs font-semibold ${tone.text}`}>{col.label}</span>
+        <span className="font-mono-num text-[11px] text-[var(--color-text-muted)]">{items.length}</span>
+      </div>
+      <div className={`h-[3px] rounded-full mb-2.5 ${items.length ? tone.rail : "bg-[var(--color-border)]"}`} />
+      <div className="flex flex-col gap-2 min-h-[44px]">
+        {items.length === 0 ? (
+          <p className="text-[11px] text-[var(--color-text-muted)] px-1 py-3 text-center">
+            {isOver && droppable ? "Déposer ici" : "—"}
+          </p>
+        ) : (
+          items.slice(0, CAP).map((l) => <PipelineCard key={l.id} l={l} {...cardProps} />)
+        )}
+        {items.length > CAP && (
+          <p className="text-[11px] text-[var(--color-text-muted)] px-1 py-1 text-center">+{items.length - CAP} autres</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Carte compacte de la vue Pipeline — draggable (souris + tactile), mêmes actions que la fiche liste. */
+function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetStage, onSaveNote, onOpenInsta, onReplyLogged }: { l: IgLead } & PipelineCardHandlers) {
+  const metierEff =
+    detectMetier(l.profession_ia, null) ||
+    detectMetier(l.category, `${l.username} ${l.bio ?? ""}`) ||
+    l.metier ||
+    "";
+  const link = origin ? `${origin}/di/${shortCode(l.id)}` : "";
+  const m1 =
+    instagramDmSequence(
+      {
+        metier: metierEff,
+        ville: l.ville ?? "",
+        bookingPlatform: l.booking_platform,
+        firstName: firstNameOf(l.full_name),
+        professionIa: l.profession_ia,
+      },
+      link,
+    ).find((s) => s.step === "M1")?.text ?? "";
+  const tier = l.score_tier ? TIER_DOT[l.score_tier] ?? TIER_DOT.cold : null;
+  const rel = relanceLabel(l);
+  const isTodo = !l.stage || l.status === "todo";
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: l.id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-sm ${isDragging ? "opacity-40" : ""}`}
+    >
+      <div className="flex items-start gap-2">
+        {/* Poignée de glisser-déposer — seule zone qui déclenche le drag (souris + tactile). */}
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label="Déplacer ce prospect vers un autre stade"
+          className="shrink-0 -ml-1 mt-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] cursor-grab active:cursor-grabbing touch-none"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </button>
+        <a
+          href={`https://instagram.com/${l.username}`}
+          target={INSTA_TAB}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+            e.preventDefault();
+            onOpenInsta(l.username);
+          }}
+          className="min-w-0 flex-1 font-semibold text-[13px] text-[var(--color-text-primary)] hover:text-[var(--color-accent)] transition-colors truncate no-underline"
+        >
+          @{l.username}
+        </a>
+        {tier && <span className={`h-1.5 w-1.5 rounded-full mt-1.5 shrink-0 ${tier.dot}`} title={tier.label} />}
+      </div>
+      <div className="mt-0.5 text-[11px] text-[var(--color-text-muted)] truncate">
+        {l.profession_ia || l.metier || "—"}
+        {l.ville ? ` · ${l.ville}` : ""}
+        {l.followers != null ? ` · ${l.followers.toLocaleString("fr-FR")} ab.` : ""}
+      </div>
+
+      {(rel || l.booking_platform) && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {rel && (
+            <span
+              className={`inline-flex items-center gap-1 text-[10.5px] font-semibold rounded-full px-1.5 py-0.5 ${
+                rel.tone === "due"
+                  ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                  : rel.tone === "reply"
+                    ? "bg-[#0d9488]/10 text-[#0f766e] dark:text-[#2dd4bf]"
+                    : "bg-[var(--color-surface-2)] text-[var(--color-text-muted)]"
+              }`}
+            >
+              {rel.tone === "reply" ? <MessageSquareReply className="w-2.5 h-2.5" /> : <Clock className="w-2.5 h-2.5" />}
+              {rel.text}
+            </span>
+          )}
+          {l.booking_platform && (
+            <span className="text-[10.5px] font-medium rounded-full px-1.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+              {l.booking_platform}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="mt-2">
+        <NoteField id={l.id} value={l.notes} onSave={onSaveNote} compact />
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {isTodo ? (
+          <button
+            onClick={() => onQuickContact(l, m1)}
+            title="Copie le M1, ouvre Instagram et marque « contacté »"
+            className="tap inline-flex items-center justify-center gap-1.5 flex-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer"
+          >
+            {copied === `quick-${l.id}` ? (
+              <><Check className="w-3 h-3" /> M1 copié</>
+            ) : (
+              <><Zap className="w-3 h-3" /> Prendre contact</>
+            )}
+          </button>
+        ) : (
+          <>
+            <a
+              href={`https://instagram.com/${l.username}`}
+              target={INSTA_TAB}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                e.preventDefault();
+                onOpenInsta(l.username);
+              }}
+              className="tap inline-flex items-center gap-1 px-2 py-1.5 text-[11px] font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity no-underline"
+            >
+              <Send className="w-3 h-3" /> DM
+            </a>
+            <ReplyButton
+              prospectId={l.id}
+              accountId={activeAccount}
+              replyCount={l.reply_count ?? 0}
+              onLogged={(p) => onReplyLogged(l.id, p)}
+            />
+            {l.stage !== "call_booke" && (
+              <button
+                onClick={() => onSetStage(l.id, "call_booke")}
+                title="Call booké"
+                className="tap inline-flex items-center justify-center h-7 w-7 rounded-lg border border-[var(--color-border)] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+              >
+                <PhoneCall className="w-3 h-3" />
+              </button>
+            )}
+            {l.stage !== "perdu" && (
+              <button
+                onClick={() => onSetStage(l.id, "perdu")}
+                title="Perdu"
+                className="tap inline-flex items-center justify-center h-7 w-7 rounded-lg border border-[var(--color-border)] text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+              >
+                <XCircle className="w-3 h-3" />
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

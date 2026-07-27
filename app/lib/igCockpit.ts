@@ -184,6 +184,44 @@ export async function getStreak(now = new Date()): Promise<StreakInfo> {
   return { current, best: Math.max(best, current), todayDone };
 }
 
+export interface Engagement {
+  /** Réponses humaines reçues aujourd'hui (hors autorépondeurs) — jour Paris. */
+  repliesToday: number;
+  /** Prospects avec ≥1 réponse, encore en jeu (ni bookés ni perdus) = conversations actives. */
+  conversations: number;
+  /** Total de prospects au stade « call booké ». */
+  callsBooked: number;
+}
+
+/**
+ * Signaux d'ENGAGEMENT — moteur du 2ᵉ objectif de gamification (qualité), à côté
+ * du volume d'accroches (M1). Source : ig_replies (entrant) + instagram_prospects.
+ */
+export async function getEngagement(now = new Date()): Promise<Engagement> {
+  const dayStart = parisDayStart(now).toISOString();
+  const [replies, conversations, calls] = await Promise.all([
+    supabase
+      .from("ig_replies")
+      .select("id", { count: "exact", head: true })
+      .neq("kind", "autorepondeur")
+      .gte("received_at", dayStart),
+    supabase
+      .from("instagram_prospects")
+      .select("id", { count: "exact", head: true })
+      .gt("reply_count", 0)
+      .not("stage", "in", "(call_booke,perdu)"),
+    supabase
+      .from("instagram_prospects")
+      .select("id", { count: "exact", head: true })
+      .eq("stage", "call_booke"),
+  ]);
+  return {
+    repliesToday: replies.count ?? 0,
+    conversations: conversations.count ?? 0,
+    callsBooked: calls.count ?? 0,
+  };
+}
+
 /** Compte les prospects par stade (funnel). */
 export async function getFunnelCounts(): Promise<Record<string, number>> {
   const { data } = await supabase

@@ -87,6 +87,61 @@ export const STAGE_LABEL: Record<Stage, string> = {
   perdu: "Perdu",
 };
 
+/** Libellés COURTS pour les en-têtes de colonnes du pipeline (kanban). */
+export const STAGE_SHORT: Record<Stage, string> = {
+  accroche: "Accroche",
+  presentation: "Présentation",
+  connexion: "Connexion",
+  douleur: "Point de douleur",
+  appel_propose: "Appel proposé",
+  questionnaire_envoye: "Questionnaire",
+  call_booke: "Call booké",
+  perdu: "Perdu",
+};
+
+/**
+ * Teinte SÉMANTIQUE d'un stade (l'UI mappe ces clés vers des classes Tailwind).
+ * Le stade — pas le `status` historique — est la source de vérité du suivi ;
+ * cette fonction fournit l'axe froid → chaud → gagné/perdu utilisé partout.
+ */
+export type StageTone = "todo" | "cold" | "progress" | "warm" | "won" | "lost";
+export function stageTone(stage: string | null): StageTone {
+  switch (stage) {
+    case null:
+    case "":
+      return "todo";
+    case "accroche":
+      return "cold";
+    case "presentation":
+    case "connexion":
+      return "progress";
+    case "douleur":
+    case "appel_propose":
+    case "questionnaire_envoye":
+      return "warm";
+    case "call_booke":
+      return "won";
+    case "perdu":
+      return "lost";
+    default:
+      return "progress";
+  }
+}
+
+/**
+ * État MACRO dérivé du pipeline pour l'affichage — remplace la lecture directe du
+ * `status` (4 valeurs) qui se désynchronise du `stage`. Le stade + les réponses
+ * reçues priment ; le `status` ne sert que de repli.
+ */
+export type LeadState = "a_contacter" | "en_attente" | "en_conversation" | "gagne" | "perdu";
+export function leadState(stage: string | null, replyCount: number, status: string): LeadState {
+  if (stage === "call_booke" || status === "positive") return "gagne";
+  if (stage === "perdu" || status === "negative") return "perdu";
+  if ((replyCount ?? 0) > 0) return "en_conversation";
+  if (status === "todo" || !stage) return "a_contacter";
+  return "en_attente";
+}
+
 /** Stade atteint quand on marque une étape de la séquence comme envoyée. */
 export function stageForStep(step: string): Stage | null {
   switch (step) {
