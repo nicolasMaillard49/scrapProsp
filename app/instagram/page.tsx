@@ -87,6 +87,14 @@ const STATUS_LABEL: Record<string, string> = {
   negative: "Negatif",
 };
 
+/**
+ * Colonnes chargées pour la liste = uniquement celles affichées (interface IgLead).
+ * On EXCLUT surtout `raw` (dump Apify ~80 Ko/ligne) et `profile_pic_url` : `select("*")`
+ * tirait 36 Mo pour 673 prospects (~11 s → statement timeout). Ce set fait ~0,5 s / 0,5 Mo.
+ */
+const PROSPECT_COLUMNS =
+  "id,username,full_name,bio,external_url,followers,category,metier,ville,booking_platform,hashtag_source,status,notes,discovered_at,email,phone,has_website,score,score_tier,qualification,qualification_reason,profession_ia,last_post_at,stage,followup_count,next_followup_at,contacted_by,reply_count,first_reply_at";
+
 /* Statuts : teinte douce + texte coloré (l'aplat saturé est réservé à la sélection). */
 const STATUS_STYLES: Record<string, { pill: string; pillActive: string }> = {
   todo: {
@@ -412,7 +420,7 @@ export default function InstagramPage() {
     for (let attempt = 0; attempt < 3; attempt++) {
       const { data, error } = await supabase
         .from("instagram_prospects")
-        .select("*")
+        .select(PROSPECT_COLUMNS)
         .order("discovered_at", { ascending: false })
         .limit(2000);
       if (!error) {
