@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, ChevronLeft, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -795,8 +795,24 @@ export default function InstagramPage() {
         </section>
 
         {/* ─── COCKPIT (colonne latérale ≥ xl) + LISTE — la page occupe toute la largeur ─── */}
-        <div className={`grid grid-cols-1 gap-8 items-start ${cockpitCollapsed ? "" : "xl:grid-cols-[400px_minmax(0,1fr)] 2xl:grid-cols-[440px_minmax(0,1fr)]"}`}>
-        <section className={`min-w-0 xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto ${cockpitCollapsed ? "xl:hidden" : ""}`}>
+        <div className={`grid grid-cols-1 gap-x-6 gap-y-8 items-start ${
+          cockpitCollapsed
+            ? "xl:grid-cols-[2rem_minmax(0,1fr)]"
+            : "xl:grid-cols-[2rem_400px_minmax(0,1fr)] 2xl:grid-cols-[2rem_440px_minmax(0,1fr)]"
+        }`}>
+        {/* Poignée repli/ouverture du cockpit (PC) — même emplacement dans les 2 états, ne scrolle jamais */}
+        <div className="hidden xl:block xl:sticky xl:top-[4.5rem] self-start">
+          <button
+            onClick={toggleCockpit}
+            title={cockpitCollapsed ? "Afficher le cockpit" : "Masquer le cockpit (plein écran pipeline)"}
+            aria-label={cockpitCollapsed ? "Afficher le cockpit" : "Masquer le cockpit"}
+            aria-expanded={!cockpitCollapsed}
+            className="grid place-items-center h-14 w-8 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-2)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
+          >
+            {cockpitCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+        </div>
+        <section className={`relative min-w-0 xl:sticky xl:top-[4.5rem] xl:max-h-[calc(100vh-5.5rem)] xl:overflow-y-auto ${cockpitCollapsed ? "xl:hidden" : ""}`}>
           {/* Mobile : barre-résumé repliable — le cockpit ne doit jamais enterrer la file. */}
           <button
             onClick={() => setCockpitOpen((o) => !o)}
@@ -1043,15 +1059,6 @@ export default function InstagramPage() {
                 <span className="font-mono-num">{shown.length}</span> affichés
               </span>
             )}
-            {/* Replier le cockpit (PC uniquement) → pleine largeur pour le pipeline */}
-            <button
-              onClick={toggleCockpit}
-              title={cockpitCollapsed ? "Afficher le cockpit" : "Masquer le cockpit (plein écran pipeline)"}
-              className="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
-            >
-              {cockpitCollapsed ? <PanelLeftOpen className="w-3.5 h-3.5" /> : <PanelLeftClose className="w-3.5 h-3.5" />}
-              {cockpitCollapsed ? "Cockpit" : "Masquer cockpit"}
-            </button>
             {/* Bascule Liste / Pipeline */}
             <div className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
               <button
