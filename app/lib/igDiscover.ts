@@ -8,7 +8,21 @@ import { discoverHashtagUsernames, fetchProfiles } from "./igSource";
 import { isProspect, detectMetier, detectVille, detectBookingPlatform, pickContact, extractLastPostAt, prospectScore } from "./instagram";
 
 const PROFILE_BATCH = 30; // usernames par appel profile-scraper (borne le temps de run-sync)
-const SCAN_CAP = 600; // plafond dur de profils scannés / run (borne le coût Apify)
+const SCAN_CAP = 600; // plafond dur de profils scannés / run (borne le coût)
+
+/**
+ * Sur-récupération d'usernames, pour absorber la dédup contre la base et le
+ * filtre « sans site ».
+ *
+ * Était à ×5 (500 posts pour 100 profils visés). Or Apify facture le post
+ * scanné AU MÊME PRIX que le profil (0,0026 $ pièce, tier gratuit) : ce ×5
+ * faisait payer 5 posts pour chaque profil obtenu, soit 0,0156 $ par prospect
+ * au lieu de 0,0055 — le crédit de 5 $/mois rendait 320 prospects au lieu de
+ * ~910. Le facteur est donc ramené à ×1,6, ce qui couvre encore largement les
+ * ~10 % de posts en doublon d'auteur et la dédup.
+ */
+const OVERFETCH_FACTOR = Math.max(1, Number(process.env.IG_OVERFETCH_FACTOR) || 1.6);
+const OVERFETCH_MAX = Math.max(30, Number(process.env.IG_OVERFETCH_MAX) || 300);
 
 export interface DiscoverOptions {
   hashtag: string;
@@ -108,7 +122,7 @@ export async function discoverHashtag(opts: DiscoverOptions): Promise<DiscoverRe
   const dryRun = opts.dryRun === true;
   const keepAll = opts.keepAll === true;
 
-  const overfetch = Math.min(target * 5, 500);
+  const overfetch = Math.min(Math.round(target * OVERFETCH_FACTOR), OVERFETCH_MAX);
   const src = await discoverHashtagUsernames(hashtag, overfetch);
   const usernames = src.usernames;
   const source = { provider: src.provider, resolver: src.resolver, reused: src.reused, resolved: src.resolved, capped: src.capped };

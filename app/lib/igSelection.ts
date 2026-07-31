@@ -15,7 +15,7 @@ import { detectMetier, isHorsCible, isActiveSince } from "./instagram";
 import { generateMetierHashtags } from "./hashtags";
 import { igSourceConfigured } from "./igSource";
 import { qualifyAvailable } from "./igQualify";
-import { collectLeads, resolveLeads, leadsStatus, nextHashtagFor, RESOLVE_BATCH } from "./igLeads";
+import { collectLeads, resolveLeads, leadsStatus, nextHashtagFor } from "./igLeads";
 import { qualifyRun, QUALIFY_RUN_CAP } from "./igQualifyRun";
 
 /** Plafond d'abonnés — même filtre dur que le cockpit (comptes > 15k : mauvais taux de réponse). */
@@ -440,7 +440,7 @@ export async function refillStock(now = new Date()): Promise<RefillResult> {
 
   for (const t of targets) {
     if (!pendingByMetier.get(t.metier)) continue;
-    const res = await resolveLeads(RESOLVE_BATCH, t.metier);
+    const res = await resolveLeads(undefined, t.metier);
     if (!res.inserted) continue;
 
     const qual = await qualifyRun({

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseConfigured } from "@/app/lib/supabase";
 import { igSourceConfigured } from "@/app/lib/igSource";
-import { collectLeads, resolveLeads, leadsStatus, RESOLVE_BATCH } from "@/app/lib/igLeads";
+import { collectLeads, resolveLeads, leadsStatus } from "@/app/lib/igLeads";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -57,7 +57,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.action === "resolve") {
-      const limit = Math.min(Math.max(Number(body.limit) || RESOLVE_BATCH, 1), 40);
+      // Sans limite explicite, igLeads choisit selon le plan detecte (12 en
+      // gratuit, 100 en Pro) : le cockpit n'a pas a connaitre l'abonnement.
+      const limit = body.limit ? Math.min(Math.max(Number(body.limit), 1), 200) : undefined;
       const result = await resolveLeads(limit, body.metier?.trim() || null);
       return NextResponse.json({ ok: true, result, status: await leadsStatus() });
     }

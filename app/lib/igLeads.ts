@@ -19,15 +19,30 @@ import { lastQuota } from "./igProviders/rapidapi";
 import { saveQuota, loadQuota } from "./igProviders/state";
 import { isProspect, detectMetier, detectVille, detectBookingPlatform, pickContact, extractLastPostAt, prospectScore } from "./instagram";
 
-/** Lot par défaut : 12 profils ≈ 25 s à 4 en parallèle, loin du maxDuration de 300 s. */
-export const RESOLVE_BATCH = Math.max(1, Number(process.env.IG_RESOLVE_BATCH) || 12);
 /**
- * Résolutions simultanées. Le plan gratuit Looter autorise 1000 req/h : la
- * limite est le crédit mensuel, pas le débit. Résoudre en parallèle coûte
- * exactement autant et divise l'attente par autant — c'est ce qui rend le
- * bouton « chercher » vivable (7 s par profil en séquentiel).
+ * Réglages de débit, déduits du plan réellement souscrit.
+ *
+ * Le fournisseur annonce son plafond mensuel dans ses en-têtes (150 = gratuit,
+ * 15 000 = Pro). On s'y accroche plutôt que de coder un palier en dur : le jour
+ * où l'abonnement change, le rythme suit tout seul, sans variable à penser.
+ *
+ * Gratuit : 1000 req/h, soit 0,28/s — au-delà de 4 en parallèle on frôle le
+ * plafond horaire pour rien, puisque le crédit mensuel s'épuise avant.
+ * Pro : 10 req/s — le débit n'est plus la contrainte, on peut charger le lot.
  */
-const RESOLVE_CONCURRENCY = Math.max(1, Number(process.env.IG_RESOLVE_CONCURRENCY) || 4);
+const TUNING = { free: { batch: 12, concurrency: 4 }, pro: { batch: 100, concurrency: 10 } };
+
+export async function tuning(): Promise<{ batch: number; concurrency: number }> {
+  const q = lastQuota("looter") ?? (await loadQuota("looter"));
+  const base = q && q.limit > 1000 ? TUNING.pro : TUNING.free;
+  return {
+    batch: Math.max(1, Number(process.env.IG_RESOLVE_BATCH) || base.batch),
+    concurrency: Math.max(1, Number(process.env.IG_RESOLVE_CONCURRENCY) || base.concurrency),
+  };
+}
+
+/** Lot par défaut hors contexte (le vrai est calculé par `tuning()`). */
+export const RESOLVE_BATCH = Math.max(1, Number(process.env.IG_RESOLVE_BATCH) || TUNING.free.batch);
 /** Sécurité temps : on s'arrête net au-delà, même lot inachevé. */
 const RESOLVE_BUDGET_MS = 120_000;
 /** Une piste qui échoue 3 fois est abandonnée (compte supprimé, privé…). */
@@ -128,8 +143,10 @@ async function unknownIds(ids: string[]): Promise<string[]> {
  * ──────────────────────────────────────────────────────────── */
 
 /** Transforme un petit lot de pistes en prospects. Rend toujours la main. */
-export async function resolveLeads(limit = RESOLVE_BATCH, metier?: string | null): Promise<ResolveResult> {
+export async function resolveLeads(limit?: number, metier?: string | null): Promise<ResolveResult> {
   const started = Date.now();
+  const tune = await tuning();
+  limit = limit ?? tune.batch;
   let q = supabase
     .from("ig_leads")
     .select("ig_user_id, hashtag_source, metier, attempts")
@@ -186,7 +203,7 @@ export async function resolveLeads(limit = RESOLVE_BATCH, metier?: string | null
     }
   };
 
-  await Promise.all(Array.from({ length: Math.min(RESOLVE_CONCURRENCY, leads.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(tune.concurrency, leads.length) }, worker));
   await persistQuota();
 
   const { count } = await supabase
