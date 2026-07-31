@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { getAccountsWithCounters, getDueFollowups, getFunnelCounts, getSendStats, getStreak } from "@/app/lib/igCockpit";
+import { getAccountsWithCounters, getDueFollowups, getEngagement, getFunnelCounts, getSendStats, getStreak } from "@/app/lib/igCockpit";
 
 export const dynamic = "force-dynamic";
 
@@ -9,14 +9,15 @@ export async function GET() {
   if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
   try {
     const now = new Date();
-    const [accounts, due, funnel, stats, streak] = await Promise.all([
+    const [accounts, due, funnel, stats, streak, engagement] = await Promise.all([
       getAccountsWithCounters(now),
       getDueFollowups(now),
       getFunnelCounts(),
       getSendStats(now),
       getStreak(now),
+      getEngagement(now),
     ]);
-    return NextResponse.json({ accounts, due, funnel, stats, streak });
+    return NextResponse.json({ accounts, due, funnel, stats, streak, engagement });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
