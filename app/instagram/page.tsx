@@ -5,7 +5,7 @@
 //  - EN DESSOUS : la liste des prospects obtenus, du plus récent au plus ancien,
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, ChevronLeft, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical } from "lucide-react";
 import {
   DndContext,
@@ -1282,7 +1282,7 @@ export default function InstagramPage() {
           ) : viewMode === "pipeline" ? (
             /* ─── VUE PIPELINE : une colonne par stade, glisser-déposer souris + tactile ─── */
             <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)}>
-              <div className="overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0">
+              <PipelineScroller>
                 <div className="flex gap-3 min-w-min items-start">
                   {PIPE_COLS.map((col) => (
                     <PipelineColumn
@@ -1302,7 +1302,7 @@ export default function InstagramPage() {
                     />
                   ))}
                 </div>
-              </div>
+              </PipelineScroller>
               <DragOverlay dropAnimation={null}>
                 {activeDrag
                   ? (() => {
@@ -1902,6 +1902,71 @@ function NoteField({
         className="flex-1 resize-none bg-transparent border-none outline-none text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] placeholder:italic leading-snug"
       />
       {saved && <Check className="w-3 h-3 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+    </div>
+  );
+}
+
+/**
+ * Conteneur horizontal du pipeline avec la barre de défilement EN HAUT.
+ * Le navigateur ne sait pas déplacer une scrollbar native, donc on masque
+ * celle du conteneur réel et on affiche au-dessus une barre miroir (un
+ * conteneur vide de même largeur de défilement), synchronisée dans les
+ * deux sens. Aucun `transform` : le drag-and-drop dnd-kit reste intact.
+ */
+function PipelineScroller({ children }: { children: ReactNode }) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [scrollWidth, setScrollWidth] = useState(0);
+  const [overflowing, setOverflowing] = useState(false);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    const rail = railRef.current;
+    if (!body || !rail) return;
+
+    const measure = () => {
+      setScrollWidth(body.scrollWidth);
+      setOverflowing(body.scrollWidth > body.clientWidth + 1);
+    };
+    measure();
+
+    // Le contenu change de largeur quand on ouvre/replie le cockpit ou quand
+    // les colonnes se remplissent → on observe le conteneur ET la rangée.
+    const ro = new ResizeObserver(measure);
+    ro.observe(body);
+    if (body.firstElementChild) ro.observe(body.firstElementChild);
+
+    let syncing = false;
+    const mirror = (from: HTMLElement, to: HTMLElement) => () => {
+      if (syncing) return;
+      syncing = true;
+      to.scrollLeft = from.scrollLeft;
+      syncing = false;
+    };
+    const onRail = mirror(rail, body);
+    const onBody = mirror(body, rail);
+    rail.addEventListener("scroll", onRail, { passive: true });
+    body.addEventListener("scroll", onBody, { passive: true });
+
+    return () => {
+      ro.disconnect();
+      rail.removeEventListener("scroll", onRail);
+      body.removeEventListener("scroll", onBody);
+    };
+  }, []);
+
+  return (
+    <div>
+      <div
+        ref={railRef}
+        aria-hidden
+        className={`overflow-x-auto overflow-y-hidden -mx-4 sm:mx-0 ${overflowing ? "h-[10px] mb-2" : "h-0"}`}
+      >
+        <div style={{ width: scrollWidth, height: 1 }} />
+      </div>
+      <div ref={bodyRef} className="scrollbar-none overflow-x-auto pb-3 -mx-4 px-4 sm:mx-0 sm:px-0">
+        {children}
+      </div>
     </div>
   );
 }

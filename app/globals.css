@@ -186,6 +186,11 @@ body > * { position: relative; z-index: 1; }
 .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
 .dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 
+/* Conteneur qui défile sans sa barre native (vue pipeline : la barre est
+   affichée au-dessus des colonnes par une barre miroir synchronisée). */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
 /* ── Focus ring ── */
 input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-visible {
   outline: 2px solid rgba(123, 79, 224, 0.5);
