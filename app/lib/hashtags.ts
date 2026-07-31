@@ -64,6 +64,21 @@ const METIER_SYNONYMS: Record<string, string[]> = {
   plombier: ["plombier", "plomberie"],
   electricien: ["electricien", "electricite"],
   chauffagiste: ["chauffagiste", "chauffage"],
+  // Professions libérales
+  medecin: ["medecin", "medecingeneraliste", "cabinetmedical"],
+  dentiste: ["dentiste", "chirurgiendentiste", "cabinetdentaire"],
+  kine: ["kine", "kinesitherapeute", "masseurkinesitherapeute"],
+  osteopathe: ["osteopathe", "osteopathie"],
+  podologue: ["podologue", "pedicurepodologue"],
+  orthophoniste: ["orthophoniste", "orthophonie"],
+  psychologue: ["psychologue", "psychotherapeute"],
+  sagefemme: ["sagefemme", "maieutique"],
+  veterinaire: ["veterinaire", "cliniqueveterinaire"],
+  dieteticien: ["dieteticien", "nutritionniste", "dieteticienne"],
+  sophrologue: ["sophrologue", "sophrologie", "naturopathe"],
+  avocat: ["avocat", "cabinetdavocats"],
+  notaire: ["notaire", "etudenotariale"],
+  expertcomptable: ["expertcomptable", "cabinetcomptable"],
 };
 
 /**
@@ -104,6 +119,23 @@ const METIER_HASHTAGS: Record<string, string[]> = {
   tatoueur: ["tatoueur", "tattoo", "tatouage", "tatoueurfrancais", "inked"],
   photographe: ["photographe", "photographemariage", "photographeportrait", "photographefrancais", "seancephoto"],
   boulanger: ["boulanger", "boulangerie", "patisserie", "artisanboulanger", "painaulevain", "patissier"],
+  // Professions LIBÉRALES (ajout 02/08/2026). Ces comptes publient moins que les
+  // artisans : bibliothèques plus courtes, mais la reprise par curseur
+  // (ig_hashtag_cursors) permet d'aller chercher loin dans chacune.
+  medecin: ["medecingeneraliste", "cabinetmedical", "maisondesante", "medecinliberal", "teleconsultation"],
+  dentiste: ["chirurgiendentiste", "cabinetdentaire", "dentiste", "orthodontie", "implantologie", "dentisterieesthetique"],
+  kine: ["kinesitherapeute", "masseurkinesitherapeute", "kine", "cabinetdekine", "reeducation", "kinesport"],
+  osteopathe: ["osteopathe", "osteopathie", "osteodo", "cabinetosteopathie", "osteopathiepediatrique"],
+  podologue: ["pedicurepodologue", "podologue", "podologiedusport", "semellesorthopediques"],
+  orthophoniste: ["orthophoniste", "orthophonie", "cabinetorthophonie"],
+  psychologue: ["psychologue", "psychotherapeute", "psychologueliberal", "therapiebreve", "psychopraticien"],
+  sagefemme: ["sagefemme", "sagefemmeliberale", "preparationalanaissance", "perinatalite"],
+  veterinaire: ["veterinaire", "cliniqueveterinaire", "cabinetveterinaire", "vetolife"],
+  dieteticien: ["dieteticienne", "dieteticien", "nutritionniste", "nutritionsante", "reequilibragealimentaire"],
+  sophrologue: ["sophrologue", "sophrologie", "naturopathe", "naturopathie", "hypnotherapeute"],
+  avocat: ["avocat", "cabinetdavocats", "avocatdroitdutravail", "avocatdroitdelafamille", "barreau"],
+  notaire: ["notaire", "etudenotariale", "notairefrance"],
+  expertcomptable: ["expertcomptable", "cabinetcomptable", "comptabilite", "expertisecomptable"],
 };
 
 /**

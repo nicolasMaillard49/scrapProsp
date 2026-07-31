@@ -61,7 +61,11 @@ type Niche =
   | "coiffeur" | "restaurant" | "estheticienne" | "fleuriste" | "tatoueur"
   | "menuisier" | "paysagiste" | "carreleur" | "peintre" | "macon" | "couvreur"
   | "charpentier" | "ferronnier" | "plaquiste" | "cuisiniste" | "plombier"
-  | "electricien" | "chauffagiste" | "";
+  | "electricien" | "chauffagiste"
+  // Professions libérales (santé, juridique, chiffre) — ajoutées le 02/08/2026.
+  | "medecin" | "dentiste" | "kine" | "osteopathe" | "podologue" | "orthophoniste"
+  | "psychologue" | "sagefemme" | "veterinaire" | "dieteticien" | "sophrologue"
+  | "avocat" | "notaire" | "expertcomptable" | "";
 
 const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   // Artisans du bâtiment EN PREMIER (cible NMF) — leurs bios contiennent souvent
@@ -79,9 +83,41 @@ const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   { niche: "chauffagiste", re: /(chauffag|pompe [aà] chaleur|\bpac\b|climatisation|clim\b)/i },
   { niche: "macon", re: /(ma[cç]on|gros [oœ]uvre|pierre de taille|terrassement)/i },
   { niche: "peintre", re: /(peintre|peinture (int[eé]rieure|ext[eé]rieure|d[eé]co))/i },
+  // Professions LIBÉRALES.
+  //
+  // Placement volontaire : APRÈS le bâtiment (cible historique, prioritaire) et
+  // AVANT « estheticienne », dont la regex capture « massage » et « spa » — un
+  // kiné ou un ostéo y tomberait sinon. `avocat`, lui, est placé plus bas :
+  // le mot désigne aussi un fruit, et un restaurant qui l'affiche au menu doit
+  // rester un restaurant.
+  //
+  // ⚠️ Publicité et démarchage sont DÉONTOLOGIQUEMENT ENCADRÉS pour ces
+  // professions (Code de la santé publique pour les soignants, RIN pour les
+  // avocats) : la promesse commerciale doit rester factuelle — informer, pas
+  // promettre des patients. Voir NICHE_COPY plus bas.
+  // « rééducation » appartient AUSSI à l'orthophonie : on teste donc le métier
+  // le plus spécifique d'abord, sinon un orthophoniste tombe en kiné.
+  { niche: "orthophoniste", re: /(orthophonist|orthophonie|orthoptist)/i },
+  { niche: "kine", re: /(kin[eé]sith[eé]rapeut|masseur[- ]?kin|\bkin[eé]\b|r[eé][eé]ducation)/i },
+  { niche: "osteopathe", re: /(ost[eé]opath|\bost[eé]o\b)/i },
+  { niche: "podologue", re: /(podologue|p[eé]dicure[- ]?podolog|posturolog)/i },
+  { niche: "sagefemme", re: /(sage[- ]?femme|ma[iï]eutic|p[eé]rinatalit)/i },
+  { niche: "dentiste", re: /(dentiste|chirurgien[- ]?dentiste|orthodontist|cabinet dentaire|implantolog)/i },
+  { niche: "veterinaire", re: /(v[eé]t[eé]rinaire|clinique v[eé]t|\bv[eé]to\b)/i },
+  { niche: "psychologue", re: /(psychologue|psychoth[eé]rapeut|psychopraticien|neuropsycholog|\bpsy\b)/i },
+  { niche: "dieteticien", re: /(di[eé]t[eé]ticien|nutritionniste|micronutrition|di[eé]t[eé]tique)/i },
+  { niche: "sophrologue", re: /(sophrolog|hypnoth[eé]rapeut|naturopath)/i },
+  // « médecine esthétique » relève de l'esthétique haut ticket, pas du cabinet
+  // médical : on exige un marqueur de médecine générale plutôt que le mot seul.
+  { niche: "medecin", re: /(m[eé]decin g[eé]n[eé]raliste|cabinet m[eé]dical|docteur en m[eé]decine|\bg[eé]n[eé]raliste\b|maison de sant[eé])/i },
   // Autres niches locales
   { niche: "coiffeur", re: /(coiff|barbi|barber|\bhair\b|hairdress|hairstyl|coloris|salon de coiff)/i },
   { niche: "restaurant", re: /(restaur|resto|bistrot|brasserie|pizz|burger|traiteur|cuisine|chef|food|caf[eé]|coffee|sushi|tacos|kebab|cr[eê]perie)/i },
+  // Juridique et chiffre — après « restaurant » : « avocat » est aussi un fruit,
+  // et un menu qui l'affiche ne doit pas basculer en cabinet d'avocats.
+  { niche: "avocat", re: /(avocat[e]?s? (au barreau|associ|sp[eé]cialis)|barreau de|cabinet d'?avocat|\bavocat fiscalist|droit du travail|droit de la famille)/i },
+  { niche: "notaire", re: /(notaire|notarial|\b[eé]tude notariale)/i },
+  { niche: "expertcomptable", re: /(expert[- ]?comptable|cabinet comptable|comptabilit[eé]|commissaire aux comptes)/i },
   // « bien-être » retiré (16/07) : trop générique — n'importe quel commerce l'emploie
   // (« votre bien-être et votre satisfaction » sur un poseur de fenêtres → esthéticienne).
   { niche: "estheticienne", re: /(esth[eé]t|institut de beaut|beauty|cosm[eé]t|ongl|nail|maquill|makeup|[eé]pilation|\bcils\b|lash|sourcil|microblading|dermopigment|cryolip|\bhifu\b|microneedling|massage|\bspa\b)/i },
@@ -143,7 +179,13 @@ export function competitorHook(input: {
   const hello = `Hello${input.firstName ? ` ${input.firstName}` : ""}`;
   const requete = `« ${metier} ${ville} »`;
   // Artisans = business téléphone-first ; métiers à RDV (beauté, resto…) = réservations.
-  const RDV_METIERS = new Set<string>(["estheticienne", "coiffeur", "tatoueur", "restaurant"]);
+  const RDV_METIERS = new Set<string>([
+    "estheticienne", "coiffeur", "tatoueur", "restaurant",
+    // Les libérales vivent d'un agenda, pas d'appels d'urgence.
+    "medecin", "dentiste", "kine", "osteopathe", "podologue", "orthophoniste",
+    "psychologue", "sagefemme", "veterinaire", "dieteticien", "sophrologue",
+    "avocat", "notaire", "expertcomptable",
+  ]);
   const cible = RDV_METIERS.has(detectMetier(metier, null)) ? "ces réservations" : "ces appels";
   const place = selfRank === null ? "vous n'apparaissez pas dans les résultats" : `vous êtes #${selfRank}`;
   const concurrence =
@@ -162,6 +204,23 @@ const NICHE_COPY: Record<string, { intro: (loc: string) => string; hook: string;
   estheticienne: { intro: (l) => `En cherchant des instituts ${l}, je suis tombé sur ton compte`, hook: "ton univers donne envie de prendre soin de soi", value: "la prise de RDV en ligne" },
   fleuriste: { intro: (l) => `En cherchant des fleuristes ${l}, je suis tombé sur ta boutique`, hook: "tes compositions sont superbes", value: "une vitrine et les commandes en ligne" },
   tatoueur: { intro: (l) => `En cherchant des tatoueurs ${l}, je suis tombé sur ton compte`, hook: "ton travail est impressionnant", value: "un book en ligne et les demandes de RDV" },
+  // Libérales — promesse volontairement FACTUELLE : on parle d'informations
+  // pratiques et de prise de RDV, jamais d'« attirer des patients ». La
+  // publicité comparative ou racoleuse leur est déontologiquement interdite.
+  kine: { intro: (l) => `En cherchant des kinés ${l}, je suis tombé sur votre compte`, hook: "votre approche est bien expliquée", value: "un site clair avec vos horaires et la prise de RDV" },
+  osteopathe: { intro: (l) => `En cherchant des ostéopathes ${l}, je suis tombé sur votre compte`, hook: "vos explications sont très pédagogiques", value: "un site clair avec vos horaires et la prise de RDV" },
+  podologue: { intro: (l) => `En cherchant des podologues ${l}, je suis tombé sur votre compte`, hook: "votre travail est bien présenté", value: "un site clair avec vos horaires et la prise de RDV" },
+  orthophoniste: { intro: (l) => `En cherchant des orthophonistes ${l}, je suis tombé sur votre compte`, hook: "votre approche est bien expliquée", value: "un site clair avec vos informations pratiques" },
+  sagefemme: { intro: (l) => `En cherchant des sages-femmes ${l}, je suis tombé sur votre compte`, hook: "votre accompagnement inspire confiance", value: "un site clair avec vos informations pratiques et la prise de RDV" },
+  dentiste: { intro: (l) => `En cherchant des dentistes ${l}, je suis tombé sur votre cabinet`, hook: "votre cabinet est bien présenté", value: "un site clair avec vos horaires et vos informations pratiques" },
+  medecin: { intro: (l) => `En cherchant des médecins ${l}, je suis tombé sur votre cabinet`, hook: "vos informations sont bien tenues à jour", value: "un site clair avec vos horaires et vos informations pratiques" },
+  veterinaire: { intro: (l) => `En cherchant des vétérinaires ${l}, je suis tombé sur votre clinique`, hook: "votre équipe donne confiance", value: "un site clair avec vos horaires, urgences et prise de RDV" },
+  psychologue: { intro: (l) => `En cherchant des psychologues ${l}, je suis tombé sur votre compte`, hook: "votre approche est très bien expliquée", value: "un site clair avec votre approche et la prise de RDV" },
+  dieteticien: { intro: (l) => `En cherchant des diététiciens ${l}, je suis tombé sur votre compte`, hook: "vos conseils sont concrets", value: "un site clair avec votre accompagnement et la prise de RDV" },
+  sophrologue: { intro: (l) => `En cherchant des sophrologues ${l}, je suis tombé sur votre compte`, hook: "votre univers est apaisant", value: "un site clair avec vos séances et la prise de RDV" },
+  avocat: { intro: (l) => `En cherchant des avocats ${l}, je suis tombé sur votre cabinet`, hook: "vos domaines d'intervention sont clairs", value: "un site qui présente vos domaines et facilite la prise de contact" },
+  notaire: { intro: (l) => `En cherchant des notaires ${l}, je suis tombé sur votre étude`, hook: "votre étude est bien présentée", value: "un site qui présente vos services et facilite la prise de contact" },
+  expertcomptable: { intro: (l) => `En cherchant des experts-comptables ${l}, je suis tombé sur votre cabinet`, hook: "votre offre est bien expliquée", value: "un site qui présente vos services et facilite la prise de contact" },
   menuisier: { intro: (l) => `En cherchant des menuisiers ${l}, je suis tombé sur ton compte`, hook: "tes réalisations sont super propres", value: "un site qui présente tes chantiers et ramène des demandes de devis" },
   paysagiste: { intro: (l) => `En cherchant des paysagistes ${l}, je suis tombé sur ton compte`, hook: "tes aménagements rendent vraiment bien", value: "un site qui met en avant tes réalisations et ramène des demandes de devis" },
   carreleur: { intro: (l) => `En cherchant des carreleurs ${l}, je suis tombé sur ton compte`, hook: "tes poses sont nickel", value: "un site qui présente tes chantiers et ramène des demandes de devis" },
@@ -492,6 +551,13 @@ const METIER_NOUN: Record<string, string> = {
 };
 
 /** Vocabulaire « douleur » selon la niche (demandes / stabilité). */
+/** Professions libérales : agenda plutôt que devis, et communication encadrée. */
+const LIBERALES = new Set<string>([
+  "medecin", "dentiste", "kine", "osteopathe", "podologue", "orthophoniste",
+  "psychologue", "sagefemme", "veterinaire", "dieteticien", "sophrologue",
+  "avocat", "notaire", "expertcomptable",
+]);
+
 function painWording(metier: string): { demandes: string; stable: string } {
   if (BATIMENT.has(metier)) {
     return { demandes: "des demandes de devis régulières", stable: "un planning rempli plusieurs semaines à l'avance" };
@@ -501,6 +567,9 @@ function painWording(metier: string): { demandes: string; stable: string } {
   }
   if (metier === "coiffeur" || metier === "estheticienne" || metier === "tatoueur") {
     return { demandes: "des demandes de RDV régulières", stable: "un agenda bien rempli" };
+  }
+  if (LIBERALES.has(metier)) {
+    return { demandes: "de nouvelles demandes régulières", stable: "un agenda bien rempli" };
   }
   return { demandes: "des demandes régulières", stable: "une activité stable" };
 }
