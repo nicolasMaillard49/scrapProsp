@@ -1,7 +1,7 @@
 // Logique de qualification + personnalisation des prospects Instagram.
 // Fonctions PURES (réutilisables côté serveur ET client). Pas d'import serveur ici.
 
-import type { IgProfile } from "./apify";
+import type { IgProfile } from "./igProviders/types";
 
 /* ────────────────────────────────────────────────────────────
  * Filtre « pas de vrai site web »

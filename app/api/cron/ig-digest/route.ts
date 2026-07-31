@@ -31,14 +31,16 @@ async function handle(req: NextRequest) {
     let refillNote: string | undefined;
 
     // Stock épuisé → on trie d'abord ce qui dort en base, et seulement ensuite
-    // on paie un nouveau scan Apify (voir refillStock).
+    // on paie un nouveau scan (voir refillStock ; la source est choisie par
+    // igSource, Apify puis relais RapidAPI).
     if (selection.shortfall > 0 && !dry) {
       const refill = await refillStock();
       refillNote = !refill.ran
         ? `Rien à faire : ${refill.reason}`
         : refill.mode === "qualify"
           ? `Tri IA du stock ${refill.metier} : ${refill.processed} passés en revue, ${refill.qualified} retenus.`
-          : `Scan #${refill.hashtag} (${refill.metier}) : ${refill.inserted} nouveaux, ${refill.qualified} retenus.`;
+          : `Scan #${refill.hashtag} (${refill.metier}) : ${refill.inserted} nouveaux, ${refill.qualified} retenus.` +
+            (refill.source ? ` ⚠️ Apify indisponible — relais « ${refill.source} » (quota gratuit, court).` : "");
       if (refill.ran) selection = await ensureDailySelection();
     }
 

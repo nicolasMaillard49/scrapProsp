@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseConfigured } from "@/app/lib/supabase";
-import { apifyConfigured } from "@/app/lib/apify";
+import { igSourceConfigured } from "@/app/lib/igSource";
 import { discoverHashtag } from "@/app/lib/igDiscover";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300; // Vercel : laisse le temps aux runs Apify
+export const maxDuration = 300; // Vercel : laisse le temps aux runs de scraping
 
 interface DiscoverBody {
   hashtag?: string;
@@ -15,13 +15,14 @@ interface DiscoverBody {
 
 /**
  * POST /api/instagram/discover  { hashtag, target?=100, dryRun?, keepAll? }
- * Découvre ~target comptes Instagram SANS site web pour un hashtag, via Apify.
+ * Découvre ~target comptes Instagram SANS site web pour un hashtag.
+ * La source est choisie par `igSource` (Apify, puis relais RapidAPI).
  * Le moteur vit dans `app/lib/igDiscover.ts` (partagé avec le refill automatique
  * de la sélection du jour) ; cette route n'est que la façade HTTP.
  */
 export async function POST(req: NextRequest) {
   if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
-  if (!apifyConfigured) return NextResponse.json({ error: "APIFY_TOKEN manquant" }, { status: 503 });
+  if (!igSourceConfigured) return NextResponse.json({ error: "Aucune source Instagram configurée (APIFY_TOKEN ou RAPIDAPI_KEY)" }, { status: 503 });
 
   let body: DiscoverBody;
   try {

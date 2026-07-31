@@ -13,7 +13,7 @@ import { warmupCaps, type AccountStatus, type Caps } from "./igPipeline";
 import { getDueFollowups } from "./igCockpit";
 import { detectMetier, isHorsCible, isActiveSince } from "./instagram";
 import { generateMetierHashtags } from "./hashtags";
-import { apifyConfigured } from "./apify";
+import { igSourceConfigured } from "./igSource";
 import { qualifyAvailable } from "./igQualify";
 import { discoverHashtag } from "./igDiscover";
 import { qualifyRun, QUALIFY_RUN_CAP } from "./igQualifyRun";
@@ -332,8 +332,10 @@ export interface HuntTarget {
 
 export interface RefillResult {
   ran: boolean;
-  /** « qualify » = tri IA du stock déjà scrapé ; « scan » = nouveau hashtag Apify. */
+  /** « qualify » = tri IA du stock déjà scrapé ; « scan » = nouveau hashtag scrapé. */
   mode?: "qualify" | "scan";
+  /** Source ayant servi le scan — absent tant que c'est Apify (le cas nominal). */
+  source?: string;
   reason?: string;
   metier?: string;
   hashtag?: string;
@@ -430,14 +432,16 @@ export async function refillStock(now = new Date()): Promise<RefillResult> {
   }
 
   // 2) Plus rien à trier : on repart en chasse sur un hashtag jamais scanné.
-  if (!apifyConfigured) return { ran: false, reason: "stock trié en totalité et APIFY_TOKEN manquant — scan impossible." };
+  if (!igSourceConfigured) return { ran: false, reason: "stock trié en totalité et aucune source configurée (APIFY_TOKEN / RAPIDAPI_KEY) — scan impossible." };
 
   for (const t of targets) {
     const hashtag = await nextUnusedHashtag(t.metier);
     if (!hashtag) continue;
 
-    // Apify peut refuser (quota mensuel épuisé → 403). Ça ne doit PAS faire
-    // tomber le cron du matin : on remonte la raison, le récap Telegram la dira.
+    // igSource bascule tout seul sur les relais RapidAPI si Apify refuse (quota
+    // mensuel épuisé → 402/403). Il ne lève que si TOUTE la chaîne est à terre —
+    // ça ne doit pas faire tomber le cron du matin : on remonte la raison, le
+    // récap Telegram la dira.
     let scan;
     try {
       scan = await discoverHashtag({ hashtag, target: 100 });
@@ -463,6 +467,9 @@ export async function refillStock(now = new Date()): Promise<RefillResult> {
     return {
       ran: true,
       mode: "scan",
+      // Signalé seulement hors Apify : le récap doit crier quand on tourne sur
+      // un relais gratuit, dont le quota est bien plus court.
+      source: scan.source && scan.source.provider !== "apify" ? scan.source.provider : undefined,
       metier: t.metier,
       hashtag,
       scanned: scan.scanned,
