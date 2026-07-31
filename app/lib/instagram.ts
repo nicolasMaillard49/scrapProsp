@@ -446,10 +446,11 @@ export function instagramDmMsg(p: IgDmInput, demoLink: string): IgDmVariants {
 /* ────────────────────────────────────────────────────────────
  * Séquence DM « trame de prospection » (méthode organique) :
  * accroche → présentation en 3 messages → connexion → focus → douleur →
- * proposition d'appel (l'aperçu démo sert de ressource) → questionnaire.
+ * proposition d'appel → questionnaire.
  * Règles de forme respectées : messages courts et découpés, question à
- * chaque fin, AUCUN lien avant l'accord (le lien démo n'arrive qu'à la
- * proposition d'appel, le questionnaire après le « oui »).
+ * chaque fin, AUCUNE ressource envoyée en DM — pas d'aperçu de site, pas
+ * d'exemple, pas de lien démo : le seul lien de la trame est le
+ * questionnaire de M9, une fois le « oui » obtenu.
  * ──────────────────────────────────────────────────────────── */
 
 /** Lien du questionnaire pré-appel (formulaire de diagnostic NMF). */
@@ -513,7 +514,9 @@ export interface IgDmStep {
 /**
  * Construit la séquence complète de messages (9 étapes + 3 relances),
  * à copier une par une selon les réponses du prospect.
- * `demoLink` = aperçu /di/<code> (envoyé SEULEMENT à la proposition d'appel).
+ * `demoLink` (aperçu /di/<code>) n'est PLUS utilisé dans la trame : on
+ * n'envoie aucune ressource en DM, l'aperçu se montre à l'appel. Le
+ * paramètre est conservé pour ne pas casser les appelants.
  * Vouvoiement systématique (décidé le 2026-07-17) : la trame « solo » au
  * tutoiement est supprimée, on ne s'adresse plus qu'en « vous ».
  */
@@ -585,12 +588,11 @@ export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] 
     },
     {
       step: "M8",
-      title: "Proposition d'appel (le lien démo arrive ICI, pas avant)",
+      title: "Proposition d'appel (aucune ressource, aucun exemple de site)",
       text:
         `Ok je vois ! Ce que je peux vous proposer, c'est qu'on se prenne 15-20 min ensemble pour vous partager ` +
-        `les points que j'ai identifiés par rapport à votre présence en ligne, et ce que l'on met en place chez nos clients` +
-        (demoLink ? ` — je vous ai d'ailleurs préparé un aperçu gratuit de ce que ça pourrait donner : ${demoLink}` : "") +
-        `. Est-ce que vous auriez un moment cette semaine ? :)`,
+        `les points que j'ai identifiés par rapport à votre présence en ligne, et ce que l'on met en place chez nos clients. ` +
+        `Est-ce que vous auriez un moment cette semaine ? :)`,
     },
     {
       step: "M9",

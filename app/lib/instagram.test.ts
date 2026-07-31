@@ -70,7 +70,7 @@ test("prospectScore: cumul des signaux + tiers", () => {
   assert.deepEqual(cold, { score: 0, tier: "cold" });
 });
 
-test("instagramDmSequence: trame complète, aucun lien avant M8, questionnaire en M9", () => {
+test("instagramDmSequence: trame complète, aucune ressource en DM, questionnaire en M9", () => {
   const demo = "https://x.fr/di/abc";
   const steps = instagramDmSequence(
     { metier: "menuisier", ville: "Angers", firstName: "Karim" },
@@ -78,12 +78,13 @@ test("instagramDmSequence: trame complète, aucun lien avant M8, questionnaire e
   );
   assert.equal(steps.length, 12); // M1-M9 + R1-R3
   assert.deepEqual(steps.slice(0, 3).map((s) => s.step), ["M1", "M2", "M3"]);
-  // Règle de la méthode : AUCUN lien avant la proposition d'appel (M8).
-  for (const s of steps.filter((x) => ["M1", "M2", "M3", "M4", "M5", "M6", "M7"].includes(x.step))) {
+  // Règle de la méthode : AUCUNE ressource en DM — le questionnaire de M9 est le seul lien.
+  for (const s of steps.filter((x) => x.step !== "M9")) {
     assert.ok(!/https?:\/\//.test(s.text), `${s.step} ne doit contenir aucun lien`);
   }
-  // M8 porte l'aperçu démo, M9 le questionnaire.
-  assert.ok(steps.find((s) => s.step === "M8")!.text.includes(demo));
+  // L'aperçu démo ne part jamais en DM, même quand on le fournit.
+  assert.ok(!steps.some((s) => s.text.includes(demo)));
+  assert.ok(!steps.find((s) => s.step === "M8")!.text.includes("aperçu"));
   assert.ok(steps.find((s) => s.step === "M9")!.text.includes(QUESTIONNAIRE_URL));
   // Personnalisation : prénom + métier naturel dans l'accroche, avatar artisan dans la présentation.
   assert.ok(steps[0].text.startsWith("Hello Karim"));
@@ -99,7 +100,7 @@ test("instagramDmSequence: sans prénom ni démo, variante plateforme de résa",
     "",
   );
   assert.ok(steps[0].text.startsWith("Hello !"));
-  assert.ok(!steps.find((s) => s.step === "M8")!.text.includes("http")); // pas de démo → pas de lien
+  assert.ok(!steps.find((s) => s.step === "M8")!.text.includes("http")); // la proposition d'appel ne porte aucun lien
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("Planity"));
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("RDV")); // vocabulaire salon
 });
