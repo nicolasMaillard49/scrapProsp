@@ -375,24 +375,21 @@ export default function InstagramPage() {
       setSelection(json.selection as DailySelection);
       const r = json.refill as {
         ran: boolean;
-        mode?: "qualify" | "resolve" | "collect";
         reason?: string;
-        hashtag?: string;
-        metier?: string;
-        inserted?: number;
-        processed?: number;
-        qualified?: number;
-        pending?: number;
-        queued?: number;
+        steps: { mode?: string }[];
+        inserted: number;
+        qualified: number;
+        shortfallBefore: number;
+        shortfallAfter: number;
+        stopped: string;
       };
       setSelMsg(
         !r.ran
           ? `Rien à faire — ${r.reason}`
-          : r.mode === "qualify"
-            ? `Tri IA du stock ${r.metier} : ${r.processed} comptes passés en revue, ${r.qualified} retenus.`
-            : r.mode === "resolve"
-              ? `${r.inserted} profils récupérés (${r.metier}), ${r.qualified} retenus par l'IA. ${r.pending} comptes encore en file — reclique pour continuer.`
-              : `#${r.hashtag} (${r.metier}) : ${r.queued} comptes repérés et mis en file. Reclique pour récupérer leurs profils.`,
+          : `${r.inserted} profils récupérés, ${r.qualified} retenus par l'IA en ${r.steps.length} étape(s). ` +
+            (r.shortfallAfter === 0
+              ? "Sélection complète ✅"
+              : `Créneaux non pourvus : ${r.shortfallBefore} → ${r.shortfallAfter} (${r.stopped}) — reclique pour continuer.`),
       );
     } catch (e) {
       setSelMsg(e instanceof Error ? e.message : String(e));

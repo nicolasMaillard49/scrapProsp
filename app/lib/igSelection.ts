@@ -330,6 +330,22 @@ export interface HuntTarget {
   last_scan_at: string | null;
 }
 
+/** Bilan d'un refill complet : ce qui a été fait, marche par marche. */
+export interface RefillRun {
+  ran: boolean;
+  reason?: string;
+  /** Détail de chaque marche franchie, dans l'ordre. */
+  steps: RefillResult[];
+  /** Cumuls, pour l'affichage. */
+  inserted: number;
+  qualified: number;
+  /** Créneaux qu'il restait à pourvoir au départ, et à l'arrivée. */
+  shortfallBefore: number;
+  shortfallAfter: number;
+  /** Pourquoi on s'est arrêté. */
+  stopped: "sélection pleine" | "plus rien à faire" | "temps écoulé" | "trop de tours";
+}
+
 export interface RefillResult {
   ran: boolean;
   /**
@@ -395,7 +411,72 @@ async function unqualifiedCount(metier: string): Promise<number> {
  * Appelé par le cron du matin quand la sélection n'a pas pu être remplie, ou à
  * la main depuis le cockpit.
  */
-export async function refillStock(now = new Date()): Promise<RefillResult> {
+/**
+ * Recharge la sélection EN UN SEUL APPEL : enchaîne les marches jusqu'à ce que
+ * les créneaux soient pourvus.
+ *
+ * Chaque marche prise isolément ne fait qu'un pas (trier un lot, résoudre un
+ * lot, repérer un hashtag) ; il en faut plusieurs pour transformer des pistes
+ * brutes en prospects sélectionnables. Laisser l'utilisateur recliquer entre
+ * chaque était la vraie friction : le cockpit annonçait « plus assez de comptes
+ * qualifiés » sans dire que 97 pistes attendaient juste d'être traitées.
+ *
+ * Bornes : le budget temps reste largement sous le maxDuration de 300 s des
+ * routes, et le nombre de tours évite qu'une étape stérile ne boucle.
+ */
+const REFILL_BUDGET_MS = Math.max(30_000, Number(process.env.IG_REFILL_BUDGET_MS) || 200_000);
+const REFILL_MAX_STEPS = Math.max(1, Number(process.env.IG_REFILL_MAX_STEPS) || 8);
+
+export async function refillStock(now = new Date()): Promise<RefillRun> {
+  const started = Date.now();
+  const before = await ensureDailySelection(undefined, now);
+  const steps: RefillResult[] = [];
+  let stopped: RefillRun["stopped"] = "trop de tours";
+  let shortfall = before.shortfall;
+
+  if (!shortfall) {
+    return { ran: false, reason: "Sélection déjà complète.", steps, inserted: 0, qualified: 0, shortfallBefore: 0, shortfallAfter: 0, stopped: "sélection pleine" };
+  }
+
+  for (let i = 0; i < REFILL_MAX_STEPS; i++) {
+    if (Date.now() - started > REFILL_BUDGET_MS) {
+      stopped = "temps écoulé";
+      break;
+    }
+    const step = await refillStep(now);
+    if (!step.ran) {
+      // Plus aucune marche disponible : on garde la raison pour l'afficher.
+      steps.push(step);
+      stopped = "plus rien à faire";
+      break;
+    }
+    steps.push(step);
+
+    // Une collecte ne crée aucun prospect : inutile de recompter la sélection,
+    // elle ne peut pas avoir bougé.
+    if (step.mode === "collect") continue;
+
+    shortfall = (await ensureDailySelection(undefined, now)).shortfall;
+    if (!shortfall) {
+      stopped = "sélection pleine";
+      break;
+    }
+  }
+
+  const ran = steps.some((s) => s.ran);
+  return {
+    ran,
+    reason: ran ? undefined : steps.find((s) => !s.ran)?.reason,
+    steps,
+    inserted: steps.reduce((n, s) => n + (s.inserted ?? 0), 0),
+    qualified: steps.reduce((n, s) => n + (s.qualified ?? 0), 0),
+    shortfallBefore: before.shortfall,
+    shortfallAfter: shortfall,
+    stopped,
+  };
+}
+
+async function refillStep(now = new Date()): Promise<RefillResult> {
   if (!qualifyAvailable()) return { ran: false, reason: "ANTHROPIC_API_KEY manquant — qualification impossible." };
 
   const { data, error } = await supabase

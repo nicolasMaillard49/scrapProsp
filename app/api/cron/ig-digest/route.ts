@@ -30,20 +30,21 @@ async function handle(req: NextRequest) {
     let selection = await ensureDailySelection();
     let refillNote: string | undefined;
 
-    // Stock épuisé → on trie d'abord ce qui dort en base, et seulement ensuite
-    // on paie un nouveau scan (voir refillStock ; la source est choisie par
-    // igSource, Apify puis relais RapidAPI).
+    // Stock épuisé → refillStock enchaîne les marches (trier le stock, résoudre
+    // des pistes, repérer un hashtag) jusqu'à pourvoir les créneaux ou épuiser
+    // son budget temps. La source est choisie par igSource (Apify puis relais).
     if (selection.shortfall > 0 && !dry) {
       const refill = await refillStock();
-      refillNote = !refill.ran
-        ? `Rien à faire : ${refill.reason}`
-        : refill.mode === "qualify"
-          ? `Tri IA du stock ${refill.metier} : ${refill.processed} passés en revue, ${refill.qualified} retenus.`
-          : refill.mode === "resolve"
-            ? `Profils récupérés (${refill.metier}) : ${refill.inserted} nouveaux, ${refill.qualified} retenus. ${refill.pending} en file.`
-            : `Repérage #${refill.hashtag} (${refill.metier}) : ${refill.queued} comptes mis en file.` +
-              (refill.source ? ` ⚠️ Apify indisponible — relais « ${refill.source} » (quota gratuit, court).` : "");
-      if (refill.ran) selection = await ensureDailySelection();
+      if (!refill.ran) {
+        refillNote = `Rien à faire : ${refill.reason}`;
+      } else {
+        const relais = refill.steps.find((s) => s.source)?.source;
+        refillNote =
+          `Refill en ${refill.steps.length} étape(s) : ${refill.inserted} profils récupérés, ${refill.qualified} retenus par l'IA. ` +
+          `Créneaux non pourvus ${refill.shortfallBefore} → ${refill.shortfallAfter} (${refill.stopped}).` +
+          (relais ? ` ⚠️ Apify indisponible — relais « ${relais} ».` : "");
+        selection = await ensureDailySelection();
+      }
     }
 
     const digest: DigestSelection = {
