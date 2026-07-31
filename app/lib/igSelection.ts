@@ -317,6 +317,43 @@ export async function skipSelection(prospectId: string, reason: string | null, n
   if (error) throw new Error(error.message);
 }
 
+/**
+ * ANNULE une accroche déjà marquée « envoyée » et sort le prospect de la
+ * journée, sans laisser de trace dans les compteurs.
+ *
+ * Le besoin vient du terrain : « Prendre contact » ouvre Instagram et marque le
+ * DM comme parti, mais on découvre parfois APRÈS coup que le compte est
+ * inatteignable (DM fermés, compte suspendu) ou déjà démarché hors outil — le
+ * cas `crea_ton_paysage_`, contacté à la main le 21/07 sans que la base le
+ * sache, donc reproposé le 31/07. Sans annulation, ces faux positifs gonflent
+ * les KPI d'accroches et faussent le taux de réponse.
+ *
+ * On efface donc le DM du journal et on remet le prospect dans l'état d'avant,
+ * plutôt que de simplement le masquer.
+ */
+export async function cancelContact(prospectId: string, reason: string | null, now = new Date()): Promise<void> {
+  // 1) Le journal des DM sortants alimente les KPI : c'est lui qu'il faut purger.
+  const { error: logErr } = await supabase.from("ig_dm_log").delete().eq("prospect_id", prospectId);
+  if (logErr) throw new Error(`journal DM : ${logErr.message}`);
+
+  // 2) Le prospect redevient non démarché. `status: "todo"` le rendrait à
+  //    nouveau sélectionnable : on le passe en `skipped` pour qu'il sorte du
+  //    circuit sans revenir demain.
+  const { error: proErr } = await supabase
+    .from("instagram_prospects")
+    .update({ status: "skipped", stage: null, last_dm_at: null, followup_count: 0, next_followup_at: null })
+    .eq("id", prospectId);
+  if (proErr) throw new Error(`prospect : ${proErr.message}`);
+
+  // 3) La ligne du jour passe d'« envoyée » à « écartée » — elle reste visible,
+  //    grisée, mais ne compte plus comme une accroche.
+  const { error: selErr } = await supabase
+    .from("ig_daily_selection")
+    .update({ done_at: null, skipped_at: now.toISOString(), skip_reason: reason ?? "contact annulé" })
+    .eq("prospect_id", prospectId);
+  if (selErr) throw new Error(`sélection : ${selErr.message}`);
+}
+
 /* ────────────────────────────────────────────────────────────
  * Refill : quand le stock qualifié ne suffit plus, on repart en chasse.
  * ──────────────────────────────────────────────────────────── */

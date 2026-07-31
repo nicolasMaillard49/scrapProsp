@@ -357,6 +357,28 @@ export default function InstagramPage() {
     [activeAccount],
   );
 
+  /**
+   * Annule une accroche déjà marquée envoyée : purge le DM du journal (donc des
+   * KPI) et sort le prospect du circuit. Pour les comptes qu'on découvre
+   * injoignables ou déjà démarchés à la main APRÈS avoir cliqué « Prendre
+   * contact » — sans ça, ces faux positifs gonflent le taux d'accroche.
+   */
+  const cancelFromSelection = useCallback(
+    async (prospectId: string) => {
+      const res = await fetch("/api/instagram/selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", prospect_id: prospectId, account_id: activeAccount || undefined }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setSelection(json.selection as DailySelection);
+        setSelMsg("Contact annulé : le DM est retiré des stats et le prospect sort du circuit.");
+      } else setSelMsg(json.error ?? `Erreur ${res.status}`);
+    },
+    [activeAccount],
+  );
+
   /** Stock épuisé → scan d'un hashtag jamais utilisé + qualification IA, puis complétion. */
   const refillSelection = useCallback(async () => {
     setRefilling(true);
@@ -1400,6 +1422,7 @@ export default function InstagramPage() {
               onRefill={refillSelection}
               onReload={loadSelection}
               onSkip={skipFromSelection}
+              onCancel={cancelFromSelection}
               cardProps={{
                 origin,
                 activeAccount,
@@ -2161,6 +2184,7 @@ function SelectionView({
   onRefill,
   onReload,
   onSkip,
+  onCancel,
   cardProps,
 }: {
   selection: DailySelection | null;
@@ -2170,6 +2194,8 @@ function SelectionView({
   onRefill: () => void;
   onReload: () => void;
   onSkip: (id: string) => void;
+  /** Annule une accroche deja envoyee (purge le DM des KPI). */
+  onCancel: (id: string) => void;
   cardProps: PipelineCardHandlers;
 }) {
   if (loading && !selection) {
@@ -2274,9 +2300,21 @@ function SelectionView({
               <div key={r.prospect_id} className={traite ? "opacity-45" : ""}>
                 <div className="mb-1 flex items-center gap-1.5 px-1 text-[10.5px] text-[var(--color-text-muted)]">
                   {r.done_at ? (
-                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                      <Check className="w-3 h-3" /> Accroche envoyée
-                    </span>
+                    <>
+                      <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                        <Check className="w-3 h-3" /> Accroche envoyée
+                      </span>
+                      {/* Reste cliquable sur une carte grisée : on découvre parfois
+                          APRÈS le clic que le compte est injoignable ou déjà
+                          démarché à la main. Sans ça, le faux positif gonfle les KPI. */}
+                      <button
+                        onClick={() => onCancel(r.prospect_id)}
+                        title="Annuler : retire ce DM des statistiques et sort le prospect du circuit"
+                        className="ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium text-[var(--color-text-muted)] hover:text-red-600 dark:hover:text-red-400 hover:bg-red-500/10 cursor-pointer transition-colors"
+                      >
+                        <XCircle className="w-3 h-3" /> Annuler
+                      </button>
+                    </>
                   ) : r.skipped_at ? (
                     <span className="inline-flex items-center gap-1 font-medium">
                       <XCircle className="w-3 h-3" /> Écarté
