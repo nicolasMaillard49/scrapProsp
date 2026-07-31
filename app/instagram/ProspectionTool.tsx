@@ -105,11 +105,14 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
         }
         setLeads(json.status as LeadsStatus);
         if (action === "collect") {
-          const r = json.result as { hashtag: string; queued: number; known: number };
+          const r = json.result as { hashtag: string; queued: number; known: number; resumedFrom?: string | null; exhausted?: boolean };
+          const reprise = r.resumedFrom ? " (reprise là où on s'était arrêté)" : "";
           setHuntMsg(
-            r.queued
-              ? `#${r.hashtag} : ${r.queued} comptes ajoutés à la file. Clique « Récupérer les profils » pour les traiter.`
-              : `#${r.hashtag} : rien de neuf (${r.known} comptes déjà connus). Relance pour passer au hashtag suivant.`,
+            r.exhausted
+              ? `#${r.hashtag} : flux terminé, ce hashtag ne sera plus proposé. ${r.queued} comptes ajoutés.`
+              : r.queued
+                ? `#${r.hashtag}${reprise} : ${r.queued} comptes ajoutés à la file. Clique « Récupérer les profils » pour les traiter.`
+                : `#${r.hashtag}${reprise} : ${r.known} comptes déjà connus, rien de neuf sur cette page. Relance — on repartira plus loin dans le hashtag.`,
           );
         } else {
           const r = json.result as { inserted: number; failed: number; pending: number };

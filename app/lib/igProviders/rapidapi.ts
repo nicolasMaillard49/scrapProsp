@@ -10,7 +10,7 @@
 // `ig_user_id` en amont (voir igSource.ts) : sans elle un seul scan brûlerait
 // le quota mensuel à re-résoudre des comptes déjà en base.
 
-import { ProviderError, type FailureKind, type HashtagCandidate, type IgProfile, type IgProvider } from "./types";
+import { ProviderError, type FailureKind, type HashtagCandidate, type HashtagPage, type IgProfile, type IgProvider } from "./types";
 
 const KEY = process.env.RAPIDAPI_KEY ?? "";
 
@@ -189,37 +189,54 @@ export const looterProvider: IgProvider = {
   name: LOOTER,
   configured: !!KEY,
 
-  async hashtagCandidates(hashtag: string, limit: number): Promise<HashtagCandidate[]> {
+  /**
+   * `startCursor` reprend la lecture là où la passe précédente s'est arrêtée.
+   * Sans lui, chaque scan relit les mêmes posts récents : #coiffeur a 2 millions
+   * de posts, on en lit 30 — un hashtag ne s'épuise qu'en le parcourant, pas en
+   * l'ouvrant une fois.
+   */
+  async hashtagCandidates(hashtag: string, limit: number, startCursor?: string | null): Promise<HashtagPage> {
     const tag = hashtag.replace(/^#/, "").trim();
     const seen = new Set<string>();
-    const out: HashtagCandidate[] = [];
-    let cursor: string | null = null;
+    const candidates: HashtagCandidate[] = [];
+    let cursor: string | null = startCursor ?? null;
+    let exhausted = false;
 
     // ~30 posts par page ; on s'arrête dès qu'on a de quoi couvrir `limit`.
-    // Un petit hashtag tourne vite en rond (les pages suivantes ne ramènent que
-    // des comptes déjà vus) : deux pages stériles d'affilée et on arrête, sinon
-    // on paie 12 requêtes pour 0 piste — vu sur #menuisierfrance, 113 s perdues.
+    // Une page peut n'apporter aucun compte neuf (plusieurs posts du même
+    // auteur) : on continue d'avancer, mais deux pages stériles d'affilée
+    // suffisent à rendre la main — le curseur atteint est conservé, donc rien
+    // n'est perdu, la prochaine passe reprendra plus loin.
     let barren = 0;
-    for (let page = 0; page < 12 && out.length < limit && barren < 2; page++) {
-      const before = out.length;
+    for (let page = 0; page < 12 && candidates.length < limit && barren < 2; page++) {
+      const before = candidates.length;
       const qs = `/tag-feeds?query=${encodeURIComponent(tag)}${cursor ? `&end_cursor=${encodeURIComponent(cursor)}` : ""}`;
       const body = (await call(LOOTER, LOOTER_HOST, qs)) as {
         data?: { hashtag?: { edge_hashtag_to_media?: LooterEdges<{ owner?: { id?: string } }> } };
       };
       const media = body?.data?.hashtag?.edge_hashtag_to_media;
       const edges = media?.edges ?? [];
-      if (!edges.length) break;
+      if (!edges.length) {
+        exhausted = true;
+        break;
+      }
       for (const e of edges) {
         const id = str(e.node?.owner?.id);
         if (!id || seen.has(id)) continue;
         seen.add(id);
-        out.push({ igUserId: id });
+        candidates.push({ igUserId: id });
       }
-      barren = out.length > before ? 0 : barren + 1;
-      cursor = media?.page_info?.has_next_page ? str(media.page_info?.end_cursor) : null;
-      if (!cursor) break;
+      barren = candidates.length > before ? 0 : barren + 1;
+
+      const next = media?.page_info?.has_next_page ? str(media.page_info?.end_cursor) : null;
+      if (!next) {
+        // Fin réelle du flux : le hashtag est allé jusqu'au bout.
+        exhausted = true;
+        break;
+      }
+      cursor = next;
     }
-    return out;
+    return { candidates, nextCursor: exhausted ? null : cursor, exhausted };
   },
 
   profilesByUsername: (usernames) => looterProfiles("username", usernames),

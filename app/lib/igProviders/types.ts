@@ -64,16 +64,32 @@ export interface HashtagCandidate {
   username?: string | null;
 }
 
+/**
+ * Une passe de lecture d'un hashtag, avec de quoi reprendre la suivante.
+ *
+ * Un hashtag populaire contient des millions de posts et on n'en lit que
+ * quelques dizaines : sans point de reprise, chaque scan relit les mêmes posts
+ * récents et le hashtag paraît « épuisé » après une seule passe.
+ */
+export interface HashtagPage {
+  candidates: HashtagCandidate[];
+  /** À repasser au prochain scan pour continuer. null = pas de reprise possible. */
+  nextCursor: string | null;
+  /** true = le fournisseur a annoncé la fin du flux : inutile d'y revenir. */
+  exhausted: boolean;
+}
+
 export interface IgProvider {
   /** Identifiant stable, utilisé dans les logs, l'ordre de priorité et l'état persisté. */
   readonly name: string;
   /** false = credentials absents → le provider est ignoré sans être marqué en panne. */
   readonly configured: boolean;
   /**
-   * Comptes ayant posté sous un hashtag. `limit` = nombre de posts à scanner.
+   * Comptes ayant posté sous un hashtag. `limit` = nombre de posts à scanner,
+   * `cursor` = point de reprise rendu par la passe précédente.
    * Absent = le provider ne sait pas découvrir (profils uniquement).
    */
-  hashtagCandidates?(hashtag: string, limit: number): Promise<HashtagCandidate[]>;
+  hashtagCandidates?(hashtag: string, limit: number, cursor?: string | null): Promise<HashtagPage>;
   /** Profils détaillés depuis des usernames. */
   profilesByUsername(usernames: string[]): Promise<IgProfile[]>;
   /**

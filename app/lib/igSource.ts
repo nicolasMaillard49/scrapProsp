@@ -15,7 +15,7 @@ import { supabase, supabaseConfigured } from "./supabase";
 import { apifyProvider } from "./igProviders/apify";
 import { looterProvider, stableProvider } from "./igProviders/rapidapi";
 import { disabledProviders, markFailure, markSuccess } from "./igProviders/state";
-import { ProviderError, type HashtagCandidate, type IgProfile, type IgProvider } from "./igProviders/types";
+import { ProviderError, type HashtagPage, type IgProfile, type IgProvider } from "./igProviders/types";
 
 export type { IgProfile } from "./igProviders/types";
 
@@ -156,6 +156,10 @@ export interface HashtagSource {
    * paie aucune résolution et on ne récupère que ça.
    */
   candidateIds: string[];
+  /** Point de reprise à rejouer au prochain scan de ce hashtag. */
+  nextCursor: string | null;
+  /** true = flux du hashtag arrivé à son terme, inutile d'y revenir. */
+  exhausted: boolean;
   /** Provider ayant fourni les candidats. */
   provider: string;
   /** Provider ayant résolu les ids en usernames (RapidAPI uniquement). */
@@ -196,14 +200,20 @@ async function knownByIgUserId(ids: string[]): Promise<Map<string, string>> {
  * IG_RESOLVE_CAP — les profils obtenus au passage sont mis en cache pour que
  * l'étape suivante (fetchProfiles) ne les repaie pas.
  */
-export async function discoverHashtagUsernames(hashtag: string, limit: number, opts?: { resolveCap?: number }): Promise<HashtagSource> {
+export async function discoverHashtagUsernames(
+  hashtag: string,
+  limit: number,
+  opts?: { resolveCap?: number; cursor?: string | null },
+): Promise<HashtagSource> {
   const cap = opts?.resolveCap ?? resolveCap();
-  const { value: candidates, provider, attempts } = await runChain<HashtagCandidate[]>(
+  const { value: page, provider, attempts } = await runChain<HashtagPage>(
     `hashtag #${hashtag}`,
     (p) => typeof p.hashtagCandidates === "function",
-    (p) => p.hashtagCandidates!(hashtag, limit),
-    (v) => v.length === 0,
+    (p) => p.hashtagCandidates!(hashtag, limit, opts?.cursor ?? null),
+    (v) => v.candidates.length === 0,
   );
+  const candidates = page.candidates;
+  const cursorInfo = { nextCursor: page.nextCursor, exhausted: page.exhausted };
 
   const direct: string[] = [];
   const ids: string[] = [];
@@ -212,7 +222,7 @@ export async function discoverHashtagUsernames(hashtag: string, limit: number, o
     else if (c.igUserId) ids.push(c.igUserId);
   }
   if (!ids.length) {
-    return { usernames: direct, candidateIds: [], provider, reused: 0, resolved: 0, capped: false, attempts };
+    return { usernames: direct, candidateIds: [], ...cursorInfo, provider, reused: 0, resolved: 0, capped: false, attempts };
   }
 
   const known = await knownByIgUserId(ids);
@@ -243,6 +253,7 @@ export async function discoverHashtagUsernames(hashtag: string, limit: number, o
   return {
     usernames: usernames.filter((u) => u && !seen.has(u) && (seen.add(u), true)),
     candidateIds: ids,
+    ...cursorInfo,
     provider,
     resolver,
     reused: known.size,

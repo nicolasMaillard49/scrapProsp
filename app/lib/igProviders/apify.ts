@@ -3,7 +3,7 @@
 //  - apify/instagram-profile-scraper : usernames -> profils (bio, externalUrl, followers, catégorie)
 // Token serveur uniquement : APIFY_TOKEN (jamais exposé au navigateur).
 
-import { ProviderError, type HashtagCandidate, type IgProfile, type IgProvider } from "./types";
+import { ProviderError, type HashtagCandidate, type HashtagPage, type IgProfile, type IgProvider } from "./types";
 
 const TOKEN = process.env.APIFY_TOKEN ?? "";
 const BASE = "https://api.apify.com/v2/acts";
@@ -58,7 +58,14 @@ export const apifyProvider: IgProvider = {
   name: NAME,
   configured: !!TOKEN,
 
-  async hashtagCandidates(hashtag: string, limit: number): Promise<HashtagCandidate[]> {
+  /**
+   * L'actor ne prend pas de curseur : il repart toujours des posts les plus
+   * récents. Le paramètre est donc ignoré, et on ne déclare jamais le hashtag
+   * épuisé — de nouveaux posts apparaissent en permanence, y revenir plus tard
+   * a du sens. La dédup en aval (par username et par ig_user_id) absorbe les
+   * comptes déjà vus.
+   */
+  async hashtagCandidates(hashtag: string, limit: number): Promise<HashtagPage> {
     const tag = hashtag.replace(/^#/, "").trim();
     const posts = await runActorSync<IgPost>("apify~instagram-hashtag-scraper", {
       hashtags: [tag],
@@ -66,14 +73,14 @@ export const apifyProvider: IgProvider = {
       resultsLimit: limit,
     });
     const seen = new Set<string>();
-    const out: HashtagCandidate[] = [];
+    const candidates: HashtagCandidate[] = [];
     for (const p of posts) {
       const u = p.ownerUsername?.trim();
       if (!u || seen.has(u)) continue;
       seen.add(u);
-      out.push({ username: u, igUserId: p.ownerId != null ? String(p.ownerId) : null });
+      candidates.push({ username: u, igUserId: p.ownerId != null ? String(p.ownerId) : null });
     }
-    return out;
+    return { candidates, nextCursor: null, exhausted: false };
   },
 
   async profilesByUsername(usernames: string[]): Promise<IgProfile[]> {

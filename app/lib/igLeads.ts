@@ -55,9 +55,15 @@ export interface CollectResult {
   found: number;
   /** Nouvelles, réellement mises en file. */
   queued: number;
-  /** Déjà connues (en file ou déjà prospects) — le signe qu'il faut changer de hashtag. */
+  /** Déjà connues (en file ou déjà prospects). */
   known: number;
   provider: string;
+  /** Curseur d'où cette passe est repartie (null = début du flux). */
+  resumedFrom?: string | null;
+  /** Curseur à rejouer la prochaine fois. */
+  nextCursor?: string | null;
+  /** true = flux terminé, ce hashtag ne sera plus proposé. */
+  exhausted?: boolean;
 }
 
 export interface ResolveResult {
@@ -75,23 +81,43 @@ export interface ResolveResult {
  * ──────────────────────────────────────────────────────────── */
 
 /**
- * Prochain hashtag jamais exploité de la bibliothèque du métier.
+ * Prochain hashtag à scanner pour ce métier — par ROTATION, pas par
+ * consommation.
  *
- * On exclut ceux déjà vus côté prospects ET côté file : un hashtag collecté
- * mais pas encore résolu n'a produit aucun prospect, il serait donc re-choisi
- * indéfiniment si on ne regardait que `instagram_prospects`.
+ * Un hashtag n'est plus jeté après une passe : on garde son curseur et on y
+ * revient plus tard, là où on s'était arrêté. L'ordre est donc : les jamais
+ * scannés d'abord (matière neuve), puis le plus anciennement scanné. Seuls les
+ * hashtags dont le fournisseur a annoncé la fin du flux sortent définitivement.
  */
 export async function nextHashtagFor(metier: string): Promise<string | null> {
   const tags = generateMetierHashtags(metier, { includeTransversal: false }).map((r) => r.hashtag);
   if (!tags.length) return null;
-  const [{ data: fromProspects }, { data: fromLeads }] = await Promise.all([
-    supabase.from("instagram_prospects").select("hashtag_source").in("hashtag_source", tags).limit(10_000),
-    supabase.from("ig_leads").select("hashtag_source").in("hashtag_source", tags).limit(10_000),
-  ]);
-  const used = new Set<string>();
-  for (const r of fromProspects ?? []) used.add(r.hashtag_source as string);
-  for (const r of fromLeads ?? []) used.add(r.hashtag_source as string);
-  return tags.find((h) => !used.has(h)) ?? null;
+
+  const { data, error } = await supabase
+    .from("ig_hashtag_cursors")
+    .select("hashtag, exhausted, last_scan_at")
+    .in("hashtag", tags);
+  if (error) {
+    // Migration 022 non appliquée : on retombe sur le comportement d'avant.
+    console.error("[igLeads] rotation des hashtags indisponible:", error.message);
+    return tags[0] ?? null;
+  }
+
+  const known = new Map((data ?? []).map((r) => [r.hashtag as string, r]));
+  const virgin = tags.find((h) => !known.has(h));
+  if (virgin) return virgin;
+
+  const openable = tags
+    .map((h) => known.get(h)!)
+    .filter((r) => !r.exhausted)
+    .sort((a, b) => String(a.last_scan_at ?? "").localeCompare(String(b.last_scan_at ?? "")));
+  return (openable[0]?.hashtag as string) ?? null;
+}
+
+/** Point de reprise mémorisé pour ce hashtag (null = repartir du début). */
+async function cursorOf(hashtag: string): Promise<string | null> {
+  const { data } = await supabase.from("ig_hashtag_cursors").select("cursor").eq("hashtag", hashtag).maybeSingle();
+  return (data?.cursor as string) ?? null;
 }
 
 /**
@@ -103,14 +129,29 @@ export async function collectLeads(hashtag: string, metier: string | null = null
   if (!tag) throw new Error("hashtag requis");
 
   // resolveCap 0 : on veut les ids bruts, surtout pas payer la résolution ici.
-  const src = await discoverHashtagUsernames(tag, limit, { resolveCap: 0 });
+  // Le curseur reprend la lecture où la passe précédente s'est arrêtée.
+  const from = await cursorOf(tag);
+  const src = await discoverHashtagUsernames(tag, limit, { resolveCap: 0, cursor: from });
   const ids = src.candidateIds ?? [];
   // Apify, lui, donne les usernames directement : ces comptes n'ont pas besoin
   // de la file, ils vont droit en résolution par username.
   if (!ids.length && src.usernames.length) {
     await persistQuota();
     const inserted = await insertProfiles(src.usernames, tag, metier);
-    return { hashtag: tag, metier, found: src.usernames.length, queued: inserted, known: src.usernames.length - inserted, provider: src.provider };
+    // Pas de curseur chez Apify, mais on horodate quand même : sans ça le
+    // hashtag resterait « jamais scanné » et la rotation le rejouerait sans fin.
+    await saveCursor(tag, metier, null, false, inserted);
+    return {
+      hashtag: tag,
+      metier,
+      found: src.usernames.length,
+      queued: inserted,
+      known: src.usernames.length - inserted,
+      provider: src.provider,
+      resumedFrom: from,
+      nextCursor: null,
+      exhausted: false,
+    };
   }
 
   await persistQuota();
@@ -122,7 +163,49 @@ export async function collectLeads(hashtag: string, metier: string | null = null
     );
     if (error) throw new Error(`mise en file impossible : ${error.message}`);
   }
-  return { hashtag: tag, metier, found: ids.length, queued: fresh.length, known: ids.length - fresh.length, provider: src.provider };
+  await saveCursor(tag, metier, src.nextCursor, src.exhausted, fresh.length);
+  return {
+    hashtag: tag,
+    metier,
+    found: ids.length,
+    queued: fresh.length,
+    known: ids.length - fresh.length,
+    provider: src.provider,
+    resumedFrom: from,
+    nextCursor: src.nextCursor,
+    exhausted: src.exhausted,
+  };
+}
+
+/**
+ * Enregistre le point de reprise. Le compteur de pages et de pistes s'accumule :
+ * il dit ce qu'un hashtag a réellement rapporté, donc lesquels valent la peine.
+ */
+async function saveCursor(
+  hashtag: string,
+  metier: string | null,
+  cursor: string | null,
+  exhausted: boolean,
+  found: number,
+): Promise<void> {
+  const { data: prev } = await supabase
+    .from("ig_hashtag_cursors")
+    .select("pages_done, leads_found")
+    .eq("hashtag", hashtag)
+    .maybeSingle();
+  const { error } = await supabase.from("ig_hashtag_cursors").upsert(
+    {
+      hashtag,
+      metier,
+      cursor,
+      exhausted,
+      pages_done: ((prev?.pages_done as number) ?? 0) + 1,
+      leads_found: ((prev?.leads_found as number) ?? 0) + found,
+      last_scan_at: new Date().toISOString(),
+    },
+    { onConflict: "hashtag" },
+  );
+  if (error) console.error("[igLeads] curseur non enregistré:", error.message);
 }
 
 /** Ids ni déjà en file, ni déjà prospects. */
