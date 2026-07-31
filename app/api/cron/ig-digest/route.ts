@@ -39,8 +39,10 @@ async function handle(req: NextRequest) {
         ? `Rien à faire : ${refill.reason}`
         : refill.mode === "qualify"
           ? `Tri IA du stock ${refill.metier} : ${refill.processed} passés en revue, ${refill.qualified} retenus.`
-          : `Scan #${refill.hashtag} (${refill.metier}) : ${refill.inserted} nouveaux, ${refill.qualified} retenus.` +
-            (refill.source ? ` ⚠️ Apify indisponible — relais « ${refill.source} » (quota gratuit, court).` : "");
+          : refill.mode === "resolve"
+            ? `Profils récupérés (${refill.metier}) : ${refill.inserted} nouveaux, ${refill.qualified} retenus. ${refill.pending} en file.`
+            : `Repérage #${refill.hashtag} (${refill.metier}) : ${refill.queued} comptes mis en file.` +
+              (refill.source ? ` ⚠️ Apify indisponible — relais « ${refill.source} » (quota gratuit, court).` : "");
       if (refill.ran) selection = await ensureDailySelection();
     }
 

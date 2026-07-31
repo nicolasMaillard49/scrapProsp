@@ -21,8 +21,18 @@ export type { IgProfile } from "./igProviders/types";
 
 const ALL: IgProvider[] = [apifyProvider, looterProvider, stableProvider];
 
-/** Nombre max de profils résolus par scan chez un provider qui ne donne que des ids. */
-const RESOLVE_CAP = Math.max(1, Number(process.env.IG_RESOLVE_CAP) || 60);
+/**
+ * Nombre max de profils résolus par scan chez un provider qui ne donne que des
+ * ids. Relu à chaque appel (et non figé au chargement) pour que `igLeads` puisse
+ * demander 0 résolution — il ne veut que les ids bruts.
+ */
+const resolveCap = () => {
+  const v = Number(process.env.IG_RESOLVE_CAP);
+  // 12 et pas 60 : à ~5 s la résolution, 60 profils = 5 min = le maxDuration
+  // des routes. Le scan direct (`/api/instagram/discover`, mode avancé) doit
+  // rendre la main comme le reste ; pour du volume, c'est la file de pistes.
+  return Number.isFinite(v) && v >= 0 ? v : 12;
+};
 const PROFILE_CACHE_MAX = 800;
 
 /** Au moins une source utilisable : sinon la découverte est impossible. */
@@ -140,6 +150,12 @@ async function runChain<T>(
 
 export interface HashtagSource {
   usernames: string[];
+  /**
+   * Ids Instagram bruts remontés par le feed, résolus ou non. C'est la matière
+   * première de la file de pistes (`igLeads`) : avec IG_RESOLVE_CAP=0 on ne
+   * paie aucune résolution et on ne récupère que ça.
+   */
+  candidateIds: string[];
   /** Provider ayant fourni les candidats. */
   provider: string;
   /** Provider ayant résolu les ids en usernames (RapidAPI uniquement). */
@@ -180,7 +196,8 @@ async function knownByIgUserId(ids: string[]): Promise<Map<string, string>> {
  * IG_RESOLVE_CAP — les profils obtenus au passage sont mis en cache pour que
  * l'étape suivante (fetchProfiles) ne les repaie pas.
  */
-export async function discoverHashtagUsernames(hashtag: string, limit: number): Promise<HashtagSource> {
+export async function discoverHashtagUsernames(hashtag: string, limit: number, opts?: { resolveCap?: number }): Promise<HashtagSource> {
+  const cap = opts?.resolveCap ?? resolveCap();
   const { value: candidates, provider, attempts } = await runChain<HashtagCandidate[]>(
     `hashtag #${hashtag}`,
     (p) => typeof p.hashtagCandidates === "function",
@@ -195,12 +212,12 @@ export async function discoverHashtagUsernames(hashtag: string, limit: number): 
     else if (c.igUserId) ids.push(c.igUserId);
   }
   if (!ids.length) {
-    return { usernames: direct, provider, reused: 0, resolved: 0, capped: false, attempts };
+    return { usernames: direct, candidateIds: [], provider, reused: 0, resolved: 0, capped: false, attempts };
   }
 
   const known = await knownByIgUserId(ids);
   const unknown = ids.filter((id) => !known.has(id));
-  const budget = Math.max(0, Math.min(unknown.length, RESOLVE_CAP, Math.max(limit - direct.length - known.size, 0)));
+  const budget = Math.max(0, Math.min(unknown.length, cap, Math.max(limit - direct.length - known.size, 0)));
   const toResolve = unknown.slice(0, budget);
 
   let resolver: string | undefined;
@@ -225,6 +242,7 @@ export async function discoverHashtagUsernames(hashtag: string, limit: number): 
   const seen = new Set<string>();
   return {
     usernames: usernames.filter((u) => u && !seen.has(u) && (seen.add(u), true)),
+    candidateIds: ids,
     provider,
     resolver,
     reused: known.size,
@@ -244,25 +262,28 @@ export async function fetchHashtagUsernames(hashtag: string, limit: number): Pro
  * ──────────────────────────────────────────────────────────── */
 
 /**
- * Profils détaillés. Les comptes déjà résolus pendant la découverte sont servis
- * depuis le cache — sans quoi un scan via RapidAPI paierait deux fois le même
- * profil (une fois pour le username, une fois pour les détails).
+ * Profils détaillés, par username (défaut) ou par id Instagram.
+ *
+ * Les comptes déjà résolus pendant la découverte sont servis depuis le cache —
+ * sans quoi un scan via RapidAPI paierait deux fois le même profil (une fois
+ * pour le username, une fois pour les détails). Le cache par id n'existe que
+ * pour la durée de l'invocation, comme celui par username.
  */
-export async function fetchProfiles(usernames: string[]): Promise<IgProfile[]> {
-  if (!usernames.length) return [];
+export async function fetchProfiles(keys: string[], by: "username" | "id" = "username"): Promise<IgProfile[]> {
+  if (!keys.length) return [];
   const cached: IgProfile[] = [];
   const missing: string[] = [];
-  for (const u of usernames) {
-    const hit = profileCache.get(u);
+  for (const k of keys) {
+    const hit = by === "username" ? profileCache.get(k) : [...profileCache.values()].find((p) => p.igUserId === k);
     if (hit) cached.push(hit);
-    else missing.push(u);
+    else missing.push(k);
   }
   if (!missing.length) return cached;
 
   const { value } = await runChain<IgProfile[]>(
-    `profils (${missing.length})`,
-    () => true,
-    (p) => p.profilesByUsername(missing),
+    `profils ${by} (${missing.length})`,
+    (p) => (by === "id" ? typeof p.profilesById === "function" : true),
+    (p) => (by === "id" ? p.profilesById!(missing) : p.profilesByUsername(missing)),
   );
   cacheProfiles(value);
   return [...cached, ...value];

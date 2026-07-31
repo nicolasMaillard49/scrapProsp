@@ -106,6 +106,32 @@ export async function markSuccess(provider: string): Promise<void> {
   if (error && (error.code === "42P01" || /does not exist/i.test(error.message))) tableMissing = true;
 }
 
+/**
+ * Quota fournisseur, persisté pour que le cockpit l'affiche dès l'ouverture —
+ * la mémoire d'une invocation Vercel ne survit pas au clic suivant.
+ * Écrit après une opération, jamais à chaque requête (une écriture par appel
+ * de scraping suffit à rester juste).
+ */
+export async function saveQuota(provider: string, q: { limit: number; remaining: number; resetAt: string | null }): Promise<void> {
+  if (!supabaseConfigured || tableMissing) return;
+  const { error } = await supabase.from("ig_provider_state").upsert(
+    { provider, quota_limit: q.limit, quota_remaining: q.remaining, quota_reset_at: q.resetAt, updated_at: new Date().toISOString() },
+    { onConflict: "provider" },
+  );
+  if (error && (error.code === "42P01" || /does not exist/i.test(error.message))) tableMissing = true;
+}
+
+export async function loadQuota(provider: string): Promise<{ limit: number; remaining: number } | null> {
+  if (!supabaseConfigured || tableMissing) return null;
+  const { data, error } = await supabase
+    .from("ig_provider_state")
+    .select("quota_limit, quota_remaining")
+    .eq("provider", provider)
+    .maybeSingle();
+  if (error || !data?.quota_limit) return null;
+  return { limit: data.quota_limit as number, remaining: (data.quota_remaining as number) ?? 0 };
+}
+
 /** Réinitialise le cache mémoire — tests uniquement. */
 export function __resetStateCache(): void {
   memory.clear();

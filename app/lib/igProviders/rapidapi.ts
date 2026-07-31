@@ -45,6 +45,7 @@ async function call(provider: string, host: string, path: string, init?: Request
       headers: { "x-rapidapi-host": host, "x-rapidapi-key": KEY, ...(init?.headers ?? {}) },
       signal: ctrl.signal,
     });
+    readQuota(provider, res.headers);
     const txt = await res.text();
     if (!res.ok) throw classify(provider, res.status, txt);
     try {
@@ -58,6 +59,32 @@ async function call(provider: string, host: string, path: string, init?: Request
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Quota tel que RapidAPI le renvoie — seule source de vérité fiable. */
+export interface ProviderQuota {
+  limit: number;
+  remaining: number;
+  resetAt: string | null;
+}
+
+const quotas = new Map<string, ProviderQuota>();
+
+/** Dernier quota vu pour ce provider (null tant qu'aucun appel n'a eu lieu). */
+export function lastQuota(provider: string): ProviderQuota | null {
+  return quotas.get(provider) ?? null;
+}
+
+function readQuota(provider: string, headers: Headers): void {
+  const limit = Number(headers.get("x-ratelimit-requests-limit"));
+  const remaining = Number(headers.get("x-ratelimit-requests-remaining"));
+  if (!Number.isFinite(limit) || !Number.isFinite(remaining)) return;
+  const resetSec = Number(headers.get("x-ratelimit-requests-reset"));
+  quotas.set(provider, {
+    limit,
+    remaining,
+    resetAt: Number.isFinite(resetSec) ? new Date(Date.now() + resetSec * 1000).toISOString() : null,
+  });
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -169,7 +196,12 @@ export const looterProvider: IgProvider = {
     let cursor: string | null = null;
 
     // ~30 posts par page ; on s'arrête dès qu'on a de quoi couvrir `limit`.
-    for (let page = 0; page < 12 && out.length < limit; page++) {
+    // Un petit hashtag tourne vite en rond (les pages suivantes ne ramènent que
+    // des comptes déjà vus) : deux pages stériles d'affilée et on arrête, sinon
+    // on paie 12 requêtes pour 0 piste — vu sur #menuisierfrance, 113 s perdues.
+    let barren = 0;
+    for (let page = 0; page < 12 && out.length < limit && barren < 2; page++) {
+      const before = out.length;
       const qs = `/tag-feeds?query=${encodeURIComponent(tag)}${cursor ? `&end_cursor=${encodeURIComponent(cursor)}` : ""}`;
       const body = (await call(LOOTER, LOOTER_HOST, qs)) as {
         data?: { hashtag?: { edge_hashtag_to_media?: LooterEdges<{ owner?: { id?: string } }> } };
@@ -183,6 +215,7 @@ export const looterProvider: IgProvider = {
         seen.add(id);
         out.push({ igUserId: id });
       }
+      barren = out.length > before ? 0 : barren + 1;
       cursor = media?.page_info?.has_next_page ? str(media.page_info?.end_cursor) : null;
       if (!cursor) break;
     }

@@ -5,8 +5,8 @@
 // liste des prospects. `onDataChanged` est appelé après un scan ou une
 // qualification pour rafraîchir la liste en dessous.
 
-import { useCallback, useMemo, useState } from "react";
-import { Hash, Loader2, Download, Play, ListChecks, Mail, Globe, Sparkles, Flame } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Hash, Loader2, Download, Play, ListChecks, Mail, Globe, Sparkles, Flame, Radar, UserSearch, Settings2 } from "lucide-react";
 import { toCsv } from "@/app/lib/csv";
 import type { HashtagRow } from "@/app/lib/hashtags";
 
@@ -26,7 +26,15 @@ interface DiscoverResultRow {
   score_tier?: string | null;
 }
 
-const MAX_RUN = 25; // borne dure de hashtags lancés par session (coût Apify)
+const MAX_RUN = 25; // borne dure de hashtags lancés par session (coût de scraping)
+
+interface LeadsStatus {
+  pending: number;
+  resolved: number;
+  abandoned: number;
+  byMetier: { metier: string; pending: number }[];
+  quota: { provider: string; limit: number; remaining: number } | null;
+}
 
 type HashtagMode = "metier" | "villes";
 
@@ -53,6 +61,72 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
   const [maxFollowers, setMaxFollowers] = useState(2500);
   const [qualifying, setQualifying] = useState(false);
   const [qualifyMsg, setQualifyMsg] = useState<string | null>(null);
+
+  // ── Chasse simplifiée (défaut) : 2 boutons, aucun réglage.
+  // La découverte hashtag est bon marché (1 requête ≈ 30 comptes) mais ne donne
+  // que des ids ; la résolution en profils coûte 1 requête chacun. Les coller
+  // dans un même clic faisait dépasser le maxDuration et l'écran restait vide.
+  const [leads, setLeads] = useState<LeadsStatus | null>(null);
+  const [hunting, setHunting] = useState<"collect" | "resolve" | null>(null);
+  const [huntMsg, setHuntMsg] = useState<string | null>(null);
+
+  const loadLeads = useCallback(async () => {
+    try {
+      const res = await fetch("/api/instagram/leads");
+      if (res.ok) setLeads((await res.json()) as LeadsStatus);
+    } catch {
+      /* l'état de la file est indicatif : son échec ne bloque rien */
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadLeads();
+  }, [loadLeads]);
+
+  const hunt = useCallback(
+    async (action: "collect" | "resolve") => {
+      const m = metier.trim();
+      if (action === "collect" && !m) {
+        setHuntMsg("Entre un métier (ex. menuisier) — le hashtag est choisi tout seul dans sa bibliothèque.");
+        return;
+      }
+      setHunting(action);
+      setHuntMsg(action === "collect" ? "Repérage des comptes…" : "Récupération des profils…");
+      try {
+        const res = await fetch("/api/instagram/leads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(action === "collect" ? { action, metier: m } : { action, metier: m || undefined }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setHuntMsg(json.error ?? `Erreur ${res.status}`);
+          return;
+        }
+        setLeads(json.status as LeadsStatus);
+        if (action === "collect") {
+          const r = json.result as { hashtag: string; queued: number; known: number };
+          setHuntMsg(
+            r.queued
+              ? `#${r.hashtag} : ${r.queued} comptes ajoutés à la file. Clique « Récupérer les profils » pour les traiter.`
+              : `#${r.hashtag} : rien de neuf (${r.known} comptes déjà connus). Relance pour passer au hashtag suivant.`,
+          );
+        } else {
+          const r = json.result as { inserted: number; failed: number; pending: number };
+          setHuntMsg(
+            `${r.inserted} nouveaux prospects enregistrés${r.failed ? `, ${r.failed} inaccessibles` : ""}. ` +
+              `${r.pending} comptes encore en file.`,
+          );
+          onDataChanged?.();
+        }
+      } catch (e) {
+        setHuntMsg(e instanceof Error ? e.message : String(e));
+      } finally {
+        setHunting(null);
+      }
+    },
+    [metier, onDataChanged],
+  );
 
   const generate = useCallback(async () => {
     if (!metier.trim()) {
@@ -222,6 +296,74 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
 
   return (
     <div className="space-y-6">
+      {/* ── Chasse en 2 temps (vue par défaut) ─────────────────────────────
+          1. « Repérer » : 1 requête, empile ~30 comptes dans la file.
+          2. « Récupérer » : traite un petit lot, rend la main à chaque fois.
+          Le hashtag est choisi automatiquement dans la bibliothèque du métier —
+          plus rien à sélectionner à la main. */}
+      <section className="glass-card rounded-xl p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+            <Radar size={16} className="text-[var(--color-accent)]" />
+            Chasse
+          </h3>
+          {leads && (
+            <div className="flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
+              <span>
+                <strong className="text-[var(--color-text-primary)]">{leads.pending}</strong> en file
+              </span>
+              {leads.quota && (
+                <span
+                  className={leads.quota.remaining < 20 ? "text-[var(--color-danger,#dc2626)] font-semibold" : ""}
+                  title={`Crédits ${leads.quota.provider} restants ce mois`}
+                >
+                  {leads.quota.remaining}/{leads.quota.limit} requêtes
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={metier}
+            onChange={(e) => setMetier(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !hunting && hunt("collect")}
+            placeholder="menuisier, paysagiste, coiffeur…"
+            className="flex-1 glass-input rounded-lg px-3 py-2.5 text-sm text-[var(--color-text-primary)] outline-none"
+          />
+          <button
+            onClick={() => hunt("collect")}
+            disabled={!!hunting}
+            className="px-4 py-2.5 rounded-lg text-sm font-semibold border border-[var(--color-border)] text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] disabled:opacity-50 cursor-pointer inline-flex items-center justify-center gap-2"
+          >
+            {hunting === "collect" ? <Loader2 size={15} className="animate-spin" /> : <Radar size={15} />}
+            Repérer des comptes
+          </button>
+          <button
+            onClick={() => hunt("resolve")}
+            disabled={!!hunting || !leads?.pending}
+            className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-[var(--color-accent)] text-white hover:opacity-90 disabled:opacity-40 cursor-pointer inline-flex items-center justify-center gap-2"
+          >
+            {hunting === "resolve" ? <Loader2 size={15} className="animate-spin" /> : <UserSearch size={15} />}
+            Récupérer les profils
+          </button>
+        </div>
+
+        {huntMsg && <p className="text-xs text-[var(--color-text-secondary)]">{huntMsg}</p>}
+        {!!leads?.byMetier.length && (
+          <p className="text-xs text-[var(--color-text-tertiary,var(--color-text-secondary))]">
+            En attente : {leads.byMetier.map((b) => `${b.metier} (${b.pending})`).join(" · ")}
+          </p>
+        )}
+      </section>
+
+      <details className="group">
+        <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] inline-flex items-center gap-1.5 select-none">
+          <Settings2 size={14} />
+          Réglages avancés — choisir les hashtags à la main, exports, qualification IA
+        </summary>
+        <div className="space-y-6 pt-4">
         {/* Étape 1 — générateur */}
         <section className="space-y-3">
           {/* Mode : hashtags métier purs (recommandé) vs métier × villes */}
@@ -470,6 +612,8 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
             </p>
           )}
         </section>
+        </div>
+      </details>
     </div>
   );
 }

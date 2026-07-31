@@ -15,7 +15,7 @@ import { detectMetier, isHorsCible, isActiveSince } from "./instagram";
 import { generateMetierHashtags } from "./hashtags";
 import { igSourceConfigured } from "./igSource";
 import { qualifyAvailable } from "./igQualify";
-import { discoverHashtag } from "./igDiscover";
+import { collectLeads, resolveLeads, leadsStatus, nextHashtagFor, RESOLVE_BATCH } from "./igLeads";
 import { qualifyRun, QUALIFY_RUN_CAP } from "./igQualifyRun";
 
 /** Plafond d'abonnés — même filtre dur que le cockpit (comptes > 15k : mauvais taux de réponse). */
@@ -332,10 +332,19 @@ export interface HuntTarget {
 
 export interface RefillResult {
   ran: boolean;
-  /** « qualify » = tri IA du stock déjà scrapé ; « scan » = nouveau hashtag scrapé. */
-  mode?: "qualify" | "scan";
-  /** Source ayant servi le scan — absent tant que c'est Apify (le cas nominal). */
+  /**
+   * L'escalier, du moins cher au plus cher :
+   *  « qualify » — tri IA du stock déjà scrapé (aucun appel de scraping) ;
+   *  « resolve » — un lot de pistes transformé en prospects (1 requête/profil) ;
+   *  « collect » — file vide, on réalimente depuis un hashtag (1 requête).
+   */
+  mode?: "qualify" | "resolve" | "collect";
+  /** Source ayant servi — absent tant que c'est Apify (le cas nominal). */
   source?: string;
+  /** Pistes encore en attente de résolution. */
+  pending?: number;
+  /** Pistes nouvellement mises en file (mode collect). */
+  queued?: number;
   reason?: string;
   metier?: string;
   hashtag?: string;
@@ -352,17 +361,7 @@ export interface RefillResult {
  * métier est déterministe, et `hashtag_source` mémorise ceux déjà passés : pas
  * besoin d'état supplémentaire pour savoir où on en est.
  */
-async function nextUnusedHashtag(metier: string): Promise<string | null> {
-  const tags = hashtagsOf(metier);
-  if (!tags.length) return null;
-  const { data } = await supabase
-    .from("instagram_prospects")
-    .select("hashtag_source")
-    .in("hashtag_source", tags)
-    .limit(10_000);
-  const used = new Set((data ?? []).map((r) => r.hashtag_source as string));
-  return tags.find((h) => !used.has(h)) ?? null;
-}
+
 
 /** Toute la bibliothèque de hashtags d'un métier (sert de clé de rattachement). */
 function hashtagsOf(metier: string): string[] {
@@ -431,52 +430,63 @@ export async function refillStock(now = new Date()): Promise<RefillResult> {
     };
   }
 
-  // 2) Plus rien à trier : on repart en chasse sur un hashtag jamais scanné.
+  // 2) Plus rien à trier : on dépile la file de pistes déjà collectées.
+  //    Un LOT, pas tout : les relais RapidAPI résolvent un profil par requête à
+  //    ~5 s pièce, et un scan monolithique dépassait le maxDuration de la route
+  //    sans jamais rendre la main (cockpit muet, cf. migration 021).
   if (!igSourceConfigured) return { ran: false, reason: "stock trié en totalité et aucune source configurée (APIFY_TOKEN / RAPIDAPI_KEY) — scan impossible." };
 
+  const pendingByMetier = new Map((await leadsStatus()).byMetier.map((b) => [b.metier, b.pending]));
+
   for (const t of targets) {
-    const hashtag = await nextUnusedHashtag(t.metier);
-    if (!hashtag) continue;
+    if (!pendingByMetier.get(t.metier)) continue;
+    const res = await resolveLeads(RESOLVE_BATCH, t.metier);
+    if (!res.inserted) continue;
 
-    // igSource bascule tout seul sur les relais RapidAPI si Apify refuse (quota
-    // mensuel épuisé → 402/403). Il ne lève que si TOUTE la chaîne est à terre —
-    // ça ne doit pas faire tomber le cron du matin : on remonte la raison, le
-    // récap Telegram la dira.
-    let scan;
-    try {
-      scan = await discoverHashtag({ hashtag, target: 100 });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      return { ran: false, reason: `scan #${hashtag} impossible — ${msg.slice(0, 160)}` };
-    }
-    await supabase.from("ig_hunt_targets").update({ last_scan_at: now.toISOString() }).eq("id", t.id);
-
-    const qual = scan.inserted
-      ? await qualifyRun({
-          hashtag,
-          onlyUnqualified: true,
-          limit: Math.min(scan.inserted, QUALIFY_RUN_CAP),
-          avatar: {
-            profession: t.avatar_profession,
-            minFollowers: t.min_followers,
-            maxFollowers: t.max_followers,
-          },
-        })
-      : null;
+    const qual = await qualifyRun({
+      onlyUnqualified: true,
+      limit: Math.min(res.inserted, QUALIFY_RUN_CAP),
+      avatar: {
+        profession: t.avatar_profession,
+        minFollowers: t.min_followers,
+        maxFollowers: t.max_followers,
+      },
+    });
 
     return {
       ran: true,
-      mode: "scan",
-      // Signalé seulement hors Apify : le récap doit crier quand on tourne sur
-      // un relais gratuit, dont le quota est bien plus court.
-      source: scan.source && scan.source.provider !== "apify" ? scan.source.provider : undefined,
+      mode: "resolve",
       metier: t.metier,
-      hashtag,
-      scanned: scan.scanned,
-      inserted: scan.inserted,
-      processed: qual?.processed ?? 0,
-      qualified: qual?.qualified ?? 0,
+      inserted: res.inserted,
+      pending: res.pending,
+      processed: qual.processed,
+      qualified: qual.qualified,
     };
+  }
+
+  // 3) File vide : on la réalimente. Bon marché (1 requête ≈ 30 pistes) et
+  //    instantané — la résolution attendra le prochain tour.
+  for (const t of targets) {
+    const hashtag = await nextHashtagFor(t.metier);
+    if (!hashtag) continue;
+    try {
+      const got = await collectLeads(hashtag, t.metier);
+      await supabase.from("ig_hunt_targets").update({ last_scan_at: now.toISOString() }).eq("id", t.id);
+      return {
+        ran: true,
+        mode: "collect",
+        metier: t.metier,
+        hashtag,
+        source: got.provider !== "apify" ? got.provider : undefined,
+        queued: got.queued,
+        pending: (await leadsStatus()).pending,
+      };
+    } catch (e) {
+      // Une source à terre ne doit pas faire tomber le cron du matin : on
+      // remonte la raison, le récap Telegram la dira.
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ran: false, reason: `collecte #${hashtag} impossible — ${msg.slice(0, 160)}` };
+    }
   }
 
   return { ran: false, reason: "Toutes les cibles ont épuisé leur bibliothèque de hashtags — ajoute des métiers dans ig_hunt_targets." };
