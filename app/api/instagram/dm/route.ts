@@ -3,6 +3,7 @@ import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { sendTelegram } from "@/app/lib/notify";
 import { warmupCaps, stageForStep, nextFollowup, VALID_STEPS, type AccountStatus } from "@/app/lib/igPipeline";
 import { parisDayStart } from "@/app/lib/igCockpit";
+import { markSelectionDone } from "@/app/lib/igSelection";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,10 @@ export async function POST(req: NextRequest) {
     .select("id, status, stage, followup_count, next_followup_at, last_dm_at, contacted_by")
     .single();
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+
+  // L'accroche vide la ligne correspondante de la sélection du jour : la liste
+  // se solde toute seule au fil des envois, sans clic supplémentaire.
+  if (step === "M1") await markSelectionDone(prospect_id, now);
 
   // Alertes Telegram au franchissement des seuils (80 % puis 100 % du plafond jour).
   const newDay = day + 1;

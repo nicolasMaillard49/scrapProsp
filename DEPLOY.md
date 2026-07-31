@@ -80,6 +80,22 @@ Poste chaque jour le bilan de prospection IG (envois, relances, réponses, calls
 - Env Vercel requis : `CRON_SECRET` (déjà posé) + `SLACK_KPI_WEBHOOK_URL` (webhook entrant Slack du canal #04-kpis : api.slack.com/apps → créer une app → Incoming Webhooks → Add New Webhook → choisir #04-kpis).
 - Test sans poster : `curl "https://prospects.nmf-agence.com/api/cron/kpi-slack?dry=1" -H "x-cron-secret: VOTRE_CRON_SECRET"` → renvoie `{ dry, message }`.
 
+## Sélection du jour + récap Telegram (cron Vercel)
+
+Chaque matin, prépare la **liste fermée des comptes Instagram à démarcher aujourd'hui** — il n'y a plus de tri manuel à faire dans la liste des prospects.
+
+- Route : `GET/POST /api/cron/ig-digest` — auth `x-cron-secret` (VPS) **ou** `Authorization: Bearer CRON_SECRET` (cron Vercel, envoyé automatiquement).
+- Déclencheur : cron Vercel dans `vercel.json` — `0 6 * * *` UTC (≈ 8 h Paris l'été = début de la fenêtre d'envoi).
+- Déroulé :
+  1. reporte les comptes non traités de la veille (compteur `carry_count`) ;
+  2. complète jusqu'au plafond de chauffe du compte (50/j max) avec les prospects **qualifiés par l'IA**, mixés par métier ;
+  3. si des créneaux restent vides : **tri IA du stock déjà scrapé** (coût Claude seul), et seulement s'il n'y a plus rien à trier, **scan Apify d'un hashtag jamais utilisé** puis qualification des nouveaux ;
+  4. poste le récap Telegram, sélection en tête.
+- Tables : `ig_daily_selection` (la sélection) et `ig_hunt_targets` (les métiers à chasser + avatar IA) — `npm run migrate:019`.
+- Cibles de chasse : amorcées automatiquement avec les métiers ayant ≥ 20 prospects en base. Pour en ajouter/retirer, éditer `ig_hunt_targets` (`active`, `avatar_profession`, `min_followers`, `max_followers`).
+- Test sans rien poster ni dépenser : `curl "https://prospects.nmf-agence.com/api/cron/ig-digest?dry=1" -H "x-cron-secret: VOTRE_CRON_SECRET"` → renvoie `{ dry, selection }`.
+- Côté cockpit : `/instagram` → onglet **Sélection du jour** (vue par défaut). Chaque « Prendre contact » raye sa ligne tout seul ; la corbeille écarte un compte (il ne sera pas reporté demain) ; « Aller en chercher » relance le refill à la main.
+
 ## Radar de nouveaux prospects (script VPS — `vps/radar.mjs`)
 
 Détecte chaque nuit les nouvelles fiches Google Maps (sans site web) par métier×région, les insère en base et envoie **1 SMS récap** au `0615907873` s'il y a ≥ 1 nouveau prospect.

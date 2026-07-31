@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, ChevronLeft, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, ChevronLeft, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical, Target } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -102,6 +102,32 @@ interface Engagement {
   repliesToday: number;
   conversations: number;
   callsBooked: number;
+}
+
+type ViewMode = "selection" | "list" | "pipeline";
+
+/** Une ligne de la sélection du jour (GET /api/instagram/selection). */
+interface SelectionRow {
+  prospect_id: string;
+  rank: number;
+  first_day: string;
+  carry_count: number;
+  done_at: string | null;
+  skipped_at: string | null;
+  skip_reason: string | null;
+  prospect: IgLead;
+}
+
+interface DailySelection {
+  day: string;
+  accountId: string;
+  /** Créneaux d'accroche du jour = plafond de chauffe − relances dues. */
+  slots: number;
+  rows: SelectionRow[];
+  carried: number;
+  /** Créneaux non pourvus faute de stock qualifié → bouton « Aller en chercher ». */
+  shortfall: number;
+  stockLeft: number;
 }
 
 /** Cible quotidienne de réponses reçues — 2ᵉ objectif (qualité) à côté des M1 (volume). */
@@ -234,8 +260,14 @@ export default function InstagramPage() {
   const [dailyGoal, setDailyGoal] = useState(20);
   const [celebrate, setCelebrate] = useState(false);
   const [engagement, setEngagement] = useState<Engagement | null>(null);
-  // Vue de la liste : « list » (fiche détaillée) ou « pipeline » (colonnes par stade).
-  const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
+  // Vue : « selection » (les N comptes du jour), « list » (fiche détaillée)
+  // ou « pipeline » (colonnes par stade). La sélection du jour est la vue par
+  // défaut : c'est elle qui remplace le tri manuel de la liste infinie.
+  const [viewMode, setViewMode] = useState<ViewMode>("selection");
+  const [selection, setSelection] = useState<DailySelection | null>(null);
+  const [selLoading, setSelLoading] = useState(false);
+  const [selMsg, setSelMsg] = useState<string | null>(null);
+  const [refilling, setRefilling] = useState(false);
   // Filtre par stade (vue liste) — le stade est l'axe de suivi.
   const [stageFilter, setStageFilter] = useState<string>("all");
   // Carte en cours de glisser-déposer (pour l'aperçu DragOverlay).
@@ -255,7 +287,8 @@ export default function InstagramPage() {
     }
     const savedGoal = parseInt(localStorage.getItem("ig_daily_goal") ?? "", 10);
     if (Number.isFinite(savedGoal) && savedGoal >= 5) setDailyGoal(savedGoal);
-    if (localStorage.getItem("ig_view_mode") === "pipeline") setViewMode("pipeline");
+    const savedView = localStorage.getItem("ig_view_mode");
+    if (savedView === "pipeline" || savedView === "list") setViewMode(savedView);
     if (localStorage.getItem("ig_cockpit_collapsed") === "1") setCockpitCollapsed(true);
   }, []);
 
@@ -277,10 +310,92 @@ export default function InstagramPage() {
     if (mode === "random") setShuffleSeed(Math.floor(Math.random() * 1e9) + 1);
   }, []);
 
-  const setView = useCallback((mode: "list" | "pipeline") => {
+  const setView = useCallback((mode: ViewMode) => {
     setViewMode(mode);
     localStorage.setItem("ig_view_mode", mode);
   }, []);
+
+  /**
+   * Sélection du jour. Le GET la CRÉE si elle n'existe pas encore (report des
+   * non-traités d'hier + complétion) — aucun appel externe, donc ouvrir la page
+   * ne déclenche jamais de dépense Apify.
+   */
+  const loadSelection = useCallback(async () => {
+    setSelLoading(true);
+    try {
+      const url = activeAccount
+        ? `/api/instagram/selection?account_id=${encodeURIComponent(activeAccount)}`
+        : "/api/instagram/selection";
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) {
+        setSelection(null);
+        setSelMsg(json.error ?? `Erreur ${res.status}`);
+        return;
+      }
+      setSelection(json as DailySelection);
+      setSelMsg(null);
+    } catch (e) {
+      setSelMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSelLoading(false);
+    }
+  }, [activeAccount]);
+
+  /** Écarte un prospect de la sélection — il ne sera pas reporté demain. */
+  const skipFromSelection = useCallback(
+    async (prospectId: string) => {
+      const res = await fetch("/api/instagram/selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "skip", prospect_id: prospectId, account_id: activeAccount || undefined }),
+      });
+      const json = await res.json();
+      if (res.ok) setSelection(json.selection as DailySelection);
+      else setSelMsg(json.error ?? `Erreur ${res.status}`);
+    },
+    [activeAccount],
+  );
+
+  /** Stock épuisé → scan d'un hashtag jamais utilisé + qualification IA, puis complétion. */
+  const refillSelection = useCallback(async () => {
+    setRefilling(true);
+    setSelMsg("Chasse en cours : scan d'un nouveau hashtag puis qualification IA…");
+    try {
+      const res = await fetch("/api/instagram/selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "refill", account_id: activeAccount || undefined }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setSelMsg(json.error ?? `Erreur ${res.status}`);
+        return;
+      }
+      setSelection(json.selection as DailySelection);
+      const r = json.refill as {
+        ran: boolean;
+        mode?: "qualify" | "scan";
+        reason?: string;
+        hashtag?: string;
+        metier?: string;
+        inserted?: number;
+        processed?: number;
+        qualified?: number;
+      };
+      setSelMsg(
+        !r.ran
+          ? `Rien à faire — ${r.reason}`
+          : r.mode === "qualify"
+            ? `Tri IA du stock ${r.metier} : ${r.processed} comptes passés en revue, ${r.qualified} retenus.`
+            : `#${r.hashtag} (${r.metier}) : ${r.inserted} nouveaux comptes scrapés, ${r.qualified} retenus par l'IA.`,
+      );
+    } catch (e) {
+      setSelMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefilling(false);
+    }
+  }, [activeAccount]);
 
   const loadCockpit = useCallback(async () => {
     try {
@@ -300,6 +415,10 @@ export default function InstagramPage() {
   useEffect(() => {
     loadCockpit();
   }, [loadCockpit]);
+
+  useEffect(() => {
+    loadSelection();
+  }, [loadSelection]);
 
   const pickAccount = useCallback((id: string) => {
     setActiveAccount(id);
@@ -434,9 +553,10 @@ export default function InstagramPage() {
       setCockpitMsg(
         `@${l.username} contacté${acc ? ` via @${acc.username} (${json.counters.day}/${json.counters.caps.daily} aujourd'hui)` : ""} — M1 copié.`,
       );
-      await loadCockpit();
+      // Le M1 solde la ligne côté serveur : on relit la sélection pour la voir se vider.
+      await Promise.all([loadCockpit(), loadSelection()]);
     },
-    [activeAccount, accounts, loadCockpit, openInsta],
+    [activeAccount, accounts, loadCockpit, loadSelection, openInsta],
   );
 
   /** « Vu sans réponse » → programme la relance suivante (R1 +1 h…). */
@@ -1045,13 +1165,15 @@ export default function InstagramPage() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
             <h2 className="text-base font-semibold text-[var(--color-text-primary)]">Prospects</h2>
             <p className="text-xs text-[var(--color-text-muted)]">
-              {viewMode === "pipeline"
-                ? "suivi par stade — chaque colonne = une étape de conversation"
-                : orderMode === "random"
-                  ? "ordre aléatoire"
-                  : orderMode === "followers"
-                    ? "par abonnés (décroissant)"
-                    : "du plus récent au plus ancien"}
+              {viewMode === "selection"
+                ? "les comptes à démarcher aujourd'hui — qualifiés IA, mixés par métier"
+                : viewMode === "pipeline"
+                  ? "suivi par stade — chaque colonne = une étape de conversation"
+                  : orderMode === "random"
+                    ? "ordre aléatoire"
+                    : orderMode === "followers"
+                      ? "par abonnés (décroissant)"
+                      : "du plus récent au plus ancien"}
             </p>
             <span className="flex-1" />
             {viewMode === "list" && (
@@ -1059,8 +1181,24 @@ export default function InstagramPage() {
                 <span className="font-mono-num">{shown.length}</span> affichés
               </span>
             )}
-            {/* Bascule Liste / Pipeline */}
+            {/* Bascule Sélection / Liste / Pipeline */}
             <div className="inline-flex rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-0.5">
+              <button
+                onClick={() => setView("selection")}
+                aria-pressed={viewMode === "selection"}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                  viewMode === "selection"
+                    ? "bg-[var(--color-accent)] text-white"
+                    : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                }`}
+              >
+                <Target className="w-3.5 h-3.5" /> Sélection du jour
+                {selection && (
+                  <span className={`font-mono-num ${viewMode === "selection" ? "" : "text-[var(--color-text-muted)]"}`}>
+                    {selection.rows.filter((r) => !r.done_at && !r.skipped_at).length}
+                  </span>
+                )}
+              </button>
               <button
                 onClick={() => setView("list")}
                 aria-pressed={viewMode === "list"}
@@ -1112,7 +1250,9 @@ export default function InstagramPage() {
           </div>
           )}
 
-          {/* Filtres secondaires : métier, priorité, verdict IA, sans site, recherche */}
+          {/* Filtres secondaires : métier, priorité, verdict IA, sans site, recherche.
+              Masqués en « Sélection du jour » : la liste y est déjà arrêtée, il n'y a plus rien à filtrer. */}
+          {viewMode !== "selection" && (
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={metierFilter}
@@ -1247,9 +1387,30 @@ export default function InstagramPage() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Liste */}
-          {loadError ? (
+          {viewMode === "selection" ? (
+            <SelectionView
+              selection={selection}
+              loading={selLoading}
+              refilling={refilling}
+              message={selMsg}
+              onRefill={refillSelection}
+              onReload={loadSelection}
+              onSkip={skipFromSelection}
+              cardProps={{
+                origin,
+                activeAccount,
+                copied,
+                onQuickContact: quickContact,
+                onSetStage: setStage,
+                onSaveNote: saveNote,
+                onOpenInsta: openInsta,
+                onReplyLogged: (id, p) => setLeads((prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x))),
+              }}
+            />
+          ) : loadError ? (
             <div className="py-12 px-6 rounded-2xl border border-amber-200 dark:border-amber-500/25 bg-amber-50/60 dark:bg-amber-500/5 text-center">
               <AlertTriangle className="w-9 h-9 text-amber-500 mx-auto mb-3" />
               <p className="text-[var(--color-text-primary)] text-sm font-medium mb-1">
@@ -1981,7 +2142,162 @@ type PipelineCardHandlers = {
   onSaveNote: (id: string, notes: string) => void;
   onOpenInsta: (username: string) => void;
   onReplyLogged: (id: string, p: Record<string, unknown>) => void;
+  /** Vue « Sélection du jour » uniquement : retire le prospect de la liste du jour. */
+  onSkip?: (id: string) => void;
 };
+
+/**
+ * VUE « SÉLECTION DU JOUR » — la liste FERMÉE des comptes à démarcher aujourd'hui.
+ * Elle remplace le tri manuel : le serveur a déjà choisi (qualifiés IA, mixés par
+ * métier, plafond de chauffe respecté), reporté les non-traités de la veille, et
+ * chaque M1 envoyé raye sa ligne tout seul.
+ */
+function SelectionView({
+  selection,
+  loading,
+  refilling,
+  message,
+  onRefill,
+  onReload,
+  onSkip,
+  cardProps,
+}: {
+  selection: DailySelection | null;
+  loading: boolean;
+  refilling: boolean;
+  message: string | null;
+  onRefill: () => void;
+  onReload: () => void;
+  onSkip: (id: string) => void;
+  cardProps: PipelineCardHandlers;
+}) {
+  if (loading && !selection) {
+    return (
+      <div className="text-center py-16 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
+        <Loader2 className="w-7 h-7 text-[var(--color-text-muted)] mx-auto animate-spin opacity-50" />
+      </div>
+    );
+  }
+  if (!selection) {
+    return (
+      <div className="py-12 px-6 rounded-2xl border border-amber-200 dark:border-amber-500/25 bg-amber-50/60 dark:bg-amber-500/5 text-center">
+        <AlertTriangle className="w-9 h-9 text-amber-500 mx-auto mb-3" />
+        <p className="text-[var(--color-text-primary)] text-sm font-medium mb-1">Sélection du jour indisponible</p>
+        <p className="text-[var(--color-text-secondary)] text-xs max-w-md mx-auto mb-4">
+          {message ?? "Vérifie qu'un compte émetteur est configuré."}
+        </p>
+        <button
+          onClick={onReload}
+          className="tap inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer"
+        >
+          <RotateCw className="w-3.5 h-3.5" /> Réessayer
+        </button>
+      </div>
+    );
+  }
+
+  const restants = selection.rows.filter((r) => !r.done_at && !r.skipped_at);
+  const faits = selection.rows.filter((r) => r.done_at).length;
+  const total = selection.rows.filter((r) => !r.skipped_at).length;
+  const pct = total ? Math.round((faits / total) * 100) : 0;
+
+  return (
+    <div className="space-y-3">
+      {/* Bandeau d'avancement */}
+      <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3.5">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="font-mono-num text-2xl font-semibold text-[var(--color-text-primary)]">
+            {restants.length}
+          </span>
+          <span className="text-sm text-[var(--color-text-secondary)]">
+            compte{restants.length > 1 ? "s" : ""} à démarcher aujourd&apos;hui
+            <span className="text-[var(--color-text-muted)]"> — {faits}/{total} fait{faits > 1 ? "s" : ""}</span>
+          </span>
+          <span className="flex-1" />
+          <button
+            onClick={onReload}
+            className="tap inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Actualiser
+          </button>
+        </div>
+
+        <div className="mt-2.5 h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+          <div className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-500" style={{ width: `${pct}%` }} />
+        </div>
+
+        <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">
+          {selection.carried > 0 && (
+            <>
+              <span className="text-amber-700 dark:text-amber-400 font-medium">{selection.carried} reporté{selection.carried > 1 ? "s" : ""} d&apos;hier</span>
+              {" · "}
+            </>
+          )}
+          {selection.stockLeft} qualifié{selection.stockLeft > 1 ? "s" : ""} en réserve · plafond du jour {selection.slots}
+        </p>
+
+        {/* Stock épuisé : on repart en chasse (scan hashtag + qualification IA). */}
+        {selection.shortfall > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-500/25 bg-amber-50/60 dark:bg-amber-500/5 px-3 py-2.5 flex flex-wrap items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="text-xs text-amber-800 dark:text-amber-300 flex-1 min-w-40">
+              {selection.shortfall} créneau{selection.shortfall > 1 ? "x" : ""} non pourvu{selection.shortfall > 1 ? "s" : ""} — plus assez de comptes qualifiés en stock.
+            </span>
+            <button
+              onClick={onRefill}
+              disabled={refilling}
+              className="tap inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[var(--color-accent)] text-white hover:opacity-90 transition-opacity cursor-pointer disabled:opacity-50"
+            >
+              {refilling ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Hash className="w-3.5 h-3.5" />}
+              Aller en chercher
+            </button>
+          </div>
+        )}
+
+        {message && <p className="mt-2 text-xs text-[var(--color-text-secondary)]">{message}</p>}
+      </div>
+
+      {selection.rows.length === 0 ? (
+        <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--color-border-strong)]">
+          <Search className="w-9 h-9 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
+          <p className="text-[var(--color-text-secondary)] text-sm">Aucun compte qualifié disponible.</p>
+          <p className="text-[var(--color-text-muted)] text-xs mt-1">
+            Lance « Aller en chercher » ci-dessus, ou déplie « Trouver de nouveaux prospects » en haut de page.
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 items-start">
+          {selection.rows.map((r) => {
+            const traite = Boolean(r.done_at || r.skipped_at);
+            return (
+              <div key={r.prospect_id} className={traite ? "opacity-45" : ""}>
+                <div className="mb-1 flex items-center gap-1.5 px-1 text-[10.5px] text-[var(--color-text-muted)]">
+                  {r.done_at ? (
+                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                      <Check className="w-3 h-3" /> Accroche envoyée
+                    </span>
+                  ) : r.skipped_at ? (
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <XCircle className="w-3 h-3" /> Écarté
+                    </span>
+                  ) : (
+                    <span className="font-mono-num">#{r.rank + 1}</span>
+                  )}
+                  {r.carry_count > 0 && !traite && (
+                    <span className="text-amber-700 dark:text-amber-400 font-medium">
+                      reporté ×{r.carry_count}
+                    </span>
+                  )}
+                </div>
+                <PipelineCard l={r.prospect} {...cardProps} onSkip={traite ? undefined : onSkip} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Colonne DROPPABLE du pipeline (dnd-kit) — surbrillance quand une carte la survole. */
 function PipelineColumn({
@@ -2026,7 +2342,7 @@ function PipelineColumn({
 }
 
 /** Carte compacte de la vue Pipeline — draggable (souris + tactile), mêmes actions que la fiche liste. */
-function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetStage, onSaveNote, onOpenInsta, onReplyLogged }: { l: IgLead } & PipelineCardHandlers) {
+function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetStage, onSaveNote, onOpenInsta, onReplyLogged, onSkip }: { l: IgLead } & PipelineCardHandlers) {
   const metierEff =
     detectMetier(l.profession_ia, null) ||
     detectMetier(l.category, `${l.username} ${l.bio ?? ""}`) ||
@@ -2054,16 +2370,19 @@ function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetS
       className={`rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-sm ${isDragging ? "opacity-40" : ""}`}
     >
       <div className="flex items-start gap-2">
-        {/* Poignée de glisser-déposer — seule zone qui déclenche le drag (souris + tactile). */}
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          aria-label="Déplacer ce prospect vers un autre stade"
-          className="shrink-0 -ml-1 mt-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] cursor-grab active:cursor-grabbing touch-none"
-        >
-          <GripVertical className="w-3.5 h-3.5" />
-        </button>
+        {/* Poignée de glisser-déposer — seule zone qui déclenche le drag (souris + tactile).
+            Absente dans la sélection du jour : pas de colonnes, donc rien à déplacer. */}
+        {!onSkip && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            aria-label="Déplacer ce prospect vers un autre stade"
+            className="shrink-0 -ml-1 mt-0.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] cursor-grab active:cursor-grabbing touch-none"
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </button>
+        )}
         <a
           href={`https://instagram.com/${l.username}`}
           target={INSTA_TAB}
@@ -2164,6 +2483,17 @@ function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetS
               </button>
             )}
           </>
+        )}
+        {/* Sélection du jour : écarter le compte (il ne sera pas reporté demain). */}
+        {onSkip && (
+          <button
+            onClick={() => onSkip(l.id)}
+            title="Écarter de la sélection du jour"
+            aria-label="Écarter de la sélection du jour"
+            className="tap inline-flex items-center justify-center h-7 w-7 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
         )}
       </div>
     </div>

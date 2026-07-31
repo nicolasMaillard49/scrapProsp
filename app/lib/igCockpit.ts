@@ -236,8 +236,17 @@ export async function getFunnelCounts(): Promise<Record<string, number>> {
   return counts;
 }
 
+/** Ligne « sélection du jour » du récap — injectée par l'appelant qui la calcule. */
+export interface DigestSelection {
+  total: number;
+  restants: number;
+  reportes: number;
+  manquants: number;
+  refill?: string;
+}
+
 /** Construit + envoie le récap Telegram. Renvoie le texte (pour debug/aperçu). */
-export async function sendCockpitDigest(now = new Date()): Promise<string> {
+export async function sendCockpitDigest(now = new Date(), selection?: DigestSelection): Promise<string> {
   const [accounts, due, funnel, stats] = await Promise.all([
     getAccountsWithCounters(now),
     getDueFollowups(now),
@@ -246,6 +255,14 @@ export async function sendCockpitDigest(now = new Date()): Promise<string> {
   ]);
 
   const lines: string[] = ["📊 <b>Prospection IG — récap</b>"];
+  if (selection) {
+    lines.push(
+      `🎯 <b>Sélection du jour : ${selection.restants}/${selection.total}</b> à démarcher` +
+        (selection.reportes ? ` · ${selection.reportes} reporté${selection.reportes > 1 ? "s" : ""} d'hier` : "") +
+        (selection.manquants ? ` · ⚠️ ${selection.manquants} créneau(x) non pourvu(s)` : ""),
+    );
+    if (selection.refill) lines.push(`🔎 ${selection.refill}`);
+  }
   lines.push(
     `✉️ Jour <b>${stats.day.sent}</b> (${stats.day.m1} accroches · ${stats.day.relances} relances) · ` +
       `Semaine <b>${stats.week.sent}</b> · Mois <b>${stats.month.sent}</b>`,
