@@ -273,7 +273,9 @@ async function pickFreshProspects(n: number, now: Date): Promise<{ fresh: Select
     .eq("status", "todo")
     .eq("qualification", "qualified")
     .is("stage", null)
-    .lte("followers", MAX_FOLLOWERS)
+    // `followers <= N` vaut NULL en SQL pour un compte sans nombre d'abonnés et
+    // l'exclurait : on garde ces comptes, `isSelectable` les accepte aussi.
+    .or(`followers.lte.${MAX_FOLLOWERS},followers.is.null`)
     .order("score", { ascending: false, nullsFirst: false })
     .limit(Math.max(200, n * 6));
   if (error) throw new Error(error.message);
@@ -349,25 +351,37 @@ export interface RefillResult {
  * besoin d'état supplémentaire pour savoir où on en est.
  */
 async function nextUnusedHashtag(metier: string): Promise<string | null> {
-  const rows = generateMetierHashtags(metier, { includeTransversal: false });
-  if (!rows.length) return null;
+  const tags = hashtagsOf(metier);
+  if (!tags.length) return null;
   const { data } = await supabase
     .from("instagram_prospects")
     .select("hashtag_source")
-    .in("hashtag_source", rows.map((r) => r.hashtag))
+    .in("hashtag_source", tags)
     .limit(10_000);
   const used = new Set((data ?? []).map((r) => r.hashtag_source as string));
-  return rows.map((r) => r.hashtag).find((h) => !used.has(h)) ?? null;
+  return tags.find((h) => !used.has(h)) ?? null;
 }
 
-/** Nombre de prospects `todo` encore sans verdict IA pour un métier donné. */
+/** Toute la bibliothèque de hashtags d'un métier (sert de clé de rattachement). */
+function hashtagsOf(metier: string): string[] {
+  return generateMetierHashtags(metier, { includeTransversal: false }).map((r) => r.hashtag);
+}
+
+/**
+ * Prospects `todo` encore sans verdict IA rattachables à un métier — par la
+ * colonne `metier` OU par le hashtag d'origine. Le rattachement par hashtag est
+ * indispensable : `detectMetier` laisse `metier` vide dès que ni la catégorie ni
+ * la bio ne matchent (128 prospects dans ce cas au 31/07), et ce stock devenait
+ * alors invisible pour le refill.
+ */
 async function unqualifiedCount(metier: string): Promise<number> {
+  const tags = hashtagsOf(metier);
   const { count } = await supabase
     .from("instagram_prospects")
     .select("id", { count: "exact", head: true })
     .eq("status", "todo")
-    .eq("metier", metier)
-    .is("qualification", null);
+    .is("qualification", null)
+    .or(`metier.eq.${metier},hashtag_source.in.(${tags.join(",")})`);
   return count ?? 0;
 }
 
@@ -394,10 +408,14 @@ export async function refillStock(now = new Date()): Promise<RefillResult> {
   if (!targets.length) return { ran: false, reason: "Aucune cible de chasse active (table ig_hunt_targets)." };
 
   // 1) Le moins cher d'abord : trier ce qui dort déjà en base sans verdict IA.
+  //    `status: "todo"` est OBLIGATOIRE — sans lui le tri part sur les plus
+  //    récents tous statuts confondus et ne produit que des verdicts sur des
+  //    comptes déjà démarchés, qui n'entreront jamais dans la sélection.
   for (const t of targets) {
     if ((await unqualifiedCount(t.metier)) === 0) continue;
     const qual = await qualifyRun({
-      metier: t.metier,
+      scope: { metier: t.metier, hashtags: hashtagsOf(t.metier) },
+      status: "todo",
       onlyUnqualified: true,
       limit: QUALIFY_RUN_CAP,
       avatar: { profession: t.avatar_profession, minFollowers: t.min_followers, maxFollowers: t.max_followers },
@@ -418,7 +436,15 @@ export async function refillStock(now = new Date()): Promise<RefillResult> {
     const hashtag = await nextUnusedHashtag(t.metier);
     if (!hashtag) continue;
 
-    const scan = await discoverHashtag({ hashtag, target: 100 });
+    // Apify peut refuser (quota mensuel épuisé → 403). Ça ne doit PAS faire
+    // tomber le cron du matin : on remonte la raison, le récap Telegram la dira.
+    let scan;
+    try {
+      scan = await discoverHashtag({ hashtag, target: 100 });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ran: false, reason: `scan #${hashtag} impossible — ${msg.slice(0, 160)}` };
+    }
     await supabase.from("ig_hunt_targets").update({ last_scan_at: now.toISOString() }).eq("id", t.id);
 
     const qual = scan.inserted

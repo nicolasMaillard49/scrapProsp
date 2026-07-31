@@ -15,6 +15,23 @@ export interface QualifyRunOptions {
   metier?: string;
   /** Filtre hashtag_source — optionnel. */
   hashtag?: string;
+  /**
+   * Rattachement à un métier en OU : colonne `metier` **ou** hashtag d'origine
+   * dans sa bibliothèque. Indispensable pour rattraper le stock dont la colonne
+   * `metier` est vide — la regex de `detectMetier` n'a rien trouvé au scan
+   * (128 prospects dans ce cas au 31/07) — alors que le hashtag, lui, dit bien
+   * de quel métier il s'agit. À ne pas confondre avec `metier` / `hashtag`,
+   * qui se cumulent en ET.
+   */
+  scope?: { metier: string; hashtags: string[] };
+  /**
+   * Filtre statut — `"todo"` pour ne trier que des prospects encore à contacter.
+   * SANS ce filtre, le tri part sur les plus récents tous statuts confondus et
+   * brûle ses lots sur des comptes DÉJÀ démarchés (constaté le 31/07 : 136 des
+   * 164 verdicts « qualified » portaient sur des `contacted`, sans effet sur la
+   * sélection du jour).
+   */
+  status?: string;
   /** true (défaut) : ne qualifie que les profils encore sans verdict. */
   onlyUnqualified?: boolean;
   /** Nombre max de profils à traiter (défaut 200, cap QUALIFY_RUN_CAP). */
@@ -45,8 +62,12 @@ export async function qualifyRun(opts: QualifyRunOptions): Promise<QualifyRunRes
     .order("created_at", { ascending: false })
     .limit(limit);
   if (onlyUnqualified) q = q.is("qualification", null);
+  if (opts.status?.trim()) q = q.eq("status", opts.status.trim());
   if (opts.metier?.trim()) q = q.eq("metier", opts.metier.trim());
   if (opts.hashtag?.trim()) q = q.eq("hashtag_source", opts.hashtag.trim().replace(/^#/, ""));
+  if (opts.scope?.hashtags.length) {
+    q = q.or(`metier.eq.${opts.scope.metier},hashtag_source.in.(${opts.scope.hashtags.join(",")})`);
+  }
 
   const { data: rows, error } = await q;
   if (error) throw new Error(error.message);
