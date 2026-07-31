@@ -186,11 +186,24 @@ test("instagramDmSequence: vouvoiement systématique, aucun tutoiement résiduel
     assert.ok(!tutoie.test(s.text), `${s.step} ne doit pas tutoyer : ${s.text}`);
   }
   assert.ok(steps[0].text.includes("vous étiez paysagiste"));
-  // Pivot sur les détails observés + « fermé à l'idée ».
-  assert.ok(steps.find((s) => s.step === "M2")!.text.includes("puce à l'oreille"));
-  assert.ok(steps.find((s) => s.step === "M4")!.text.includes("fermé à l'idée"));
+  // M2 pivote sur ce qu'on a observé, sans encore rien proposer.
+  assert.match(steps.find((s) => s.step === "M2")!.text, /interpell|remarqu|vu/i);
+  // M4 demande la permission avant de partager — c'est l'étape de consentement.
+  assert.match(steps.find((s) => s.step === "M4")!.text, /\?$/);
   // Douleur adaptée artisan (devis) même en vouvoiement.
   assert.ok(steps.find((s) => s.step === "M7")!.text.includes("devis"));
+});
+
+test("instagramDmSequence: messages COURTS — un DM long se lit comme un texte généré", () => {
+  const steps = instagramDmSequence({ metier: "coiffeur", ville: "Nantes", firstName: "Léa" }, "https://x.fr/di/abc");
+  for (const s of steps) {
+    // M9 porte l'URL du questionnaire, seul lien de la trame : on l'exclut du calcul.
+    const body = s.text.replace(/https?:\/\/\S+/g, "");
+    assert.ok(
+      body.length <= 220,
+      `${s.step} fait ${body.length} caractères — au-delà de 220 on quitte le registre du DM (${s.text})`,
+    );
+  }
 });
 
 test("competitorHook: appels pour artisans, réservations pour métiers à RDV", () => {

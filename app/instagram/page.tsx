@@ -56,6 +56,8 @@ interface IgLead {
   stage: string | null;
   followup_count: number | null;
   next_followup_at: string | null;
+  /** Dernier DM sortant — sert au tri « Dernier DM ». */
+  last_dm_at: string | null;
   contacted_by: string | null;
   /** Réponses entrantes journalisées (migration 018) — null si la colonne n'existe pas encore. */
   reply_count: number | null;
@@ -146,7 +148,7 @@ const STATUS_LABEL: Record<string, string> = {
  * tirait 36 Mo pour 673 prospects (~11 s → statement timeout). Ce set fait ~0,5 s / 0,5 Mo.
  */
 const PROSPECT_COLUMNS =
-  "id,username,full_name,bio,external_url,followers,category,metier,ville,booking_platform,hashtag_source,status,notes,discovered_at,email,phone,has_website,score,score_tier,qualification,qualification_reason,profession_ia,last_post_at,stage,followup_count,next_followup_at,contacted_by,reply_count,first_reply_at";
+  "id,username,full_name,bio,external_url,followers,category,metier,ville,booking_platform,hashtag_source,status,notes,discovered_at,email,phone,has_website,score,score_tier,qualification,qualification_reason,profession_ia,last_post_at,stage,followup_count,next_followup_at,last_dm_at,contacted_by,reply_count,first_reply_at";
 
 /**
  * Nom d'onglet FIXE pour Instagram : chaque ouverture réutilise le même onglet
@@ -210,6 +212,13 @@ const PIPE_COLS: { key: string; label: string; tone: StageTone }[] = [
   ...STAGES.map((s) => ({ key: s, label: STAGE_SHORT[s], tone: stageTone(s) })),
 ];
 
+/** Plus récemment DM d'abord ; jamais contactés en dernier. */
+function byLastDmDesc(a: IgLead, b: IgLead): number {
+  const ta = a.last_dm_at ? new Date(a.last_dm_at).getTime() : 0;
+  const tb = b.last_dm_at ? new Date(b.last_dm_at).getTime() : 0;
+  return tb - ta;
+}
+
 export default function InstagramPage() {
   const [leads, setLeads] = useState<IgLead[]>([]);
   // Le scraper sert quelques fois par semaine ; la file d'envoi sert tous les
@@ -236,7 +245,7 @@ export default function InstagramPage() {
   const [cockpitOpen, setCockpitOpen] = useState(false);
   // Ordre : « recent » (défaut), « followers » (abonnés décroissants) ou « random ».
   // Le seed rend le mélange STABLE entre deux rendus (sinon la liste sauterait sans cesse).
-  const [orderMode, setOrderMode] = useState<"recent" | "followers" | "random">("recent");
+  const [orderMode, setOrderMode] = useState<"recent" | "followers" | "random" | "dm">("recent");
   const [shuffleSeed, setShuffleSeed] = useState(1);
   const [copied, setCopied] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
@@ -284,6 +293,8 @@ export default function InstagramPage() {
       setShuffleSeed(Math.floor(Math.random() * 1e9) + 1);
     } else if (savedOrder === "followers") {
       setOrderMode("followers");
+    } else if (savedOrder === "dm") {
+      setOrderMode("dm");
     }
     const savedGoal = parseInt(localStorage.getItem("ig_daily_goal") ?? "", 10);
     if (Number.isFinite(savedGoal) && savedGoal >= 5) setDailyGoal(savedGoal);
@@ -304,7 +315,7 @@ export default function InstagramPage() {
   // Bascule Récents / Aléatoire — mémorisée, et (re)tire un seed frais à chaque
   // passage en aléatoire ou clic « Mélanger ».
   const reshuffle = useCallback(() => setShuffleSeed(Math.floor(Math.random() * 1e9) + 1), []);
-  const setOrder = useCallback((mode: "recent" | "followers" | "random") => {
+  const setOrder = useCallback((mode: "recent" | "followers" | "random" | "dm") => {
     setOrderMode(mode);
     localStorage.setItem("ig_order_mode", mode);
     if (mode === "random") setShuffleSeed(Math.floor(Math.random() * 1e9) + 1);
@@ -806,6 +817,9 @@ export default function InstagramPage() {
     if (orderMode === "followers") {
       return filtered.slice().sort((a, b) => (b.followers ?? 0) - (a.followers ?? 0));
     }
+    // « Dernier DM » : le plus récemment contacté d'abord. Les jamais contactés
+    // ferment la marche plutôt que de polluer le haut de liste.
+    if (orderMode === "dm") return filtered.slice().sort(byLastDmDesc);
     if (orderMode !== "random") return filtered; // « recent » = ordre de chargement (discovered_at desc)
     // Fisher-Yates seedé (LCG) : mélange STABLE tant que le seed et le filtre ne
     // changent pas → la liste ne saute pas à chaque rendu, mais « Mélanger » rebat tout.
@@ -840,10 +854,13 @@ export default function InstagramPage() {
       return 4;
     };
     for (const k of Object.keys(cols)) {
-      cols[k].sort((a, b) => rank(a) - rank(b) || new Date(b.discovered_at).getTime() - new Date(a.discovered_at).getTime());
+      // Le tri « Dernier DM » est un choix explicite de l'utilisateur : il prime
+      // sur la priorisation automatique (réponses, relances dues, score).
+      if (orderMode === "dm") cols[k].sort(byLastDmDesc);
+      else cols[k].sort((a, b) => rank(a) - rank(b) || new Date(b.discovered_at).getTime() - new Date(a.discovered_at).getTime());
     }
     return cols;
-  }, [baseFiltered]);
+  }, [baseFiltered, orderMode]);
 
   // Pastilles de statut : comptées sur la base filtrée → elles suivent les filtres actifs.
   const counts = useMemo(() => {
@@ -1376,6 +1393,17 @@ export default function InstagramPage() {
                   }`}
                 >
                   <Users className="w-3 h-3" /> Abonnés
+                </button>
+                <button
+                  onClick={() => setOrder("dm")}
+                  title="Les derniers comptes que j'ai DM en premier"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors cursor-pointer ${
+                    orderMode === "dm"
+                      ? "bg-[var(--color-accent)] text-white"
+                      : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]"
+                  }`}
+                >
+                  <Send className="w-3 h-3" /> Dernier DM
                 </button>
                 <button
                   onClick={() => setOrder("random")}

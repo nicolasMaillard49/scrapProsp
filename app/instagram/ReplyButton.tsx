@@ -21,11 +21,37 @@ interface Props {
   onLogged: (prospect: Record<string, unknown>) => void;
 }
 
+/** Largeur du menu (w-64) et hauteur approchée de ses 4 entrées. */
+const MENU_W = 256;
+const MENU_H = 232;
+
 export default function ReplyButton({ prospectId, accountId, replyCount, onLogged }: Props) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  // Position calculée à l'ouverture, en coordonnées écran.
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  /**
+   * Le menu était `absolute bottom-full` : il s'ouvrait toujours vers le haut et
+   * se faisait rogner dès que la carte était près du bord supérieur, ou dès
+   * qu'un parent du pipeline avait un `overflow` (les colonnes défilent).
+   * On le sort donc du flux — `position: fixed`, insensible aux overflows —
+   * et on choisit le sens selon la place réellement disponible.
+   */
+  function place() {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const spaceAbove = r.top;
+    const spaceBelow = window.innerHeight - r.bottom;
+    // Au-dessus par défaut (le bouton est en bas de carte), en dessous s'il n'y
+    // a pas la place — et jamais au-delà des bords.
+    const top = spaceAbove >= MENU_H + 8 || spaceAbove >= spaceBelow ? Math.max(8, r.top - MENU_H - 8) : Math.min(window.innerHeight - MENU_H - 8, r.bottom + 8);
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - MENU_W - 8);
+    setPos({ left, top });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -66,7 +92,11 @@ export default function ReplyButton({ prospectId, accountId, replyCount, onLogge
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={() => {
+          if (!open) place();
+          setOpen((o) => !o);
+        }}
         aria-haspopup="menu"
         aria-expanded={open}
         title="Journaliser une réponse reçue — alimente les KPI et sort le prospect de la file de relance"
@@ -85,7 +115,9 @@ export default function ReplyButton({ prospectId, accountId, replyCount, onLogge
         <div
           role="menu"
           // Surface OPAQUE obligatoire : le menu recouvre la carte suivante.
-          className="absolute left-0 bottom-full mb-2 z-40 w-64 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface-solid)] shadow-xl overflow-hidden"
+          // `fixed` (et non `absolute`) : aucun parent à overflow ne peut le rogner.
+          style={pos ? { left: pos.left, top: pos.top } : undefined}
+          className="fixed z-50 w-64 rounded-xl border border-[var(--color-border-strong)] bg-[var(--color-surface-solid)] shadow-xl overflow-hidden"
         >
           {KINDS.map((k) => (
             <button

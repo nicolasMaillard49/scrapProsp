@@ -8,7 +8,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, RefreshCw, Sheet, Send, MessageSquareReply, Percent,
-  PhoneCall, CalendarCheck, Loader2, Search, ExternalLink, Users, ChevronRight, Copy, Check, Snowflake,
+  PhoneCall, CalendarCheck, Loader2, Search, ExternalLink, Users, ChevronRight, Copy, Check, Snowflake, RotateCcw,
 } from "lucide-react";
 import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
 
@@ -191,15 +191,39 @@ function slackRecap(r: DayRow): string {
   ].join("\n");
 }
 
+/**
+ * Récap Slack ÉDITABLE avant copie.
+ *
+ * Les compteurs sont justes vis-à-vis de la base, mais la base ne sait pas tout :
+ * un DM parti du téléphone n'est jamais journalisé, une réponse peut arriver
+ * après la clôture du jour. Plutôt que de poster un chiffre qu'on sait faux ou
+ * de corriger dans Slack après coup, on corrige ici. « Recalculer » restaure la
+ * version issue des données.
+ */
 function CopySlack({ row }: { row: DayRow }) {
   const [done, setDone] = useState(false);
-  const text = slackRecap(row);
+  const generated = slackRecap(row);
+  const [text, setText] = useState(generated);
+  // La ligne change (autre journée, ou données rafraîchies) → on repart du calcul.
+  useEffect(() => setText(generated), [generated]);
+  const edited = text !== generated;
   return (
     <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
       <div className="flex items-center justify-between gap-3 px-3 py-2 border-b border-[var(--color-border)]">
         <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--color-text-muted)]">
           Récap Slack #04-kpis
+          {edited && <span className="ml-1.5 normal-case tracking-normal text-amber-600 dark:text-amber-400">· modifié</span>}
         </span>
+        <div className="flex items-center gap-1.5">
+        {edited && (
+          <button
+            onClick={() => setText(generated)}
+            title="Revenir aux chiffres calculés depuis la base"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+          >
+            <RotateCcw className="w-3 h-3" /> Recalculer
+          </button>
+        )}
         <button
           onClick={async () => {
             try {
@@ -213,10 +237,16 @@ function CopySlack({ row }: { row: DayRow }) {
           {done ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
           {done ? "Copié" : "Copier"}
         </button>
+        </div>
       </div>
-      <pre className="px-3 py-2.5 text-[11.5px] leading-relaxed text-[var(--color-text-secondary)] whitespace-pre-wrap select-all">
-{text}
-      </pre>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        spellCheck={false}
+        rows={text.split("\n").length}
+        aria-label="Récap Slack, modifiable avant copie"
+        className="w-full resize-y bg-transparent px-3 py-2.5 text-[11.5px] leading-relaxed text-[var(--color-text-secondary)] outline-none focus:text-[var(--color-text-primary)] font-mono-num"
+      />
     </div>
   );
 }

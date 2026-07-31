@@ -589,6 +589,15 @@ export interface IgDmStep {
  * Vouvoiement systématique (décidé le 2026-07-17) : la trame « solo » au
  * tutoiement est supprimée, on ne s'adresse plus qu'en « vous ».
  */
+/**
+ * Trame DM. RACCOURCIE le 02/08/2026 : les messages faisaient 3-4 lignes de
+ * justification (« certains détails précis m'ont mis la puce à l'oreille »,
+ * « quelques pistes de réflexion sur ces éléments ») — une longueur et une
+ * syntaxe qui se lisent immédiatement comme du texte généré, surtout en DM
+ * Instagram où l'on écrit court. Chaque étape tient désormais en une ou deux
+ * phrases parlées. Les règles de fond ne bougent pas : vouvoiement, aucune
+ * ressource avant M9, aucun pitch avant M8.
+ */
 export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] {
   const hello = p.firstName && p.firstName.trim() ? `Hello ${p.firstName.trim()}` : "Hello";
   // Accroche : la profession IA (précise) prime sur le métier détecté par regex.
@@ -617,60 +626,46 @@ export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] 
     {
       step: "M2",
       title: "Présentation 1/3 — contexte (après son oui)",
-      text:
-        `Parfait ! En fait je me baladais sur Instagram et votre dernier post est remonté dans mon feed, ` +
-        `ce qui m'a fait cliquer sur votre profil. En creusant un peu, certains détails précis sur votre présence en ligne ` +
-        `m'ont mis la puce à l'oreille. Je me suis dit que ça valait le coup de vous écrire pour échanger ` +
-        `et vous partager quelques pistes de réflexion sur ces éléments.`,
+      text: `Parfait ! Votre post est remonté dans mon feed, j'ai jeté un œil au profil et deux-trois trucs m'ont interpellé.`,
     },
     {
       step: "M3",
       title: "Présentation 2/3 — qui je suis",
-      text:
-        `Pour me présenter rapidement, je m'appelle Nicolas — ça fait 6 ans que je suis dans le digital ` +
-        `et j'accompagne ${avatar} sur l'acquisition de clients, pour avoir ${pain.demandes} sans dépendre du bouche-à-oreille.`,
+      text: `Moi c'est Nicolas, 6 ans dans le digital, surtout avec ${avatar}.`,
     },
     {
       step: "M4",
       title: "Présentation 3/3 — la question",
-      text: `Est-ce que vous seriez fermé à l'idée que je vous partage les points qui ont retenu mon attention ? :)`,
+      text: `Ça vous dérange si je vous dis ce que j'ai remarqué ?`,
     },
     {
       step: "M5",
       title: "Connexion",
-      text:
-        `Super ! Juste avant, j'avais quelques questions pour clarifier mon ressenti — ` +
-        `je me demandais depuis combien de temps vous développiez l'activité ? Je n'ai pas vu l'info sur votre profil 🙂`,
+      text: `Avant ça, vous faites ce métier depuis longtemps ?`,
     },
     {
       step: "M6",
       title: "Focus",
-      text: `Ok je vois ! Et vous êtes sur quoi en ce moment — plutôt votre cœur de métier, la recherche de nouveaux clients, ou vous êtes sur autre chose ?`,
+      text: `Et en ce moment vous êtes plutôt sur le terrain, ou à chercher des clients ?`,
     },
     {
       step: "M7",
       title: "Recherche de douleur",
       text:
-        `Et comment ça se passe à ce niveau ? Vous arrivez à avoir ${pain.demandes} et ${pain.stable}, ` +
-        `ou ça reste un peu aléatoire honnêtement ?` +
-        (bk ? `\n\n(Variante ${bk} : « J'ai vu que vous passiez par ${bk} — ça vous convient niveau commissions, ou ça commence à chiffrer ? »)` : ""),
+        `Et ça donne quoi ? Vous avez ${pain.demandes}, ou c'est en dents de scie ?` +
+        (bk ? `\n\n(Variante ${bk} : « J'ai vu que vous passiez par ${bk} — ça vous va niveau commissions ? »)` : ""),
     },
     {
       step: "M8",
       title: "Proposition d'appel (aucune ressource, aucun exemple de site)",
-      text:
-        `Ok je vois ! Ce que je peux vous proposer, c'est qu'on se prenne 15-20 min ensemble pour vous partager ` +
-        `les points que j'ai identifiés par rapport à votre présence en ligne, et ce que l'on met en place chez nos clients. ` +
-        `Est-ce que vous auriez un moment cette semaine ? :)`,
+      text: `Ok. Le plus simple c'est qu'on se cale 15-20 min et je vous montre ce que j'ai vu. Vous avez un créneau cette semaine ?`,
     },
     {
       step: "M9",
       title: "Questionnaire (après son oui, avant de bloquer le créneau)",
       text:
-        `Super ! Juste avant que je bloque ça de mon côté, j'aurais besoin que vous remplissiez un petit questionnaire — ` +
-        `ça me permettra d'avoir plus de visibilité sur votre activité et de vous apporter davantage de valeur pendant l'appel. ` +
-        `À la fin, vous aurez automatiquement accès aux ressources 👉 ${QUESTIONNAIRE_URL}\n\n` +
-        `Je vous laisse me faire un retour une fois que c'est fait, ça prend 2 min max ;)`,
+        `Top ! Avant que je bloque le créneau, un petit questionnaire pour préparer l'appel — 2 min 👉 ${QUESTIONNAIRE_URL}\n\n` +
+        `Dites-moi quand c'est fait.`,
     },
     {
       step: "R1",
