@@ -487,12 +487,16 @@ export async function refillStock(now = new Date()): Promise<RefillRun> {
     return { ran: false, reason: "Sélection déjà complète.", steps, inserted: 0, qualified: 0, shortfallBefore: 0, shortfallAfter: 0, stopped: "sélection pleine" };
   }
 
+  // Cibles dont le tri IA n'a rien donné pendant CE run : inutile de les
+  // représenter à Claude à chaque marche (cf. `refillStep`).
+  const sterile = new Set<string>();
+
   for (let i = 0; i < REFILL_MAX_STEPS; i++) {
     if (Date.now() - started > REFILL_BUDGET_MS - REFILL_STEP_RESERVE_MS) {
       stopped = "temps écoulé";
       break;
     }
-    const step = await refillStep(now);
+    const step = await refillStep(now, sterile);
     if (!step.ran) {
       // Plus aucune marche disponible : on garde la raison pour l'afficher.
       steps.push(step);
@@ -532,7 +536,11 @@ function scanTime(iso: string | null): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
-async function refillStep(now = new Date()): Promise<RefillResult> {
+/**
+ * Une marche du refill. `sterile` mémorise, le temps d'un `refillStock`, les
+ * cibles dont le tri IA n'a rien fait bouger : sans ça le refill boucle dessus.
+ */
+async function refillStep(now = new Date(), sterile = new Set<string>()): Promise<RefillResult> {
   if (!qualifyAvailable()) return { ran: false, reason: "ANTHROPIC_API_KEY manquant — qualification impossible." };
 
   const { data, error } = await supabase
@@ -574,7 +582,9 @@ async function refillStep(now = new Date()): Promise<RefillResult> {
   //    récents tous statuts confondus et ne produit que des verdicts sur des
   //    comptes déjà démarchés, qui n'entreront jamais dans la sélection.
   for (const t of targets) {
-    if ((await unqualifiedCount(t.metier)) === 0) continue;
+    if (sterile.has(t.metier)) continue;
+    const avant = await unqualifiedCount(t.metier);
+    if (avant === 0) continue;
     const qual = await qualifyRun({
       scope: { metier: t.metier, hashtags: hashtagsOf(t.metier) },
       status: "todo",
@@ -582,6 +592,18 @@ async function refillStep(now = new Date()): Promise<RefillResult> {
       limit: QUALIFY_RUN_CAP,
       avatar: { profession: t.avatar_profession, minFollowers: t.min_followers, maxFollowers: t.max_followers },
     });
+
+    // Un profil que le modèle omet de son verdict (`parseQualifyResponse` ne
+    // garde que les pseudos reconnus) reste `qualification = null` — donc
+    // éternellement « à trier ». Le 01/08, un menuisier orphelin a fait tourner
+    // le refill 96 fois d'affilée sur la même ligne sans jamais atteindre la
+    // collecte. On mesure donc le progrès RÉEL, et une cible qui n'en fait pas
+    // est écartée pour le reste du run.
+    if ((await unqualifiedCount(t.metier)) >= avant) {
+      sterile.add(t.metier);
+      continue;
+    }
+
     return {
       ran: true,
       mode: "qualify",

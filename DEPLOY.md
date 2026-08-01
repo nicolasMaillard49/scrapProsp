@@ -109,9 +109,9 @@ Remplit la sélection du jour **sans aucun clic** : le bouton « Aller en cherch
 - Une passe tuée en vol (timeout Vercel, source à terre) n'est pas perdue : le refill commence toujours par qualifier les profils sans verdict, donc la passe suivante rattrape les orphelins.
 - Déploiement : `VPS_SSH_PASSWORD='…' python scripts/deploy-vps.py` (le fichier est dans la liste).
 - Config : ajouter `CRON_SECRET=…` (valeur Vercel) dans `/home/deploy/scrapProsp/vps/radar.env`.
-- Cron sous le user `deploy` (`crontab -e`), toutes les 30 min sur la fenêtre d'envoi — **chemin Node absolu obligatoire** :
+- Cron sous le user `deploy` (`crontab -e`), toutes les 30 min de **4 h à 11 h UTC** (≈ 6 h – 13 h Paris l'été : la sélection est déjà pleine quand `ig-digest` poste son récap à 6 h UTC). **Chemin Node absolu obligatoire**, et `flock` parce qu'une boucle peut durer jusqu'à 40 min alors que le tick est à 30 :
   ```cron
-  */30 6-11 * * * cd /home/deploy/scrapProsp/vps && set -a && . ./radar.env && set +a && /home/deploy/.nvm/versions/node/v20.20.2/bin/node ig-refill.mjs >> /home/deploy/ig-refill.log 2>&1
+  */30 4-11 * * * cd /home/deploy/scrapProsp/vps && set -a && . ./radar.env && set +a && flock -n /tmp/ig-refill.lock /home/deploy/.nvm/versions/node/v20.20.2/bin/node ig-refill.mjs >> /home/deploy/ig-refill.log 2>&1
   ```
 - Test manuel : `cd /home/deploy/scrapProsp/vps && set -a && . ./radar.env && set +a && /home/deploy/.nvm/versions/node/v20.20.2/bin/node ig-refill.mjs`
 - Vérif : `tail -50 /home/deploy/ig-refill.log`.
