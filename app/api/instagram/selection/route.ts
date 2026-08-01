@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseConfigured } from "@/app/lib/supabase";
-import { ensureDailySelection, skipSelection, cancelContact, refillStock } from "@/app/lib/igSelection";
+import { ensureDailySelection, skipSelection, cancelContact, markLostFromSelection, refillStock } from "@/app/lib/igSelection";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // le refill enchaîne un scan Apify et des lots Claude
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 }
 
 interface Body {
-  action?: "skip" | "cancel" | "refill";
+  action?: "skip" | "cancel" | "lost" | "refill";
   account_id?: string;
   prospect_id?: string;
   reason?: string;
@@ -59,12 +59,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, selection: await ensureDailySelection(body.account_id) });
     }
 
+    // Compte injoignable découvert en ouvrant le profil, avant toute accroche :
+    // un seul clic le passe « perdu » ET le sort de la journée.
+    if (body.action === "lost") {
+      if (!body.prospect_id) return NextResponse.json({ error: "prospect_id requis" }, { status: 400 });
+      await markLostFromSelection(body.prospect_id, body.reason?.trim() || null);
+      return NextResponse.json({ ok: true, selection: await ensureDailySelection(body.account_id) });
+    }
+
     if (body.action === "refill") {
       const refill = await refillStock();
       return NextResponse.json({ ok: true, refill, selection: await ensureDailySelection(body.account_id) });
     }
 
-    return NextResponse.json({ error: "action inconnue (skip | refill)" }, { status: 400 });
+    return NextResponse.json({ error: "action inconnue (skip | cancel | lost | refill)" }, { status: 400 });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

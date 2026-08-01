@@ -318,6 +318,38 @@ export async function skipSelection(prospectId: string, reason: string | null, n
 }
 
 /**
+ * PERDU en un clic depuis la sélection du jour, AVANT toute accroche.
+ *
+ * Le cas de terrain : on ouvre le profil, on découvre que le compte n'accepte
+ * pas les DM (messages fermés, compte pro sans bouton). La corbeille ne fait
+ * que retirer la ligne du jour — le prospect reste `todo` dans la base et
+ * ressort partout ailleurs. Il fallait donc aller le rouvrir dans le pipeline
+ * pour le passer « perdu », alors que l'information est connue ici, tout de
+ * suite. On fait les deux gestes d'un coup.
+ *
+ * Mêmes règles de cohérence que le bouton « Perdu » du pipeline (route PATCH) :
+ * stade `perdu`, statut `negative`, relances coupées. Aucun DM n'ayant été
+ * envoyé, il n'y a rien à purger du journal — contrairement à `cancelContact`.
+ */
+export async function markLostFromSelection(prospectId: string, reason: string | null, now = new Date()): Promise<void> {
+  const { error: proErr } = await supabase
+    .from("instagram_prospects")
+    .update({ stage: "perdu", status: "negative", next_followup_at: null })
+    .eq("id", prospectId);
+  if (proErr) throw new Error(`prospect : ${proErr.message}`);
+
+  // La ligne du jour est écartée, pas supprimée : elle reste visible, grisée,
+  // et ne sera pas reportée demain.
+  const { error: selErr } = await supabase
+    .from("ig_daily_selection")
+    .update({ skipped_at: now.toISOString(), skip_reason: reason ?? "perdu — injoignable" })
+    .eq("prospect_id", prospectId)
+    .is("done_at", null)
+    .is("skipped_at", null);
+  if (selErr) throw new Error(`sélection : ${selErr.message}`);
+}
+
+/**
  * ANNULE une accroche déjà marquée « envoyée » et sort le prospect de la
  * journée, sans laisser de trace dans les compteurs.
  *

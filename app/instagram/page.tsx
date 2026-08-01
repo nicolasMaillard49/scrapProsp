@@ -607,6 +607,30 @@ export default function InstagramPage() {
     }
   }, [loadCockpit]);
 
+  /**
+   * « Perdu » en un clic depuis la sélection, AVANT toute accroche : pour le
+   * compte qu'on découvre injoignable en ouvrant son profil (DM fermés). Passe
+   * le prospect en perdu/négatif ET l'écarte de la journée d'un seul geste — la
+   * corbeille, elle, ne fait que le retirer de la liste du jour.
+   */
+  const markLostFromSelection = useCallback(
+    async (prospectId: string) => {
+      const res = await fetch("/api/instagram/selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "lost", prospect_id: prospectId, account_id: activeAccount || undefined }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setSelection(json.selection as DailySelection);
+        setLeads((prev) => prev.map((l) => (l.id === prospectId ? { ...l, stage: "perdu", status: "negative" } : l)));
+        setSelMsg("Marqué perdu : le prospect sort du circuit, il ne reviendra pas demain.");
+        await loadCockpit();
+      } else setSelMsg(json.error ?? `Erreur ${res.status}`);
+    },
+    [activeAccount, loadCockpit],
+  );
+
   /** Transition manuelle du pipeline (call booké / perdu, ou déplacement drag-and-drop). */
   const setStage = useCallback(async (prospectId: string, stage: Stage) => {
     const res = await fetch(`/api/instagram/${prospectId}`, {
@@ -1459,6 +1483,9 @@ export default function InstagramPage() {
                 onSetStage: setStage,
                 onSaveNote: saveNote,
                 onOpenInsta: openInsta,
+                onCopy: copy,
+                onMarkSent: markSent,
+                onLost: markLostFromSelection,
                 onReplyLogged: (id, p) => setLeads((prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x))),
               }}
             />
@@ -1510,6 +1537,8 @@ export default function InstagramPage() {
                         onSetStage: setStage,
                         onSaveNote: saveNote,
                         onOpenInsta: openInsta,
+                        onCopy: copy,
+                        onMarkSent: markSent,
                         onReplyLogged: (id, p) => setLeads((prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x))),
                       }}
                     />
@@ -2194,9 +2223,144 @@ type PipelineCardHandlers = {
   onSaveNote: (id: string, notes: string) => void;
   onOpenInsta: (username: string) => void;
   onReplyLogged: (id: string, p: Record<string, unknown>) => void;
+  onCopy: (key: string, text: string) => void;
+  onMarkSent: (id: string, step: string) => void;
   /** Vue « Sélection du jour » uniquement : retire le prospect de la liste du jour. */
   onSkip?: (id: string) => void;
+  /** Vue « Sélection du jour » uniquement : perdu + écarté, en un clic. */
+  onLost?: (id: string) => void;
 };
+
+/**
+ * TRAME DM en tête de la sélection du jour.
+ *
+ * La trame vivait uniquement dans le dépliant « Séquence DM » de chaque fiche,
+ * en vue liste : pour la relire il fallait quitter la sélection. Or c'est la
+ * référence qu'on suit toute la session (M1 → M9, un message à la fois), donc
+ * elle est ici, juste sous le compteur du jour.
+ *
+ * Elle est personnalisée pour le PROCHAIN compte à démarcher — sinon les textes
+ * seraient des gabarits à trous, inutilisables tels quels. Quand la journée est
+ * finie, elle retombe sur la version générique, qui reste lisible comme méthode.
+ */
+function TrameDuJour({
+  next,
+  origin,
+  activeAccount,
+  copied,
+  onCopy,
+  onMarkSent,
+}: {
+  next: IgLead | null;
+  origin: string;
+  activeAccount: string;
+  copied: string | null;
+  onCopy: (key: string, text: string) => void;
+  onMarkSent: (id: string, step: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+
+  // Le pli est un réglage d'écran, pas une donnée : localStorage, lu après le
+  // montage pour ne pas désaccorder le rendu serveur et le rendu client.
+  useEffect(() => {
+    if (localStorage.getItem("ig_trame_open") === "0") setOpen(false);
+  }, []);
+  const toggle = useCallback(() => {
+    setOpen((o) => {
+      localStorage.setItem("ig_trame_open", o ? "0" : "1");
+      return !o;
+    });
+  }, []);
+
+  const steps = useMemo(() => {
+    if (!next) return instagramDmSequence({ metier: "", ville: "" }, "");
+    const metierEff =
+      detectMetier(next.profession_ia, null) ||
+      detectMetier(next.category, `${next.username} ${next.bio ?? ""}`) ||
+      next.metier ||
+      "";
+    return instagramDmSequence(
+      {
+        metier: metierEff,
+        ville: next.ville ?? "",
+        bookingPlatform: next.booking_platform,
+        firstName: firstNameOf(next.full_name),
+        professionIa: next.profession_ia,
+      },
+      origin ? `${origin}/di/${shortCode(next.id)}` : "",
+    );
+  }, [next, origin]);
+
+  return (
+    <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <button
+          onClick={toggle}
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--color-text-primary)] hover:text-[var(--color-accent)] transition-colors cursor-pointer"
+        >
+          <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
+          Trame DM
+        </button>
+        <span className="text-[11px] text-[var(--color-text-muted)]">
+          {next ? (
+            <>écrite pour <span className="font-medium text-[var(--color-text-secondary)]">@{next.username}</span>, le prochain de la file</>
+          ) : (
+            "version générique — la file du jour est vide"
+          )}
+        </span>
+        <span className="flex-1" />
+        <span className="text-[11px] text-[var(--color-text-muted)]">un message à la fois · aucun lien avant M8</span>
+      </div>
+
+      {open && (
+        <div className="mt-2.5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2">
+          {steps.map((s) => {
+            const key = `trame-${next?.id ?? "generique"}-${s.step}`;
+            const isRelance = s.step.startsWith("R");
+            return (
+              <div key={key} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]/50 p-2.5">
+                <div className="flex items-center justify-between gap-1.5 mb-1">
+                  <span
+                    className={`font-mono-num text-[11px] font-semibold truncate ${isRelance ? "text-[var(--color-text-muted)]" : "text-[var(--color-accent)]"}`}
+                    title={s.title}
+                  >
+                    {s.step} <span className="font-sans font-normal text-[var(--color-text-muted)]">· {s.title}</span>
+                  </span>
+                  <span className="shrink-0 flex items-center">
+                    <button
+                      onClick={() => onCopy(key, s.text)}
+                      className="tap flex items-center gap-1 text-[11px] font-medium rounded-md px-1.5 py-1 text-[var(--color-text-secondary)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+                    >
+                      {copied === key ? (
+                        <><Check className="w-3 h-3 text-emerald-600" /> Copié</>
+                      ) : (
+                        <><Copy className="w-3 h-3" /> Copier</>
+                      )}
+                    </button>
+                    {/* Journaliser n'a de sens que sur un vrai prospect : la trame
+                        générique n'a personne à qui imputer l'envoi. */}
+                    {next && (
+                      <button
+                        onClick={() => onMarkSent(next.id, s.step)}
+                        title={activeAccount ? "Journalise l'envoi (quota + stade + relance)" : "Sélectionne un compte actif dans le cockpit"}
+                        className="tap flex items-center gap-1 text-[11px] font-medium rounded-md px-1.5 py-1 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                      >
+                        <Send className="w-3 h-3" />
+                      </button>
+                    )}
+                  </span>
+                </div>
+                <p className="text-[11.5px] text-[var(--color-text-secondary)] whitespace-pre-line leading-relaxed">
+                  {s.text}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * VUE « SÉLECTION DU JOUR » — la liste FERMÉE des comptes à démarcher aujourd'hui.
@@ -2312,6 +2476,17 @@ function SelectionView({
         {message && <p className="mt-2 text-xs text-[var(--color-text-secondary)]">{message}</p>}
       </div>
 
+      {/* La trame, juste sous le compteur : c'est la référence qu'on suit toute
+          la session, elle ne doit pas obliger à quitter la sélection. */}
+      <TrameDuJour
+        next={(restants[0]?.prospect as IgLead | undefined) ?? null}
+        origin={cardProps.origin}
+        activeAccount={cardProps.activeAccount}
+        copied={cardProps.copied}
+        onCopy={cardProps.onCopy}
+        onMarkSent={cardProps.onMarkSent}
+      />
+
       {selection.rows.length === 0 ? (
         <div className="text-center py-16 rounded-2xl border border-dashed border-[var(--color-border-strong)]">
           <Search className="w-9 h-9 text-[var(--color-text-muted)] mx-auto mb-3 opacity-40" />
@@ -2356,7 +2531,12 @@ function SelectionView({
                     </span>
                   )}
                 </div>
-                <PipelineCard l={r.prospect} {...cardProps} onSkip={traite ? undefined : onSkip} />
+                <PipelineCard
+                  l={r.prospect}
+                  {...cardProps}
+                  onSkip={traite ? undefined : onSkip}
+                  onLost={traite ? undefined : cardProps.onLost}
+                />
               </div>
             );
           })}
@@ -2409,7 +2589,7 @@ function PipelineColumn({
 }
 
 /** Carte compacte de la vue Pipeline — draggable (souris + tactile), mêmes actions que la fiche liste. */
-function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetStage, onSaveNote, onOpenInsta, onReplyLogged, onSkip }: { l: IgLead } & PipelineCardHandlers) {
+function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetStage, onSaveNote, onOpenInsta, onReplyLogged, onSkip, onLost }: { l: IgLead } & PipelineCardHandlers) {
   const metierEff =
     detectMetier(l.profession_ia, null) ||
     detectMetier(l.category, `${l.username} ${l.bio ?? ""}`) ||
@@ -2551,11 +2731,26 @@ function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetS
             )}
           </>
         )}
-        {/* Sélection du jour : écarter le compte (il ne sera pas reporté demain). */}
+        {/* Sélection du jour, deux sorties distinctes et volontairement séparées :
+            — « Perdu » (rouge plein) : le compte est injoignable, il sort du
+              circuit pour de bon (stade perdu + statut négatif) ;
+            — la corbeille : on le retire juste de la journée, il reste en base.
+            Avant, seule la corbeille existait ici et il fallait rouvrir le
+            pipeline pour marquer un compte perdu. */}
+        {onLost && isTodo && (
+          <button
+            onClick={() => onLost(l.id)}
+            title="Perdu — compte injoignable (DM fermés) : sort du circuit"
+            aria-label="Marquer perdu"
+            className="tap inline-flex items-center justify-center h-7 w-7 rounded-lg border border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+          >
+            <XCircle className="w-3 h-3" />
+          </button>
+        )}
         {onSkip && (
           <button
             onClick={() => onSkip(l.id)}
-            title="Écarter de la sélection du jour"
+            title="Écarter de la sélection du jour (le prospect reste en base)"
             aria-label="Écarter de la sélection du jour"
             className="tap inline-flex items-center justify-center h-7 w-7 rounded-lg border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
           >
