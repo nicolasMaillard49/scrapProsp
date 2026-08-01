@@ -283,12 +283,15 @@ export default function InstagramPage() {
    * tout en haut de la page, et on agit sur une carte qu'on a scrollée — on
    * cliquait « Perdu » sans jamais voir que ça avait marché.
    */
-  const [toast, setToast] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
+  const [toast, setToast] = useState<{ text: string; tone: "ok" | "err"; n: number } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastSeq = useRef(0);
   const notify = useCallback((text: string, tone: "ok" | "err" = "ok") => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToast({ text, tone });
-    toastTimer.current = setTimeout(() => setToast(null), 4000);
+    // `n` force le remontage : sans clé qui change, deux confirmations d'affilée
+    // ne rejouent pas l'animation et la seconde passe inaperçue.
+    setToast({ text, tone, n: ++toastSeq.current });
+    toastTimer.current = setTimeout(() => setToast(null), 6000);
   }, []);
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
   // Filtre par stade (vue liste) — le stade est l'axe de suivi.
@@ -657,9 +660,12 @@ export default function InstagramPage() {
     const json = await res.json();
     if (res.ok) {
       setLeads((prev) => prev.map((l) => (l.id === prospectId ? { ...l, ...json.prospect } : l)));
+      // Toute transition se confirme, pas seulement celles de la sélection :
+      // cliquer « Perdu » sur une carte déjà démarchée ne disait rien non plus.
+      notify(`Passé en « ${STAGE_LABEL[stage] ?? stage} ».`);
       await loadCockpit();
-    }
-  }, [loadCockpit]);
+    } else notify(json.error ?? `Erreur ${res.status}`, "err");
+  }, [loadCockpit, notify]);
 
   // ── Glisser-déposer du pipeline (souris ET tactile via dnd-kit) ──
   // PointerSensor : seuil de 6 px → un clic sur un bouton/lien reste un clic.
@@ -2057,23 +2063,25 @@ function GoalRing({ value, goal }: { value: number; goal: number }) {
  * une carte scrollée, on ne les voyait jamais. `role="status"` pour que le
  * lecteur d'écran l'annonce sans voler le focus.
  */
-function Toast({ toast }: { toast: { text: string; tone: "ok" | "err" } | null }) {
+function Toast({ toast }: { toast: { text: string; tone: "ok" | "err"; n: number } | null }) {
   if (!toast) return null;
   const err = toast.tone === "err";
   return (
     <div
+      key={toast.n}
       role="status"
       aria-live="polite"
-      className="animate-slide-up fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 px-4 max-w-[92vw]"
+      className="animate-slide-up fixed bottom-6 left-1/2 z-[90] -translate-x-1/2 px-4 max-w-[92vw] pointer-events-none"
     >
+      {/* Fond PLEIN et contrasté, pas une carte de surface : posé en bas d'une
+          grille de cartes sombres, un toast discret se confond avec le fond —
+          on cliquait sans jamais voir la confirmation. */}
       <div
-        className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-[13px] font-medium shadow-lg border ${
-          err
-            ? "bg-rose-600 text-white border-rose-500"
-            : "bg-[var(--color-surface)] text-[var(--color-text-primary)] border-[var(--color-border-strong)]"
+        className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm font-semibold shadow-2xl ring-1 ${
+          err ? "bg-rose-600 text-white ring-rose-400/50" : "bg-[var(--color-accent)] text-white ring-white/20"
         }`}
       >
-        {err ? <AlertTriangle className="w-4 h-4 shrink-0" /> : <Check className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+        {err ? <AlertTriangle className="w-4 h-4 shrink-0" /> : <Check className="w-4 h-4 shrink-0" />}
         <span>{toast.text}</span>
       </div>
     </div>
@@ -2565,7 +2573,9 @@ function SelectionView({
             // Un compte perdu n'est pas un compte « traité comme les autres » :
             // il se lit en rouge, à pleine opacité. Grisé au même titre qu'une
             // accroche envoyée, on ne voyait pas que le clic avait pris.
-            const perdu = Boolean(r.skipped_at) && (r.prospect as IgLead).stage === "perdu";
+            // Le stade SEUL fait foi : un compte perdu APRÈS l'accroche garde
+            // son `done_at` (le DM est bien parti) et n'est donc jamais écarté.
+            const perdu = (r.prospect as IgLead).stage === "perdu";
             return (
               <div key={r.prospect_id} className={perdu ? "" : traite ? "opacity-45" : ""}>
                 <div className="mb-1 flex items-center gap-1.5 px-1 text-[10.5px] text-[var(--color-text-muted)]">
@@ -2602,12 +2612,16 @@ function SelectionView({
                     </span>
                   )}
                 </div>
+                {/* « Perdu » reste accessible QUOI QU'IL ARRIVE — on découvre
+                    qu'un compte est mort aussi bien avant l'accroche qu'après.
+                    Seule la corbeille disparaît une fois la ligne traitée : il
+                    n'y a plus rien à retirer de la journée. */}
                 <div className={perdu ? "rounded-xl ring-2 ring-rose-500/60 bg-rose-500/[0.06]" : ""}>
                   <PipelineCard
                     l={r.prospect}
                     {...cardProps}
                     onSkip={traite ? undefined : onSkip}
-                    onLost={traite ? undefined : cardProps.onLost}
+                    onLost={cardProps.onLost}
                   />
                 </div>
               </div>
@@ -2793,11 +2807,19 @@ function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetS
                 <PhoneCall className="w-3 h-3" />
               </button>
             )}
-            {l.stage !== "perdu" && (
+            {/* Dans la sélection du jour, `onLost` fait déjà le perdu (et sort
+                le compte de la journée) : on n'affiche pas deux croix rouges
+                côte à côte pour le même geste. */}
+            {!onLost && (
               <button
                 onClick={() => onSetStage(l.id, "perdu")}
-                title="Perdu"
-                className="tap inline-flex items-center justify-center h-7 w-7 rounded-lg border border-[var(--color-border)] text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                title={l.stage === "perdu" ? "Déjà marqué perdu" : "Perdu"}
+                aria-pressed={l.stage === "perdu"}
+                className={`tap inline-flex items-center justify-center h-7 w-7 rounded-lg border transition-colors cursor-pointer ${
+                  l.stage === "perdu"
+                    ? "border-rose-500 bg-rose-500/15 text-rose-600 dark:text-rose-300"
+                    : "border-[var(--color-border)] text-rose-700 dark:text-rose-400 hover:bg-rose-500/10"
+                }`}
               >
                 <XCircle className="w-3 h-3" />
               </button>
@@ -2805,17 +2827,23 @@ function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetS
           </>
         )}
         {/* Sélection du jour, deux sorties distinctes et volontairement séparées :
-            — « Perdu » (rouge plein) : le compte est injoignable, il sort du
-              circuit pour de bon (stade perdu + statut négatif) ;
+            — « Perdu » (rouge) : le compte est mort, il sort du circuit (stade
+              perdu + statut négatif). TOUJOURS présent : on découvre qu'un
+              compte est injoignable avant l'accroche comme après ;
             — la corbeille : on le retire juste de la journée, il reste en base.
             Avant, seule la corbeille existait ici et il fallait rouvrir le
             pipeline pour marquer un compte perdu. */}
-        {onLost && isTodo && (
+        {onLost && (
           <button
             onClick={() => onLost(l.id, l.username)}
-            title="Perdu — compte injoignable (DM fermés) : sort du circuit"
+            title={l.stage === "perdu" ? "Déjà marqué perdu" : "Perdu — compte mort : sort du circuit"}
             aria-label="Marquer perdu"
-            className="tap inline-flex items-center justify-center h-7 w-7 rounded-lg border border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+            aria-pressed={l.stage === "perdu"}
+            className={`tap inline-flex items-center justify-center h-7 w-7 rounded-lg border transition-colors cursor-pointer ${
+              l.stage === "perdu"
+                ? "border-rose-500 bg-rose-500/15 text-rose-600 dark:text-rose-300"
+                : "border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-400 hover:bg-rose-500/10"
+            }`}
           >
             <XCircle className="w-3 h-3" />
           </button>

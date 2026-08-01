@@ -178,15 +178,23 @@ body > * { position: relative; z-index: 1; }
   box-shadow: 0 0 0 3px var(--color-accent-soft), inset 0 1px 2px rgba(0, 0, 0, 0.15);
 }
 
-/* Variante sobre du focus : le liseré d'accent, sans le halo de 3 px. Pour les
-   champs qu'on active en permanence — la recherche de prospects — où le halo
-   attire l'œil à chaque frappe alors qu'on regarde la liste, pas le champ. */
-.glass-input--soft:focus-within,
-.dark .glass-input--soft:focus-within {
+/* Variante sobre du focus, pour les champs qu'on active en permanence — la
+   recherche de prospects — où le marquage habituel attire l'œil à chaque frappe
+   alors qu'on regarde la liste, pas le champ.
+   Trois choses à neutraliser, pas une : le halo de 3 px, le liseré d'accent, et
+   surtout l'`outline` de 2 px posé plus haut sur TOUT `input:focus-visible`.
+   Ce dernier est plus spécifique que l'`outline-none` de Tailwind : il gagnait,
+   et dessinait un second rectangle à 2 px à l'intérieur du champ. */
+.glass-input--soft:focus-within {
+  border-color: #b9b9c4;
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 .dark .glass-input--soft:focus-within {
+  border-color: rgba(255, 255, 255, 0.18);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.glass-input--soft input:focus-visible {
+  outline: none;
 }
 
 /* ── Scrollbar ── */
