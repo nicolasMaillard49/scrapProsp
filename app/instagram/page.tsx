@@ -21,6 +21,7 @@ import {
 } from "@dnd-kit/core";
 import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
+import { matchesProspect } from "@/app/lib/search";
 import { instagramDmSequence, detectMetier, firstNameOf, competitorHook } from "@/app/lib/instagram";
 import { STAGE_LABEL, STAGE_SHORT, STAGES, stageTone, type Stage, type StageTone } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
@@ -831,7 +832,7 @@ export default function InstagramPage() {
   // Filtres SECONDAIRES (métier, priorité, IA, sans site, abonnés, recherche) —
   // TOUT sauf le statut. Sert de base aux pastilles de statut ET à la liste.
   const baseFiltered = useMemo(() => {
-    const q = searchText.trim().toLowerCase();
+    const q = searchText.trim();
     const min = followersMin ? parseInt(followersMin, 10) : null;
     const max = followersMax ? parseInt(followersMax, 10) : null;
     return leads.filter((l) => {
@@ -843,7 +844,10 @@ export default function InstagramPage() {
       if ((l.followers ?? 0) > MAX_FOLLOWERS) return false;
       if (min != null && (l.followers ?? 0) < min) return false;
       if (max != null && (l.followers ?? 0) > max) return false;
-      if (q && !`${l.username} ${l.full_name ?? ""} ${l.ville ?? ""} ${l.bio ?? ""}`.toLowerCase().includes(q)) return false;
+      // Recherche tolérante : la ponctuation des pseudos ne se retient pas
+      // (`M.led_xix` se tape « mledxix ») et une lettre fausse ne doit pas faire
+      // perdre le compte. Voir `app/lib/search.ts`.
+      if (q && !matchesProspect(l, q)) return false;
       return true;
     });
   }, [leads, metierFilter, tierFilter, qualifFilter, noSiteOnly, followersMin, followersMax, searchText]);
@@ -1467,15 +1471,28 @@ export default function InstagramPage() {
               )}
             </div>
             <div className="flex-1 min-w-44">
-              <div className="flex items-center glass-input rounded-lg px-3">
+              {/* `label` plutôt qu'une icône décorative : cliquer la loupe donne
+                  le focus au champ, gratuitement et sans handler. Le focus se
+                  marque par un liseré d'accent discret — pas un halo. */}
+              <label className="flex items-center glass-input glass-input--soft rounded-lg px-3 cursor-text">
                 <Search className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0" />
                 <input
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
-                  placeholder="Rechercher (pseudo, nom, ville, bio…)"
+                  placeholder="Rechercher (pseudo, nom, ville, bio…) — les fautes passent"
                   className="flex-1 bg-transparent border-none outline-none px-2 py-2 text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-secondary)]"
                 />
-              </div>
+                {searchText && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchText("")}
+                    aria-label="Effacer la recherche"
+                    className="shrink-0 -mr-1 p-1 rounded text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors cursor-pointer"
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </label>
             </div>
           </div>
           )}
