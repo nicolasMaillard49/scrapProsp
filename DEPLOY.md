@@ -96,6 +96,26 @@ Chaque matin, prépare la **liste fermée des comptes Instagram à démarcher au
 - Test sans rien poster ni dépenser : `curl "https://prospects.nmf-agence.com/api/cron/ig-digest?dry=1" -H "x-cron-secret: VOTRE_CRON_SECRET"` → renvoie `{ dry, selection }`.
 - Côté cockpit : `/instagram` → onglet **Sélection du jour** (vue par défaut). Chaque « Prendre contact » raye sa ligne tout seul ; la corbeille écarte un compte (il ne sera pas reporté demain) ; « Aller en chercher » relance le refill à la main.
 
+## Refill automatique de la sélection (script VPS — `vps/ig-refill.mjs`)
+
+Remplit la sélection du jour **sans aucun clic** : le bouton « Aller en chercher » du cockpit ne sert plus que de rattrapage.
+
+> ⚠️ Pourquoi sur le VPS et pas sur Vercel : une invocation Vercel meurt à **300 s**, ce qui plafonne une passe de refill à ~1 collecte + ~37 profils résolus + 1 lot Claude. Pour pourvoir les ~49 créneaux d'une journée de chauffe il en faut **7 à 10**. Le cron `ig-digest` du matin ne pouvait donc structurellement pas remplir la journée (constat 01/08/2026 : 33 qualifiés en stock pour 49 créneaux). Le VPS, lui, boucle sans mur.
+
+- Route appelée : `GET/POST /api/cron/ig-refill` — auth `x-cron-secret` (même `CRON_SECRET` que les autres crons). Une passe de refill par appel, chacune courte et autonome.
+  - `?mode=status` — ne dépense rien, renvoie seulement l'état (sonde d'entrée de la boucle).
+  - `?notify=1` — poste l'état sur Telegram (utilisé par le script quand des créneaux restent vides).
+- Le script boucle jusqu'à `shortfall = 0`, puis s'arrête. Garde-fous : `IG_REFILL_MAX_PASSES` (12), `IG_REFILL_MAX_MINUTES` (40) et surtout `IG_REFILL_QUOTA_FLOOR` (1500) — on n'entame pas la réserve mensuelle du fournisseur.
+- Une passe tuée en vol (timeout Vercel, source à terre) n'est pas perdue : le refill commence toujours par qualifier les profils sans verdict, donc la passe suivante rattrape les orphelins.
+- Déploiement : `VPS_SSH_PASSWORD='…' python scripts/deploy-vps.py` (le fichier est dans la liste).
+- Config : ajouter `CRON_SECRET=…` (valeur Vercel) dans `/home/deploy/scrapProsp/vps/radar.env`.
+- Cron sous le user `deploy` (`crontab -e`), toutes les 30 min sur la fenêtre d'envoi — **chemin Node absolu obligatoire** :
+  ```cron
+  */30 6-11 * * * cd /home/deploy/scrapProsp/vps && set -a && . ./radar.env && set +a && /home/deploy/.nvm/versions/node/v20.20.2/bin/node ig-refill.mjs >> /home/deploy/ig-refill.log 2>&1
+  ```
+- Test manuel : `cd /home/deploy/scrapProsp/vps && set -a && . ./radar.env && set +a && /home/deploy/.nvm/versions/node/v20.20.2/bin/node ig-refill.mjs`
+- Vérif : `tail -50 /home/deploy/ig-refill.log`.
+
 ## Radar de nouveaux prospects (script VPS — `vps/radar.mjs`)
 
 Détecte chaque nuit les nouvelles fiches Google Maps (sans site web) par métier×région, les insère en base et envoie **1 SMS récap** au `0615907873` s'il y a ≥ 1 nouveau prospect.

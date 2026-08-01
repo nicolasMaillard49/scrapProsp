@@ -365,6 +365,8 @@ export interface HuntTarget {
   min_followers: number;
   max_followers: number;
   last_scan_at: string | null;
+  poids: number;
+  scans: number;
 }
 
 /** Bilan d'un refill complet : ce qui a été fait, marche par marche. */
@@ -463,6 +465,16 @@ async function unqualifiedCount(metier: string): Promise<number> {
  */
 const REFILL_BUDGET_MS = Math.max(30_000, Number(process.env.IG_REFILL_BUDGET_MS) || 200_000);
 const REFILL_MAX_STEPS = Math.max(1, Number(process.env.IG_REFILL_MAX_STEPS) || 8);
+/**
+ * Durée à réserver à la marche qu'on s'apprête à lancer. Le budget était vérifié
+ * AVANT chaque marche mais jamais pendant : une résolution démarrée à 199 s
+ * (jusqu'à 120 s de résolution + un lot Claude) finissait au-delà du maxDuration
+ * de 300 s de Vercel. Le 01/08 la fonction a été tuée juste après l'insertion de
+ * 37 profils : ils sont restés sans verdict, donc invisibles pour la sélection,
+ * alors qu'un seul appel Claude les séparait du stock.
+ * On n'engage donc une marche que s'il reste de quoi la finir.
+ */
+const REFILL_STEP_RESERVE_MS = Math.max(30_000, Number(process.env.IG_REFILL_STEP_RESERVE_MS) || 150_000);
 
 export async function refillStock(now = new Date()): Promise<RefillRun> {
   const started = Date.now();
@@ -476,7 +488,7 @@ export async function refillStock(now = new Date()): Promise<RefillRun> {
   }
 
   for (let i = 0; i < REFILL_MAX_STEPS; i++) {
-    if (Date.now() - started > REFILL_BUDGET_MS) {
+    if (Date.now() - started > REFILL_BUDGET_MS - REFILL_STEP_RESERVE_MS) {
       stopped = "temps écoulé";
       break;
     }
@@ -513,17 +525,48 @@ export async function refillStock(now = new Date()): Promise<RefillRun> {
   };
 }
 
+/** Date du dernier scan en ms — jamais scanné = 0, donc prioritaire. */
+function scanTime(iso: string | null): number {
+  if (!iso) return 0;
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? 0 : t;
+}
+
 async function refillStep(now = new Date()): Promise<RefillResult> {
   if (!qualifyAvailable()) return { ran: false, reason: "ANTHROPIC_API_KEY manquant — qualification impossible." };
 
   const { data, error } = await supabase
     .from("ig_hunt_targets")
-    .select("id, metier, avatar_profession, min_followers, max_followers, last_scan_at")
-    .eq("active", true)
-    .order("last_scan_at", { ascending: true, nullsFirst: true })
-    .limit(10);
+    .select("id, metier, avatar_profession, min_followers, max_followers, last_scan_at, poids, scans")
+    .eq("active", true);
   if (error) throw new Error(error.message);
-  const targets = (data ?? []) as HuntTarget[];
+
+  // Tourniquet PONDÉRÉ. On sert la cible la moins servie AU REGARD DE SON POIDS :
+  // à poids 3 contre 1, l'artisan encaisse trois collectes quand la libérale en
+  // encaisse une. Le rapport ne dépend pas de la fréquence des refills — un tri
+  // par ancienneté, lui, s'aplatit dès que les tours s'espacent (cf. migration 023).
+  // Le tri est fait ici et pas en SQL : Postgres ne l'ordonne pas sans vue dédiée
+  // et la table tient en quelques dizaines de lignes.
+  //
+  // Départages, dans l'ordre : le POIDS d'abord, l'ancienneté du scan ensuite.
+  // Sans le poids, une table fraîchement migrée (tous les `scans` à 0, tous les
+  // `last_scan_at` nuls) laisse l'ordre d'insertion décider — le 01/08 les 16
+  // libérales, insérées en premier, passaient devant les 10 artisans à poids 3.
+  //
+  // Et surtout : PAS de `slice`. Un plafond sur la liste triée gelait les cibles
+  // au-delà du rang N, qui ne pouvaient plus jamais incrémenter `scans` — donc
+  // plus jamais remonter dans le tri. Les boucles ci-dessous s'arrêtent à la
+  // première cible productive : le coût est borné par elles, pas par la taille
+  // de la liste.
+  const targets = (data ?? [])
+    .map((t) => ({ cible: t as HuntTarget, dette: (t.scans ?? 0) / Math.max(1, t.poids ?? 1) }))
+    .sort(
+      (a, b) =>
+        a.dette - b.dette ||
+        (b.cible.poids ?? 1) - (a.cible.poids ?? 1) ||
+        scanTime(a.cible.last_scan_at) - scanTime(b.cible.last_scan_at),
+    )
+    .map((x) => x.cible);
   if (!targets.length) return { ran: false, reason: "Aucune cible de chasse active (table ig_hunt_targets)." };
 
   // 1) Le moins cher d'abord : trier ce qui dort déjà en base sans verdict IA.
@@ -561,9 +604,15 @@ async function refillStep(now = new Date()): Promise<RefillResult> {
     const res = await resolveLeads(undefined, t.metier);
     if (!res.inserted) continue;
 
+    // Même cadrage qu'en 1) : `scope` + `status`. Sans eux, le tri part sur les
+    // plus récents TOUS statuts confondus et peut brûler son lot sur des comptes
+    // déjà démarchés — les profils qu'on vient d'insérer, eux, ne recevraient
+    // jamais de verdict et resteraient invisibles pour la sélection.
     const qual = await qualifyRun({
+      scope: { metier: t.metier, hashtags: hashtagsOf(t.metier) },
+      status: "todo",
       onlyUnqualified: true,
-      limit: Math.min(res.inserted, QUALIFY_RUN_CAP),
+      limit: Math.min(Math.max(res.inserted, 1), QUALIFY_RUN_CAP),
       avatar: {
         profession: t.avatar_profession,
         minFollowers: t.min_followers,
@@ -589,7 +638,14 @@ async function refillStep(now = new Date()): Promise<RefillResult> {
     if (!hashtag) continue;
     try {
       const got = await collectLeads(hashtag, t.metier);
-      await supabase.from("ig_hunt_targets").update({ last_scan_at: now.toISOString() }).eq("id", t.id);
+      // `scans` est le compteur qui pilote le tourniquet pondéré : sans cette
+      // incrémentation la cible reste éternellement la moins servie et monopolise
+      // tous les tours. Lu-puis-écrit sans verrou — le refill a un seul appelant
+      // (le cron), et deux tours simultanés ne coûteraient qu'un passage en trop.
+      await supabase
+        .from("ig_hunt_targets")
+        .update({ last_scan_at: now.toISOString(), scans: (t.scans ?? 0) + 1 })
+        .eq("id", t.id);
       return {
         ran: true,
         mode: "collect",
