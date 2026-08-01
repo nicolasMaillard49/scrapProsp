@@ -94,7 +94,11 @@ Chaque matin, prépare la **liste fermée des comptes Instagram à démarcher au
 - Tables : `ig_daily_selection` (la sélection) et `ig_hunt_targets` (les métiers à chasser + avatar IA) — `npm run migrate:019`.
 - Cibles de chasse : amorcées automatiquement avec les métiers ayant ≥ 20 prospects en base. Pour en ajouter/retirer, éditer `ig_hunt_targets` (`active`, `avatar_profession`, `min_followers`, `max_followers`).
 - Test sans rien poster ni dépenser : `curl "https://prospects.nmf-agence.com/api/cron/ig-digest?dry=1" -H "x-cron-secret: VOTRE_CRON_SECRET"` → renvoie `{ dry, selection }`.
-- Côté cockpit : `/instagram` → onglet **Sélection du jour** (vue par défaut). Chaque « Prendre contact » raye sa ligne tout seul ; la corbeille écarte un compte (il ne sera pas reporté demain) ; « Aller en chercher » relance le refill à la main.
+- Côté cockpit : `/instagram` → onglet **Sélection du jour** (vue par défaut). La **trame DM** est en tête, sous le compteur, personnalisée pour le prochain compte de la file (repliable, l'état est retenu). Chaque « Prendre contact » raye sa ligne tout seul. Trois sorties, à ne pas confondre :
+  - **bouton rouge « Perdu »** (avant contact) — le compte est injoignable (DM fermés) : stade `perdu` + statut `negative`, et il sort de la journée. Un clic ;
+  - **corbeille** — on le retire juste de la journée, il reste en base et n'est pas condamné ;
+  - **« Annuler »** (après contact) — le DM est purgé du journal et des KPI, le prospect passe `skipped`.
+- « Aller en chercher » relance le refill à la main — normalement inutile, le VPS s'en charge (section suivante).
 
 ## Refill automatique de la sélection (script VPS — `vps/ig-refill.mjs`)
 
