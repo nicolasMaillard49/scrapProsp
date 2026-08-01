@@ -277,6 +277,19 @@ export default function InstagramPage() {
   const [selLoading, setSelLoading] = useState(false);
   const [selMsg, setSelMsg] = useState<string | null>(null);
   const [refilling, setRefilling] = useState(false);
+  /**
+   * Confirmation flottante. Le bandeau de la sélection ne suffisait pas : il est
+   * tout en haut de la page, et on agit sur une carte qu'on a scrollée — on
+   * cliquait « Perdu » sans jamais voir que ça avait marché.
+   */
+  const [toast, setToast] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notify = useCallback((text: string, tone: "ok" | "err" = "ok") => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ text, tone });
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }, []);
+  useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
   // Filtre par stade (vue liste) — le stade est l'axe de suivi.
   const [stageFilter, setStageFilter] = useState<string>("all");
   // Carte en cours de glisser-déposer (pour l'aperçu DragOverlay).
@@ -362,10 +375,12 @@ export default function InstagramPage() {
         body: JSON.stringify({ action: "skip", prospect_id: prospectId, account_id: activeAccount || undefined }),
       });
       const json = await res.json();
-      if (res.ok) setSelection(json.selection as DailySelection);
-      else setSelMsg(json.error ?? `Erreur ${res.status}`);
+      if (res.ok) {
+        setSelection(json.selection as DailySelection);
+        notify("Écarté de la journée — le prospect reste en base.");
+      } else notify(json.error ?? `Erreur ${res.status}`, "err");
     },
-    [activeAccount],
+    [activeAccount, notify],
   );
 
   /**
@@ -384,10 +399,10 @@ export default function InstagramPage() {
       const json = await res.json();
       if (res.ok) {
         setSelection(json.selection as DailySelection);
-        setSelMsg("Contact annulé : le DM est retiré des stats et le prospect sort du circuit.");
-      } else setSelMsg(json.error ?? `Erreur ${res.status}`);
+        notify("Contact annulé : le DM est retiré des stats et le prospect sort du circuit.");
+      } else notify(json.error ?? `Erreur ${res.status}`, "err");
     },
-    [activeAccount],
+    [activeAccount, notify],
   );
 
   /** Stock épuisé → scan d'un hashtag jamais utilisé + qualification IA, puis complétion. */
@@ -614,7 +629,7 @@ export default function InstagramPage() {
    * corbeille, elle, ne fait que le retirer de la liste du jour.
    */
   const markLostFromSelection = useCallback(
-    async (prospectId: string) => {
+    async (prospectId: string, username?: string) => {
       const res = await fetch("/api/instagram/selection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -624,11 +639,11 @@ export default function InstagramPage() {
       if (res.ok) {
         setSelection(json.selection as DailySelection);
         setLeads((prev) => prev.map((l) => (l.id === prospectId ? { ...l, stage: "perdu", status: "negative" } : l)));
-        setSelMsg("Marqué perdu : le prospect sort du circuit, il ne reviendra pas demain.");
+        notify(`${username ? `@${username}` : "Prospect"} marqué perdu — il sort du circuit et ne reviendra pas demain.`);
         await loadCockpit();
-      } else setSelMsg(json.error ?? `Erreur ${res.status}`);
+      } else notify(json.error ?? `Erreur ${res.status}`, "err");
     },
-    [activeAccount, loadCockpit],
+    [activeAccount, loadCockpit, notify],
   );
 
   /** Transition manuelle du pipeline (call booké / perdu, ou déplacement drag-and-drop). */
@@ -914,6 +929,7 @@ export default function InstagramPage() {
   return (
     <div className="min-h-screen bg-[var(--color-background)]">
       {celebrate && <Confetti />}
+      <Toast toast={toast} />
       {/* Header */}
       <header className="sticky top-0 z-30 bg-[var(--color-surface)]/90 backdrop-blur-sm border-b border-[var(--color-border)]">
         <div className="px-4 sm:px-6 xl:px-8 h-14 flex items-center gap-4">
@@ -2017,6 +2033,36 @@ function GoalRing({ value, goal }: { value: number; goal: number }) {
   );
 }
 
+/**
+ * Confirmation flottante, en bas de l'écran.
+ *
+ * Les messages de la sélection vivaient dans le bandeau du haut : on agit sur
+ * une carte scrollée, on ne les voyait jamais. `role="status"` pour que le
+ * lecteur d'écran l'annonce sans voler le focus.
+ */
+function Toast({ toast }: { toast: { text: string; tone: "ok" | "err" } | null }) {
+  if (!toast) return null;
+  const err = toast.tone === "err";
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="animate-slide-up fixed bottom-5 left-1/2 z-[70] -translate-x-1/2 px-4 max-w-[92vw]"
+    >
+      <div
+        className={`flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-[13px] font-medium shadow-lg border ${
+          err
+            ? "bg-rose-600 text-white border-rose-500"
+            : "bg-[var(--color-surface)] text-[var(--color-text-primary)] border-[var(--color-border-strong)]"
+        }`}
+      >
+        {err ? <AlertTriangle className="w-4 h-4 shrink-0" /> : <Check className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+        <span>{toast.text}</span>
+      </div>
+    </div>
+  );
+}
+
 /** Pluie de confettis « objectif atteint » — décorative, coupée par reduced-motion. */
 function Confetti() {
   const colors = ["#7c3aed", "#10b981", "#f59e0b", "#f43f5e", "#3b82f6"];
@@ -2228,7 +2274,7 @@ type PipelineCardHandlers = {
   /** Vue « Sélection du jour » uniquement : retire le prospect de la liste du jour. */
   onSkip?: (id: string) => void;
   /** Vue « Sélection du jour » uniquement : perdu + écarté, en un clic. */
-  onLost?: (id: string) => void;
+  onLost?: (id: string, username?: string) => void;
 };
 
 /**
@@ -2499,8 +2545,12 @@ function SelectionView({
         <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 items-start">
           {selection.rows.map((r) => {
             const traite = Boolean(r.done_at || r.skipped_at);
+            // Un compte perdu n'est pas un compte « traité comme les autres » :
+            // il se lit en rouge, à pleine opacité. Grisé au même titre qu'une
+            // accroche envoyée, on ne voyait pas que le clic avait pris.
+            const perdu = Boolean(r.skipped_at) && (r.prospect as IgLead).stage === "perdu";
             return (
-              <div key={r.prospect_id} className={traite ? "opacity-45" : ""}>
+              <div key={r.prospect_id} className={perdu ? "" : traite ? "opacity-45" : ""}>
                 <div className="mb-1 flex items-center gap-1.5 px-1 text-[10.5px] text-[var(--color-text-muted)]">
                   {r.done_at ? (
                     <>
@@ -2518,6 +2568,10 @@ function SelectionView({
                         <XCircle className="w-3 h-3" /> Annuler
                       </button>
                     </>
+                  ) : perdu ? (
+                    <span className="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400">
+                      <XCircle className="w-3 h-3" /> Perdu — injoignable
+                    </span>
                   ) : r.skipped_at ? (
                     <span className="inline-flex items-center gap-1 font-medium">
                       <XCircle className="w-3 h-3" /> Écarté
@@ -2531,12 +2585,14 @@ function SelectionView({
                     </span>
                   )}
                 </div>
-                <PipelineCard
-                  l={r.prospect}
-                  {...cardProps}
-                  onSkip={traite ? undefined : onSkip}
-                  onLost={traite ? undefined : cardProps.onLost}
-                />
+                <div className={perdu ? "rounded-xl ring-2 ring-rose-500/60 bg-rose-500/[0.06]" : ""}>
+                  <PipelineCard
+                    l={r.prospect}
+                    {...cardProps}
+                    onSkip={traite ? undefined : onSkip}
+                    onLost={traite ? undefined : cardProps.onLost}
+                  />
+                </div>
               </div>
             );
           })}
@@ -2739,7 +2795,7 @@ function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetS
             pipeline pour marquer un compte perdu. */}
         {onLost && isTodo && (
           <button
-            onClick={() => onLost(l.id)}
+            onClick={() => onLost(l.id, l.username)}
             title="Perdu — compte injoignable (DM fermés) : sort du circuit"
             aria-label="Marquer perdu"
             className="tap inline-flex items-center justify-center h-7 w-7 rounded-lg border border-rose-300 dark:border-rose-500/40 text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
