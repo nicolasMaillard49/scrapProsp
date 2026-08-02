@@ -3,6 +3,7 @@
 //  - apify/instagram-profile-scraper : usernames -> profils (bio, externalUrl, followers, catégorie)
 // Token serveur uniquement : APIFY_TOKEN (jamais exposé au navigateur).
 
+import { iglog } from "./log";
 import { ProviderError, type HashtagCandidate, type HashtagPage, type IgProfile, type IgProvider } from "./types";
 
 const TOKEN = process.env.APIFY_TOKEN ?? "";
@@ -26,9 +27,14 @@ function classify(status: number, body: string): ProviderError {
 
 /** Lance un actor en mode synchrone et renvoie directement les items du dataset. */
 async function runActorSync<T>(actor: string, input: unknown, timeoutMs = 280_000): Promise<T[]> {
-  if (!TOKEN) throw new ProviderError(NAME, "auth", "APIFY_TOKEN manquant");
+  if (!TOKEN) {
+    iglog("err", "apify", `${actor} — APIFY_TOKEN MANQUANT (source primaire inutilisable)`);
+    throw new ProviderError(NAME, "auth", "APIFY_TOKEN manquant");
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const t0 = Date.now();
+  iglog("info", "apify", `→ ${actor} (run-sync)`);
   try {
     const res = await fetch(`${BASE}/${actor}/run-sync-get-dataset-items?token=${TOKEN}`, {
       method: "POST",
@@ -36,13 +42,24 @@ async function runActorSync<T>(actor: string, input: unknown, timeoutMs = 280_00
       body: JSON.stringify(input),
       signal: ctrl.signal,
     });
-    if (!res.ok) throw classify(res.status, await res.text().catch(() => ""));
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      const err = classify(res.status, body);
+      // 402/403 = crédits du mois épuisés : LE signal qui doit déclencher la bascule.
+      iglog("err", "apify", `← ${actor} HTTP ${res.status} (${err.kind})${err.kind === "quota" ? " — crédits Apify épuisés, bascule attendue" : ""}`, {
+        body: body.slice(0, 200),
+      });
+      throw err;
+    }
     const data = await res.json();
-    return Array.isArray(data) ? (data as T[]) : [];
+    const items = Array.isArray(data) ? (data as T[]) : [];
+    iglog("ok", "apify", `← ${actor} OK — ${items.length} item(s) en ${Date.now() - t0}ms`);
+    return items;
   } catch (e) {
     if (e instanceof ProviderError) throw e;
     const msg = e instanceof Error ? e.message : String(e);
     // AbortError (timeout) et pannes réseau sont retentables ailleurs.
+    iglog("err", "apify", `← ${actor} panne réseau/timeout après ${Date.now() - t0}ms`, { message: msg });
     throw new ProviderError(NAME, "transient", `${actor} — ${msg}`);
   } finally {
     clearTimeout(timer);

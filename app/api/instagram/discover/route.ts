@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseConfigured } from "@/app/lib/supabase";
 import { igSourceConfigured } from "@/app/lib/igSource";
 import { discoverHashtag } from "@/app/lib/igDiscover";
+import { iglog } from "@/app/lib/igProviders/log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel : laisse le temps aux runs de scraping
@@ -34,6 +35,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "hashtag requis" }, { status: 400 });
   }
 
+  iglog("step", "route", `POST /discover #${(body.hashtag ?? "").replace(/^#/, "").trim()} (target=${body.target ?? 100}, dryRun=${body.dryRun === true})`);
   try {
     const out = await discoverHashtag({
       hashtag: body.hashtag!,
@@ -41,9 +43,11 @@ export async function POST(req: NextRequest) {
       dryRun: body.dryRun === true,
       keepAll: body.keepAll === true,
     });
+    iglog("ok", "route", `/discover terminé — source=${out.source?.provider ?? "?"}, scannés=${out.scanned}, qualifiés=${out.qualified}, insérés=${out.inserted}`);
     return NextResponse.json(out);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    iglog("err", "route", `/discover ÉCHEC`, { message: msg });
     return NextResponse.json({ error: `Hashtag scraper: ${msg}` }, { status: 502 });
   }
 }

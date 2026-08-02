@@ -10,6 +10,7 @@
 // `ig_user_id` en amont (voir igSource.ts) : sans elle un seul scan brûlerait
 // le quota mensuel à re-résoudre des comptes déjà en base.
 
+import { iglog } from "./log";
 import { ProviderError, type FailureKind, type HashtagCandidate, type HashtagPage, type IgProfile, type IgProvider } from "./types";
 
 const KEY = process.env.RAPIDAPI_KEY ?? "";
@@ -36,9 +37,16 @@ export function classify(provider: string, status: number, body: string): Provid
 }
 
 async function call(provider: string, host: string, path: string, init?: RequestInit): Promise<unknown> {
-  if (!KEY) throw new ProviderError(provider, "auth", "RAPIDAPI_KEY manquante");
+  if (!KEY) {
+    iglog("err", provider, `RAPIDAPI_KEY MANQUANTE — le relais ${provider} est inutilisable`);
+    throw new ProviderError(provider, "auth", "RAPIDAPI_KEY manquante");
+  }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  const t0 = Date.now();
+  // On ne logue que le chemin (jamais la clé, présente en header).
+  const endpoint = path.split("?")[0];
+  iglog("info", provider, `→ ${host}${endpoint}`);
   try {
     const res = await fetch(`https://${host}${path}`, {
       ...init,
@@ -46,15 +54,37 @@ async function call(provider: string, host: string, path: string, init?: Request
       signal: ctrl.signal,
     });
     readQuota(provider, res.headers);
+    const q = quotas.get(provider);
     const txt = await res.text();
-    if (!res.ok) throw classify(provider, res.status, txt);
+    if (!res.ok) {
+      const err = classify(provider, res.status, txt);
+      // 403 « not subscribed » → auth (abo manquant) ; 429 « MONTHLY quota » →
+      // quota (plafond épuisé). Ces deux lignes disent EXACTEMENT pourquoi le
+      // fallback ne prend pas le relais quand la clé est pourtant présente.
+      iglog("err", provider, `← HTTP ${res.status} (${err.kind}) en ${Date.now() - t0}ms`, {
+        indice:
+          err.kind === "auth"
+            ? "clé invalide OU API non souscrite sur ce compte RapidAPI"
+            : err.kind === "quota"
+              ? "quota mensuel gratuit épuisé (150/mois looter, 20/mois stable)"
+              : undefined,
+        quota: q ? `${q.remaining}/${q.limit}` : "inconnu",
+        body: txt.slice(0, 200),
+      });
+      throw err;
+    }
+    if (q) iglog("quota", provider, `quota restant ${q.remaining}/${q.limit}${q.resetAt ? ` (reset ${q.resetAt})` : ""}`);
     try {
-      return JSON.parse(txt);
+      const json = JSON.parse(txt);
+      iglog("ok", provider, `← 200 OK en ${Date.now() - t0}ms`);
+      return json;
     } catch {
+      iglog("err", provider, `← réponse NON-JSON en ${Date.now() - t0}ms`, { body: txt.slice(0, 120) });
       throw new ProviderError(provider, "fatal", `réponse non-JSON: ${txt.slice(0, 120)}`);
     }
   } catch (e) {
     if (e instanceof ProviderError) throw e;
+    iglog("err", provider, `← panne réseau/timeout après ${Date.now() - t0}ms`, { message: e instanceof Error ? e.message : String(e) });
     throw new ProviderError(provider, "transient", e instanceof Error ? e.message : String(e));
   } finally {
     clearTimeout(timer);
