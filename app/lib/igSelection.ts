@@ -539,12 +539,16 @@ export interface RefillOptions {
   budgetMs?: number;
   maxSteps?: number;
   stepReserveMs?: number;
+  /** Borne la résolution d'une marche (nb de profils + temps) — court en interactif. */
+  resolveLimit?: number;
+  resolveBudgetMs?: number;
 }
 
 export async function refillStock(now = new Date(), opts?: RefillOptions): Promise<RefillRun> {
   const budgetMs = Math.max(15_000, opts?.budgetMs ?? REFILL_BUDGET_MS);
   const maxSteps = Math.max(1, opts?.maxSteps ?? REFILL_MAX_STEPS);
   const stepReserveMs = Math.max(5_000, opts?.stepReserveMs ?? REFILL_STEP_RESERVE_MS);
+  const stepOpts = { resolveLimit: opts?.resolveLimit, resolveBudgetMs: opts?.resolveBudgetMs };
   const started = Date.now();
   const before = await ensureDailySelection(undefined, now);
   const steps: RefillResult[] = [];
@@ -564,7 +568,7 @@ export async function refillStock(now = new Date(), opts?: RefillOptions): Promi
       stopped = "temps écoulé";
       break;
     }
-    const step = await refillStep(now, sterile);
+    const step = await refillStep(now, sterile, stepOpts);
     if (!step.ran) {
       // Plus aucune marche disponible : on garde la raison pour l'afficher.
       steps.push(step);
@@ -625,7 +629,11 @@ function scanTime(iso: string | null): number {
  * Une marche du refill. `sterile` mémorise, le temps d'un `refillStock`, les
  * cibles dont le tri IA n'a rien fait bouger : sans ça le refill boucle dessus.
  */
-async function refillStep(now = new Date(), sterile = new Set<string>()): Promise<RefillResult> {
+async function refillStep(
+  now = new Date(),
+  sterile = new Set<string>(),
+  opts?: { resolveLimit?: number; resolveBudgetMs?: number },
+): Promise<RefillResult> {
   if (!qualifyAvailable()) return { ran: false, reason: "ANTHROPIC_API_KEY manquant — qualification impossible." };
 
   const { data, error } = await supabase
@@ -711,7 +719,7 @@ async function refillStep(now = new Date(), sterile = new Set<string>()): Promis
 
   for (const t of targets) {
     if (!pendingByMetier.get(t.metier)) continue;
-    const res = await resolveLeads(undefined, t.metier);
+    const res = await resolveLeads(opts?.resolveLimit, t.metier, { budgetMs: opts?.resolveBudgetMs });
     if (!res.inserted) continue;
 
     // Même cadrage qu'en 1) : `scope` + `status`. Sans eux, le tri part sur les

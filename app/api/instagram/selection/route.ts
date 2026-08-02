@@ -69,9 +69,17 @@ export async function POST(req: NextRequest) {
 
     if (body.action === "refill") {
       // Passe COURTE : le client « Aller en chercher » relance automatiquement
-      // tant qu'il reste des créneaux. Une requête qui revient vite ne meurt pas
-      // sur mobile (« Load failed »). Le cron, lui, garde les longues bornes.
-      const refill = await refillStock(new Date(), { budgetMs: 55_000, maxSteps: 3, stepReserveMs: 22_000 });
+      // tant qu'il reste des créneaux. Une requête qui revient vite (~30-40 s)
+      // ne meurt pas sur mobile ni sur le garde-fou navigateur de 100 s. La
+      // résolution est bornée serré (peu de profils, temps court) car chaque
+      // appel looter peut traîner. Le cron, lui, garde les longues bornes.
+      const refill = await refillStock(new Date(), {
+        budgetMs: 45_000,
+        maxSteps: 2,
+        stepReserveMs: 20_000,
+        resolveLimit: 8,
+        resolveBudgetMs: 30_000,
+      });
       return NextResponse.json({ ok: true, refill, selection: await ensureDailySelection(body.account_id) });
     }
 

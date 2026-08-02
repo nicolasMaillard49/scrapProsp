@@ -231,9 +231,14 @@ async function unknownIds(ids: string[]): Promise<string[]> {
  * 2. Résolution — coûteuse, strictement bornée
  * ──────────────────────────────────────────────────────────── */
 
-/** Transforme un petit lot de pistes en prospects. Rend toujours la main. */
-export async function resolveLeads(limit?: number, metier?: string | null): Promise<ResolveResult> {
+/**
+ * Transforme un petit lot de pistes en prospects. Rend toujours la main.
+ * `budgetMs` borne le temps de résolution — court pour le chemin interactif
+ * (le client relance), long pour le cron.
+ */
+export async function resolveLeads(limit?: number, metier?: string | null, opts?: { budgetMs?: number }): Promise<ResolveResult> {
   const started = Date.now();
+  const budgetMs = Math.max(10_000, opts?.budgetMs ?? RESOLVE_BUDGET_MS);
   const tune = await tuning();
   limit = limit ?? tune.batch;
   let q = supabase
@@ -259,7 +264,7 @@ export async function resolveLeads(limit?: number, metier?: string | null): Prom
   const queue = [...leads];
   const worker = async () => {
     for (;;) {
-      if (stop || Date.now() - started > RESOLVE_BUDGET_MS) {
+      if (stop || Date.now() - started > budgetMs) {
         if (queue.length) timeUp = true;
         return;
       }

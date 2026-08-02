@@ -18,7 +18,10 @@ const KEY = process.env.RAPIDAPI_KEY ?? "";
 const LOOTER_HOST = "instagram-looter2.p.rapidapi.com";
 const STABLE_HOST = "instagram-scraper-stable-api.p.rapidapi.com";
 
-const TIMEOUT_MS = 45_000;
+// 25 s et non 45 : un profil/hashtag sain revient en 1-3 s. Un appel qui traîne
+// au-delà fait exploser le budget d'une passe interactive (garde-fou navigateur
+// à 100 s) ; mieux vaut couper tôt et laisser la bascule/relance jouer.
+const TIMEOUT_MS = 25_000;
 
 /**
  * RapidAPI renvoie 429 aussi bien pour « quota mensuel épuisé » que pour un
