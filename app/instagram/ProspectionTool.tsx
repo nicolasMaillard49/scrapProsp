@@ -38,6 +38,67 @@ interface LeadsStatus {
 
 type HashtagMode = "metier" | "villes";
 
+/** Diagnostic des sources renvoyé par l'API quand une chasse tombe. */
+interface SourceDiagnostic {
+  providers: { provider: string; configured: boolean; available: boolean; reason?: string }[];
+  attempts?: { provider: string; kind: string; message: string }[];
+}
+
+/**
+ * Bloc visuel « pourquoi la chasse tombe » : une ligne par source (dispo /
+ * écartée / non configurée) avec l'indice concret (crédits, abo, quota), plus
+ * le détail repliable de chaque tentative. C'est le pendant à l'écran des logs
+ * [ig:…] côté serveur.
+ */
+function DiagBlock({ diag }: { diag: SourceDiagnostic }) {
+  return (
+    <div className="rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-xs space-y-1.5">
+      <p className="font-semibold text-red-400 flex items-center gap-1.5">
+        <Radar size={13} /> Diagnostic des sources
+      </p>
+      <ul className="space-y-1">
+        {diag.providers.map((p) => (
+          <li key={p.provider} className="flex items-start gap-1.5 text-[var(--color-text-secondary)]">
+            <span>{p.available ? "✅" : p.configured ? "⛔" : "🚫"}</span>
+            <span>
+              <b className="text-[var(--color-text-primary)]">{p.provider}</b>
+              {p.available
+                ? " — disponible"
+                : !p.configured
+                  ? " — clé/token absent (non configuré sur ce déploiement)"
+                  : ` — ${p.reason ?? "écarté"}`}
+              {p.provider !== "apify" && p.reason && /auth/i.test(p.reason) && (
+                <em className="block text-[var(--color-text-tertiary,var(--color-text-secondary))]">
+                  → clé invalide ou API non souscrite sur RapidAPI
+                </em>
+              )}
+              {p.reason && /quota/i.test(p.reason) && (
+                <em className="block text-[var(--color-text-tertiary,var(--color-text-secondary))]">
+                  → quota épuisé {p.provider === "apify" ? "(crédits Apify)" : "(plan mensuel RapidAPI)"}
+                </em>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {!!diag.attempts?.length && (
+        <details className="mt-1">
+          <summary className="cursor-pointer text-[var(--color-text-tertiary,var(--color-text-secondary))]">
+            Détail des tentatives ({diag.attempts.length})
+          </summary>
+          <ul className="mt-1 space-y-0.5 pl-2">
+            {diag.attempts.map((a, i) => (
+              <li key={i} className="text-[var(--color-text-secondary)]">
+                ❌ <b>{a.provider}</b> <span className="opacity-70">[{a.kind}]</span> — {a.message}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () => void }) {
   const [metier, setMetier] = useState("");
   const [mode, setMode] = useState<HashtagMode>("metier");
@@ -54,6 +115,7 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<RunProgress | null>(null);
   const [runMsg, setRunMsg] = useState<string | null>(null);
+  const [runDiag, setRunDiag] = useState<SourceDiagnostic | null>(null);
 
   // Qualification IA (méthode « filtrage ChatGPT » automatisée, lots de 40)
   const [avatarProfession, setAvatarProfession] = useState("");
@@ -69,6 +131,9 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
   const [leads, setLeads] = useState<LeadsStatus | null>(null);
   const [hunting, setHunting] = useState<"collect" | "resolve" | null>(null);
   const [huntMsg, setHuntMsg] = useState<string | null>(null);
+  // Diagnostic visuel des sources : posé quand une chasse tombe, pour montrer À
+  // L'ÉCRAN quelle source a échoué et pourquoi (crédits, abo, écartée…).
+  const [huntDiag, setHuntDiag] = useState<SourceDiagnostic | null>(null);
 
   const loadLeads = useCallback(async () => {
     try {
@@ -91,6 +156,7 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
         return;
       }
       setHunting(action);
+      setHuntDiag(null);
       setHuntMsg(action === "collect" ? "Repérage des comptes…" : "Récupération des profils…");
       try {
         const res = await fetch("/api/instagram/leads", {
@@ -101,9 +167,13 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
         const json = await res.json();
         if (!res.ok) {
           setHuntMsg(json.error ?? `Erreur ${res.status}`);
+          setHuntDiag((json.diagnostic as SourceDiagnostic) ?? null);
           return;
         }
         setLeads(json.status as LeadsStatus);
+        // Le lot a pu réussir HTTP 200 tout en s'arrêtant car la source est
+        // tombée : on montre alors le diagnostic joint par la route.
+        if (json.diagnostic) setHuntDiag(json.diagnostic as SourceDiagnostic);
         if (action === "collect") {
           const r = json.result as { hashtag: string; queued: number; known: number; resumedFrom?: string | null; exhausted?: boolean };
           const reprise = r.resumedFrom ? " (reprise là où on s'était arrêté)" : "";
@@ -213,10 +283,13 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
     }
     setRunning(true);
     setRunMsg(null);
+    setRunDiag(null);
     let profiles = 0;
     let withEmail = 0;
     let withoutSite = 0;
     let hot = 0;
+    let lastDiag: SourceDiagnostic | null = null;
+    let failedTags = 0;
     setProgress({ current: 0, total: tags.length, profiles: 0, withEmail: 0, withoutSite: 0, hot: 0, currentTag: "" });
 
     for (let i = 0; i < tags.length; i++) {
@@ -236,13 +309,22 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
             if (!r.has_website) withoutSite++;
             if (r.score_tier === "hot") hot++;
           }
+        } else if (!res.ok) {
+          // Un hashtag qui échoue ne stoppe pas le run, mais on retient le
+          // diagnostic de source pour l'afficher à la fin.
+          failedTags++;
+          if (json.diagnostic) lastDiag = json.diagnostic as SourceDiagnostic;
         }
       } catch {
-        /* un hashtag qui échoue ne stoppe pas le run */
+        failedTags++;
       }
     }
     setProgress({ current: tags.length, total: tags.length, profiles, withEmail, withoutSite, hot, currentTag: "" });
-    setRunMsg(`Terminé : ${profiles} profils (${withEmail} avec email, ${withoutSite} sans site, ${hot} 🔥 hot).`);
+    setRunMsg(
+      `Terminé : ${profiles} profils (${withEmail} avec email, ${withoutSite} sans site, ${hot} 🔥 hot).` +
+        (failedTags ? ` ⚠️ ${failedTags} hashtag(s) en échec — voir le diagnostic ci-dessous.` : ""),
+    );
+    setRunDiag(lastDiag);
     setRunning(false);
     onDataChanged?.(); // rafraîchit la liste des prospects en dessous
   }, [rows, selected, perHashtag, onDataChanged]);
@@ -354,6 +436,7 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
         </div>
 
         {huntMsg && <p className="text-xs text-[var(--color-text-secondary)]">{huntMsg}</p>}
+        {huntDiag && <DiagBlock diag={huntDiag} />}
         {!!leads?.byMetier.length && (
           <p className="text-xs text-[var(--color-text-tertiary,var(--color-text-secondary))]">
             En attente : {leads.byMetier.map((b) => `${b.metier} (${b.pending})`).join(" · ")}
@@ -535,6 +618,7 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
               <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400"><Flame className="w-4 h-4" /> {progress.hot} hot</span>
             </div>
             {runMsg && <p className="text-sm text-[var(--color-text-secondary)]">{runMsg}</p>}
+            {runDiag && <DiagBlock diag={runDiag} />}
           </section>
         )}
 

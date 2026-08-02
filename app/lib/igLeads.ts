@@ -74,6 +74,12 @@ export interface ResolveResult {
   /** Pistes encore en attente après ce lot. */
   pending: number;
   timeUp: boolean;
+  /**
+   * Renseigné quand le lot s'est arrêté parce que la source est tombée (quota
+   * épuisé, abo manquant, aucune source dispo) — sert à afficher le vrai motif
+   * à l'écran plutôt qu'un « 0 prospect » muet.
+   */
+  stopReason?: string;
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -248,6 +254,7 @@ export async function resolveLeads(limit?: number, metier?: string | null): Prom
   let attempted = 0;
   let timeUp = false;
   let stop = false; // quota mort ou temps écoulé : plus rien ne démarre
+  let stopReason: string | undefined; // motif source quand on coupe le lot
 
   const queue = [...leads];
   const worker = async () => {
@@ -280,6 +287,7 @@ export async function resolveLeads(limit?: number, metier?: string | null): Prom
         if (/quota|auth|Aucune source/i.test(msg)) {
           stop = true;
           timeUp = true;
+          stopReason = msg;
           return;
         }
       }
@@ -295,7 +303,7 @@ export async function resolveLeads(limit?: number, metier?: string | null): Prom
     .is("resolved_at", null)
     .lt("attempts", MAX_ATTEMPTS);
 
-  return { attempted, inserted, skipped: attempted - inserted - failed, failed, pending: count ?? 0, timeUp };
+  return { attempted, inserted, skipped: attempted - inserted - failed, failed, pending: count ?? 0, timeUp, stopReason };
 }
 
 /* ────────────────────────────────────────────────────────────

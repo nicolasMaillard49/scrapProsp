@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseConfigured } from "@/app/lib/supabase";
-import { igSourceConfigured } from "@/app/lib/igSource";
+import { igSourceConfigured, chainDiagnostic } from "@/app/lib/igSource";
 import { discoverHashtag } from "@/app/lib/igDiscover";
 import { iglog } from "@/app/lib/igProviders/log";
 
@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     iglog("err", "route", `/discover ÉCHEC`, { message: msg });
-    return NextResponse.json({ error: `Hashtag scraper: ${msg}` }, { status: 502 });
+    // On joint l'état de chaque source : le message affiché à l'écran dit alors
+    // POURQUOI le scan tombe (crédits épuisés, abo manquant, source écartée…).
+    const diagnostic = await chainDiagnostic(e).catch(() => undefined);
+    return NextResponse.json({ error: `Hashtag scraper: ${msg}`, diagnostic }, { status: 502 });
   }
 }

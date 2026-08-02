@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseConfigured } from "@/app/lib/supabase";
-import { igSourceConfigured } from "@/app/lib/igSource";
+import { igSourceConfigured, chainDiagnostic } from "@/app/lib/igSource";
 import { collectLeads, resolveLeads, leadsStatus } from "@/app/lib/igLeads";
 import { iglog } from "@/app/lib/igProviders/log";
 
@@ -65,12 +65,16 @@ export async function POST(req: NextRequest) {
       const limit = body.limit ? Math.min(Math.max(Number(body.limit), 1), 200) : undefined;
       const result = await resolveLeads(limit, body.metier?.trim() || null);
       iglog("ok", "route", `/leads resolve — ${result.inserted} prospect(s) créé(s), ${result.failed} échec(s)`);
-      return NextResponse.json({ ok: true, result, status: await leadsStatus() });
+      // resolveLeads avale l'erreur source pour ne pas gâcher le lot : si elle a
+      // coupé (quota/abo/source à terre), on joint le diagnostic pour l'écran.
+      const diagnostic = result.stopReason ? await chainDiagnostic().catch(() => undefined) : undefined;
+      return NextResponse.json({ ok: true, result, status: await leadsStatus(), diagnostic });
     }
 
     return NextResponse.json({ error: "action inconnue (collect | resolve)" }, { status: 400 });
   } catch (e) {
     iglog("err", "route", `/leads ÉCHEC`, { message: e instanceof Error ? e.message : String(e) });
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
+    const diagnostic = await chainDiagnostic(e).catch(() => undefined);
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e), diagnostic }, { status: 502 });
   }
 }

@@ -82,10 +82,25 @@ function cacheProfiles(profiles: IgProfile[]): void {
  * Exécution d'une opération le long de la chaîne
  * ──────────────────────────────────────────────────────────── */
 
-interface Attempt {
+export interface Attempt {
   provider: string;
   kind: string;
   message: string;
+}
+
+/**
+ * Erreur « aucune source dispo », qui TRANSPORTE le détail de chaque tentative
+ * jusqu'à la route HTTP — pour que le message affiché à l'écran montre POURQUOI
+ * chaque source a été sautée (crédits épuisés, abo manquant, écartée…), et pas
+ * seulement « erreur ». C'est le pendant visible des logs Vercel.
+ */
+export class IgSourceError extends Error {
+  readonly attempts: Attempt[];
+  constructor(op: string, attempts: Attempt[]) {
+    super(`Aucune source Instagram disponible pour ${op}. ` + attempts.map((a) => `${a.provider}: ${a.kind} — ${a.message}`).join(" | "));
+    this.name = "IgSourceError";
+    this.attempts = attempts;
+  }
 }
 
 /**
@@ -177,9 +192,7 @@ async function runChain<T>(
     return { value: lastEmpty.value, provider: lastEmpty.provider, attempts };
   }
   iglog("err", "chain", `💥 AUCUNE source Instagram disponible pour ${op} — voici le détail de chaque tentative :`, { attempts });
-  throw new Error(
-    `Aucune source Instagram disponible pour ${op}. ` + attempts.map((a) => `${a.provider}: ${a.kind} — ${a.message}`).join(" | "),
-  );
+  throw new IgSourceError(op, attempts);
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -347,8 +360,16 @@ export async function fetchProfiles(keys: string[], by: "username" | "id" = "use
   return [...cached, ...value];
 }
 
+/** État d'une source pour l'affichage. */
+export interface ProviderStatus {
+  provider: string;
+  configured: boolean;
+  available: boolean;
+  reason?: string;
+}
+
 /** État courant de la chaîne — pour les récaps opérationnels. */
-export async function sourceStatus(): Promise<Array<{ provider: string; configured: boolean; available: boolean; reason?: string }>> {
+export async function sourceStatus(): Promise<ProviderStatus[]> {
   const disabled = await disabledProviders();
   return order().map((p) => {
     const off = disabled.get(p.name);
@@ -359,4 +380,22 @@ export async function sourceStatus(): Promise<Array<{ provider: string; configur
       reason: !p.configured ? "credentials absents" : off ? `${off.lastKind ?? "panne"} — ${off.lastError ?? ""}`.trim() : undefined,
     };
   });
+}
+
+/** Diagnostic complet servi à l'UI : état de chaque source + détail des tentatives. */
+export interface SourceDiagnostic {
+  providers: ProviderStatus[];
+  attempts?: Attempt[];
+}
+
+/**
+ * Photo lisible de la chaîne, à joindre à un message d'erreur pour l'afficher
+ * à l'écran. `err` (une IgSourceError) apporte le détail par tentative ; l'état
+ * courant des sources (configurées / écartées et pourquoi) est toujours joint,
+ * même quand l'échec vient d'ailleurs.
+ */
+export async function chainDiagnostic(err?: unknown): Promise<SourceDiagnostic> {
+  const providers = await sourceStatus();
+  const attempts = err instanceof IgSourceError ? err.attempts : undefined;
+  return { providers, attempts };
 }
