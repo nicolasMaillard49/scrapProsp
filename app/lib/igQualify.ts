@@ -11,7 +11,10 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export const QUALIFY_BATCH_SIZE = 40; // règle 30-50 → on vise le milieu
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
+// ID complet DATÉ obligatoire : l'alias court « claude-haiku-4-5 » renvoie
+// 404 not_found_error sur ce compte (constaté le 02/08/2026) — chaque lot de
+// qualification échouait en silence et AUCUN prospect n'entrait en sélection.
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
 
 export type Verdict = "qualified" | "borderline" | "rejected";
 
