@@ -60,7 +60,15 @@ try {
     process.exit(2);
   }
   if (res.status === 401) {
-    console.error("401 — le CRON_SECRET local ne correspond pas à celui de Vercel.");
+    // Deux 401 très différents, et les confondre coûte une demi-heure : la
+    // middleware répond « Non authentifié » quand la route n'est pas dans sa
+    // liste ouverte (typiquement : déploiement Vercel pas encore basculé), la
+    // route répond « Non autorisé » quand c'est vraiment le secret qui cloche.
+    console.error(
+      /authentifi/i.test(report?.error || "")
+        ? "401 middleware — /api/health/ig n'est pas (encore) dans la liste ouverte : le déploiement Vercel n'a pas fini de basculer. Réessaie dans une minute."
+        : "401 route — le CRON_SECRET local ne correspond pas à celui de Vercel.",
+    );
     process.exit(2);
   }
 } catch (e) {
