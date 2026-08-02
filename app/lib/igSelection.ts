@@ -416,6 +416,8 @@ export interface RefillRun {
   rejected?: number;
   /** Exemples de verdicts IA (raison) de la dernière marche qui a trié. */
   samples?: { username: string; verdict: string; reason: string | null }[];
+  /** Erreur Anthropic rencontrée pendant le tri — la cause d'un « 0 traité ». */
+  iaError?: string;
   /** Créneaux qu'il restait à pourvoir au départ, et à l'arrivée. */
   shortfallBefore: number;
   shortfallAfter: number;
@@ -458,6 +460,8 @@ export interface RefillResult {
   processed?: number;
   /** Exemples de verdicts (raison IA) — pour comprendre POURQUOI 0 retenu. */
   samples?: { username: string; verdict: string; reason: string | null }[];
+  /** Erreur Anthropic (crédits/clé/modèle) — l'IA n'a rien traité, pas « tout rejeté ». */
+  iaError?: string;
   /** Détail des sources quand cette marche a échoué sur une panne de source. */
   diagnostic?: SourceDiagnostic;
 }
@@ -611,6 +615,7 @@ export async function refillStock(now = new Date(), opts?: RefillOptions): Promi
     rejected: steps.reduce((n, s) => n + (s.rejected ?? 0), 0),
     // Exemples de la dernière marche qui a réellement trié des profils.
     samples: [...steps].reverse().find((s) => s.samples?.length)?.samples,
+    iaError: [...steps].reverse().find((s) => s.iaError)?.iaError,
     shortfallBefore: before.shortfall,
     shortfallAfter: shortfall,
     stopped,
@@ -706,6 +711,9 @@ async function refillStep(
       borderline: qual.borderline,
       rejected: qual.rejected,
       samples: qual.samples,
+      // Un lot parti à l'IA mais AUCUN verdict rendu = panne (API ou réponse
+      // illisible) : la note de qualifyRun fait foi quand l'API n'a rien dit.
+      iaError: qual.iaError ?? (qual.processed === 0 && qual.selected > 0 ? qual.note : undefined),
     };
   }
 
@@ -749,6 +757,7 @@ async function refillStep(
       borderline: qual.borderline,
       rejected: qual.rejected,
       samples: qual.samples,
+      iaError: qual.iaError ?? (qual.processed === 0 && qual.selected > 0 ? qual.note : undefined),
     };
   }
 

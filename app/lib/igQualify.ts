@@ -132,11 +132,16 @@ export function parseQualifyResponse(text: string, expected: string[]): QualifyR
  * Qualifie une liste de profils par lots via Claude. Renvoie les résultats
  * obtenus (les profils sans verdict exploitable sont simplement absents).
  * `onBatch` permet de suivre la progression côté route.
+ * `onError` reçoit le message de CHAQUE lot en échec : sans lui, une panne
+ * Anthropic (crédits épuisés, clé invalide, modèle inconnu…) était avalée en
+ * console et l'écran affichait juste « 0 retenus » — indiscernable d'un vrai
+ * rejet. L'appelant doit pouvoir dire à l'utilisateur POURQUOI rien n'est trié.
  */
 export async function qualifyProfiles(
   profiles: QualifyProfileInput[],
   avatar: QualifyAvatar,
   onBatch?: (done: number, total: number) => void,
+  onError?: (message: string) => void,
 ): Promise<QualifyResult[]> {
   const ai = anthropic();
   if (!ai) throw new Error("ANTHROPIC_API_KEY manquant : qualification IA indisponible");
@@ -155,7 +160,9 @@ export async function qualifyProfiles(
       const text = res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
       all.push(...parseQualifyResponse(text, batch.map((p) => p.username)));
     } catch (e) {
-      console.error("[igQualify] lot échoué:", e instanceof Error ? e.message : e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[igQualify] lot échoué:", msg);
+      onError?.(msg);
       // Un lot qui échoue ne tue pas le run : on continue avec les suivants.
     }
     done += batch.length;

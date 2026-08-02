@@ -52,6 +52,12 @@ export interface QualifyRunResult {
    * d'avatar (profession/fourchette d'abonnés dans ig_hunt_targets).
    */
   samples?: { username: string; verdict: Verdict; reason: string | null }[];
+  /**
+   * Erreur Anthropic du dernier lot en échec (crédits épuisés, clé invalide,
+   * modèle inconnu…). `processed: 0` + `iaError` = l'IA n'a RIEN traité — à ne
+   * surtout pas confondre avec « tout rejeté ».
+   */
+  iaError?: string;
 }
 
 /**
@@ -82,6 +88,7 @@ export async function qualifyRun(opts: QualifyRunOptions): Promise<QualifyRunRes
     return { processed: 0, selected: 0, qualified: 0, borderline: 0, rejected: 0, note: "Aucun profil à qualifier." };
   }
 
+  let iaError: string | undefined;
   const results = await qualifyProfiles(
     rows.map((r) => ({
       username: r.username as string,
@@ -90,6 +97,10 @@ export async function qualifyRun(opts: QualifyRunOptions): Promise<QualifyRunRes
       bio: r.bio as string | null,
     })),
     opts.avatar,
+    undefined,
+    (msg) => {
+      iaError = msg.slice(0, 300);
+    },
   );
 
   const byUsername = new Map(rows.map((r) => [r.username as string, r]));
@@ -137,5 +148,6 @@ export async function qualifyRun(opts: QualifyRunOptions): Promise<QualifyRunRes
     ...counts,
     note: results.length < rows.length ? `${rows.length - results.length} profil(s) sans verdict exploitable (lot IA en échec) — relancer.` : undefined,
     samples,
+    iaError,
   };
 }

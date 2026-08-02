@@ -286,6 +286,7 @@ export default function InstagramPage() {
     borderline: number;
     rejected: number;
     samples?: { username: string; verdict: string; reason: string | null }[];
+    iaError?: string;
   } | null>(null);
   const [refilling, setRefilling] = useState(false);
   /**
@@ -452,6 +453,7 @@ export default function InstagramPage() {
             borderline?: number;
             rejected?: number;
             samples?: { username: string; verdict: string; reason: string | null }[];
+            iaError?: string;
             shortfallBefore: number;
             shortfallAfter: number;
             stopped: string;
@@ -496,14 +498,23 @@ export default function InstagramPage() {
         totalQualified += r.qualified ?? 0;
         // Bilan IA : quand une passe a trié des profils, on le garde pour montrer
         // POURQUOI ça ne retient rien (compte de marque, pas de bio FR, hors métier…).
-        if ((r.processed ?? 0) > 0) {
+        if ((r.processed ?? 0) > 0 || r.iaError) {
           setSelQual({
             processed: r.processed ?? 0,
             qualified: r.qualified ?? 0,
             borderline: r.borderline ?? 0,
             rejected: r.rejected ?? 0,
             samples: r.samples,
+            iaError: r.iaError,
           });
+        }
+        // IA en panne (crédits Anthropic, clé, modèle) : continuer brûlerait le
+        // quota looter pour des profils que personne ne triera. On stoppe net.
+        if (r.iaError) {
+          setSelMsg(
+            `Chasse stoppée : la qualification IA est en échec. ${totalInserted} profils récupérés — ils seront triés dès que l'IA remarche.`,
+          );
+          return;
         }
 
         // Diagnostic fatal UNIQUEMENT si aucune source n'est utilisable. Apify à
@@ -2546,7 +2557,7 @@ function SelectionView({
   refilling: boolean;
   message: string | null;
   diagnostic: SourceDiagnostic | null;
-  qual: { processed: number; qualified: number; borderline: number; rejected: number; samples?: { username: string; verdict: string; reason: string | null }[] } | null;
+  qual: { processed: number; qualified: number; borderline: number; rejected: number; samples?: { username: string; verdict: string; reason: string | null }[]; iaError?: string } | null;
   onRefill: () => void;
   onReload: () => void;
   onSkip: (id: string) => void;
@@ -2643,8 +2654,22 @@ function SelectionView({
             <DiagBlock diag={diagnostic} />
           </div>
         )}
+        {/* L'IA n'a RIEN traité : panne Anthropic (crédits, clé, modèle) — pas un rejet. */}
+        {qual?.iaError && (
+          <div className="mt-2 rounded-lg border border-red-500/40 bg-red-500/5 p-3 text-xs space-y-1.5">
+            <p className="font-semibold text-red-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> Qualification IA en panne
+            </p>
+            <p className="text-[var(--color-text-secondary)] break-words">{qual.iaError}</p>
+            <p className="text-[var(--color-text-tertiary,var(--color-text-secondary))]">
+              Les profils récupérés restent en stock, ils seront triés dès que l&apos;IA remarche. Causes fréquentes :
+              crédits Anthropic épuisés (console.anthropic.com → Billing), clé <code>ANTHROPIC_API_KEY</code> invalide,
+              ou modèle inconnu (<code>ANTHROPIC_MODEL</code>).
+            </p>
+          </div>
+        )}
         {/* Sources OK mais l'IA ne retient rien : on montre le tri et POURQUOI. */}
-        {qual && qual.processed > 0 && qual.qualified === 0 && (
+        {qual && !qual.iaError && qual.processed > 0 && qual.qualified === 0 && (
           <div className="mt-2 rounded-lg border border-amber-300/50 bg-amber-50/60 dark:bg-amber-500/5 p-3 text-xs space-y-1.5">
             <p className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5" /> Les profils arrivent, mais l&apos;IA n&apos;en retient aucun
