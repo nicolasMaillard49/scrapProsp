@@ -410,6 +410,12 @@ export interface RefillRun {
   /** Cumuls, pour l'affichage. */
   inserted: number;
   qualified: number;
+  /** Bilan IA cumulé — pour expliquer « 0 retenus » (l'IA a-t-elle tout jeté ?). */
+  processed?: number;
+  borderline?: number;
+  rejected?: number;
+  /** Exemples de verdicts IA (raison) de la dernière marche qui a trié. */
+  samples?: { username: string; verdict: string; reason: string | null }[];
   /** Créneaux qu'il restait à pourvoir au départ, et à l'arrivée. */
   shortfallBefore: number;
   shortfallAfter: number;
@@ -445,8 +451,13 @@ export interface RefillResult {
   inserted?: number;
   /** Nombre de comptes passés « qualified » par l'IA sur ce run. */
   qualified?: number;
+  /** Verdicts « borderline » / « rejected » — pour voir si l'IA jette tout. */
+  borderline?: number;
+  rejected?: number;
   /** Profils soumis à l'IA. */
   processed?: number;
+  /** Exemples de verdicts (raison IA) — pour comprendre POURQUOI 0 retenu. */
+  samples?: { username: string; verdict: string; reason: string | null }[];
   /** Détail des sources quand cette marche a échoué sur une panne de source. */
   diagnostic?: SourceDiagnostic;
 }
@@ -590,6 +601,11 @@ export async function refillStock(now = new Date(), opts?: RefillOptions): Promi
     steps,
     inserted: steps.reduce((n, s) => n + (s.inserted ?? 0), 0),
     qualified: steps.reduce((n, s) => n + (s.qualified ?? 0), 0),
+    processed: steps.reduce((n, s) => n + (s.processed ?? 0), 0),
+    borderline: steps.reduce((n, s) => n + (s.borderline ?? 0), 0),
+    rejected: steps.reduce((n, s) => n + (s.rejected ?? 0), 0),
+    // Exemples de la dernière marche qui a réellement trié des profils.
+    samples: [...steps].reverse().find((s) => s.samples?.length)?.samples,
     shortfallBefore: before.shortfall,
     shortfallAfter: shortfall,
     stopped,
@@ -678,6 +694,9 @@ async function refillStep(now = new Date(), sterile = new Set<string>()): Promis
       metier: t.metier,
       processed: qual.processed,
       qualified: qual.qualified,
+      borderline: qual.borderline,
+      rejected: qual.rejected,
+      samples: qual.samples,
     };
   }
 
@@ -718,6 +737,9 @@ async function refillStep(now = new Date(), sterile = new Set<string>()): Promis
       pending: res.pending,
       processed: qual.processed,
       qualified: qual.qualified,
+      borderline: qual.borderline,
+      rejected: qual.rejected,
+      samples: qual.samples,
     };
   }
 

@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, ChevronLeft, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical, Target } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, ChevronLeft, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical, Target, Sparkles } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -279,6 +279,14 @@ export default function InstagramPage() {
   const [selLoading, setSelLoading] = useState(false);
   const [selMsg, setSelMsg] = useState<string | null>(null);
   const [selDiag, setSelDiag] = useState<SourceDiagnostic | null>(null);
+  // Bilan de la qualification IA de la dernière passe — pour expliquer « 0 retenus ».
+  const [selQual, setSelQual] = useState<{
+    processed: number;
+    qualified: number;
+    borderline: number;
+    rejected: number;
+    samples?: { username: string; verdict: string; reason: string | null }[];
+  } | null>(null);
   const [refilling, setRefilling] = useState(false);
   /**
    * Confirmation flottante. Le bandeau de la sélection ne suffisait pas : il est
@@ -415,6 +423,7 @@ export default function InstagramPage() {
   const refillSelection = useCallback(async () => {
     setRefilling(true);
     setSelDiag(null);
+    setSelQual(null);
     // Chaque requête est une passe COURTE côté serveur : on enchaîne
     // automatiquement tant que ça progresse. Une passe courte revient avant que
     // le mobile ne coupe la connexion (« Load failed »), et rien n'est perdu
@@ -439,6 +448,10 @@ export default function InstagramPage() {
             steps: { mode?: string }[];
             inserted: number;
             qualified: number;
+            processed?: number;
+            borderline?: number;
+            rejected?: number;
+            samples?: { username: string; verdict: string; reason: string | null }[];
             shortfallBefore: number;
             shortfallAfter: number;
             stopped: string;
@@ -481,6 +494,17 @@ export default function InstagramPage() {
         }
         totalInserted += r.inserted ?? 0;
         totalQualified += r.qualified ?? 0;
+        // Bilan IA : quand une passe a trié des profils, on le garde pour montrer
+        // POURQUOI ça ne retient rien (compte de marque, pas de bio FR, hors métier…).
+        if ((r.processed ?? 0) > 0) {
+          setSelQual({
+            processed: r.processed ?? 0,
+            qualified: r.qualified ?? 0,
+            borderline: r.borderline ?? 0,
+            rejected: r.rejected ?? 0,
+            samples: r.samples,
+          });
+        }
 
         // Source à terre : inutile d'insister, on montre le diagnostic et on stoppe.
         if (r.diagnostic) {
@@ -1573,6 +1597,7 @@ export default function InstagramPage() {
               refilling={refilling}
               message={selMsg}
               diagnostic={selDiag}
+              qual={selQual}
               onRefill={refillSelection}
               onReload={loadSelection}
               onSkip={skipFromSelection}
@@ -2508,6 +2533,7 @@ function SelectionView({
   refilling,
   message,
   diagnostic,
+  qual,
   onRefill,
   onReload,
   onSkip,
@@ -2519,6 +2545,7 @@ function SelectionView({
   refilling: boolean;
   message: string | null;
   diagnostic: SourceDiagnostic | null;
+  qual: { processed: number; qualified: number; borderline: number; rejected: number; samples?: { username: string; verdict: string; reason: string | null }[] } | null;
   onRefill: () => void;
   onReload: () => void;
   onSkip: (id: string) => void;
@@ -2613,6 +2640,34 @@ function SelectionView({
         {diagnostic && (
           <div className="mt-2">
             <DiagBlock diag={diagnostic} />
+          </div>
+        )}
+        {/* Sources OK mais l'IA ne retient rien : on montre le tri et POURQUOI. */}
+        {qual && qual.processed > 0 && qual.qualified === 0 && (
+          <div className="mt-2 rounded-lg border border-amber-300/50 bg-amber-50/60 dark:bg-amber-500/5 p-3 text-xs space-y-1.5">
+            <p className="font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> Les profils arrivent, mais l&apos;IA n&apos;en retient aucun
+            </p>
+            <p className="text-[var(--color-text-secondary)]">
+              {qual.processed} profil{qual.processed > 1 ? "s" : ""} analysé{qual.processed > 1 ? "s" : ""} par l&apos;IA : <b>0 qualifié</b>
+              {qual.borderline ? ` · ${qual.borderline} limite${qual.borderline > 1 ? "s" : ""}` : ""}
+              {qual.rejected ? ` · ${qual.rejected} rejeté${qual.rejected > 1 ? "s" : ""}` : ""}.
+            </p>
+            {!!qual.samples?.length && (
+              <ul className="space-y-0.5">
+                {qual.samples.map((s) => (
+                  <li key={s.username} className="text-[var(--color-text-secondary)]">
+                    {s.verdict === "rejected" ? "❌" : s.verdict === "borderline" ? "🟡" : "✅"}{" "}
+                    <b className="text-[var(--color-text-primary)]">@{s.username}</b>
+                    {s.reason ? ` — ${s.reason}` : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-[var(--color-text-tertiary,var(--color-text-secondary))]">
+              Si les raisons sont « pas de bio », « compte de marque » ou « hors métier », c&apos;est le hashtag/avatar
+              (table <code>ig_hunt_targets</code> : profession + fourchette d&apos;abonnés) qu&apos;il faut ajuster.
+            </p>
           </div>
         )}
       </div>

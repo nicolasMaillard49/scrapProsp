@@ -3,7 +3,7 @@
 // refill automatique de la sélection du jour (`igSelection.refillStock`).
 
 import { supabase } from "./supabase";
-import { qualifyProfiles, type QualifyAvatar } from "./igQualify";
+import { qualifyProfiles, type QualifyAvatar, type Verdict } from "./igQualify";
 import { prospectScore } from "./instagram";
 
 /** Profils max par run (10 lots de 40) — borne le temps et le coût Claude. */
@@ -45,6 +45,13 @@ export interface QualifyRunResult {
   borderline: number;
   rejected: number;
   note?: string;
+  /**
+   * Quelques exemples de verdicts (rejetés/limites d'abord) pour voir À L'ÉCRAN
+   * POURQUOI l'IA ne retient rien — « compte de marque », « pas de bio FR »,
+   * « hors métier »… C'est ce qui distingue un vrai filtrage d'un mauvais réglage
+   * d'avatar (profession/fourchette d'abonnés dans ig_hunt_targets).
+   */
+  samples?: { username: string; verdict: Verdict; reason: string | null }[];
 }
 
 /**
@@ -116,10 +123,19 @@ export async function qualifyRun(opts: QualifyRunOptions): Promise<QualifyRunRes
     if (upErr) console.error("[qualify] update failed:", res.username, upErr.message);
   }
 
+  // Exemples pour l'écran : rejetés d'abord (c'est ce qu'on cherche à comprendre),
+  // puis limites, puis qualifiés. Max 6, avec la raison donnée par l'IA.
+  const order: Record<Verdict, number> = { rejected: 0, borderline: 1, qualified: 2 };
+  const samples = [...results]
+    .sort((a, b) => order[a.verdict] - order[b.verdict])
+    .slice(0, 6)
+    .map((r) => ({ username: r.username, verdict: r.verdict, reason: r.reason }));
+
   return {
     processed: results.length,
     selected: rows.length,
     ...counts,
     note: results.length < rows.length ? `${rows.length - results.length} profil(s) sans verdict exploitable (lot IA en échec) — relancer.` : undefined,
+    samples,
   };
 }
