@@ -13,7 +13,7 @@ import { warmupCaps, type AccountStatus, type Caps } from "./igPipeline";
 import { getDueFollowups } from "./igCockpit";
 import { detectMetier, isHorsCible, isActiveSince } from "./instagram";
 import { generateMetierHashtags } from "./hashtags";
-import { igSourceConfigured } from "./igSource";
+import { igSourceConfigured, chainDiagnostic, type SourceDiagnostic } from "./igSource";
 import { qualifyAvailable } from "./igQualify";
 import { collectLeads, resolveLeads, leadsStatus, nextHashtagFor } from "./igLeads";
 import { qualifyRun, QUALIFY_RUN_CAP } from "./igQualifyRun";
@@ -415,6 +415,12 @@ export interface RefillRun {
   shortfallAfter: number;
   /** Pourquoi on s'est arrêté. */
   stopped: "sélection pleine" | "plus rien à faire" | "temps écoulé" | "trop de tours";
+  /**
+   * État des sources quand le refill n'a PAS pu compléter la sélection —
+   * pour afficher à l'écran POURQUOI (crédits Apify épuisés, abo RapidAPI
+   * manquant, source écartée…) plutôt qu'un « Chasse en cours » muet.
+   */
+  diagnostic?: SourceDiagnostic;
 }
 
 export interface RefillResult {
@@ -441,6 +447,8 @@ export interface RefillResult {
   qualified?: number;
   /** Profils soumis à l'IA. */
   processed?: number;
+  /** Détail des sources quand cette marche a échoué sur une panne de source. */
+  diagnostic?: SourceDiagnostic;
 }
 
 /**
@@ -549,6 +557,16 @@ export async function refillStock(now = new Date()): Promise<RefillRun> {
   }
 
   const ran = steps.some((s) => s.ran);
+  // Diagnostic des sources : on privilégie le détail d'une marche tombée sur une
+  // panne (avec ses tentatives). Sinon, si la sélection reste incomplète, on
+  // joint l'état courant des sources — mais UNIQUEMENT si l'une est réellement à
+  // terre, pour ne pas afficher un bloc rouge quand le vrai frein est ailleurs
+  // (clé Anthropic, bibliothèque de hashtags épuisée, temps écoulé).
+  let diagnostic = [...steps].reverse().find((s) => s.diagnostic)?.diagnostic;
+  if (!diagnostic && shortfall > 0) {
+    const d = await chainDiagnostic().catch(() => undefined);
+    if (d && d.providers.some((p) => !p.available)) diagnostic = d;
+  }
   return {
     ran,
     reason: ran ? undefined : steps.find((s) => !s.ran)?.reason,
@@ -558,6 +576,7 @@ export async function refillStock(now = new Date()): Promise<RefillRun> {
     shortfallBefore: before.shortfall,
     shortfallAfter: shortfall,
     stopped,
+    diagnostic,
   };
 }
 
@@ -711,9 +730,11 @@ async function refillStep(now = new Date(), sterile = new Set<string>()): Promis
       };
     } catch (e) {
       // Une source à terre ne doit pas faire tomber le cron du matin : on
-      // remonte la raison, le récap Telegram la dira.
+      // remonte la raison ET le diagnostic (quelle source, pourquoi), le récap
+      // Telegram et l'écran le diront.
       const msg = e instanceof Error ? e.message : String(e);
-      return { ran: false, reason: `collecte #${hashtag} impossible — ${msg.slice(0, 160)}` };
+      const diagnostic = await chainDiagnostic(e).catch(() => undefined);
+      return { ran: false, reason: `collecte #${hashtag} impossible — ${msg.slice(0, 160)}`, diagnostic };
     }
   }
 

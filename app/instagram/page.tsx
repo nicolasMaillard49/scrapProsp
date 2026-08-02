@@ -29,6 +29,7 @@ import type { IgCompetitorReport } from "@/app/lib/igCompetitor";
 import ProspectionTool from "./ProspectionTool";
 import PerformanceMenu from "./PerformanceMenu";
 import ReplyButton from "./ReplyButton";
+import { DiagBlock, type SourceDiagnostic } from "./DiagBlock";
 
 interface IgLead {
   id: string;
@@ -277,6 +278,7 @@ export default function InstagramPage() {
   const [selection, setSelection] = useState<DailySelection | null>(null);
   const [selLoading, setSelLoading] = useState(false);
   const [selMsg, setSelMsg] = useState<string | null>(null);
+  const [selDiag, setSelDiag] = useState<SourceDiagnostic | null>(null);
   const [refilling, setRefilling] = useState(false);
   /**
    * Confirmation flottante. Le bandeau de la sélection ne suffisait pas : il est
@@ -412,6 +414,7 @@ export default function InstagramPage() {
   /** Stock épuisé → scan d'un hashtag jamais utilisé + qualification IA, puis complétion. */
   const refillSelection = useCallback(async () => {
     setRefilling(true);
+    setSelDiag(null);
     setSelMsg("Chasse en cours : scan d'un nouveau hashtag puis qualification IA…");
     try {
       const res = await fetch("/api/instagram/selection", {
@@ -434,7 +437,11 @@ export default function InstagramPage() {
         shortfallBefore: number;
         shortfallAfter: number;
         stopped: string;
+        diagnostic?: SourceDiagnostic;
       };
+      // Diagnostic des sources : posé dès que la sélection reste incomplète, pour
+      // montrer POURQUOI la chasse ne ramène rien (crédits, abo, quota, écartée).
+      setSelDiag(r.diagnostic ?? null);
       setSelMsg(
         !r.ran
           ? `Rien à faire — ${r.reason}`
@@ -1510,6 +1517,7 @@ export default function InstagramPage() {
               loading={selLoading}
               refilling={refilling}
               message={selMsg}
+              diagnostic={selDiag}
               onRefill={refillSelection}
               onReload={loadSelection}
               onSkip={skipFromSelection}
@@ -2444,6 +2452,7 @@ function SelectionView({
   loading,
   refilling,
   message,
+  diagnostic,
   onRefill,
   onReload,
   onSkip,
@@ -2454,6 +2463,7 @@ function SelectionView({
   loading: boolean;
   refilling: boolean;
   message: string | null;
+  diagnostic: SourceDiagnostic | null;
   onRefill: () => void;
   onReload: () => void;
   onSkip: (id: string) => void;
@@ -2545,6 +2555,11 @@ function SelectionView({
         )}
 
         {message && <p className="mt-2 text-xs text-[var(--color-text-secondary)]">{message}</p>}
+        {diagnostic && (
+          <div className="mt-2">
+            <DiagBlock diag={diagnostic} />
+          </div>
+        )}
       </div>
 
       {/* La trame, juste sous le compteur : c'est la référence qu'on suit toute
