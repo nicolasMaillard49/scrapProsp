@@ -585,15 +585,16 @@ export async function refillStock(now = new Date(), opts?: RefillOptions): Promi
   }
 
   const ran = steps.some((s) => s.ran);
-  // Diagnostic des sources : on privilégie le détail d'une marche tombée sur une
-  // panne (avec ses tentatives). Sinon, si la sélection reste incomplète, on
-  // joint l'état courant des sources — mais UNIQUEMENT si l'une est réellement à
-  // terre, pour ne pas afficher un bloc rouge quand le vrai frein est ailleurs
-  // (clé Anthropic, bibliothèque de hashtags épuisée, temps écoulé).
-  let diagnostic = [...steps].reverse().find((s) => s.diagnostic)?.diagnostic;
-  if (!diagnostic && shortfall > 0) {
-    const d = await chainDiagnostic().catch(() => undefined);
-    if (d && d.providers.some((p) => !p.available)) diagnostic = d;
+  // Diagnostic des sources : on ne le remonte QUE si la chaîne est réellement
+  // bloquée — c'est-à-dire AUCUNE source utilisable. Apify à sec pendant que
+  // looter/stable prennent le relais n'est PAS un blocage (c'est le principe du
+  // fallback) : afficher un bloc rouge « source indisponible » dans ce cas était
+  // un faux positif. Quand une source marche encore, le vrai frein est ailleurs
+  // (qualif IA, hashtags épuisés, temps écoulé) et les messages le disent.
+  let diagnostic: SourceDiagnostic | undefined;
+  if (shortfall > 0) {
+    const d = [...steps].reverse().find((s) => s.diagnostic)?.diagnostic ?? (await chainDiagnostic().catch(() => undefined));
+    if (d && !d.providers.some((p) => p.available)) diagnostic = d;
   }
   return {
     ran,

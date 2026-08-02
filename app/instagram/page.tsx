@@ -506,10 +506,11 @@ export default function InstagramPage() {
           });
         }
 
-        // Source à terre : inutile d'insister, on montre le diagnostic et on stoppe.
-        if (r.diagnostic) {
+        // Diagnostic fatal UNIQUEMENT si aucune source n'est utilisable. Apify à
+        // sec pendant que looter/stable marchent n'est pas bloquant : on continue.
+        if (r.diagnostic && !r.diagnostic.providers.some((p) => p.available)) {
           setSelDiag(r.diagnostic);
-          setSelMsg(`Chasse interrompue : une source est indisponible. ${totalInserted} profils récupérés avant l'arrêt.`);
+          setSelMsg(`Chasse interrompue : aucune source disponible. ${totalInserted} profils récupérés avant l'arrêt.`);
           return;
         }
         // Sélection complète : terminé.
