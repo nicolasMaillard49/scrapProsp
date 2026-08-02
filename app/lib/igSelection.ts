@@ -422,7 +422,7 @@ export interface RefillRun {
   shortfallBefore: number;
   shortfallAfter: number;
   /** Pourquoi on s'est arrêté. */
-  stopped: "sélection pleine" | "plus rien à faire" | "temps écoulé" | "trop de tours";
+  stopped: "sélection pleine" | "plus rien à faire" | "temps écoulé" | "trop de tours" | "IA en panne";
   /**
    * État des sources quand le refill n'a PAS pu compléter la sélection —
    * pour afficher à l'écran POURQUOI (crédits Apify épuisés, abo RapidAPI
@@ -580,6 +580,14 @@ export async function refillStock(now = new Date(), opts?: RefillOptions): Promi
       break;
     }
     steps.push(step);
+
+    // IA en panne (crédits Anthropic, clé, modèle) : chaque marche suivante
+    // dépenserait du quota looter pour des profils que personne ne triera.
+    // On coupe le run — la boucle appelante (VPS/cron) s'arrête sur ce motif.
+    if (step.iaError) {
+      stopped = "IA en panne";
+      break;
+    }
 
     // Une collecte ne crée aucun prospect : inutile de recompter la sélection,
     // elle ne peut pas avoir bougé.

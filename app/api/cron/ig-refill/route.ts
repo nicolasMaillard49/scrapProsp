@@ -60,7 +60,8 @@ async function handle(req: NextRequest) {
         state.shortfall > 0
           ? `⚠️ <b>Refill IG incomplet</b>\n${state.selected}/${state.slots} créneaux pourvus — il manque ${state.shortfall}.\n` +
               `Réserve : ${state.stock} qualifié(s), ${state.pending} piste(s) en file.` +
-              (state.quota ? `\nQuota ${state.quota.provider} : ${state.quota.remaining}/${state.quota.limit}.` : "")
+              (state.quota ? `\nQuota ${state.quota.provider} : ${state.quota.remaining}/${state.quota.limit}.` : "") +
+              (refill?.iaError ? `\n🚨 Qualification IA en panne : ${refill.iaError.slice(0, 200)}` : "")
           : `✅ <b>Sélection IG complète</b>\n${state.selected}/${state.slots} créneaux, ${state.stock} qualifié(s) d'avance.`,
       );
     }
@@ -74,6 +75,9 @@ async function handle(req: NextRequest) {
         stopped: refill.stopped,
         inserted: refill.inserted,
         qualified: refill.qualified,
+        // La boucle VPS s'arrête net sur ce champ : brûler du quota looter
+        // pendant que Claude est HS ne produirait aucun prospect qualifié.
+        iaError: refill.iaError,
         steps: refill.steps.map((s) => ({ mode: s.mode, metier: s.metier, hashtag: s.hashtag, inserted: s.inserted, queued: s.queued, processed: s.processed, qualified: s.qualified, reason: s.reason })),
       },
     });

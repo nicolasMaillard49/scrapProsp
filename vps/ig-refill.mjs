@@ -25,16 +25,23 @@
  * Optionnelles :
  *   APP_URL              (defaut https://prospects.nmf-agence.com)
  *   IG_REFILL_MAX_PASSES (defaut 12)   — borne dure du nombre d'appels
- *   IG_REFILL_QUOTA_FLOOR(defaut 1500) — on s'arrete si le quota du fournisseur
- *                                        passe sous ce seuil (reserve du mois)
+ *   IG_REFILL_QUOTA_FLOOR              — on s'arrete si le quota du fournisseur
+ *     passe sous ce seuil. SANS valeur, le plancher est PROPORTIONNEL au plan :
+ *     10 % du plafond mensuel (min 5). L'ancien defaut fixe de 1500 etait pense
+ *     pour le plan Pro (15 000/mois) : en gratuit (150/mois) il etait TOUJOURS
+ *     au-dessus du quota → la boucle s'auto-desactivait a la passe 0 et la
+ *     selection du matin restait vide — c'etait CA, le bouton a cliquer.
  *   IG_REFILL_MAX_MINUTES(defaut 40)   — borne dure de duree totale
  */
 
 const APP_URL = (process.env.APP_URL || "https://prospects.nmf-agence.com").replace(/\/$/, "");
 const SECRET = process.env.CRON_SECRET || "";
 const MAX_PASSES = Number(process.env.IG_REFILL_MAX_PASSES) || 12;
-const QUOTA_FLOOR = Number(process.env.IG_REFILL_QUOTA_FLOOR) || 1500;
+const QUOTA_FLOOR_ENV = Number(process.env.IG_REFILL_QUOTA_FLOOR) || 0;
 const MAX_MS = (Number(process.env.IG_REFILL_MAX_MINUTES) || 40) * 60_000;
+
+/** Plancher de reserve : env si posee, sinon 10 % du plafond du plan (min 5). */
+const quotaFloor = (limit) => QUOTA_FLOOR_ENV || Math.max(5, Math.round((Number(limit) || 0) * 0.1));
 
 const log = (...a) => console.log(new Date().toISOString().slice(0, 19).replace("T", " "), ...a);
 
@@ -72,9 +79,12 @@ log(`etat initial : ${state.selected}/${state.slots} creneaux, manque ${state.sh
 while (state.shortfall > 0) {
   if (passes >= MAX_PASSES) { stop = `plafond de ${MAX_PASSES} passes`; break; }
   if (Date.now() - started > MAX_MS) { stop = "duree max atteinte"; break; }
-  if (state.quota && state.quota.remaining < QUOTA_FLOOR) {
-    stop = `quota ${state.quota.provider} sous le plancher (${state.quota.remaining} < ${QUOTA_FLOOR})`;
-    break;
+  if (state.quota) {
+    const floor = quotaFloor(state.quota.limit);
+    if (state.quota.remaining < floor) {
+      stop = `quota ${state.quota.provider} sous le plancher (${state.quota.remaining} < ${floor})`;
+      break;
+    }
   }
 
   passes++;
@@ -94,6 +104,11 @@ while (state.shortfall > 0) {
   log(`passe ${passes} : ${detail || r.reason || "rien"} -> ${pass.selected}/${pass.slots}, manque ${pass.shortfall}, stock ${pass.stock}, file ${pass.pending}`);
 
   state = pass;
+
+  // Qualification IA en panne (credits Anthropic, cle, modele) : chaque passe
+  // supplementaire brulerait du quota looter pour des profils que personne ne
+  // triera. On coupe et on alerte tout de suite.
+  if (r.iaError) { stop = `IA en panne : ${r.iaError.slice(0, 160)}`; break; }
 
   // Le refill dit lui-meme qu'il n'a plus de marche disponible : insister
   // reviendrait a retaper une source a terre ou une bibliotheque epuisee.

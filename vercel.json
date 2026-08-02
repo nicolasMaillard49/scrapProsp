@@ -1,5 +1,6 @@
 {
   "crons": [
+    { "path": "/api/cron/ig-refill", "schedule": "0 4 * * *" },
     { "path": "/api/cron/ig-digest", "schedule": "0 6 * * *" }
   ]
 }
