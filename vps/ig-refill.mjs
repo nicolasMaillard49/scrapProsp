@@ -79,7 +79,12 @@ log(`etat initial : ${state.selected}/${state.slots} creneaux, manque ${state.sh
 while (state.shortfall > 0) {
   if (passes >= MAX_PASSES) { stop = `plafond de ${MAX_PASSES} passes`; break; }
   if (Date.now() - started > MAX_MS) { stop = "duree max atteinte"; break; }
-  if (state.quota) {
+  // Plancher applique seulement APRES la premiere passe : la sonde d'entree lit
+  // le quota PERSISTE en base, qui peut dater d'avant un changement de plan
+  // (ex. passage au payant : la ligne dit encore « 3/150 » alors que le vrai
+  // plafond est 15 000). La premiere passe rafraichit le quota avec les headers
+  // reels du fournisseur — c'est sur CES chiffres qu'on decide de continuer.
+  if (passes >= 1 && state.quota) {
     const floor = quotaFloor(state.quota.limit);
     if (state.quota.remaining < floor) {
       stop = `quota ${state.quota.provider} sous le plancher (${state.quota.remaining} < ${floor})`;
