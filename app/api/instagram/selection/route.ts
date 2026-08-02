@@ -68,7 +68,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.action === "refill") {
-      const refill = await refillStock();
+      // Passe COURTE : le client « Aller en chercher » relance automatiquement
+      // tant qu'il reste des créneaux. Une requête qui revient vite ne meurt pas
+      // sur mobile (« Load failed »). Le cron, lui, garde les longues bornes.
+      const refill = await refillStock(new Date(), { budgetMs: 55_000, maxSteps: 3, stepReserveMs: 22_000 });
       return NextResponse.json({ ok: true, refill, selection: await ensureDailySelection(body.account_id) });
     }
 

@@ -415,43 +415,98 @@ export default function InstagramPage() {
   const refillSelection = useCallback(async () => {
     setRefilling(true);
     setSelDiag(null);
-    setSelMsg("Chasse en cours : scan d'un nouveau hashtag puis qualification IA…");
+    // Chaque requête est une passe COURTE côté serveur : on enchaîne
+    // automatiquement tant que ça progresse. Une passe courte revient avant que
+    // le mobile ne coupe la connexion (« Load failed »), et rien n'est perdu
+    // entre deux (le serveur requalifie d'abord les orphelins).
+    const MAX_PASSES = 15;
+    let totalInserted = 0;
+    let totalQualified = 0;
+    let prevShortfall = Infinity;
     try {
-      const res = await fetch("/api/instagram/selection", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "refill", account_id: activeAccount || undefined }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setSelMsg(json.error ?? `Erreur ${res.status}`);
-        return;
+      for (let pass = 1; pass <= MAX_PASSES; pass++) {
+        setSelMsg(`Chasse en cours (passe ${pass}/${MAX_PASSES}) — scan + qualification IA…`);
+        const controller = new AbortController();
+        // Garde-fou navigateur : si une passe ne répond pas en 100 s, on coupe
+        // proprement plutôt que de laisser le mobile afficher « Load failed ».
+        const timer = setTimeout(() => controller.abort(), 100_000);
+        let json: {
+          error?: string;
+          selection?: DailySelection;
+          refill?: {
+            ran: boolean;
+            reason?: string;
+            steps: { mode?: string }[];
+            inserted: number;
+            qualified: number;
+            shortfallBefore: number;
+            shortfallAfter: number;
+            stopped: string;
+            diagnostic?: SourceDiagnostic;
+          };
+        };
+        try {
+          const res = await fetch("/api/instagram/selection", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "refill", account_id: activeAccount || undefined }),
+            signal: controller.signal,
+          });
+          json = await res.json();
+          if (!res.ok) {
+            setSelMsg(json.error ?? `Erreur ${res.status}`);
+            setSelDiag(json.refill?.diagnostic ?? null);
+            return;
+          }
+        } catch (e) {
+          // Abort (100 s) ou connexion coupée (mobile) : message clair, jamais
+          // le « Load failed » brut. Le progrès déjà fait est conservé.
+          const aborted = controller.signal.aborted;
+          setSelMsg(
+            (totalInserted ? `${totalInserted} profils déjà récupérés. ` : "") +
+              (aborted
+                ? "La passe a dépassé 100 s et a été coupée par le navigateur. Garde l'écran allumé (ne verrouille pas le téléphone) et reclique — chaque passe reprend où on s'était arrêté."
+                : `Connexion interrompue (${e instanceof Error ? e.message : String(e)}). Sur mobile, garde l'écran allumé pendant la chasse, puis reclique.`),
+          );
+          return;
+        } finally {
+          clearTimeout(timer);
+        }
+
+        if (json.selection) setSelection(json.selection);
+        const r = json.refill;
+        if (!r) {
+          setSelMsg("Réponse inattendue du serveur.");
+          return;
+        }
+        totalInserted += r.inserted ?? 0;
+        totalQualified += r.qualified ?? 0;
+
+        // Source à terre : inutile d'insister, on montre le diagnostic et on stoppe.
+        if (r.diagnostic) {
+          setSelDiag(r.diagnostic);
+          setSelMsg(`Chasse interrompue : une source est indisponible. ${totalInserted} profils récupérés avant l'arrêt.`);
+          return;
+        }
+        // Sélection complète : terminé.
+        if (r.shortfallAfter === 0) {
+          setSelMsg(`Sélection complète ✅ — ${totalInserted} profils récupérés, ${totalQualified} retenus par l'IA en ${pass} passe(s).`);
+          return;
+        }
+        // Plus rien à faire, ou aucune progression : on s'arrête pour ne pas boucler à vide.
+        if (!r.ran || r.shortfallAfter >= prevShortfall) {
+          setSelMsg(
+            (!r.ran && r.reason ? `Rien à faire — ${r.reason}. ` : "") +
+              `Créneaux non pourvus : ${r.shortfallAfter} restants (${r.stopped}). ` +
+              `${totalInserted} profils récupérés, ${totalQualified} retenus. Reclique pour continuer.`,
+          );
+          return;
+        }
+        prevShortfall = r.shortfallAfter;
+        // Sinon : ça progresse, on enchaîne automatiquement la passe suivante.
       }
-      setSelection(json.selection as DailySelection);
-      const r = json.refill as {
-        ran: boolean;
-        reason?: string;
-        steps: { mode?: string }[];
-        inserted: number;
-        qualified: number;
-        shortfallBefore: number;
-        shortfallAfter: number;
-        stopped: string;
-        diagnostic?: SourceDiagnostic;
-      };
-      // Diagnostic des sources : posé dès que la sélection reste incomplète, pour
-      // montrer POURQUOI la chasse ne ramène rien (crédits, abo, quota, écartée).
-      setSelDiag(r.diagnostic ?? null);
-      setSelMsg(
-        !r.ran
-          ? `Rien à faire — ${r.reason}`
-          : `${r.inserted} profils récupérés, ${r.qualified} retenus par l'IA en ${r.steps.length} étape(s). ` +
-            (r.shortfallAfter === 0
-              ? "Sélection complète ✅"
-              : `Créneaux non pourvus : ${r.shortfallBefore} → ${r.shortfallAfter} (${r.stopped}) — reclique pour continuer.`),
-      );
-    } catch (e) {
-      setSelMsg(e instanceof Error ? e.message : String(e));
+      // Plafond de passes atteint sans compléter : on rend la main proprement.
+      setSelMsg(`${totalInserted} profils récupérés, ${totalQualified} retenus. Il reste des créneaux — reclique pour poursuivre.`);
     } finally {
       setRefilling(false);
     }

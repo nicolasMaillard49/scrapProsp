@@ -516,7 +516,24 @@ const REFILL_MAX_STEPS = Math.max(1, Number(process.env.IG_REFILL_MAX_STEPS) || 
  */
 const REFILL_STEP_RESERVE_MS = Math.max(30_000, Number(process.env.IG_REFILL_STEP_RESERVE_MS) || 150_000);
 
-export async function refillStock(now = new Date()): Promise<RefillRun> {
+/**
+ * Options de budget. Le cron (pas de client) garde les longues bornes par
+ * défaut ; l'appel interactif « Aller en chercher » en passe de courtes, pour
+ * que CHAQUE requête revienne en quelques dizaines de secondes. Sur mobile une
+ * requête tenue 2-3 min meurt (écran verrouillé, bascule d'app, handoff 5G) et
+ * le navigateur affiche « Load failed » — le client relance alors une passe
+ * courte suivante, rien n'est perdu (le refill requalifie d'abord les orphelins).
+ */
+export interface RefillOptions {
+  budgetMs?: number;
+  maxSteps?: number;
+  stepReserveMs?: number;
+}
+
+export async function refillStock(now = new Date(), opts?: RefillOptions): Promise<RefillRun> {
+  const budgetMs = Math.max(15_000, opts?.budgetMs ?? REFILL_BUDGET_MS);
+  const maxSteps = Math.max(1, opts?.maxSteps ?? REFILL_MAX_STEPS);
+  const stepReserveMs = Math.max(5_000, opts?.stepReserveMs ?? REFILL_STEP_RESERVE_MS);
   const started = Date.now();
   const before = await ensureDailySelection(undefined, now);
   const steps: RefillResult[] = [];
@@ -531,8 +548,8 @@ export async function refillStock(now = new Date()): Promise<RefillRun> {
   // représenter à Claude à chaque marche (cf. `refillStep`).
   const sterile = new Set<string>();
 
-  for (let i = 0; i < REFILL_MAX_STEPS; i++) {
-    if (Date.now() - started > REFILL_BUDGET_MS - REFILL_STEP_RESERVE_MS) {
+  for (let i = 0; i < maxSteps; i++) {
+    if (Date.now() - started > budgetMs - stepReserveMs) {
       stopped = "temps écoulé";
       break;
     }

@@ -98,11 +98,16 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
       setHunting(action);
       setHuntDiag(null);
       setHuntMsg(action === "collect" ? "Repérage des comptes…" : "Récupération des profils…");
+      // Garde-fou navigateur : la résolution peut durer ; sur mobile une requête
+      // tenue trop longtemps meurt en « Load failed ». On coupe proprement à 100 s.
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 100_000);
       try {
         const res = await fetch("/api/instagram/leads", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(action === "collect" ? { action, metier: m } : { action, metier: m || undefined }),
+          signal: controller.signal,
         });
         const json = await res.json();
         if (!res.ok) {
@@ -133,8 +138,14 @@ export default function ProspectionTool({ onDataChanged }: { onDataChanged?: () 
           onDataChanged?.();
         }
       } catch (e) {
-        setHuntMsg(e instanceof Error ? e.message : String(e));
+        // Abort (100 s) ou connexion coupée : message clair plutôt que « Load failed ».
+        setHuntMsg(
+          controller.signal.aborted
+            ? "La requête a dépassé 100 s et a été coupée par le navigateur. Garde l'écran allumé et relance — la file reprend où on s'était arrêté."
+            : `Connexion interrompue (${e instanceof Error ? e.message : String(e)}). Sur mobile, garde l'écran allumé pendant la chasse, puis relance.`,
+        );
       } finally {
+        clearTimeout(timer);
         setHunting(null);
       }
     },
