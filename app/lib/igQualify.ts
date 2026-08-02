@@ -14,7 +14,49 @@ export const QUALIFY_BATCH_SIZE = 40; // règle 30-50 → on vise le milieu
 // ID complet DATÉ obligatoire : l'alias court « claude-haiku-4-5 » renvoie
 // 404 not_found_error sur ce compte (constaté le 02/08/2026) — chaque lot de
 // qualification échouait en silence et AUCUN prospect n'entrait en sélection.
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5-20251001";
+const MODEL_SUR = "claude-haiku-4-5-20251001";
+const MODEL = process.env.ANTHROPIC_MODEL || MODEL_SUR;
+
+/**
+ * Modèle réellement utilisé. Il peut basculer sur `MODEL_SUR` en cours de route
+ * — voir `replierSurModeleSur`.
+ */
+let modeleActif = MODEL;
+/** Renseigné quand on a dû se replier : l'appelant doit pouvoir le DIRE. */
+let repliModele = "";
+
+/** Le modèle configuré n'existe pas pour ce compte (404 / not_found_error). */
+export function estModeleInconnu(e: unknown): boolean {
+  const status = (e as { status?: number })?.status;
+  const msg = e instanceof Error ? e.message : String(e);
+  return status === 404 || /not_found_error/i.test(msg);
+}
+
+/**
+ * Corriger le défaut du code ne suffisait pas : `ANTHROPIC_MODEL` posée à
+ * l'alias court dans Vercel PRIME sur ce défaut, et le 404 revient à
+ * l'identique — même panne, même silence, même sélection vide le matin. Le
+ * code se répare donc lui-même : au premier 404 on bascule sur l'ID daté connu
+ * bon, on rejoue le lot, et on garde la trace pour que quelqu'un aille corriger
+ * la variable. Une prospection ne doit pas s'arrêter sur une chaîne mal saisie.
+ */
+function replierSurModeleSur(e: unknown): boolean {
+  if (!estModeleInconnu(e) || modeleActif === MODEL_SUR) return false;
+  repliModele = `ANTHROPIC_MODEL="${modeleActif}" est inconnu de ce compte (404) — replié sur ${MODEL_SUR}. Corrige ou supprime la variable dans Vercel.`;
+  console.error("[igQualify]", repliModele);
+  modeleActif = MODEL_SUR;
+  return true;
+}
+
+/** Le repli qui a eu lieu dans ce process, s'il y en a eu un. */
+export function repliModeleActif(): string {
+  return repliModele;
+}
+
+/** Modèle réellement employé — exposé pour le diagnostic. */
+export function modeleQualification(): string {
+  return modeleActif;
+}
 
 export type Verdict = "qualified" | "borderline" | "rejected";
 
@@ -140,6 +182,29 @@ export function parseQualifyResponse(text: string, expected: string[]): QualifyR
  * console et l'écran affichait juste « 0 retenus » — indiscernable d'un vrai
  * rejet. L'appelant doit pouvoir dire à l'utilisateur POURQUOI rien n'est trié.
  */
+/**
+ * Un aller-retour modèle, avec repli automatique sur l'ID daté connu bon si le
+ * modèle configuré n'existe pas. Le lot est rejoué UNE fois — au-delà, l'erreur
+ * remonte normalement à l'appelant.
+ */
+async function interrogerModele(ai: Anthropic, prompt: string): Promise<string> {
+  const envoyer = async () => {
+    const res = await ai.messages.create({
+      model: modeleActif,
+      max_tokens: 4000,
+      temperature: 0,
+      messages: [{ role: "user", content: prompt }],
+    });
+    return res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+  };
+  try {
+    return await envoyer();
+  } catch (e) {
+    if (!replierSurModeleSur(e)) throw e;
+    return await envoyer();
+  }
+}
+
 export async function qualifyProfiles(
   profiles: QualifyProfileInput[],
   avatar: QualifyAvatar,
@@ -154,14 +219,11 @@ export async function qualifyProfiles(
   for (const batch of batches) {
     const prompt = buildQualifyPrompt(batch, avatar);
     try {
-      const res = await ai.messages.create({
-        model: MODEL,
-        max_tokens: 4000,
-        temperature: 0,
-        messages: [{ role: "user", content: prompt }],
-      });
-      const text = res.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+      const text = await interrogerModele(ai, prompt);
       all.push(...parseQualifyResponse(text, batch.map((p) => p.username)));
+      // Le repli a sauvé le lot, mais la variable reste à corriger : on le dit
+      // une fois, sinon la panne se répare en silence et personne n'agit.
+      if (repliModele) onError?.(repliModele);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error("[igQualify] lot échoué:", msg);

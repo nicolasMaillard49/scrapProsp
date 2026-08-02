@@ -67,9 +67,47 @@ async function call(qs = "") {
   return json;
 }
 
+/** Un appel au canari (/api/health/ig). Renvoie le rapport, ou null si injoignable. */
+async function canari() {
+  const res = await fetch(`${APP_URL}/api/health/ig?notify=1`, {
+    method: "POST",
+    headers: { "x-cron-secret": SECRET },
+  });
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`canari illisible (HTTP ${res.status}): ${text.slice(0, 200)}`);
+  }
+}
+
 const started = Date.now();
 let passes = 0;
 let stop = "";
+
+// ── Canari : on verifie que la chaine REPOND avant d'en dependre.
+//
+// Le 02/08 la boucle a tourne 12 passes et 831 s en produisant zero verdict :
+// le modele renvoyait 404, `qualifyProfiles` avalait l'erreur lot par lot, et
+// rien dans la reponse ne disait que l'IA etait morte. Chaque passe a resolu des
+// profils (1 requete de quota piece) pour fabriquer du stock que personne n'a
+// qualifie. Trente secondes de verification valent mieux que ca.
+//
+// Un canari injoignable n'arrete PAS la boucle : c'est un garde-fou, pas une
+// dependance de plus. On le dit et on continue.
+try {
+  const sante = await canari();
+  log(`canari : ${sante.resume}`);
+  for (const c of sante.checks || []) {
+    if (!c.ok || c.alerte) log(`  ${c.ok ? "!" : "X"} ${c.poste} — ${c.detail}`);
+  }
+  if (!sante.ok) {
+    log("fin — chaine cassee, aucune passe lancee (alerte Telegram envoyee par le canari).");
+    process.exit(0);
+  }
+} catch (e) {
+  log(`canari injoignable (${e.message}) — on continue quand meme.`);
+}
 
 // Sonde d'entree : si la selection est deja pleine, on ne depense rien.
 let state = await call("?mode=status");

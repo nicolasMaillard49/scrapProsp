@@ -100,6 +100,22 @@ Chaque matin, prépare la **liste fermée des comptes Instagram à démarcher au
   - **« Annuler »** (après contact) — le DM est purgé du journal et des KPI, le prospect passe `skipped`.
 - « Aller en chercher » relance le refill à la main — normalement inutile, le VPS s'en charge (section suivante).
 
+## Canari de la chaîne IG (`/api/health/ig` + `npm run health:ig`)
+
+Répond à la seule question qui compte la veille au soir : **est-ce que le refill va marcher demain matin ?**
+
+> ⚠️ Pourquoi il existe : deux arrêts de prospection d'affilée, invisibles jusqu'au lendemain. Le 01/08, un plancher de quota calibré pour un plan Pro appliqué à un plan gratuit auto-désactivait la boucle à la passe 0. Le 02/08, l'alias court `claude-haiku-4-5` renvoyait 404 : chaque lot de qualification échouait **en silence** (`qualifyProfiles` avale l'erreur lot par lot), 12 passes et 831 s brûlées pour **0 verdict**. Le point commun n'est pas la panne, c'est qu'aucune ne se voyait.
+
+- Le canari **paie un vrai appel au modèle** sur un lot synthétique de 3 profils et vérifie que le verdict revient parsable. Un simple `if (ANTHROPIC_API_KEY)` n'aurait attrapé **aucun** des deux incidents. **Rien n'est écrit en base** : le lot témoin ne passe jamais par `qualifyRun`.
+- Trois postes : `base` (Supabase répond), `ia` (aller-retour modèle réel), `quota` (part du plan restante — **informatif, jamais bloquant**, c'est exactement l'erreur du plancher figé).
+- Route : `GET/POST /api/health/ig` — auth `x-cron-secret` (même `CRON_SECRET`). **HTTP 200 si sain, 503 si cassé** → lisible par un `curl -f` sans parser le JSON. `?notify=1` poste sur Telegram, et **uniquement quand il y a quelque chose à dire** (une chaîne saine ne réveille personne).
+- En ligne de commande : `npm run health:ig` (prod) ou `npm run health:ig -- --local`. Sort en code 1 si la chaîne est cassée.
+- `vps/ig-refill.mjs` l'appelle **avant sa boucle** : chaîne cassée = zéro passe lancée, alerte Telegram immédiate, aucun quota brûlé. Un canari injoignable n'arrête pas la boucle (garde-fou, pas dépendance de plus).
+
+### Auto-réparation du modèle
+
+Corriger le défaut du code ne suffisait pas : **`ANTHROPIC_MODEL` posée dans Vercel PRIME sur le défaut**, donc l'alias court y ramenait le 404 à l'identique. Désormais, au premier 404 la qualification **bascule seule** sur l'ID daté connu bon (`claude-haiku-4-5-20251001`), rejoue le lot, et **remonte le repli** jusqu'à l'écran et au canari — pour que la variable soit corrigée au lieu que la panne se répare en silence. Une prospection ne s'arrête plus sur une chaîne mal saisie.
+
 ## Refill automatique de la sélection (script VPS — `vps/ig-refill.mjs`)
 
 Remplit la sélection du jour **sans aucun clic** : le bouton « Aller en chercher » du cockpit ne sert plus que de rattrapage.

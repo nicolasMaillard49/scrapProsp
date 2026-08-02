@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chunk, buildQualifyPrompt, parseQualifyResponse, QUALIFY_BATCH_SIZE } from "./igQualify";
+import { chunk, buildQualifyPrompt, parseQualifyResponse, QUALIFY_BATCH_SIZE, estModeleInconnu } from "./igQualify";
 
 test("chunk: découpe en lots de la taille demandée", () => {
   assert.deepEqual(chunk([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
@@ -50,4 +50,20 @@ test("parseQualifyResponse: usernames inattendus ignorés, réponse cassée → 
   assert.deepEqual(parseQualifyResponse('[{"username":"intrus","verdict":"qualified"}]', ["a"]), []);
   assert.deepEqual(parseQualifyResponse("pas du json", ["a"]), []);
   assert.deepEqual(parseQualifyResponse("[{cassé", ["a"]), []);
+});
+
+// Le 404 « model: claude-haiku-4-5 » du 02/08 : c'est CE cas qui doit déclencher
+// le repli automatique sur l'ID daté, sinon la panne revient dès que la variable
+// d'env Vercel reprend l'alias court.
+test("estModeleInconnu: un 404 / not_found_error déclenche le repli", () => {
+  assert.equal(estModeleInconnu({ status: 404 }), true);
+  assert.equal(estModeleInconnu(new Error('404 {"type":"not_found_error","message":"model: claude-haiku-4-5"}')), true);
+});
+
+test("estModeleInconnu: les autres pannes NE sont pas des modèles inconnus", () => {
+  // Se replier sur un autre modèle ne réparerait rien et masquerait la vraie cause.
+  assert.equal(estModeleInconnu({ status: 429 }), false);
+  assert.equal(estModeleInconnu(new Error("overloaded_error")), false);
+  assert.equal(estModeleInconnu(new Error("credit balance is too low")), false);
+  assert.equal(estModeleInconnu(new Error("fetch failed")), false);
 });

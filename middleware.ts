@@ -48,6 +48,9 @@ export function middleware(req: NextRequest) {
     pathname === "/api/cron/ig-digest" ||
     pathname === "/api/cron/ig-refill" ||
     pathname === "/api/cron/kpi-slack" ||
+    // Canari de la chaîne IG — appelé par le cron VPS avant sa boucle, protégé
+    // par le même CRON_SECRET que les crons (cf. app/api/health/ig/route.ts).
+    pathname === "/api/health/ig" ||
     // KPI agrégés du cockpit IG (compteurs journaliers, aucune donnée nominative)
     // — consommé par l'Apps Script du Google Sheet de tracking.
     pathname === "/api/instagram/kpi" ||
