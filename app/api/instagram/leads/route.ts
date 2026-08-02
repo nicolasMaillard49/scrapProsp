@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseConfigured } from "@/app/lib/supabase";
 import { igSourceConfigured } from "@/app/lib/igSource";
 import { collectLeads, resolveLeads, leadsStatus } from "@/app/lib/igLeads";
+import { iglog } from "@/app/lib/igProviders/log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -47,12 +48,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
+  iglog("step", "route", `POST /leads action=${body.action ?? "?"} ${body.hashtag ? `#${body.hashtag.replace(/^#/, "").trim()}` : ""}`);
   try {
     if (body.action === "collect") {
       if (!(body.hashtag ?? "").replace(/^#/, "").trim()) {
         return NextResponse.json({ error: "hashtag requis" }, { status: 400 });
       }
       const result = await collectLeads(body.hashtag!, body.metier?.trim() || null);
+      iglog("ok", "route", `/leads collect — ${result.queued} en file via ${result.provider}`);
       return NextResponse.json({ ok: true, result, status: await leadsStatus() });
     }
 
@@ -61,11 +64,13 @@ export async function POST(req: NextRequest) {
       // gratuit, 100 en Pro) : le cockpit n'a pas a connaitre l'abonnement.
       const limit = body.limit ? Math.min(Math.max(Number(body.limit), 1), 200) : undefined;
       const result = await resolveLeads(limit, body.metier?.trim() || null);
+      iglog("ok", "route", `/leads resolve — ${result.inserted} prospect(s) créé(s), ${result.failed} échec(s)`);
       return NextResponse.json({ ok: true, result, status: await leadsStatus() });
     }
 
     return NextResponse.json({ error: "action inconnue (collect | resolve)" }, { status: 400 });
   } catch (e) {
+    iglog("err", "route", `/leads ÉCHEC`, { message: e instanceof Error ? e.message : String(e) });
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
   }
 }

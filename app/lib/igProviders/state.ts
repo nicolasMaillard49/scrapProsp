@@ -10,6 +10,7 @@
 // continue de fonctionner en mémoire seule (dégradé, jamais bloquant).
 
 import { supabase, supabaseConfigured } from "../supabase";
+import { iglog } from "./log";
 import type { FailureKind } from "./types";
 
 /**
@@ -40,9 +41,20 @@ async function loadRemote(): Promise<void> {
   const { data, error } = await supabase.from("ig_provider_state").select("provider, disabled_until, last_kind, last_error");
   if (error) {
     // 42P01 = relation inexistante → migration 020 non appliquée.
-    if (error.code === "42P01" || /does not exist/i.test(error.message)) tableMissing = true;
-    else console.error("[igProviders] lecture état impossible:", error.message);
+    if (error.code === "42P01" || /does not exist/i.test(error.message)) {
+      tableMissing = true;
+      iglog("warn", "state", "table ig_provider_state ABSENTE (migration 020 non appliquée) — état géré en mémoire seule");
+    } else {
+      iglog("err", "state", "lecture état Supabase impossible", { message: error.message });
+    }
     return;
+  }
+  const now = Date.now();
+  const active = (data ?? []).filter((r) => r.disabled_until && Date.parse(r.disabled_until as string) > now);
+  if (active.length) {
+    iglog("warn", "state", `${active.length} provider(s) actuellement ÉCARTÉ(S) selon Supabase`, {
+      détail: active.map((r) => `${r.provider}(${r.last_kind ?? "?"} jusqu'à ${r.disabled_until})`),
+    });
   }
   for (const row of data ?? []) {
     const until = row.disabled_until ? Date.parse(row.disabled_until as string) : 0;
@@ -76,6 +88,9 @@ export async function disabledProviders(now = Date.now()): Promise<Map<string, P
 /** Marque une panne et écarte le provider le temps du cooldown associé. */
 export async function markFailure(provider: string, kind: FailureKind, message: string, now = Date.now()): Promise<void> {
   const disabledUntil = now + COOLDOWN_MS[kind];
+  iglog("warn", "state", `⛔ ${provider} écarté ${Math.round(COOLDOWN_MS[kind] / 60000)} min (${kind}) — jusqu'à ${new Date(disabledUntil).toISOString()}`, {
+    cause: message.slice(0, 160),
+  });
   memory.set(provider, { disabledUntil, lastKind: kind, lastError: message.slice(0, 300) });
   if (!supabaseConfigured || tableMissing) return;
   const { error } = await supabase.from("ig_provider_state").upsert(
@@ -100,6 +115,7 @@ export async function markSuccess(provider: string): Promise<void> {
   memory.set(provider, { disabledUntil: 0, lastKind: null, lastError: null });
   if (!supabaseConfigured || tableMissing) return;
   if (!prev || prev.disabledUntil === 0) return; // rien à effacer
+  iglog("ok", "state", `♻️ ${provider} réhabilité (succès) — cooldown effacé`);
   const { error } = await supabase
     .from("ig_provider_state")
     .upsert({ provider, disabled_until: null, last_kind: null, last_error: null, updated_at: new Date().toISOString() }, { onConflict: "provider" });
