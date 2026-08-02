@@ -1,9 +1,11 @@
 // Source de données Instagram — chaîne de priorité avec bascule automatique.
 //
-// Ordre par défaut : apify → looter → stable (surchargeable par IG_PROVIDER_ORDER).
-// Apify reste primaire : il donne les usernames directement et son actor profil
-// ramène les posts récents. Les deux APIs RapidAPI prennent le relais dès que
-// les crédits Apify du mois sont épuisés (402/403) ou que l'actor tombe.
+// Ordre par défaut : looter → stable (surchargeable par IG_PROVIDER_ORDER).
+// Apify est DÉSACTIVÉ par défaut (crédits épuisés → il ne faisait que ralentir
+// chaque chasse d'un 403 avant de basculer). Les deux APIs RapidAPI font tout :
+// looter découvre (hashtags) et résout (profils), stable enrichit par username.
+// Pour réactiver Apify après une recharge de crédits : poser IG_ENABLE_APIFY=1
+// (il reprend alors la tête de chaîne, comme avant).
 //
 // Trois garde-fous, parce qu'un fallback gratuit se grille en un scan :
 //  1. dédup par `ig_user_id` avant toute résolution payante ;
@@ -20,7 +22,10 @@ import { ProviderError, type HashtagPage, type IgProfile, type IgProvider } from
 
 export type { IgProfile } from "./igProviders/types";
 
-const ALL: IgProvider[] = [apifyProvider, looterProvider, stableProvider];
+// Apify n'entre dans la chaîne QUE si explicitement réactivé — sinon aucun appel
+// ne part vers lui. RapidAPI (looter + stable) est la source par défaut.
+const APIFY_ENABLED = process.env.IG_ENABLE_APIFY === "1";
+const ALL: IgProvider[] = [...(APIFY_ENABLED ? [apifyProvider] : []), looterProvider, stableProvider];
 
 /**
  * Nombre max de profils résolus par scan chez un provider qui ne donne que des
@@ -38,8 +43,6 @@ const PROFILE_CACHE_MAX = 800;
 
 /** Au moins une source utilisable : sinon la découverte est impossible. */
 export const igSourceConfigured = ALL.some((p) => p.configured);
-/** Conservé pour les messages d'erreur qui parlaient d'Apify nommément. */
-export const apifyConfigured = apifyProvider.configured;
 
 // Résumé de config au chargement du module : la toute première chose à lire
 // dans les logs Vercel. Dit sans ambiguïté quelles sources ont leurs

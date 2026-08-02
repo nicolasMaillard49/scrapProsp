@@ -38,7 +38,7 @@ interface Body {
 export async function POST(req: NextRequest) {
   if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
   if (!igSourceConfigured) {
-    return NextResponse.json({ error: "Aucune source Instagram configurée (APIFY_TOKEN ou RAPIDAPI_KEY)" }, { status: 503 });
+    return NextResponse.json({ error: "Aucune source Instagram configurée (RAPIDAPI_KEY)" }, { status: 503 });
   }
 
   let body: Body;

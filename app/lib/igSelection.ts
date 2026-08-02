@@ -705,7 +705,7 @@ async function refillStep(now = new Date(), sterile = new Set<string>()): Promis
   //    Un LOT, pas tout : les relais RapidAPI résolvent un profil par requête à
   //    ~5 s pièce, et un scan monolithique dépassait le maxDuration de la route
   //    sans jamais rendre la main (cockpit muet, cf. migration 021).
-  if (!igSourceConfigured) return { ran: false, reason: "stock trié en totalité et aucune source configurée (APIFY_TOKEN / RAPIDAPI_KEY) — scan impossible." };
+  if (!igSourceConfigured) return { ran: false, reason: "stock trié en totalité et aucune source configurée (RAPIDAPI_KEY) — scan impossible." };
 
   const pendingByMetier = new Map((await leadsStatus()).byMetier.map((b) => [b.metier, b.pending]));
 
