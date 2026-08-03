@@ -8,9 +8,13 @@ détecté dans l'app (quota, stade, relance).
 
 1. `chrome://extensions` → activer le **mode développeur**.
 2. « Charger l'extension non empaquetée » → choisir ce dossier `extension/`.
-3. Clic droit sur l'icône → **Options** :
-   - URL de l'app : `https://<ton-domaine-vercel>` (ou `http://localhost:3000`)
-   - EXT_TOKEN : la valeur de `EXT_TOKEN` du `.env` de l'app (Vercel + `.env.local`).
+3. Configurer, au choix :
+   - **Auto** : créer `extension/local-config.json` (git-ignoré) —
+     `{ "appUrl": "https://<ton-domaine-vercel>", "extToken": "<EXT_TOKEN>" }` —
+     l'extension s'amorce toute seule au premier appel.
+   - **Manuel** : clic droit sur l'icône → **Options** → URL de l'app +
+     EXT_TOKEN (la valeur du `.env` de l'app, Vercel + `.env.local`).
+     Les options priment sur le fichier.
 4. Ouvrir instagram.com, cliquer l'icône → le panel s'ouvre.
 
 ## Règles encodées

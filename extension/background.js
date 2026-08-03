@@ -7,9 +7,33 @@ if (chrome.sidePanel) {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 }
 
-/** Réglages saisis dans les options. */
+/**
+ * Amorce les réglages depuis `local-config.json` (fichier git-ignoré, présent
+ * uniquement sur les machines où on l'a déposé). Évite la saisie manuelle dans
+ * les options ; une valeur enregistrée via les options reste prioritaire.
+ */
+async function seedFromLocalConfig() {
+  try {
+    const res = await fetch(chrome.runtime.getURL("local-config.json"));
+    if (!res.ok) return null;
+    const cfg = await res.json();
+    const appUrl = String(cfg.appUrl || "").trim().replace(/\/$/, "");
+    const extToken = String(cfg.extToken || "").trim();
+    if (!appUrl || !extToken) return null;
+    await chrome.storage.local.set({ appUrl, extToken });
+    return { appUrl, extToken };
+  } catch {
+    return null; // fichier absent ou invalide : les options restent la voie normale
+  }
+}
+
+/** Réglages saisis dans les options (amorcés du fichier local s'ils manquent). */
 async function settings() {
-  const { appUrl, extToken } = await chrome.storage.local.get(["appUrl", "extToken"]);
+  let { appUrl, extToken } = await chrome.storage.local.get(["appUrl", "extToken"]);
+  if (!appUrl || !extToken) {
+    const seeded = await seedFromLocalConfig();
+    if (seeded) ({ appUrl, extToken } = seeded);
+  }
   return { appUrl: appUrl || "", extToken: extToken || "" };
 }
 

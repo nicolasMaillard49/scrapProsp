@@ -47,3 +47,6 @@ scripts/deploy-vps.py
 
 # Scripts jetables de session (requêtes ponctuelles, debug) — non versionnés
 scripts/_tmp-*
+
+# Config locale de l'extension Chrome (contient EXT_TOKEN) — jamais committée
+extension/local-config.json
