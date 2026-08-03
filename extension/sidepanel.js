@@ -375,6 +375,7 @@ $("qualify").addEventListener("click", async () => {
     if (r?.status !== 200) { $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`; return; }
     $("error").textContent = "";
     showVerdict(r.data.verdict);
+    showStage(r.data.verdict);
   } finally {
     btn.disabled = false;
     btn.textContent = "Qualifier la réponse";
@@ -424,6 +425,39 @@ function showVerdict(v) {
   });
 }
 
+/**
+ * Le stade du CRM est saisi à la main : il prend du retard dès qu'un échange
+ * se fait hors de l'outil, et c'est lui qui décide de l'étape « à envoyer ».
+ * On propose donc de le recaler sur ce que le fil montre vraiment.
+ */
+function showStage(v) {
+  const current = state.data?.prospect?.stage ?? null;
+  if (!v?.stage || v.stage === current) { $("stageOut").innerHTML = ""; return; }
+  $("stageOut").innerHTML = `<div class="sugg doubt">
+      <div class="tag">Stade en retard</div>
+      <p>CRM : <b>${esc(STAGE_LABEL[current] ?? "Jamais contacté")}</b> · d'après le fil : <b>${esc(STAGE_LABEL[v.stage] ?? v.stage)}</b></p>
+      <div class="muted">${esc(v.stageReason)}</div>
+      <div class="row"><button class="primary" id="syncStage">Recaler sur « ${esc(STAGE_LABEL[v.stage] ?? v.stage)} »</button></div>
+    </div>`;
+  $("syncStage").addEventListener("click", async () => {
+    const b = $("syncStage");
+    b.disabled = true;
+    b.textContent = "Recalage…";
+    const r = await chrome.runtime.sendMessage({
+      type: "ig:classify", record: "stage", username: state.username, stage: v.stage,
+    });
+    if (r?.status === 200 && r.data?.ok) {
+      $("stageOut").innerHTML = `<div class="sugg verdict"><div class="tag">Stade recalé ✓</div>
+        <p class="muted">L'étape « à envoyer » suit maintenant la conversation.</p></div>`;
+      refresh(state.username);
+    } else {
+      $("error").textContent = r?.data?.error || "Recalage refusé.";
+      b.disabled = false;
+      b.textContent = "Recaler";
+    }
+  });
+}
+
 async function loadManual() {
   const u = $("manualUser").value.replace(/^@/, "").trim().toLowerCase();
   if (!u) return;
@@ -454,6 +488,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     $("aiHint").textContent = "";
     $("fixOut").innerHTML = "";
     $("qualifyOut").innerHTML = "";
+    $("stageOut").innerHTML = "";
     refresh(msg.username, msg.account);
   }
   if (msg?.type === "ig:logged") {

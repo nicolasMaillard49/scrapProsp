@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { buildClassifySystemPrompt, parseVerdict } from "@/app/lib/igClassify";
+import { STAGES } from "@/app/lib/igPipeline";
 import { logReply } from "@/app/lib/igReplyLog";
 import { MAX_HISTORY } from "@/app/lib/igReplyPrompt";
 
@@ -13,11 +14,15 @@ const FALLBACK_MODEL = "claude-sonnet-4-6";
 interface Body {
   username?: string;
   history?: string;
-  /** Écriture dans le CRM — seulement après validation humaine. */
-  record?: boolean;
+  /**
+   * Écriture dans le CRM — seulement après validation humaine.
+   * `"reply"` (ou `true`) journalise la réponse ; `"stage"` recale le stade.
+   */
+  record?: boolean | "reply" | "stage";
   kind?: string;
   excerpt?: string;
   account_id?: string;
+  stage?: string;
 }
 
 /**
@@ -52,6 +57,22 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!prospect) return NextResponse.json({ error: `@${username} n'est pas dans la base.` }, { status: 404 });
 
+  // ── Recalage du stade (après validation humaine) ─────────────────────────
+  if (body.record === "stage") {
+    const stage = (body.stage ?? "").toLowerCase().trim();
+    if (!(STAGES as readonly string[]).includes(stage)) {
+      return NextResponse.json({ error: `stade invalide (${stage})` }, { status: 400 });
+    }
+    const { data, error: upErr } = await supabase
+      .from("instagram_prospects")
+      .update({ stage })
+      .eq("id", prospect.id)
+      .select("id, stage, status, reply_count")
+      .single();
+    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    return NextResponse.json({ ok: true, recorded: "stage", prospect: data });
+  }
+
   // ── Écriture CRM (après validation humaine) ──────────────────────────────
   if (body.record) {
     const r = await logReply({
@@ -76,7 +97,7 @@ export async function POST(req: NextRequest) {
     const call = (model: string) =>
       client.messages.create({
         model,
-        max_tokens: 500,
+        max_tokens: 1500,
         system: buildClassifySystemPrompt(),
         messages: [{ role: "user", content: history }],
       });

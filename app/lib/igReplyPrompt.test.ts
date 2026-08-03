@@ -84,6 +84,20 @@ test("parse: entrées vides ignorées, label manquant remplacé", () => {
   assert.equal(out[0].text, "OK");
 });
 
+test("parse: réponse TRONQUÉE → les propositions complètes sont récupérées", () => {
+  // Cas réel : max_tokens atteint, le tableau n'est jamais refermé. Le
+  // panneau affichait le JSON brut (ou « rien proposé ») alors que deux
+  // propositions parfaitement utilisables étaient déjà là.
+  const tronque =
+    '{"suggestions":[{"label":"recadrer","text":"On se cale 15-20 min ?"},' +
+    '{"label":"franc","text":"Je préfère vous répondre de vive voix."},' +
+    '{"label":"coupé","text":"début de phrase san';
+  const out = parseSuggestions(tronque);
+  assert.equal(out.length, 2);
+  assert.equal(out[0].text, "On se cale 15-20 min ?");
+  assert.equal(out[1].label, "franc");
+});
+
 test("parse: JSON invalide → repli sur le texte brut, jamais une liste vide silencieuse", () => {
   const out = parseSuggestions("pas du json du tout");
   assert.equal(out.length, 1);

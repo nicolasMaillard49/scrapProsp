@@ -83,7 +83,10 @@ export async function POST(req: NextRequest) {
     const call = (model: string) =>
       client.messages.create({
         model,
-        max_tokens: 700,
+        // Large : trois propositions en JSON avec un prompt système fourni.
+        // À 700, la réponse était TRONQUÉE en cours de JSON — le panneau
+        // affichait « le modèle n'a rien proposé » alors qu'il avait répondu.
+        max_tokens: 3000,
         system: buildReplySystemPrompt(ctx),
         messages: [{ role: "user", content: buildReplyUserMessage(ctx) }],
       });

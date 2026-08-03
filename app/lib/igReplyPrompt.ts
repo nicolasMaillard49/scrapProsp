@@ -71,8 +71,10 @@ ${ctx.steps.map((s) => `${s.step} — ${s.title}\n${s.text}`).join("\n\n")}
 # Où en est la conversation
 ${
   target
-    ? `Le prochain message prévu par la trame est ${target.step} (« ${target.title} »). Ton objectif : répondre à ce que le prospect vient de dire, puis ramener naturellement la conversation vers ce message-là — sans le recopier mot pour mot si ça tombe à plat.`
-    : `La trame n'a plus d'étape à proposer (séquence terminée ou close). Réponds de façon utile sans relancer de séquence.`
+    ? `D'après le CRM, le prochain message prévu par la trame est ${target.step} (« ${target.title} »).
+
+ATTENTION : cette indication vient d'un stade enregistré à la main, qui peut être en RETARD sur la réalité. Le fil ci-dessous fait foi. Si la conversation est manifestement plus avancée que ${target.step} (une offre a été présentée, un prix discuté, un rendez-vous évoqué), IGNORE ${target.step} et réponds à l'endroit où la conversation en est vraiment — l'objectif reste l'appel.`
+    : `La trame n'a plus d'étape à proposer (séquence terminée ou close). Réponds de façon utile, en te fiant uniquement au fil.`
 }
 
 # Lire la conversation
@@ -115,6 +117,30 @@ export function buildReplyUserMessage(ctx: ReplyContext): string {
  * ne doit jamais rendre la fonctionnalité inutilisable — au pire on rend le
  * texte brut comme proposition unique, à Nicolas de juger.
  */
+/**
+ * Extrait tous les objets `{...}` équilibrés d'un texte, imbriqués compris.
+ * Sert à récupérer les propositions d'un JSON TRONQUÉ : quand la réponse est
+ * coupée en cours de route, le tableau extérieur n'est jamais refermé, mais
+ * les premiers objets, eux, sont complets et parfaitement exploitables.
+ */
+function balancedObjects(s: string): string[] {
+  const stack: number[] = [];
+  const out: string[] = [];
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === "{") stack.push(i);
+    else if (s[i] === "}" && stack.length) out.push(s.slice(stack.pop() as number, i + 1));
+  }
+  return out;
+}
+
+function toSuggestion(v: unknown): ReplySuggestion | null {
+  const o = v as { label?: unknown; text?: unknown };
+  const t = typeof o?.text === "string" ? o.text.trim() : "";
+  if (!t) return null;
+  const l = typeof o?.label === "string" && o.label.trim() ? o.label.trim() : "Proposition";
+  return { label: l, text: t };
+}
+
 export function parseSuggestions(raw: string): ReplySuggestion[] {
   const text = (raw ?? "").trim();
   if (!text) return [];
@@ -132,20 +158,31 @@ export function parseSuggestions(raw: string): ReplySuggestion[] {
       ? parsed
       : (parsed as { suggestions?: unknown })?.suggestions;
     if (Array.isArray(list)) {
-      const out = list
-        .map((s): ReplySuggestion | null => {
-          const o = s as { label?: unknown; text?: unknown };
-          const t = typeof o?.text === "string" ? o.text.trim() : "";
-          if (!t) return null;
-          const l = typeof o?.label === "string" && o.label.trim() ? o.label.trim() : "Proposition";
-          return { label: l, text: t };
-        })
-        .filter((s): s is ReplySuggestion => s !== null)
-        .slice(0, 4);
+      const out = list.map(toSuggestion).filter((s): s is ReplySuggestion => s !== null).slice(0, 4);
       if (out.length) return out;
     }
   } catch {
-    // JSON invalide : on retombe sur le brut plutôt que de ne rien rendre.
+    // JSON invalide (souvent : réponse tronquée) — on récupère ci-dessous.
   }
+
+  // Sauvetage : les objets complets d'une réponse coupée valent mieux que le
+  // JSON brut affiché tel quel dans le panneau.
+  const salvaged: ReplySuggestion[] = [];
+  const seen = new Set<string>();
+  for (const chunk of balancedObjects(unfenced)) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(chunk);
+    } catch {
+      continue;
+    }
+    const s = toSuggestion(parsed);
+    if (s && !seen.has(s.text)) {
+      seen.add(s.text);
+      salvaged.push(s);
+    }
+  }
+  if (salvaged.length) return salvaged.slice(0, 4);
+
   return [{ label: "Brut", text: unfenced }];
 }

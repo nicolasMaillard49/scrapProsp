@@ -14,7 +14,7 @@ test("prompt: décrit les 4 genres et impose la prudence", () => {
 });
 
 test("parse: verdict complet", () => {
-  const v = parseVerdict('{"replied":true,"cold":true,"kind":"positive","excerpt":"Salut, oui toujours","confidence":"haute","reason":"il confirme"}');
+  const v = parseVerdict('{"replied":true,"cold":true,"kind":"positive","excerpt":"Salut, oui toujours","confidence":"haute","reason":"il confirme","stage":"douleur","stageReason":"une offre a ete evoquee"}');
   assert.deepEqual(v, {
     replied: true,
     kind: "positive",
@@ -22,7 +22,25 @@ test("parse: verdict complet", () => {
     excerpt: "Salut, oui toujours",
     confidence: "haute",
     reason: "il confirme",
+    stage: "douleur",
+    stageReason: "une offre a ete evoquee",
   });
+});
+
+test("parse: stade inconnu ou absent → null, pas de recalage hasardeux", () => {
+  // Recaler sur un stade invente ferait sauter des etapes de la trame.
+  assert.equal(parseVerdict('{"replied":true,"kind":"neutre","stage":"negociation"}')?.stage, null);
+  assert.equal(parseVerdict('{"replied":true,"kind":"neutre"}')?.stage, null);
+  assert.equal(parseVerdict('{"replied":true,"kind":"neutre","stage":"call_booke"}')?.stage, "call_booke");
+});
+
+test("prompt: décrit les stades du pipeline et les repères pour trancher", () => {
+  const p = buildClassifySystemPrompt();
+  for (const s of ["accroche", "douleur", "appel_propose", "call_booke", "perdu"]) {
+    assert.match(p, new RegExp(s));
+  }
+  assert.match(p, /saisi à la main/i);
+  assert.match(p, /tarif discuté/i);
 });
 
 test("parse: aucune réponse → kind null, jamais un genre inventé", () => {
