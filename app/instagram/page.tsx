@@ -2146,7 +2146,7 @@ export default function InstagramPage() {
                       {l.status !== "todo" && (
                         <ReplyButton
                           prospectId={l.id}
-                          accountId={activeAccount}
+                          accountId={activeAccount || null}
                           replyCount={l.reply_count ?? 0}
                           onLogged={(p) => setLeads((prev) => prev.map((x) => (x.id === l.id ? { ...x, ...p } : x)))}
                         />
@@ -3085,7 +3085,7 @@ function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetS
             </a>
             <ReplyButton
               prospectId={l.id}
-              accountId={activeAccount}
+              accountId={activeAccount || null}
               replyCount={l.reply_count ?? 0}
               onLogged={(p) => onReplyLogged(l.id, p)}
             />

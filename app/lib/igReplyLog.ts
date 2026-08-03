@@ -19,6 +19,24 @@ export type LogReplyResult =
   | { ok: true; reply: unknown; prospect: unknown }
   | { ok: false; error: string; status: number };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Normalise un identifiant venant d'un formulaire.
+ *
+ * Une chaîne VIDE n'est pas un uuid : Postgres refuse `""` avec
+ * « invalid input syntax for type uuid » — une erreur 500 illisible pour une
+ * cause triviale (un `useState<string>("")` non gardé côté page). Ici, vide
+ * vaut « pas de compte », et une valeur mal formée est signalée telle quelle
+ * plutôt que renvoyée à la base.
+ */
+export function asUuidOrNull(v: unknown): { value: string | null; malformed: boolean } {
+  if (typeof v !== "string") return { value: null, malformed: false };
+  const t = v.trim();
+  if (!t) return { value: null, malformed: false };
+  return UUID_RE.test(t) ? { value: t, malformed: false } : { value: null, malformed: true };
+}
+
 /**
  * Journalise une réponse du prospect et en tire les conséquences métier.
  *
@@ -30,10 +48,17 @@ export type LogReplyResult =
  */
 export async function logReply(input: LogReplyInput): Promise<LogReplyResult> {
   const kind = (input.kind ?? "").toLowerCase() as ReplyKind;
-  if (!input.prospect_id) return { ok: false, error: "prospect_id requis", status: 400 };
+  const pid = asUuidOrNull(input.prospect_id);
+  if (!pid.value) {
+    return { ok: false, error: pid.malformed ? "prospect_id invalide" : "prospect_id requis", status: 400 };
+  }
+  const acc = asUuidOrNull(input.account_id);
+  if (acc.malformed) return { ok: false, error: "account_id invalide", status: 400 };
   if (!REPLY_KINDS.includes(kind)) {
     return { ok: false, error: `kind invalide (${kind}) — attendu : ${REPLY_KINDS.join(", ")}`, status: 400 };
   }
+  const prospectId = pid.value;
+  const accountId = acc.value;
 
   const receivedAt = input.received_at ? new Date(input.received_at) : new Date();
   if (Number.isNaN(receivedAt.getTime())) return { ok: false, error: "received_at invalide", status: 400 };
@@ -41,15 +66,15 @@ export async function logReply(input: LogReplyInput): Promise<LogReplyResult> {
   const { data: prospect, error: prosErr } = await supabase
     .from("instagram_prospects")
     .select("id, username, status")
-    .eq("id", input.prospect_id)
+    .eq("id", prospectId)
     .single();
   if (prosErr || !prospect) return { ok: false, error: "prospect introuvable", status: 404 };
 
   const { data: reply, error: insErr } = await supabase
     .from("ig_replies")
     .insert({
-      prospect_id: input.prospect_id,
-      account_id: input.account_id ?? null,
+      prospect_id: prospectId,
+      account_id: accountId,
       kind,
       received_at: receivedAt.toISOString(),
       excerpt: input.excerpt?.slice(0, 500) ?? null,
@@ -68,13 +93,13 @@ export async function logReply(input: LogReplyInput): Promise<LogReplyResult> {
     const { data, error: upErr } = await supabase
       .from("instagram_prospects")
       .update(patch)
-      .eq("id", input.prospect_id)
+      .eq("id", prospectId)
       .select(cols)
       .single();
     if (upErr) return { ok: false, error: upErr.message, status: 500 };
     updated = data;
   } else {
-    const { data } = await supabase.from("instagram_prospects").select(cols).eq("id", input.prospect_id).single();
+    const { data } = await supabase.from("instagram_prospects").select(cols).eq("id", prospectId).single();
     updated = data;
   }
 
