@@ -106,7 +106,22 @@ export async function POST(req: NextRequest) {
       .trim();
     const suggestions = parseSuggestions(raw);
     if (!suggestions.length) {
-      return NextResponse.json({ error: "Le modèle n'a rien proposé — reformule le message du prospect." }, { status: 502 });
+      // Diagnostic dans la réponse : « rien proposé » sans rien d'autre
+      // envoie chercher au mauvais endroit (on a cru à une troncature alors
+      // que le modèle ne rendait aucun bloc texte).
+      return NextResponse.json(
+        {
+          error: "Le modèle n'a rien proposé — reformule le message du prospect.",
+          debug: {
+            model: msg.model,
+            stopReason: msg.stop_reason,
+            blocks: msg.content.map((c) => c.type),
+            rawLength: raw.length,
+            outputTokens: msg.usage?.output_tokens ?? null,
+          },
+        },
+        { status: 502 },
+      );
     }
     return NextResponse.json({ suggestions, nextStep: trame.nextStep });
   } catch (e) {
