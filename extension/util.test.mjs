@@ -5,9 +5,10 @@ import NMFUtil from "./util.js";
 test("dedupeKey: cle par (prospect, step, jour Paris)", () => {
   const d = new Date("2026-08-03T10:00:00+02:00");
   assert.equal(NMFUtil.dedupeKey("abc", "M5", d), "sent:abc:M5:2026-08-03");
-  // 23h30 Paris un 3 août = même jour Paris, même clé (pas le jour UTC).
-  const soir = new Date("2026-08-03T23:30:00+02:00"); // 21:30 UTC
-  assert.equal(NMFUtil.dedupeKey("abc", "M5", soir), "sent:abc:M5:2026-08-03");
+  // 01h Paris = 23h UTC la veille : cas réellement divergent Paris/UTC
+  // (discrimine une implémentation naïve type toISOString().slice(0,10)).
+  const nuit = new Date("2026-08-04T01:00:00+02:00"); // 23:00 UTC le 03/08
+  assert.equal(NMFUtil.dedupeKey("abc", "M5", nuit), "sent:abc:M5:2026-08-04");
 });
 
 test("shouldLog: une double detection ne journalise qu'une fois", () => {
