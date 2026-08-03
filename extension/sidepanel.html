@@ -4,12 +4,38 @@
   <meta charset="utf-8" />
   <style>
     :root { color-scheme: light dark; }
-    body { font: 13px/1.45 system-ui; margin: 0; padding: 10px 12px; color: light-dark(#1e293b, #e2e8f0); background: light-dark(#fff, #0f172a); }
-    h1 { font-size: 14px; margin: 0 0 2px; }
+    * { box-sizing: border-box; }
+    body { font: 13px/1.45 system-ui; margin: 0; padding: 10px 12px 24px; color: light-dark(#1e293b, #e2e8f0); background: light-dark(#fff, #0f172a); }
+
+    /* En-tête : qui, où on en est. Compact — le panneau est étroit. */
+    header { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+    h1 { font-size: 14px; margin: 0; }
+    .badge { font: 700 10px system-ui; text-transform: uppercase; letter-spacing: .3px; padding: 2px 6px; border-radius: 999px; background: #4f46e51a; color: #4f46e5; }
     .muted { color: light-dark(#64748b, #94a3b8); font-size: 11.5px; }
     .warn { color: #d97706; font-size: 11.5px; }
-    .err { color: #e11d48; font-size: 12px; }
+    .err { color: #e11d48; font-size: 12px; margin-top: 6px; }
+    #account { margin-top: 2px; }
     select { width: 100%; margin-top: 4px; padding: 4px; }
+
+    hr { border: 0; border-top: 1px solid light-dark(#e2e8f0, #334155); margin: 10px 0; }
+
+    /* Boutons */
+    button { font: 600 11px system-ui; padding: 5px 9px; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; cursor: pointer; }
+    button.primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+    button.link { border: 0; padding: 2px 0; color: #4f46e5; background: none; }
+    button:disabled { opacity: .55; cursor: default; }
+    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+
+    /* Bloc réponse IA */
+    #ai { border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 8px; }
+    #ai .head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+    #ai strong { font-size: 12px; }
+    textarea { width: 100%; min-height: 54px; margin-top: 6px; padding: 6px; font: 12px system-ui; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; resize: vertical; }
+    .sugg { border: 1px solid light-dark(#e2e8f0, #334155); border-left: 3px solid #0d9488; border-radius: 6px; padding: 7px; margin-top: 7px; }
+    .sugg .tag { font: 700 10px system-ui; text-transform: uppercase; color: #0d9488; }
+    .sugg p { margin: 4px 0 6px; font-size: 12px; white-space: pre-line; }
+
+    /* Étapes de la trame */
     .step { border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 8px; margin-top: 8px; }
     .step.next { border-color: #4f46e5; box-shadow: 0 0 0 1px #4f46e533; }
     .step .head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
@@ -17,22 +43,52 @@
     .step.relance .tag { color: light-dark(#64748b, #94a3b8); }
     .step .now { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #4f46e5; }
     .step p { margin: 4px 0 6px; white-space: pre-line; font-size: 12px; }
-    .step button { font: 600 11px system-ui; padding: 4px 8px; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; cursor: pointer; }
-    .step button.primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+
     #fallback { display: none; margin-top: 10px; padding: 8px; border: 1px solid #d97706; border-radius: 8px; }
-    #fallback button { width: 100%; padding: 6px; font-weight: 700; background: #d97706; border: 0; border-radius: 6px; color: #fff; cursor: pointer; }
+    #fallback button { width: 100%; padding: 6px; font-weight: 700; background: #d97706; border: 0; color: #fff; }
+    [hidden] { display: none !important; }
   </style>
 </head>
 <body>
-  <h1 id="title">Trame DM</h1>
+  <header>
+    <h1 id="title">Trame DM</h1>
+    <span id="stage" class="badge" hidden></span>
+  </header>
   <div id="sub" class="muted">Ouvre une conversation Instagram…</div>
-  <div id="account"></div>
+  <div id="account" class="muted"></div>
   <div id="error" class="err"></div>
+
   <div id="fallback">
     <div class="warn">Envoi non détecté. Si tu as bien envoyé le message :</div>
     <button id="manualSent">Envoyé — journaliser</button>
   </div>
-  <div id="steps"></div>
+
+  <hr />
+
+  <section id="ai">
+    <div class="head">
+      <strong>Réponse IA — hors trame</strong>
+      <button id="aiToggle" class="link">déplier</button>
+    </div>
+    <div id="aiBody" hidden>
+      <div class="muted">Quand il répond un truc que la trame ne prévoit pas.</div>
+      <textarea id="aiIncoming" placeholder="Son dernier message…"></textarea>
+      <div class="row">
+        <button id="aiGen" class="primary">Générer 3 réponses</button>
+        <button id="aiGrab" class="link">↻ relire le fil</button>
+      </div>
+      <div id="aiOut"></div>
+    </div>
+  </section>
+
+  <div id="next"></div>
+
+  <div class="row">
+    <button id="moreToggle" class="link">Voir toute la trame</button>
+  </div>
+  <div id="steps" hidden></div>
+
+  <script src="util.js"></script>
   <script src="sidepanel.js"></script>
 </body>
 </html>

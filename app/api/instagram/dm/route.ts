@@ -11,14 +11,24 @@ interface Body {
   prospect_id?: string;
   account_id?: string;
   step?: string;
+  /**
+   * Journalisation d'un message DÉJÀ parti de la main de Nicolas (extension
+   * Chrome). Le plafond ne peut alors plus servir de refus : le DM existe,
+   * refuser de l'inscrire ne le fait pas disparaître, ça ne fait que fausser
+   * les compteurs de chauffe et les stades. Le plafond garde tout son rôle de
+   * frein pour la file AUTOMATIQUE (send-queue), qui ne passe jamais ce flag.
+   */
+  force?: boolean;
 }
 
 /**
- * POST /api/instagram/dm  { prospect_id, account_id, step }
+ * POST /api/instagram/dm  { prospect_id, account_id, step, force? }
  * Marque un message de la séquence comme ENVOYÉ (par un humain) :
  * vérifie le quota jour du compte (jour Paris, plan de chauffe — limite par JOUR, pas par heure),
  * journalise, avance le stade du prospect, programme la relance par défaut (+48 h),
  * et alerte sur Telegram à l'approche / à l'atteinte du plafond jour.
+ * `force: true` journalise malgré le plafond (message déjà envoyé à la main) —
+ * l'alerte de dépassement part quand même.
  */
 export async function POST(req: NextRequest) {
   if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
@@ -30,6 +40,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
   const { prospect_id, account_id } = body;
+  const force = body.force === true;
   const step = (body.step ?? "").toUpperCase();
   if (!prospect_id || !account_id) return NextResponse.json({ error: "prospect_id et account_id requis" }, { status: 400 });
   if (!VALID_STEPS.has(step)) return NextResponse.json({ error: `étape invalide (${step})` }, { status: 400 });
@@ -44,7 +55,7 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   const caps = warmupCaps(account.started_at as string, account.status as AccountStatus, now.getTime());
-  if (caps.daily === 0) {
+  if (caps.daily === 0 && !force) {
     return NextResponse.json({ error: `@${account.username} est en pause — aucun envoi autorisé.` }, { status: 429 });
   }
 
@@ -57,7 +68,8 @@ export async function POST(req: NextRequest) {
     .gte("sent_at", dayStart);
   const day = sentDay ?? 0;
 
-  if (day >= caps.daily) {
+  const overCap = day >= caps.daily;
+  if (overCap && !force) {
     void sendTelegram(`🚫 <b>@${account.username}</b> : plafond JOUR atteint (${day}/${caps.daily}) — stop jusqu'à demain 8 h.`);
     return NextResponse.json(
       { error: `Plafond jour atteint pour @${account.username} (${day}/${caps.daily}). Reprise demain.`, counters: { day, caps } },
@@ -113,11 +125,14 @@ export async function POST(req: NextRequest) {
     void sendTelegram(`🚫 <b>@${account.username}</b> : plafond JOUR atteint (${newDay}/${caps.daily}). On arrête d'envoyer jusqu'à demain.`);
   } else if (newDay === warnAt) {
     void sendTelegram(`⚠️ <b>@${account.username}</b> approche du plafond jour : ${newDay}/${caps.daily}.`);
+  } else if (newDay === caps.daily + 1) {
+    // Premier dépassement seulement : l'alerte informe, elle ne harcèle pas.
+    void sendTelegram(`⚠️ <b>@${account.username}</b> : plafond DÉPASSÉ (${newDay}/${caps.daily}) — journalisé quand même (envoi manuel).`);
   }
 
   return NextResponse.json({
     ok: true,
     prospect: updated,
-    counters: { day: newDay, caps },
+    counters: { day: newDay, caps, overCap: newDay > caps.daily },
   });
 }

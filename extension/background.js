@@ -69,9 +69,12 @@ async function logSend(armed) {
   if (!NMFUtil.shouldLog(sentKeys, key)) {
     return { ok: true, deduped: true }; // double détection : déjà compté
   }
+  // force: le message est DÉJÀ parti de la main de Nicolas. Le plafond ne peut
+  // plus servir de refus ici — refuser d'inscrire un DM réel ne l'annule pas,
+  // ça fausse juste les compteurs et le stade du prospect.
   const { status, json } = await api("/api/instagram/dm", {
     method: "POST",
-    body: JSON.stringify({ prospect_id: armed.prospectId, account_id: armed.accountId, step: armed.step }),
+    body: JSON.stringify({ prospect_id: armed.prospectId, account_id: armed.accountId, step: armed.step, force: true }),
   });
   if (status === 200 && json.ok) {
     await chrome.storage.local.set({ sentKeys: NMFUtil.prune([...sentKeys, key]) });
@@ -112,6 +115,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const { current } = await chrome.storage.session.get("current");
         await setArmed({ prospectId: msg.prospectId, accountId: msg.accountId, step: msg.step, username: current?.username ?? null });
         sendResponse(r);
+        break;
+      }
+      // sidepanel : le prospect est sorti de la trame — propose des réponses.
+      // Lecture seule : rien n'est journalisé, rien n'est envoyé.
+      case "ig:ai-reply": {
+        const { current } = await chrome.storage.session.get("current");
+        const { status, json } = await api("/api/instagram/reply-ai", {
+          method: "POST",
+          body: JSON.stringify({
+            username: msg.username ?? current?.username ?? "",
+            incoming: msg.incoming ?? "",
+            history: msg.history ?? "",
+          }),
+        });
+        sendResponse({ status, data: json });
         break;
       }
       // content.js : envoi détecté → journalise avec l'armement en cours.

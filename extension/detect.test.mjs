@@ -47,6 +47,32 @@ test("loggedInAccount: lien de nav vers son propre profil (img alt « photo de p
   assert.equal(NMFDetect.loggedInAccount(vide.window.document), null);
 });
 
+test("lastIncomingText: rend le dernier message REÇU, pas le dernier envoyé", () => {
+  const d = dom(`<body>
+    <div role="row" aria-label="Vous avez envoyé : Hello ! Vous êtes toujours menuisier ?"><span>Hello ! Vous êtes toujours menuisier ?</span></div>
+    <div role="row"><span>Oui toujours, c'est quoi votre tarif ?</span></div>
+    <div role="row" aria-label="Vous avez envoyé : ok"><span>ok</span></div>
+  </body>`);
+  assert.equal(NMFDetect.lastIncomingText(d.window.document), "Oui toujours, c'est quoi votre tarif ?");
+});
+
+test("lastIncomingText: ignore accusés de lecture et horodatages isolés", () => {
+  const d = dom(`<body>
+    <div role="row"><span>Ça m'intéresse</span></div>
+    <div role="row"><span>Vu</span></div>
+    <div role="row"><span>14:32</span></div>
+  </body>`);
+  assert.equal(NMFDetect.lastIncomingText(d.window.document), "Ça m'intéresse");
+});
+
+test("lastIncomingText: rien de plausible → null, jamais une exception", () => {
+  assert.equal(NMFDetect.lastIncomingText(dom("<body><div>vide</div></body>").window.document), null);
+  // Uniquement des messages sortants : rien à proposer.
+  const sortants = dom(`<body><div role="row" aria-label="You sent: yo"><span>yo</span></div></body>`);
+  assert.equal(NMFDetect.lastIncomingText(sortants.window.document), null);
+  assert.equal(NMFDetect.lastIncomingText(null), null);
+});
+
 test("watchSend: déclenche quand le champ passe de rempli à vide, une seule fois", async () => {
   const d = dom(`<body><div contenteditable="true" aria-label="Message">brouillon</div></body>`);
   const node = NMFDetect.composerNode(d.window.document);

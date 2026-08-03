@@ -22,13 +22,30 @@ détecté dans l'app (quota, stade, relance).
 - L'extension **n'envoie jamais** : elle écrit dans le champ, tu envoies.
 - Journalisation idempotente par (prospect, étape, jour Paris) : une double
   détection ne consomme pas deux crédits de chauffe.
-- Compte émetteur apparié au compte Instagram connecté ; sans correspondance
-  dans `ig_accounts`, rien n'est journalisé tant que tu n'as pas choisi.
-- Les plafonds restent arbitrés par l'app (`POST /api/instagram/dm` → 429).
+- Compte émetteur : **un seul compte déclaré → il est retenu d'office** (rien à
+  deviner). Plusieurs comptes → appariement par pseudo détecté, sinon choix
+  explicite obligatoire avant toute journalisation.
+- Le plafond jour **ne bloque plus la journalisation** : un DM parti de ta main
+  est inscrit quoi qu'il arrive (`force: true` → `POST /api/instagram/dm`).
+  Le plafond garde son rôle de frein pour la file automatique (`send-queue`),
+  et une alerte Telegram part au premier dépassement.
+
+## Réponse IA (hors trame)
+
+Quand le prospect répond quelque chose que la trame ne prévoit pas : déplie
+« Réponse IA », relis le message récupéré du fil (corrige-le si besoin),
+« Générer 3 réponses » → `POST /api/instagram/reply-ai`.
+
+Le prompt (`app/lib/igReplyPrompt.ts`) impose la méthode : vouvoiement,
+1-3 phrases, **aucune signature ni coordonnée**, aucun lien avant M9, aucun
+prix, une seule question, et retour vers l'étape suivante de la trame.
+
+Une réponse IA n'est **pas** une étape de la séquence : elle s'insère sans être
+journalisée et ne fait pas avancer le stade.
 
 ## Quand Instagram casse la détection
 
-Tout le couplage DOM vit dans `detect.js` (4 fonctions). Réparer là, puis :
+Tout le couplage DOM vit dans `detect.js` (5 fonctions). Réparer là, puis :
 `node --test extension/detect.test.mjs`
 
 ## Tests

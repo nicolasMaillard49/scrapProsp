@@ -82,6 +82,37 @@ const NMFDetect = (() => {
   }
 
   /**
+   * Texte du dernier message REÇU dans la conversation ouverte — best-effort.
+   *
+   * Ne sert qu'à pré-remplir un champ que Nicolas relit et corrige avant de
+   * générer une réponse : une détection approximative coûte une correction,
+   * jamais une donnée fausse en base. Rend null dès qu'on n'a rien de
+   * plausible, plutôt que de rendre n'importe quoi.
+   */
+  function lastIncomingText(doc, opts = {}) {
+    try {
+      const maxRows = opts.maxRows ?? 40;
+      const rows = Array.from(doc.querySelectorAll('div[role="row"]'));
+      for (let i = rows.length - 1; i >= 0 && i >= rows.length - maxRows; i--) {
+        const row = rows[i];
+        // Un message sortant est étiqueté « Vous avez envoyé… » / « You sent… »
+        // par Instagram : c'est le seul marqueur fiable pour l'écarter.
+        const own = row.getAttribute("aria-label") || "";
+        const nested = row.querySelector("[aria-label]")?.getAttribute("aria-label") || "";
+        if (/vous avez envoyé|you sent/i.test(`${own} ${nested}`)) continue;
+        const text = (row.innerText || row.textContent || "").trim();
+        if (!text) continue;
+        // Accusés de lecture et horodatages isolés : ce n'est pas un message.
+        if (/^(vu|seen|envoyé|sent|remis|delivered|\d{1,2}:\d{2})$/i.test(text)) continue;
+        return text.slice(0, 2000);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Appelle cb() UNE fois quand le champ passe de rempli à vide (= envoyé).
    * Polling léger plutôt que MutationObserver : Instagram remplace parfois le
    * nœud entier à l'envoi, l'observer se retrouverait orphelin.
@@ -114,7 +145,7 @@ const NMFDetect = (() => {
     return () => { done = true; win.clearInterval(id); };
   }
 
-  return { currentUsername, composerNode, loggedInAccount, watchSend, usernameFromHref };
+  return { currentUsername, composerNode, loggedInAccount, watchSend, usernameFromHref, lastIncomingText };
 })();
 
 // Export de test (node) — inerte dans le navigateur.

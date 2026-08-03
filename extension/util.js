@@ -13,6 +13,24 @@ const NMFUtil = (() => {
   function prune(sentKeys, max = 200) {
     return sentKeys.length <= max ? sentKeys : sentKeys.slice(sentKeys.length - max);
   }
-  return { dedupeKey, shouldLog, prune };
+
+  /**
+   * Compte émetteur à retenir pour journaliser.
+   *
+   * Un SEUL compte déclaré → c'est lui, sans question : la règle « jamais
+   * deviné » existe pour ne pas attribuer un DM au mauvais compte parmi
+   * plusieurs. Avec un seul émetteur possible, il n'y a rien à deviner et le
+   * sélecteur ne fait que rajouter un clic à chaque conversation.
+   * Plusieurs comptes → appariement strict par pseudo détecté, sinon null
+   * (choix explicite obligatoire côté UI).
+   */
+  function pickAccountId(accounts, detectedUsername) {
+    const list = Array.isArray(accounts) ? accounts : [];
+    if (list.length === 1) return list[0].id;
+    const match = list.find((a) => a && a.username === detectedUsername);
+    return match ? match.id : null;
+  }
+
+  return { dedupeKey, shouldLog, prune, pickAccountId };
 })();
 if (typeof module !== "undefined") module.exports = NMFUtil;

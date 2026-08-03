@@ -11,6 +11,8 @@ let state = {
   accountId: null,     // compte émetteur retenu pour journaliser
   lastArm: null,       // { prospectId, accountId, step } — filet manuel
   fallbackTimer: null,
+  showAll: false,      // trame complète dépliée
+  aiBusy: false,
 };
 
 const STAGE_LABEL = {
@@ -41,9 +43,9 @@ async function refresh(username, detectedAccount) {
   const accountStillValid = state.accountId && accounts.some((a) => a.id === state.accountId);
   const detectedUnchanged = nextDetected === prevDetected;
   if (!(state.accountId && detectedUnchanged && accountStillValid)) {
-    // § 8 : compte émetteur DÉTECTÉ — apparié par pseudo, sinon choix explicite.
-    const match = accounts.find((a) => a.username === nextDetected);
-    state.accountId = match ? match.id : null;
+    // § 8 : un seul compte déclaré → c'est lui ; plusieurs → apparié par
+    // pseudo détecté, sinon choix explicite (jamais deviné).
+    state.accountId = NMFUtil.pickAccountId(accounts, nextDetected);
   }
   state.igAccount = nextDetected;
   render();
@@ -53,14 +55,21 @@ function render() {
   const { data, username } = state;
   if (!data) return;
   const p = data.prospect;
-  $("title").textContent = p ? `@${p.username}` : username ? `@${username} (hors base)` : "Trame générique";
+  $("title").textContent = p ? `@${p.username}` : username ? `@${username}` : "Trame DM";
+  const stage = $("stage");
+  if (p) {
+    stage.hidden = false;
+    stage.textContent = STAGE_LABEL[p.stage] ?? "Jamais contacté";
+  } else {
+    stage.hidden = true;
+  }
   $("sub").textContent = p
-    ? `${STAGE_LABEL[p.stage] ?? "Jamais contacté"} · ${p.metier ?? "métier ?"} · ${p.ville ?? "ville ?"}`
+    ? [p.metier || "métier ?", p.ville || "ville ?", p.followers ? `${p.followers} abonnés` : null].filter(Boolean).join(" · ")
     : username
-      ? "Compte inconnu de la base — trame générique, rien ne sera journalisé."
+      ? "Hors base — trame générique, rien ne sera journalisé."
       : "Aucune conversation détectée — trame générique.";
   renderAccount();
-  renderSteps();
+  renderTrame();
 }
 
 function renderAccount() {
@@ -68,35 +77,64 @@ function renderAccount() {
   const el = $("account");
   const accounts = data.accounts ?? [];
   const match = accounts.find((a) => a.id === accountId);
+
   if (match) {
-    const full = !match.canSend;
-    el.innerHTML = `<div class="${full ? "warn" : "muted"}">Émetteur : @${esc(match.username)} — ${esc(match.sentDay)}/${esc(match.daily)} aujourd'hui${full ? " · PLAFOND : la journalisation sera refusée (429)" : ""}</div>`;
+    // Un seul émetteur (le cas normal) : une ligne d'info, aucun choix à faire.
+    // Le dépassement de plafond n'est plus un blocage — c'est une info : un DM
+    // parti à la main est journalisé quoi qu'il arrive.
+    const over = match.sentDay >= match.daily;
+    el.className = over ? "warn" : "muted";
+    el.textContent = `@${match.username} · ${match.sentDay}/${match.daily} aujourd'hui${over ? " · au-dessus du plafond (journalisé quand même)" : ""}`;
     return;
   }
-  // Aucun match : choix explicite obligatoire (§ 8 — jamais deviné).
-  el.innerHTML = `<div class="warn">Compte connecté${igAccount ? ` @${esc(igAccount)}` : ""} non déclaré dans l'app — choisis l'émetteur :</div>
+  if (!accounts.length) {
+    el.className = "warn";
+    el.textContent = "Aucun compte émetteur déclaré dans l'app — rien ne pourra être journalisé.";
+    return;
+  }
+  // Plusieurs comptes et aucun apparié : choix explicite obligatoire (§ 8).
+  el.className = "";
+  el.innerHTML = `<div class="warn">Compte connecté${igAccount ? ` @${esc(igAccount)}` : ""} non reconnu — choisis l'émetteur :</div>
     <select id="accountSelect"><option value="">— choisir —</option>
     ${accounts.map((a) => `<option value="${esc(a.id)}">@${esc(a.username)} (${esc(a.sentDay)}/${esc(a.daily)})</option>`).join("")}</select>`;
   $("accountSelect").addEventListener("change", (e) => { state.accountId = e.target.value || null; render(); });
 }
 
-function renderSteps() {
-  const { data, accountId } = state;
-  const p = data.prospect;
-  $("steps").innerHTML = data.steps.map((s) => {
-    const isNext = s.step === data.nextStep;
-    const relance = s.step.startsWith("R");
-    return `<div class="step ${isNext ? "next" : ""} ${relance ? "relance" : ""}">
-      <div class="head"><span class="tag">${esc(s.step)} · ${esc(s.title)}</span>${isNext ? '<span class="now">à envoyer</span>' : ""}</div>
-      <p>${esc(s.text)}</p>
+/** Carte d'une étape de la séquence. */
+function stepCard(s, isNext, canInsert) {
+  const relance = s.step.startsWith("R");
+  return `<div class="step ${isNext ? "next" : ""} ${relance ? "relance" : ""}">
+    <div class="head"><span class="tag">${esc(s.step)} · ${esc(s.title)}</span>${isNext ? '<span class="now">à envoyer</span>' : ""}</div>
+    <p>${esc(s.text)}</p>
+    <div class="row">
       <button data-copy="${esc(s.step)}">Copier</button>
-      ${p ? `<button class="primary" data-insert="${esc(s.step)}" ${accountId ? "" : 'title="Choisis un émetteur pour journaliser — l\'insertion reste possible"'}>Insérer</button>` : ""}
-    </div>`;
-  }).join("");
+      ${canInsert ? `<button class="primary" data-insert="${esc(s.step)}">Insérer</button>` : ""}
+    </div>
+  </div>`;
+}
 
+function renderTrame() {
+  const { data } = state;
+  const p = data.prospect;
+  const canInsert = !!p;
+  const next = data.steps.find((s) => s.step === data.nextStep);
+
+  $("next").innerHTML = next
+    ? stepCard(next, true, canInsert)
+    : `<div class="muted">Séquence terminée pour ce prospect — plus rien à envoyer depuis la trame.</div>`;
+
+  const others = data.steps.filter((s) => s.step !== data.nextStep);
+  $("steps").innerHTML = others.map((s) => stepCard(s, false, canInsert)).join("");
+  $("steps").hidden = !state.showAll;
+  $("moreToggle").textContent = state.showAll ? "Masquer la trame" : `Voir toute la trame (${others.length})`;
+
+  bindStepButtons();
+}
+
+function bindStepButtons() {
   for (const b of document.querySelectorAll("[data-copy]")) {
     b.addEventListener("click", () => {
-      const s = data.steps.find((x) => x.step === b.dataset.copy);
+      const s = state.data.steps.find((x) => x.step === b.dataset.copy);
       navigator.clipboard.writeText(s.text);
       b.textContent = "Copié ✓"; setTimeout(() => (b.textContent = "Copier"), 1200);
     });
@@ -106,18 +144,31 @@ function renderSteps() {
   }
 }
 
+/**
+ * Insertion NON journalisable (réponse IA, ou trame sans émetteur connu).
+ * Désarme d'abord : un armement laissé par une insertion précédente ferait
+ * journaliser l'ANCIENNE étape au moment où ce message-ci partirait.
+ */
+async function insertRaw(text) {
+  await chrome.runtime.sendMessage({ type: "ig:disarm" }).catch(() => {});
+  state.lastArm = null;
+  clearTimeout(state.fallbackTimer);
+  $("fallback").style.display = "none";
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return { ok: false, reason: "no-tab" };
+  return (await chrome.tabs.sendMessage(tab.id, { type: "ig:insert", text }).catch(() => null)) ?? { ok: false, reason: "no-content-script" };
+}
+
 async function insert(step) {
   const { data, accountId } = state;
   const p = data.prospect;
   const s = data.steps.find((x) => x.step === step);
   if (!p || !s) return;
   // Sans émetteur : on insère quand même (copier-coller assisté), mais on
-  // n'arme PAS la journalisation — § 8, jamais deviné. Insertion directe via
-  // content.js : garantie structurelle que rien ne peut être journalisé.
+  // n'arme PAS la journalisation — § 8, jamais deviné.
   if (!accountId) {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.id) await chrome.tabs.sendMessage(tab.id, { type: "ig:insert", text: s.text }).catch(() => {});
-    $("error").textContent = "Inséré SANS journalisation (aucun émetteur choisi).";
+    await insertRaw(s.text);
+    $("error").textContent = "Inséré SANS journalisation (aucun émetteur retenu).";
     return;
   }
   const r = await chrome.runtime.sendMessage({ type: "ig:arm", prospectId: p.id, accountId, step, text: s.text });
@@ -137,6 +188,78 @@ async function insert(step) {
   state.fallbackTimer = setTimeout(() => { $("fallback").style.display = "block"; }, 30000);
 }
 
+// ── Réponse IA (hors trame) ────────────────────────────────────────────────
+// Aide à la rédaction uniquement : une réponse IA n'est pas une étape de la
+// séquence, donc elle n'est jamais journalisée et ne fait pas bouger le stade.
+
+async function grabIncoming() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+  const r = await chrome.tabs.sendMessage(tab.id, { type: "ig:last-incoming" }).catch(() => null);
+  if (r?.text) $("aiIncoming").value = r.text;
+}
+
+$("aiToggle").addEventListener("click", async () => {
+  const body = $("aiBody");
+  body.hidden = !body.hidden;
+  $("aiToggle").textContent = body.hidden ? "déplier" : "replier";
+  if (!body.hidden && !$("aiIncoming").value.trim()) await grabIncoming();
+});
+
+$("aiGrab").addEventListener("click", grabIncoming);
+
+$("aiGen").addEventListener("click", async () => {
+  if (state.aiBusy) return;
+  const incoming = $("aiIncoming").value.trim();
+  if (!incoming) { $("error").textContent = "Colle son message d'abord."; return; }
+  state.aiBusy = true;
+  $("aiGen").disabled = true;
+  $("aiGen").textContent = "Génération…";
+  $("aiOut").innerHTML = "";
+  try {
+    const r = await chrome.runtime.sendMessage({ type: "ig:ai-reply", username: state.username, incoming });
+    if (r?.status !== 200) {
+      $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`;
+      return;
+    }
+    $("error").textContent = "";
+    const list = r.data.suggestions ?? [];
+    $("aiOut").innerHTML = list
+      .map((s, i) => `<div class="sugg">
+          <div class="tag">${esc(s.label)}</div>
+          <p>${esc(s.text)}</p>
+          <div class="row">
+            <button data-ai-copy="${i}">Copier</button>
+            <button class="primary" data-ai-insert="${i}">Insérer</button>
+          </div>
+        </div>`)
+      .join("");
+    for (const b of $("aiOut").querySelectorAll("[data-ai-copy]")) {
+      b.addEventListener("click", () => {
+        navigator.clipboard.writeText(list[Number(b.dataset.aiCopy)].text);
+        b.textContent = "Copié ✓"; setTimeout(() => (b.textContent = "Copier"), 1200);
+      });
+    }
+    for (const b of $("aiOut").querySelectorAll("[data-ai-insert]")) {
+      b.addEventListener("click", async () => {
+        const res = await insertRaw(list[Number(b.dataset.aiInsert)].text);
+        $("error").textContent = res?.ok
+          ? "Inséré — hors trame, non journalisé."
+          : "Champ de message introuvable — ouvre la conversation, ou copie-colle.";
+      });
+    }
+  } finally {
+    state.aiBusy = false;
+    $("aiGen").disabled = false;
+    $("aiGen").textContent = "Générer 3 réponses";
+  }
+});
+
+$("moreToggle").addEventListener("click", () => {
+  state.showAll = !state.showAll;
+  renderTrame();
+});
+
 $("manualSent").addEventListener("click", async () => {
   if (!state.lastArm) return;
   const r = await chrome.runtime.sendMessage({ type: "ig:sent-manual", ...state.lastArm });
@@ -148,6 +271,9 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "ig:prospect-changed") {
     $("fallback").style.display = "none";
     clearTimeout(state.fallbackTimer);
+    // Nouvelle conversation : ce qui restait du bloc IA ne la concerne pas.
+    $("aiIncoming").value = "";
+    $("aiOut").innerHTML = "";
     refresh(msg.username, msg.account);
   }
   if (msg?.type === "ig:logged") {

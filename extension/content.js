@@ -55,6 +55,9 @@
         chrome.runtime.sendMessage({ type: "ig:sent" }).catch(() => {});
       });
       sendResponse({ ok: true });
+    } else if (msg?.type === "ig:last-incoming") {
+      // Lecture seule du fil : sert à pré-remplir le champ « réponse IA ».
+      sendResponse({ text: NMFDetect.lastIncomingText(document) });
     } else if (msg?.type === "ig:rescan") {
       // Le sidepanel peut demander un re-scan explicite (à son ouverture).
       lastAnnounced = "";

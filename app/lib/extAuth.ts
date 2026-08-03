@@ -6,13 +6,17 @@
  * reprend donc le motif des crons (x-cron-secret) : un en-tête custom, non
  * forgeable par un site tiers → aucune surface CSRF nouvelle.
  *
- * Portée volontairement bornée à une ALLOWLIST de 2 routes (pas un préfixe) :
- * seules /trame et /dm sont réellement consommées par l'extension. Un
+ * Portée volontairement bornée à une ALLOWLIST explicite (pas un préfixe) :
+ * seules les routes réellement consommées par l'extension y figurent. Un
  * startsWith("/api/instagram/") ouvrirait aussi l'export nominatif et les
  * DELETE à un simple secret statique — bien plus que ce dont l'extension a
  * besoin. Secret absent/vide = branche morte (refus), jamais un laissez-passer.
  */
-const EXT_PATHS = new Set(["/api/instagram/trame", "/api/instagram/dm"]);
+const EXT_PATHS = new Set([
+  "/api/instagram/trame",
+  "/api/instagram/dm",
+  "/api/instagram/reply-ai",
+]);
 
 export function isExtRequestAllowed(
   pathname: string,
