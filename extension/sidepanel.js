@@ -36,10 +36,21 @@ function tabError(r) {
 }
 
 const STAGE_LABEL = {
-  accroche: "Accroche envoyée", presentation: "Présentation", connexion: "Connexion",
+  accroche: "Accroche envoyée", receptif: "Réceptif", presentation: "Présentation", connexion: "Connexion",
   douleur: "Douleur", appel_propose: "Appel proposé", questionnaire_envoye: "Questionnaire envoyé",
   call_booke: "Call booké ✓", perdu: "Perdu",
 };
+
+/**
+ * Les trois stades qu'on pose EN LISANT le fil, sans rien envoyer — donc les
+ * seuls qui méritent un bouton. Le reste du pipeline se déduit de ce qui part
+ * et reste dans le sélecteur.
+ */
+const STAGE_PICKS = [
+  { stage: "receptif", label: "Réceptif", title: "Il a répondu — la conversation est vivante" },
+  { stage: "call_booke", label: "Booké", title: "Appel calé : statut positif, relances coupées" },
+  { stage: "perdu", label: "Perdu", title: "Clos : relances coupées et sorti de la sélection du jour", cls: "lost" },
+];
 
 async function refresh(username, detectedAccount) {
   const r = await chrome.runtime.sendMessage({ type: "ig:get-trame", username });
@@ -103,6 +114,7 @@ function render() {
   renderRail();
   renderAccount();
   renderTrame();
+  renderStagePicker();
 }
 
 /**
@@ -564,6 +576,61 @@ function showVerdict(v) {
 }
 
 /**
+ * Poser le stade À LA MAIN.
+ *
+ * L'IA ne propose un recalage que lorsqu'elle a lu le fil ET qu'elle conclut
+ * quelque chose. Quand elle ne conclut rien — cas fréquent d'une conversation
+ * qui s'éteint sans mot de refus — le stade restait faux et le prospect
+ * revenait indéfiniment dans la file. Ces boutons sont la sortie manuelle.
+ */
+function renderStagePicker() {
+  const p = state.data?.prospect;
+  const box = $("stagePick");
+  box.hidden = !p;
+  if (!p) return;
+
+  const current = p.stage ?? null;
+  box.innerHTML = `<div class="eyebrow">Stade</div>
+    <div class="row" style="margin-top:7px">
+      ${STAGE_PICKS.map((s) => `<button class="stage-btn ${s.cls ?? ""} ${s.stage === current ? "on" : ""}"
+        data-stage="${s.stage}" title="${esc(s.title)}">${esc(s.label)}</button>`).join("")}
+      <select id="stageOther" title="Les autres stades du pipeline">
+        <option value="">autre stade…</option>
+        ${Object.entries(STAGE_LABEL)
+          .filter(([k]) => !STAGE_PICKS.some((s) => s.stage === k))
+          .map(([k, label]) => `<option value="${k}" ${k === current ? "selected" : ""}>${esc(label)}</option>`)
+          .join("")}
+      </select>
+    </div>`;
+
+  for (const b of box.querySelectorAll(".stage-btn")) {
+    b.addEventListener("click", () => applyStage(b.dataset.stage, b));
+  }
+  $("stageOther").addEventListener("change", (e) => {
+    if (e.target.value) applyStage(e.target.value, null);
+  });
+}
+
+/** Un seul chemin d'écriture du stade, quel que soit le bouton cliqué. */
+async function applyStage(stage, btn) {
+  const label = STAGE_LABEL[stage] ?? stage;
+  const before = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "…"; }
+  const r = await chrome.runtime.sendMessage({ type: "ig:set-stage", username: state.username, stage });
+  if (r?.status === 200 && r.data?.ok) {
+    $("error").textContent = "";
+    $("stageOut").innerHTML = `<div class="card verdict"><div class="tag">Stade posé ✓</div>
+      <p class="muted">« ${esc(label)} »${stage === "perdu"
+        ? " — relances coupées, sorti de la sélection du jour."
+        : stage === "call_booke" ? " — relances coupées." : ""}</p></div>`;
+    refresh(state.username);
+    return;
+  }
+  $("error").textContent = r?.data?.error || "Changement de stade refusé.";
+  if (btn) { btn.disabled = false; btn.textContent = before; }
+}
+
+/**
  * Le stade du CRM est saisi à la main : il prend du retard dès qu'un échange
  * se fait hors de l'outil, et c'est lui qui décide de l'étape « à envoyer ».
  * On propose donc de le recaler sur ce que le fil montre vraiment.
@@ -582,7 +649,7 @@ function showStage(v) {
     b.disabled = true;
     b.textContent = "Recalage…";
     const r = await chrome.runtime.sendMessage({
-      type: "ig:classify", record: "stage", username: state.username, stage: v.stage,
+      type: "ig:set-stage", username: state.username, stage: v.stage,
     });
     if (r?.status === 200 && r.data?.ok) {
       $("stageOut").innerHTML = `<div class="card verdict"><div class="tag">Stade recalé ✓</div>

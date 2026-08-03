@@ -233,6 +233,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       // explicite (record: true) — inscription au CRM. Idempotent par
       // (prospect, jour Paris) : une double validation ne compte pas deux
       // réponses, ce qui gonflerait les KPI d'accroche.
+      // sidepanel : pose un stade — proposé par l'IA (« Recaler ») ou choisi à
+      // la main. Message DISTINCT de `ig:classify` : `if (msg.record)` y était
+      // vrai pour `record: "stage"`, donc le recalage passait par la dedup des
+      // RÉPONSES (avalé sans bruit si une réponse était déjà journalisée ce
+      // jour-là) puis postait `record: true` en dur, sans transmettre le stade.
+      // Le bouton « Recaler » n'a donc jamais recalé quoi que ce soit.
+      case "ig:set-stage": {
+        const { status, json } = await api("/api/instagram/classify-reply", {
+          method: "POST",
+          body: JSON.stringify({ username: msg.username, record: "stage", stage: msg.stage }),
+        });
+        sendResponse({ status, data: json });
+        break;
+      }
       case "ig:classify": {
         if (msg.record) {
           const { replyKeys = [] } = await chrome.storage.local.get("replyKeys");

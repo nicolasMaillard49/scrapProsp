@@ -114,6 +114,22 @@
     .tools { display: flex; gap: 7px; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--rule); }
     .tools button { flex: 1; }
 
+    /* ── Stade posé à la main ────────────────────────────────────────────
+       La règle de couleur du panneau tient : le violet ne désigne que ce qui
+       PART, donc aucun de ces boutons n'est violet. Le stade courant se dit
+       par l'encre pleine, pas par une teinte. Seul « Perdu » a droit à
+       l'alarme — c'est la seule action irréversible du lot. */
+    #stagePick { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--rule); }
+    .stage-btn.on { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+    .stage-btn.lost { color: var(--alarm); border-color: color-mix(in srgb, var(--alarm) 45%, var(--rule)); }
+    .stage-btn.lost:hover { border-color: var(--alarm); }
+    .stage-btn.lost.on { background: var(--alarm); border-color: var(--alarm); color: #fff; }
+    #stageOther {
+      font: 11.5px var(--body); color: var(--mute); cursor: pointer;
+      padding: 7px 8px; border-radius: 7px; border: 1px solid var(--rule);
+      background: var(--surface);
+    }
+
     /* ── Trame complète / IA ────────────────────────────────────────────── */
     details { margin-top: 14px; border-top: 1px solid var(--rule); }
     summary { padding: 10px 0 8px; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; font: 600 10px/1 var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
@@ -242,6 +258,8 @@
     <div id="retoneOut"></div>
     <div id="fixOut"></div>
     <div id="qualifyOut"></div>
+    <!-- Poser le stade à la main : le recours quand l'IA ne conclut rien. -->
+    <div id="stagePick" hidden></div>
     <div id="stageOut"></div>
     <div id="error" class="err"></div>
 

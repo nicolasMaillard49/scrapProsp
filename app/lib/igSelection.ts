@@ -17,6 +17,7 @@ import { igSourceConfigured, chainDiagnostic, type SourceDiagnostic } from "./ig
 import { qualifyAvailable } from "./igQualify";
 import { collectLeads, resolveLeads, leadsStatus, nextHashtagFor } from "./igLeads";
 import { qualifyRun, QUALIFY_RUN_CAP } from "./igQualifyRun";
+import { setStage } from "./igStage";
 
 /** Plafond d'abonnés — même filtre dur que le cockpit (comptes > 15k : mauvais taux de réponse). */
 export const MAX_FOLLOWERS = 15000;
@@ -331,22 +332,10 @@ export async function skipSelection(prospectId: string, reason: string | null, n
  * stade `perdu`, statut `negative`, relances coupées. Aucun DM n'ayant été
  * envoyé, il n'y a rien à purger du journal — contrairement à `cancelContact`.
  */
-export async function markLostFromSelection(prospectId: string, reason: string | null, now = new Date()): Promise<void> {
-  const { error: proErr } = await supabase
-    .from("instagram_prospects")
-    .update({ stage: "perdu", status: "negative", next_followup_at: null })
-    .eq("id", prospectId);
-  if (proErr) throw new Error(`prospect : ${proErr.message}`);
-
-  // La ligne du jour est écartée, pas supprimée : elle reste visible, grisée,
-  // et ne sera pas reportée demain.
-  const { error: selErr } = await supabase
-    .from("ig_daily_selection")
-    .update({ skipped_at: now.toISOString(), skip_reason: reason ?? "perdu — injoignable" })
-    .eq("prospect_id", prospectId)
-    .is("done_at", null)
-    .is("skipped_at", null);
-  if (selErr) throw new Error(`sélection : ${selErr.message}`);
+export async function markLostFromSelection(prospectId: string, reason: string | null): Promise<void> {
+  // Tout est dans igStage, seul écrivain du stade : « perdu » y coupe les
+  // relances ET écarte la ligne du jour.
+  await setStage(prospectId, "perdu", reason);
 }
 
 /**

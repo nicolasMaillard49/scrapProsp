@@ -66,6 +66,7 @@ export function nextFollowup(now: Date, followupCount: number, seen: boolean): D
 /** Stades du pipeline (ordre d'avancement). */
 export const STAGES = [
   "accroche",
+  "receptif",
   "presentation",
   "connexion",
   "douleur",
@@ -78,6 +79,7 @@ export type Stage = (typeof STAGES)[number];
 
 export const STAGE_LABEL: Record<Stage, string> = {
   accroche: "Accroche envoyée",
+  receptif: "Réceptif",
   presentation: "Présentation",
   connexion: "Connexion",
   douleur: "Douleur",
@@ -90,6 +92,7 @@ export const STAGE_LABEL: Record<Stage, string> = {
 /** Libellés COURTS pour les en-têtes de colonnes du pipeline (kanban). */
 export const STAGE_SHORT: Record<Stage, string> = {
   accroche: "Accroche",
+  receptif: "Réceptif",
   presentation: "Présentation",
   connexion: "Connexion",
   douleur: "Point de douleur",
@@ -112,6 +115,9 @@ export function stageTone(stage: string | null): StageTone {
       return "todo";
     case "accroche":
       return "cold";
+    // Il a répondu : la conversation est vivante mais rien n'a encore été
+    // travaillé. C'est le seul stade que l'on pose sans avoir rien envoyé.
+    case "receptif":
     case "presentation":
     case "connexion":
       return "progress";
@@ -183,6 +189,11 @@ export function nextStepFor(stage: string | null): string | null {
     case "":
       return "M1";
     case "accroche":
+    // « Réceptif » dit qu'il a répondu, pas qu'on a répondu : l'étape à
+    // envoyer reste M2. Sans ce cas il tomberait dans le `default` et le
+    // panneau n'aurait plus rien à proposer — marquer un prospect réceptif
+    // lui couperait sa trame.
+    case "receptif":
       return "M2";
     case "presentation":
       return "M5";

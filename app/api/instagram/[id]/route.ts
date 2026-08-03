@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { nextFollowup, STAGES, type Stage } from "@/app/lib/igPipeline";
+import { nextFollowup, type Stage } from "@/app/lib/igPipeline";
+import { stagePatch, parseStage, closesDayLine, closeDayLine } from "@/app/lib/igStage";
 
 export const dynamic = "force-dynamic";
 
@@ -34,20 +35,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Ville saisie à la main (prospect sans ville détectée) → débloque le rapport concurrentiel.
   if (typeof body.ville === "string" && body.ville.trim()) patch.ville = body.ville.trim();
 
+  let stage: Stage | null = null;
   if (typeof body.stage === "string") {
-    if (!STAGES.includes(body.stage as Stage)) {
-      return NextResponse.json({ error: "stage invalide" }, { status: 400 });
-    }
-    patch.stage = body.stage;
-    // Cohérence statut ↔ stade : booké = positif, perdu = négatif, et on coupe les relances.
-    if (body.stage === "call_booke") {
-      patch.status = "positive";
-      patch.next_followup_at = null;
-    }
-    if (body.stage === "perdu") {
-      patch.status = "negative";
-      patch.next_followup_at = null;
-    }
+    stage = parseStage(body.stage);
+    if (!stage) return NextResponse.json({ error: "stage invalide" }, { status: 400 });
+    // La cohérence stade ↔ statut ↔ relances vit dans igStage, seul écrivain.
+    Object.assign(patch, stagePatch(stage));
   }
 
   if (body.seen === true) {
@@ -71,6 +64,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Un prospect passé « perdu » depuis le pipeline sort aussi de la journée —
+  // sinon il resterait proposé ce soir alors qu'on vient de le condamner.
+  if (stage && closesDayLine(stage)) await closeDayLine(id);
+
   return NextResponse.json({ ok: true, prospect: data });
 }
 

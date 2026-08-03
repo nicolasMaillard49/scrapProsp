@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { buildClassifySystemPrompt, parseVerdict } from "@/app/lib/igClassify";
-import { STAGES } from "@/app/lib/igPipeline";
+import { parseStage, setStage } from "@/app/lib/igStage";
 import { logReply } from "@/app/lib/igReplyLog";
 import { MAX_HISTORY } from "@/app/lib/igReplyPrompt";
 import { parisDayStart } from "@/app/lib/igCockpit";
@@ -65,17 +65,21 @@ export async function POST(req: NextRequest) {
 
   // ── Recalage du stade (après validation humaine) ─────────────────────────
   if (body.record === "stage") {
-    const stage = (body.stage ?? "").toLowerCase().trim();
-    if (!(STAGES as readonly string[]).includes(stage)) {
-      return NextResponse.json({ error: `stade invalide (${stage})` }, { status: 400 });
+    const stage = parseStage(body.stage);
+    if (!stage) return NextResponse.json({ error: `stade invalide (${body.stage ?? ""})` }, { status: 400 });
+    try {
+      // Passe par l'écrivain unique : jusqu'ici c'était un `update({ stage })`
+      // nu, donc un « perdu » posé depuis l'extension gardait son statut et sa
+      // relance programmée — le prospect revenait dans la file.
+      await setStage(prospect.id as string, stage, "perdu — clos depuis l'extension");
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
     }
-    const { data, error: upErr } = await supabase
+    const { data } = await supabase
       .from("instagram_prospects")
-      .update({ stage })
-      .eq("id", prospect.id)
       .select("id, stage, status, reply_count")
+      .eq("id", prospect.id)
       .single();
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
     return NextResponse.json({ ok: true, recorded: "stage", prospect: data });
   }
 
