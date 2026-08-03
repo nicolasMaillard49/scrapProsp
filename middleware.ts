@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isExtRequestAllowed } from "@/app/lib/extAuth";
 
 const COOKIE_NAME = "prospects-auth";
 
@@ -58,6 +59,12 @@ export function middleware(req: NextRequest) {
     pathname === "/api/stripe/webhook" ||
     pathname.startsWith("/_next/")
   ) {
+    return NextResponse.next();
+  }
+
+  // Extension Chrome (side panel trame DM) : en-tête x-ext-token, borné à
+  // /api/instagram/. Cf. app/lib/extAuth.ts pour le pourquoi (SameSite=Lax).
+  if (isExtRequestAllowed(pathname, req.headers.get("x-ext-token"), process.env.EXT_TOKEN)) {
     return NextResponse.next();
   }
 
