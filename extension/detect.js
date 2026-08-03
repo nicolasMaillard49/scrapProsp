@@ -264,9 +264,42 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   }
 
   /** Lignes de service d'un fil (accusés, horodatages) — pas des messages. */
-  const NOISE = /^(vu|seen|envoyé|sent|remis|delivered|aujourd'hui|today|hier|yesterday|\d{1,2}:\d{2}|\d{1,2}\s*\w+\s*\d{2,4})$/i;
-  /** Instagram étiquette les messages sortants dans le nom accessible. */
+  const NOISE = /^(vu|seen|envoyé|sent|remis|delivered|modifié|edited|aujourd'hui|today|hier|yesterday|maintenant|now|\d{1,2}:\d{2}|\d{1,2}\s*\w+\s*\d{2,4}|\d+\s*(min|h|j|m|d)|·)$/i;
+  /** Instagram étiquette parfois les messages sortants dans le nom accessible. */
   const OWN_LABEL = /vous avez envoyé|vous avez répondu|you sent|you replied/i;
+  /**
+   * Carte de profil affichée en tête de conversation (« pseudo · Instagram »,
+   * « Voir le profil ») : elle est DANS le fil mais n'est pas un message.
+   */
+  const CARD_NOISE = /·\s*instagram$|^voir (le )?profil$|^view profile$|^[a-z0-9._]{2,30}$/i;
+
+  /**
+   * Conteneur défilant de la conversation ouverte.
+   *
+   * Indispensable : la barre latérale liste les AUTRES conversations avec un
+   * aperçu de leur dernier message. Lire le fil sur tout le document y mêlait
+   * des bouts de conversations qui n'ont rien à voir.
+   * On retient le plus grand conteneur défilant — le volet de conversation est
+   * bien plus large que la liste de gauche.
+   */
+  function messageScroller(doc, win) {
+    let best = null;
+    let bestArea = 0;
+    let scanned = 0;
+    for (const el of doc.querySelectorAll("div")) {
+      if (++scanned > 3000) break;
+      if (el.scrollHeight <= el.clientHeight + 100) continue;
+      const cs = win && win.getComputedStyle ? win.getComputedStyle(el) : null;
+      if (!cs || (cs.overflowY !== "auto" && cs.overflowY !== "scroll")) continue;
+      const r = el.getBoundingClientRect();
+      const area = r.width * r.height;
+      if (r.width > 300 && area > bestArea) {
+        best = el;
+        bestArea = area;
+      }
+    }
+    return best;
+  }
 
   /**
    * Fil de la conversation ouverte, du plus ancien au plus récent —
@@ -284,41 +317,47 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
    */
   function conversationThread(doc, opts = {}) {
     try {
-      const maxRows = opts.maxRows ?? 40;
+      const maxRows = opts.maxRows ?? 60;
       const win = opts.win || (typeof window !== "undefined" ? window : null);
-      const rows = Array.from(doc.querySelectorAll('div[role="row"]'));
-      const slice = rows.slice(Math.max(0, rows.length - maxRows));
+      const rectOf = opts.rectOf || ((el) => el.getBoundingClientRect());
+
+      // Périmètre : le volet de conversation, jamais tout le document.
+      const scope = opts.scope || messageScroller(doc, win) || doc.body || doc;
+      const box = scope.getBoundingClientRect ? rectOf(scope) : null;
+
+      // Chaque message est un span[dir="auto"] feuille. `div[role="row"]`,
+      // sur lequel reposait la version précédente, n'existe pas dans le DOM
+      // d'Instagram — vérifié sur une vraie conversation : zéro occurrence.
+      const spans = Array.from(scope.querySelectorAll('span[dir="auto"]'));
       const out = [];
-      for (const row of slice) {
-        const text = (row.innerText || row.textContent || "").trim();
-        if (!text || NOISE.test(text)) continue;
+      for (const el of spans) {
+        if (el.querySelector('span[dir="auto"]')) continue; // garder la feuille
+        const text = (el.innerText || el.textContent || "").trim();
+        if (!text || NOISE.test(text) || CARD_NOISE.test(text)) continue;
 
         let from = "?";
-        // 1. Nom accessible de la ligne ou d'un descendant.
-        const labels = [row.getAttribute("aria-label") || ""];
-        for (const el of row.querySelectorAll("[aria-label]")) labels.push(el.getAttribute("aria-label") || "");
-        if (labels.some((l) => OWN_LABEL.test(l))) from = "moi";
-
-        // 2. Avatar du prospect dans la ligne → message entrant.
-        if (from === "?" && opts.username) {
-          const alts = Array.from(row.querySelectorAll("img[alt]")).map((i) => i.getAttribute("alt") || "");
-          if (alts.some((a) => a.toLowerCase().includes(String(opts.username).toLowerCase()))) from = "lui";
+        // 1. Étiquette accessible, quand Instagram en pose une.
+        for (let p = el, i = 0; p && i < 6; p = p.parentElement, i++) {
+          if (OWN_LABEL.test(p.getAttribute && (p.getAttribute("aria-label") || ""))) { from = "moi"; break; }
         }
 
-        // 3. Alignement calculé : sortant = poussé à droite. Repli seulement,
-        //    et seulement si le navigateur sait vraiment calculer le style.
-        if (from === "?" && win && typeof win.getComputedStyle === "function") {
-          try {
-            const st = win.getComputedStyle(row);
-            const j = `${st.justifyContent || ""} ${st.alignSelf || ""}`;
-            if (/flex-end|right|end/.test(j)) from = "moi";
-            else if (/flex-start|left/.test(j)) from = "lui";
-          } catch { /* style indisponible : on laisse « ? » */ }
+        // 2. Géométrie : les messages sortants sont alignés à DROITE du volet,
+        //    les entrants à gauche. Mesuré sur une vraie conversation : 0.84 à
+        //    0.90 pour les sortants, 0.07 à 0.12 pour les entrants. Aucune
+        //    dépendance à la langue ni à une classe obfusquée.
+        if (from === "?" && box && box.width > 0) {
+          const r = rectOf(el);
+          const rel = (r.left + r.width / 2 - box.left) / box.width;
+          if (rel > 0.55) from = "moi";
+          else if (rel < 0.45) from = "lui";
         }
 
+        // Un message rendu en plusieurs spans ne compte qu'une fois.
+        const last = out[out.length - 1];
+        if (last && last.text === text && last.from === from) continue;
         out.push({ from, text: text.slice(0, 1000) });
       }
-      return out;
+      return out.slice(Math.max(0, out.length - maxRows));
     } catch {
       return [];
     }

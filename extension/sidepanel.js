@@ -216,7 +216,12 @@ async function grabThread() {
   const r = await toTab({ type: "ig:thread", username: state.username });
   if (!r || r.reason) { $("error").textContent = tabError(r); return; }
   const rows = r.rows ?? [];
-  if (!rows.length) return;
+  if (!rows.length) {
+    // Ne jamais échouer sans le dire : c'est ce silence qui laissait croire
+    // que « relire le fil » ne faisait rien.
+    $("error").textContent = "Fil illisible sur cette page — ouvre la conversation, ou colle-le à la main.";
+    return;
+  }
   // Les messages de la trame sont, par construction, ceux de Nicolas : ils
   // lèvent l'ambiguïté sur les lignes qu'Instagram n'étiquette pas.
   const sent = (state.data?.steps ?? []).map((s) => s.text);

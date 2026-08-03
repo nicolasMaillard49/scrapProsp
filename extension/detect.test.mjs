@@ -167,56 +167,77 @@ test("loggedInAccount: la nav prime sur le JSON, et rien de plausible → null",
   assert.equal(NMFDetect.loggedInAccount(dom("<body></body>").window.document), null);
 });
 
-test("conversationThread: rend le fil ordonné avec l'auteur de chaque message", () => {
-  const d = dom(`<body>
-    <div role="row" aria-label="Vous avez envoyé : Hello ! Vous êtes toujours menuisier ?"><span>Hello ! Vous êtes toujours menuisier ?</span></div>
-    <div role="row"><img alt="Photo de profil de laura_x" /><span>Oui toujours</span></div>
-    <div role="row" aria-label="Vous avez envoyé : Parfait !"><span>Parfait !</span></div>
-    <div role="row"><img alt="Photo de profil de laura_x" /><span>C'est quoi votre tarif ?</span></div>
-  </body>`);
-  const rows = NMFDetect.conversationThread(d.window.document, { username: "laura_x" });
-  assert.deepEqual(
-    rows.map((r) => r.from),
-    ["moi", "lui", "moi", "lui"],
-  );
-  assert.equal(rows[3].text, "C'est quoi votre tarif ?");
-  assert.equal(NMFDetect.lastIncomingText(d.window.document, { username: "laura_x" }), "C'est quoi votre tarif ?");
+/**
+ * Fil de conversation façon Instagram : des `span[dir="auto"]` dans un volet
+ * défilant, l'auteur donné par l'alignement horizontal (mesuré sur une vraie
+ * conversation : sortants à 84-90 % de la largeur, entrants à 7-12 %).
+ * jsdom ne calcule aucune géométrie — les rectangles sont donc injectés.
+ */
+function threadDom(messages) {
+  const d = dom(`<body><div id="scope">${messages
+    .map((m) => `<span dir="auto">${m.text}</span>`)
+    .join("")}</div></body>`);
+  const scope = d.window.document.getElementById("scope");
+  const W = 1000;
+  const byText = new Map(messages.map((m) => [m.text, m]));
+  const rectOf = (el) => {
+    if (el === scope) return { left: 0, width: W };
+    const m = byText.get((el.textContent || "").trim());
+    // rel ≈ 0.87 pour un sortant, 0.10 pour un entrant, 0.50 si centré.
+    const rel = m?.side === "moi" ? 0.87 : m?.side === "lui" ? 0.1 : 0.5;
+    return { left: rel * W - 50, width: 100 };
+  };
+  return { doc: d.window.document, scope, rectOf };
+}
+
+test("conversationThread: auteur déduit de l'alignement, dans l'ordre du fil", () => {
+  const { doc, scope, rectOf } = threadDom([
+    { text: "Hello Thomas ! Vous êtes toujours ostéopathe ?", side: "moi" },
+    { text: "Salut, oui toujours en effet.", side: "lui" },
+    { text: "Parfait ! Votre post est remonté dans mon feed.", side: "moi" },
+    { text: "Je vous ecoute ! Dites moi", side: "lui" },
+  ]);
+  const rows = NMFDetect.conversationThread(doc, { scope, rectOf });
+  assert.deepEqual(rows.map((r) => r.from), ["moi", "lui", "moi", "lui"]);
+  assert.equal(rows[3].text, "Je vous ecoute ! Dites moi");
+  assert.equal(NMFDetect.lastIncomingText(doc, { scope, rectOf }), "Je vous ecoute ! Dites moi");
 });
 
-test("conversationThread: auteur indéterminé reste « ? » — on n'invente pas", () => {
-  const d = dom(`<body>
-    <div role="row"><span>message sans le moindre indice</span></div>
-    <div role="row"><span>Vu</span></div>
-  </body>`);
-  const rows = NMFDetect.conversationThread(d.window.document);
-  assert.equal(rows.length, 1, "les accusés de lecture ne sont pas des messages");
+test("conversationThread: carte de profil et horodatages écartés du fil", () => {
+  // Tous présents dans le volet, aucun n'est un message.
+  const { doc, scope, rectOf } = threadDom([
+    { text: "thomas.pecoud_osteopathe · Instagram", side: null },
+    { text: "Voir le profil", side: null },
+    { text: "10:31", side: null },
+    { text: "Modifié", side: null },
+    { text: "Salut, oui toujours en effet.", side: "lui" },
+  ]);
+  const rows = NMFDetect.conversationThread(doc, { scope, rectOf });
+  assert.deepEqual(rows, [{ from: "lui", text: "Salut, oui toujours en effet." }]);
+});
+
+test("conversationThread: message centré → « ? », on n'invente pas l'auteur", () => {
+  const { doc, scope, rectOf } = threadDom([{ text: "message parfaitement centré", side: null }]);
+  const rows = NMFDetect.conversationThread(doc, { scope, rectOf });
+  assert.equal(rows.length, 1);
   assert.equal(rows[0].from, "?");
   assert.deepEqual(NMFDetect.conversationThread(null), []);
 });
 
 test("lastIncomingText: rend le dernier message REÇU, pas le dernier envoyé", () => {
-  const d = dom(`<body>
-    <div role="row" aria-label="Vous avez envoyé : Hello ! Vous êtes toujours menuisier ?"><span>Hello ! Vous êtes toujours menuisier ?</span></div>
-    <div role="row"><span>Oui toujours, c'est quoi votre tarif ?</span></div>
-    <div role="row" aria-label="Vous avez envoyé : ok"><span>ok</span></div>
-  </body>`);
-  assert.equal(NMFDetect.lastIncomingText(d.window.document), "Oui toujours, c'est quoi votre tarif ?");
-});
-
-test("lastIncomingText: ignore accusés de lecture et horodatages isolés", () => {
-  const d = dom(`<body>
-    <div role="row"><span>Ça m'intéresse</span></div>
-    <div role="row"><span>Vu</span></div>
-    <div role="row"><span>14:32</span></div>
-  </body>`);
-  assert.equal(NMFDetect.lastIncomingText(d.window.document), "Ça m'intéresse");
+  const { doc, scope, rectOf } = threadDom([
+    { text: "Hello ! Vous êtes toujours menuisier ?", side: "moi" },
+    { text: "Oui toujours, c'est quoi votre tarif ?", side: "lui" },
+    { text: "Je vous explique", side: "moi" },
+  ]);
+  assert.equal(NMFDetect.lastIncomingText(doc, { scope, rectOf }), "Oui toujours, c'est quoi votre tarif ?");
 });
 
 test("lastIncomingText: rien de plausible → null, jamais une exception", () => {
   assert.equal(NMFDetect.lastIncomingText(dom("<body><div>vide</div></body>").window.document), null);
   // Uniquement des messages sortants : rien à proposer.
-  const sortants = dom(`<body><div role="row" aria-label="You sent: yo"><span>yo</span></div></body>`);
-  assert.equal(NMFDetect.lastIncomingText(sortants.window.document), null);
+  const sortants = threadDom([{ text: "yo, toujours là ?", side: "moi" }]);
+  assert.equal(NMFDetect.lastIncomingText(sortants.doc, { scope: sortants.scope, rectOf: sortants.rectOf }), null);
   assert.equal(NMFDetect.lastIncomingText(null), null);
 });
 
