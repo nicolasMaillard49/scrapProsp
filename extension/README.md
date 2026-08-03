@@ -61,8 +61,20 @@ puis « Enregistrer ». Une journée de réponses traitées à la main ne laissa
 donc **aucune trace** : prospects maintenus dans la file de relance, taux de
 réponse sous-compté.
 
-Désormais, quand le prospect a parlé **en dernier** dans la conversation
-ouverte, le fil part se faire qualifier tout seul (`auto: true`) :
+> [!warning] Se limiter au dernier locuteur ne capte presque rien
+> Relevé sur la vraie boîte : **14 conversations sur 15** commençaient par
+> « Vous : ». Tu réponds dans la foulée — donc le fil se termine par TON
+> message, et la réponse du prospect disparaît du radar. La détection porte
+> sur le dernier message **entrant**, où qu'il soit dans le fil.
+>
+> Le fil ne porte aucune date. Quand tu as déjà répondu, on n'inscrit que les
+> prospects **jamais journalisés** (`reply_count === 0`) : c'est la donnée
+> manquante, et c'est sa 1ʳᵉ réponse qui compte (réponse à froid, comptée une
+> fois). Pour un prospect déjà journalisé, on s'abstient plutôt que de dater à
+> l'aveugle une réponse peut-être vieille de trois semaines.
+
+Désormais, quand le prospect a répondu dans la conversation ouverte, le fil
+part se faire qualifier tout seul (`auto: true`) :
 
 - **confiance haute** → la réponse est inscrite, sans clic, et le prospect sort
   de la file de relance ;

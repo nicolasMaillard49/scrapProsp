@@ -43,9 +43,14 @@
     if (!username) return;
     const rows = NMFDetect.conversationThread(document, { username });
     if (!rows.length) return;
-    const last = rows[rows.length - 1];
-    if (!last || last.from === "moi") return;
-    const sig = `${username}|${String(last.text || "").slice(0, 140)}`;
+    // On ne se limite PAS aux fils qui se terminent par son message : Nicolas
+    // répond dans la foulée, et sa réponse effacerait la trace de celle du
+    // prospect. La signature suit le dernier message ENTRANT, pas le dernier
+    // message tout court.
+    let lastIn = null;
+    for (let i = rows.length - 1; i >= 0; i--) if (rows[i].from === "lui") { lastIn = rows[i]; break; }
+    if (!lastIn) return;
+    const sig = `${username}|${String(lastIn.text || "").slice(0, 140)}`;
     if (sig === lastIncomingSeen) return; // déjà poussé : rien de neuf à l'écran
     lastIncomingSeen = sig;
     chrome.runtime.sendMessage({ type: "ig:incoming", username, rows }).catch(() => {});

@@ -340,8 +340,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (!prospectId) { sendResponse({ ok: false, reason: "no-prospect" }); break; }
 
         const steps = (payload.steps ?? []).map((s) => s.text);
-        const hit = NMFUtil.pendingIncoming(msg.rows ?? [], steps);
+        const hit = NMFUtil.incomingReply(msg.rows ?? [], steps);
         if (!hit) { sendResponse({ ok: false, reason: "no-incoming" }); break; }
+
+        // Le fil ne porte AUCUNE date : journaliser au jour où on le lit n'est
+        // exact que si la réponse est fraîche. Quand Nicolas a déjà répondu
+        // (`last === false`), on ne l'inscrit que si ce prospect n'a jamais
+        // répondu au CRM — c'est la donnée manquante, et sa 1re réponse est
+        // celle qui compte (réponse à froid, comptée une fois). Pour un
+        // prospect déjà journalisé, on s'abstient plutôt que de dater à
+        // l'aveugle une réponse peut-être vieille de trois semaines.
+        if (!hit.last && (payload.prospect?.reply_count ?? 0) > 0) {
+          sendResponse({ ok: false, reason: "deja-repondu" });
+          break;
+        }
 
         const username = msg.username;
         // Borne l'APPEL au modèle : un fil laissé à l'écran ne doit pas

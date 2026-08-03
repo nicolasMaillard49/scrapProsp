@@ -148,17 +148,23 @@ const NMFUtil = (() => {
   // prospects maintenus dans la file de relance, KPI d'accroche sous-comptés.
 
   /**
-   * Le prospect a-t-il parlé en DERNIER ? Rend son dernier bloc de messages,
-   * ou null.
+   * Dernier bloc de messages du prospect, ou null.
+   *
+   * `last` dit s'il a parlé en DERNIER — donc si la réponse est encore en
+   * attente. Ce drapeau existe parce que la réponse d'un prospect DÉJÀ traité
+   * disparaît sinon : relevé sur la vraie boîte, 14 conversations sur 15
+   * commençaient par « Vous : » — Nicolas répond dans la foulée, et le fil se
+   * termine par SON message. Se limiter au dernier locuteur revenait à ne
+   * capter que les réponses non traitées, c'est-à-dire presque aucune.
    *
    * Deux garde-fous, car ce qui sort d'ici déclenche une écriture au CRM :
-   *  - un fil qui se termine par une ligne d'auteur INDÉTERMINÉ (`?`) ne
-   *    conclut rien — mieux vaut ne rien journaliser qu'inscrire un de nos
-   *    propres messages comme réponse du prospect ;
-   *  - sans aucun message de nous en amont, ce n'est pas une réponse : c'est
-   *    une prise de contact entrante, qui ne dit rien de notre accroche.
+   *  - un bloc entrant d'auteur INDÉTERMINÉ (`?`) ne conclut rien — mieux vaut
+   *    ne rien journaliser qu'inscrire un de nos propres messages comme
+   *    réponse du prospect ;
+   *  - sans aucun message de nous AVANT, ce n'est pas une réponse : c'est une
+   *    prise de contact entrante, qui ne dit rien de notre accroche.
    */
-  function pendingIncoming(rows, sentTexts = []) {
+  function incomingReply(rows, sentTexts = []) {
     const known = new Set(sentTexts.map(norm).filter(Boolean));
     const list = (Array.isArray(rows) ? rows : [])
       .filter((r) => r && String(r.text ?? "").trim())
@@ -167,12 +173,18 @@ const NMFUtil = (() => {
         if (who === "?" && known.has(norm(r.text))) who = "moi";
         return { from: who, text: String(r.text).replace(/\s+/g, " ").trim() };
       });
-    const last = list[list.length - 1];
-    if (!last || last.from !== "lui") return null;
-    if (!list.some((r) => r.from === "moi")) return null;
+    // Dernier message du prospect, où qu'il soit dans le fil.
+    let end = -1;
+    for (let i = list.length - 1; i >= 0; i--) if (list[i].from === "lui") { end = i; break; }
+    if (end < 0) return null;
+    if (!list.slice(0, end).some((r) => r.from === "moi")) return null;
+
     const block = [];
-    for (let i = list.length - 1; i >= 0 && list[i].from === "lui"; i--) block.unshift(list[i].text);
-    return { text: block.join(" "), lines: block.length };
+    for (let i = end; i >= 0 && list[i].from === "lui"; i--) block.unshift(list[i].text);
+    // Ce qui suit son bloc : rien = il attend ; un `?` = on ne conclut rien.
+    const after = list.slice(end + 1);
+    if (after.some((r) => r.from === "?")) return null;
+    return { text: block.join(" "), lines: block.length, last: after.length === 0 };
   }
 
   /**
@@ -227,7 +239,7 @@ const NMFUtil = (() => {
 
   return {
     dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread,
-    parisDay, replyKey, similarity, matchStep, pendingIncoming, incomingKey,
+    parisDay, replyKey, similarity, matchStep, incomingReply, incomingKey,
     DEFAULT_LINKS, parseLinks, serializeLinks,
   };
 })();

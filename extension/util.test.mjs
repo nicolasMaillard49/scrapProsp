@@ -146,49 +146,68 @@ test("prune: garde les plus recents, borne la taille", () => {
   assert.equal(pruned[199], "k249");
 });
 
-test("pendingIncoming: le prospect a parle en dernier", () => {
+test("incomingReply: le prospect a parle en dernier", () => {
   const rows = [
     { from: "moi", text: "Salut, joli travail sur vos rendus" },
     { from: "lui", text: "Merci !" },
     { from: "lui", text: "Vous faites quoi exactement ?" },
   ];
-  const hit = NMFUtil.pendingIncoming(rows);
+  const hit = NMFUtil.incomingReply(rows);
   assert.equal(hit.lines, 2);
   assert.equal(hit.text, "Merci ! Vous faites quoi exactement ?");
+  assert.equal(hit.last, true); // il attend une reponse
 });
 
-test("pendingIncoming: c'est nous qui avons parle en dernier → rien", () => {
+test("incomingReply: Nicolas a repondu dans la foulee → la reponse compte quand meme", () => {
+  // Cas MAJORITAIRE releve sur la vraie boite : 14 conversations sur 15
+  // commencaient par « Vous : ». Ne regarder que le dernier locuteur revenait
+  // a ne capter presque aucune reponse.
   const rows = [
     { from: "moi", text: "Salut" },
-    { from: "lui", text: "Bonjour" },
+    { from: "lui", text: "Bonjour, oui c'est bien moi" },
     { from: "moi", text: "Vous gerez le site vous-meme ?" },
   ];
-  assert.equal(NMFUtil.pendingIncoming(rows), null);
+  const hit = NMFUtil.incomingReply(rows);
+  assert.equal(hit.text, "Bonjour, oui c'est bien moi");
+  assert.equal(hit.last, false); // deja traitee : le background exigera reply_count === 0
 });
 
-test("pendingIncoming: derniere ligne d'auteur indetermine → aucune conclusion", () => {
+test("incomingReply: derniere ligne d'auteur indetermine → aucune conclusion", () => {
   // Journaliser un de NOS messages comme reponse du prospect le sortirait de
   // la file de relance et gonflerait le taux de reponse.
   const rows = [
     { from: "moi", text: "Salut" },
     { from: "?", text: "texte non attribue" },
   ];
-  assert.equal(NMFUtil.pendingIncoming(rows), null);
+  assert.equal(NMFUtil.incomingReply(rows), null);
 });
 
-test("pendingIncoming: le `?` reconnu comme un message de la trame est a nous", () => {
+test("incomingReply: le `?` reconnu comme un message de la trame est a nous", () => {
   const steps = ["Vous gerez le site vous-meme ?"];
   const rows = [
     { from: "moi", text: "Salut" },
     { from: "lui", text: "Bonjour" },
     { from: "?", text: "Vous gerez le site vous-meme ?" },
   ];
-  assert.equal(NMFUtil.pendingIncoming(rows, steps), null);
+  const hit = NMFUtil.incomingReply(rows, steps);
+  assert.equal(hit.text, "Bonjour");
+  assert.equal(hit.last, false); // la ligne `?` est de nous : il n'attend plus
 });
 
-test("pendingIncoming: sans message de nous, ce n'est pas une reponse", () => {
+test("incomingReply: un `?` APRES son message → aucune conclusion", () => {
+  // Cette ligne peut etre de lui : la donner pour traitee, ou l'ignorer, se
+  // decide sur `last`. Sans certitude, on ne journalise rien.
+  const rows = [
+    { from: "moi", text: "Salut" },
+    { from: "lui", text: "Bonjour" },
+    { from: "?", text: "texte non attribue" },
+  ];
+  assert.equal(NMFUtil.incomingReply(rows), null);
+});
+
+test("incomingReply: sans message de nous, ce n'est pas une reponse", () => {
   const rows = [{ from: "lui", text: "Bonjour, vous faites des sites ?" }];
-  assert.equal(NMFUtil.pendingIncoming(rows), null);
+  assert.equal(NMFUtil.incomingReply(rows), null);
 });
 
 test("incomingKey: meme message = meme cle, insensible a la casse et aux espaces", () => {
