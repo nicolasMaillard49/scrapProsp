@@ -52,6 +52,7 @@
     "@types/papaparse": "5.3.15",
     "@types/react": "19.0.1",
     "@types/react-dom": "19.0.1",
+    "jsdom": "^30.0.1",
     "pdf-to-png-converter": "^4.1.0",
     "pg": "^8.21.0",
     "postcss": "8.4.49",
