@@ -274,6 +274,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ status, data: json });
         break;
       }
+      // sidepanel : reformulation de la phrase en trois tons. Lecture seule
+      // côté app ; c'est le panneau qui insère la variante retenue — et qui
+      // désarme en le faisant, puisque le texte n'est plus celui de l'étape.
+      case "ig:retone": {
+        const { current } = await chrome.storage.session.get("current");
+        const { status, json } = await api("/api/instagram/retone", {
+          method: "POST",
+          body: JSON.stringify({
+            username: msg.username ?? current?.username ?? "",
+            text: msg.text ?? "",
+            history: msg.history ?? "",
+          }),
+        });
+        sendResponse({ status, data: json });
+        break;
+      }
       // content.js : envoi détecté → journalise avec l'armement en cours.
       case "ig:sent": {
         const armed = await getArmed();

@@ -128,6 +128,11 @@
     textarea { min-height: 124px; resize: vertical; margin-top: 7px; font-family: var(--data); font-size: 11.5px; }
     textarea:focus, input:focus { outline: none; border-color: var(--send); }
 
+    /* Repli de saisie de la reformulation : une phrase, pas un échange — donc
+       plus court que la zone du fil, et dans la police que Nicolas tape. */
+    #retoneInput { margin-top: 11px; }
+    #retoneInput textarea { min-height: 62px; font-family: var(--body); font-size: 12.5px; }
+
     .step-card { padding: 9px 0; border-bottom: 1px solid var(--rule); }
     .step-card .cap { display: flex; align-items: baseline; gap: 7px; }
     .step-card .code { font: 600 11px var(--label); letter-spacing: .06em; }
@@ -192,9 +197,20 @@
 
     <div class="tools">
       <button id="fixSpell" title="Corrige l'orthographe de ce que tu as tapé dans Instagram">Corriger</button>
+      <button id="retone" title="Rend ta phrase en trois tons : calme, neutre, cash">Reformuler</button>
       <button id="qualify" title="Qualifie la réponse et recale le stade">Analyser</button>
     </div>
 
+    <!-- Repli : le champ Instagram est vide ou illisible. Pas un message
+         d'erreur — l'endroit où taper la phrase EST la réponse. -->
+    <div id="retoneInput" hidden>
+      <textarea id="retoneText" placeholder="La phrase à reformuler…"></textarea>
+      <div class="row" style="margin-top:7px">
+        <button id="retoneRun" class="send">Reformuler</button>
+      </div>
+    </div>
+
+    <div id="retoneOut"></div>
     <div id="fixOut"></div>
     <div id="qualifyOut"></div>
     <div id="stageOut"></div>

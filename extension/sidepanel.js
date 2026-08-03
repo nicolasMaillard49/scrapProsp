@@ -12,6 +12,7 @@ let state = {
   lastArm: null,       // { prospectId, accountId, step } — filet manuel
   fallbackTimer: null,
   aiBusy: false,
+  retoneBusy: false,
   manual: null,        // pseudo saisi à la main (détection en échec)
 };
 
@@ -391,6 +392,93 @@ $("fixSpell").addEventListener("click", async () => {
   }
 });
 
+// ── Reformulation en trois tons ────────────────────────────────────────────
+// La phrase reste CELLE de Nicolas : on ne change que le ton. Trois variantes,
+// il en choisit une — ou aucune.
+//
+// Différence capitale avec « Corriger » : corriger réinsère le MÊME message,
+// donc l'armement survit. Reformuler CHANGE le texte, donc l'insertion passe
+// par insertRaw et DÉSARME — sinon un envoi journaliserait une étape qui n'est
+// plus celle qui part. Si la variante ressemble encore assez à l'étape,
+// matchStep la rattrape à l'envoi (ig:sent-auto), et c'est légitime : c'est
+// bien cette étape, reformulée.
+
+function showVariants(list) {
+  if (!list.length) {
+    $("error").textContent = "Aucune variante exploitable — réessaie.";
+    return;
+  }
+  $("retoneOut").innerHTML = list
+    .map((v, i) => `<div class="card">
+        <div class="tag">${esc(v.label)}</div>
+        <p>${esc(v.text)}</p>
+        <div class="row">
+          <button data-rt-copy="${i}">Copier</button>
+          <button data-rt-insert="${i}">Insérer</button>
+        </div>
+      </div>`)
+    .join("");
+
+  for (const b of $("retoneOut").querySelectorAll("[data-rt-copy]")) {
+    b.addEventListener("click", () => {
+      navigator.clipboard.writeText(list[Number(b.dataset.rtCopy)].text);
+      b.textContent = "Copié ✓"; setTimeout(() => (b.textContent = "Copier"), 1200);
+    });
+  }
+  for (const b of $("retoneOut").querySelectorAll("[data-rt-insert]")) {
+    b.addEventListener("click", async () => {
+      const res = await insertRaw(list[Number(b.dataset.rtInsert)].text);
+      $("error").textContent = res?.ok ? "Inséré — relis avant d'envoyer." : tabError(res);
+    });
+  }
+}
+
+async function runRetone(text) {
+  if (state.retoneBusy) return;
+  state.retoneBusy = true;
+  $("retone").disabled = true;
+  $("retoneRun").disabled = true;
+  $("retone").textContent = "Reformulation…";
+  $("retoneOut").innerHTML = "";
+  try {
+    // Le fil accompagne la phrase s'il a déjà été relu — on ne déclenche pas
+    // grabThread() en douce : c'est une action que Nicolas provoque lui-même.
+    const history = $("aiIncoming").value.trim();
+    const r = await chrome.runtime.sendMessage({
+      type: "ig:retone", username: state.username, text, history,
+    });
+    if (r?.status !== 200) { $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`; return; }
+    $("error").textContent = "";
+    showVariants(r.data.variants ?? []);
+  } finally {
+    state.retoneBusy = false;
+    $("retone").disabled = false;
+    $("retoneRun").disabled = false;
+    $("retone").textContent = "Reformuler";
+  }
+}
+
+$("retone").addEventListener("click", async () => {
+  if (state.retoneBusy) return;
+  const c = await toTab({ type: "ig:composer-text" });
+  const typed = (c?.text ?? "").trim();
+  if (typed) { await runRetone(typed); return; }
+  // Le champ Instagram ne fournit rien : on retombe sur ce qui a été tapé dans
+  // le repli, s'il y a quelque chose.
+  const fallback = $("retoneText").value.trim();
+  if (fallback) { await runRetone(fallback); return; }
+  // Sinon on déplie le repli — ce n'est pas une erreur, c'est l'endroit où
+  // taper la phrase.
+  $("retoneInput").hidden = false;
+  $("retoneText").focus();
+});
+
+$("retoneRun").addEventListener("click", async () => {
+  const t = $("retoneText").value.trim();
+  if (!t) { $("retoneText").focus(); return; }
+  await runRetone(t);
+});
+
 // ── Qualification de la réponse à froid ────────────────────────────────────
 // Le modèle PROPOSE, Nicolas VALIDE. Une qualification écrite d'office
 // sortirait le prospect de la file de relance et fausserait les KPI
@@ -578,6 +666,9 @@ chrome.runtime.onMessage.addListener((msg) => {
     $("fixOut").innerHTML = "";
     $("qualifyOut").innerHTML = "";
     $("stageOut").innerHTML = "";
+    $("retoneOut").innerHTML = "";
+    $("retoneText").value = "";
+    $("retoneInput").hidden = true;
     refresh(msg.username, msg.account);
   }
   if (msg?.type === "ig:logged") {
