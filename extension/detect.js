@@ -100,54 +100,68 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
    *     écoute le collage, qui ne dépend pas du focus du document.
    *  3. écriture directe + événements d'édition — dernier recours.
    */
-  function insertIntoComposer(node, text, opts = {}) {
+  async function insertIntoComposer(node, text, opts = {}) {
     if (!node) return false;
     const win = opts.win || (typeof window !== "undefined" ? window : null);
     const doc = node.ownerDocument;
-    const reached = () => (node.textContent || "").trim() === String(text).trim();
+    const settle = opts.settleMs ?? 60;
+    const target = String(text);
+    const wait = (ms) => new Promise((r) => ((win && win.setTimeout) || setTimeout)(r, ms));
+    const isEmpty = () => (node.textContent || "").trim() === "";
+    const reached = () => (node.textContent || "").trim() === target.trim();
 
+    // selectAll via le pipeline d'édition d'abord : Lexical suit sa propre
+    // sélection, une Range posée de l'extérieur lui échappe souvent.
     const selectAll = () => {
+      try { if (doc.execCommand && doc.execCommand("selectAll")) return true; } catch { /* repli */ }
       try {
         const sel = win && win.getSelection ? win.getSelection() : null;
-        if (!sel || !doc.createRange) return;
+        if (!sel || !doc.createRange) return false;
         sel.removeAllRanges();
         const range = doc.createRange();
         range.selectNodeContents(node);
         sel.addRange(range);
-      } catch { /* pas de sélection : les stratégies suivantes s'en passent */ }
+        return true;
+      } catch { return false; }
     };
 
     try { node.focus(); } catch { /* focus refusé : on tente quand même */ }
 
-    // 1. execCommand
-    try {
+    // 1. VIDER, et vérifier que c'est vide.
+    //    Invariant : on n'écrit JAMAIS dans un champ non vide. Sans lui, une
+    //    sélection qui échoue fait ajouter le texte À LA SUITE de l'existant —
+    //    c'est ce qui collait la correction deux fois derrière le message.
+    if (!isEmpty()) {
       selectAll();
-      if (doc.execCommand && doc.execCommand("insertText", false, text) && reached()) return true;
-    } catch { /* stratégie suivante */ }
+      try { if (doc.execCommand) doc.execCommand("delete"); } catch { /* repli en dessous */ }
+      await wait(settle);
+      if (!isEmpty()) {
+        selectAll();
+        try { if (doc.execCommand) doc.execCommand("insertText", false, ""); } catch { /* dernier essai */ }
+        await wait(settle);
+      }
+      // Toujours pas vide : on renonce, champ intact. Mieux vaut ne rien faire
+      // que doubler le message.
+      if (!isEmpty()) return false;
+    }
 
-    // 2. Collage synthétique
-    try {
-      if (win && typeof win.DataTransfer === "function" && typeof win.ClipboardEvent === "function") {
+    // 2. Écrire — une seule fois, dans un champ vide.
+    try { if (doc.execCommand) doc.execCommand("insertText", false, target); } catch { /* repli en dessous */ }
+    await wait(settle);
+    if (reached()) return true;
+
+    // 3. Collage synthétique, uniquement si le champ est resté vide : Lexical
+    //    écoute le collage, qui ne dépend pas du focus du document.
+    if (isEmpty() && win && typeof win.DataTransfer === "function" && typeof win.ClipboardEvent === "function") {
+      try {
         selectAll();
         const dt = new win.DataTransfer();
-        dt.setData("text/plain", text);
+        dt.setData("text/plain", target);
         node.dispatchEvent(new win.ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
-        if (reached()) return true;
-      }
-    } catch { /* stratégie suivante */ }
-
-    // 3. Écriture directe + événements d'édition
-    try {
-      node.textContent = text;
-      if (win && typeof win.InputEvent === "function") {
-        node.dispatchEvent(new win.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
-      } else if (typeof Event === "function") {
-        node.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-      return reached();
-    } catch {
-      return false;
+        await wait(settle);
+      } catch { /* on rend le verdict ci-dessous */ }
     }
+    return reached();
   }
 
   /** Le contenteditable du champ de message. */
@@ -180,6 +194,25 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
    * Indépendant de la mise en page — donc valable aussi dans /direct/, où la
    * barre de navigation est réduite à des icônes sans avatar.
    */
+  /**
+   * Pseudo affiché en titre du sélecteur de compte, en haut de la messagerie.
+   *
+   * Confirmé par un second signal : ce pseudo doit aussi porter un avatar
+   * quelque part dans la page (« Photo de profil de <pseudo> » en français,
+   * « <pseudo>'s profile picture » en anglais — la sous-chaîne suffit dans
+   * les deux cas). Sans cette confirmation, le nom d'un tiers affiché en
+   * titre pourrait passer pour le compte connecté.
+   */
+  function accountFromHeading(doc) {
+    const alts = Array.from(doc.querySelectorAll("img[alt]")).map((i) => (i.getAttribute("alt") || "").toLowerCase());
+    for (const h of doc.querySelectorAll("h1, h2")) {
+      const t = (h.textContent || "").trim().toLowerCase();
+      if (!/^[a-z0-9._]{2,30}$/.test(t) || RESERVED.has(t)) continue;
+      if (alts.some((a) => a.includes(t))) return t;
+    }
+    return null;
+  }
+
   const VIEWER_KEYS = /"(?:viewer|logged_in_user|currentUser)"\s*:\s*\{[^{}]{0,600}?"username"\s*:\s*"([A-Za-z0-9._]{2,30})"/;
   function viewerFromScripts(doc) {
     const scripts = Array.from(doc.querySelectorAll("script")).slice(0, 40);
@@ -213,11 +246,17 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
       const fromNav = nav ? ok(fromAvatarLinks(nav)) : null;
       if (fromNav) return fromNav;
 
-      // 2. JSON embarqué — marche dans /direct/ où la nav n'a pas d'avatar.
+      // 2. En-tête du sélecteur de compte de la messagerie : un titre dont le
+      //    texte EST un pseudo. Vérifié sur le DOM réel de /direct/, où la nav
+      //    est réduite à des icônes sans avatar.
+      const fromHeading = ok(accountFromHeading(doc));
+      if (fromHeading) return fromHeading;
+
+      // 3. JSON embarqué, quand Instagram l'expose encore.
       const fromJson = ok(viewerFromScripts(doc));
       if (fromJson) return fromJson;
 
-      // 3. Dernier repli : tout le document, en excluant la conversation.
+      // 4. Dernier repli : tout le document, en excluant la conversation.
       return opts.strict ? null : ok(fromAvatarLinks(doc));
     } catch {
       return null;

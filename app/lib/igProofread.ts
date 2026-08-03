@@ -5,13 +5,25 @@
 
 import { skillForProofreading } from "./igSkill";
 
-export const MAX_PROOFREAD = 2000;
+/**
+ * Plafond de sécurité, pas une limite d'usage : un DM Instagram n'atteint
+ * jamais cette taille. Aucune phrase réelle n'est refusée à cause de sa
+ * longueur — ni à l'entrée, ni à la sortie.
+ */
+export const MAX_PROOFREAD = 20000;
 
 export const buildProofreadSystem = (): string => `Tu corriges l'orthographe de messages courts écrits en français, envoyés en DM Instagram par Nicolas à des prospects.
 
 ${skillForProofreading()}
 
-Corrige : fautes d'orthographe, accords, conjugaison, accents manquants, ponctuation, majuscules en début de phrase, doublons de mots, espaces en trop.
+Corrige : fautes d'orthographe, accords, conjugaison, accents manquants, doublons de mots, espaces en trop.
+
+PONCTUATION — sois exigeant, c'est souvent ce qui manque le plus :
+- ajoute les points en fin de phrase, les points d'interrogation aux questions, les virgules qui manquent pour la respiration ;
+- majuscule en début de chaque phrase, y compris la première, même si le message n'en a aucune ;
+- apostrophes correctes ;
+- espaces insécables avant ? ! : ; comme le veut le français ;
+- découpe en phrases distinctes ce qui est écrit d'un seul trait sans ponctuation.
 
 Ne touche à RIEN d'autre :
 - ne reformule pas, ne réorganise pas, ne "professionnalise" pas ;
@@ -30,10 +42,13 @@ Réponds UNIQUEMENT avec le texte corrigé. Pas de guillemets autour, pas d'expl
 /**
  * Nettoie la sortie du modèle et refuse une "correction" qui n'en est pas une.
  *
- * Un modèle bavard renvoie parfois « Voici le texte corrigé : "…" ». Pire, il
- * peut réécrire le message au lieu de le corriger — d'où le garde-fou de
- * longueur : en cas de doute on rend l'original, jamais un texte que Nicolas
- * n'a pas écrit.
+ * Un modèle bavard renvoie parfois « Voici le texte corrigé : "…" » : le
+ * préambule et les guillemets englobants partent ici.
+ *
+ * Aucun garde-fou de LONGUEUR : un message long est un message long, et une
+ * correction qui ajoute la ponctuation manquante rallonge légitimement le
+ * texte. Seule une réponse vide fait retomber sur l'original — le champ ne
+ * doit jamais être vidé.
  */
 export function cleanProofread(raw: string, original: string): string {
   let t = (raw ?? "").trim();
@@ -54,9 +69,5 @@ export function cleanProofread(raw: string, original: string): string {
     }
   }
 
-  if (!t) return original;
-  // Une correction ne triple pas la longueur d'un message : c'est une
-  // réécriture (ou une explication) — on garde l'original.
-  if (t.length > original.length * 3 + 40) return original;
-  return t;
+  return t || original;
 }

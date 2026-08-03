@@ -123,6 +123,27 @@ test("loggedInAccount: dans un DM, l'avatar du header est celui du PROSPECT — 
   assert.equal(NMFDetect.loggedInAccount(d.window.document), "laura_x");
 });
 
+test("loggedInAccount: titre du sélecteur de compte (DOM réel de /direct/)", () => {
+  // Structure relevée sur la vraie messagerie : SPAN < H2 < DIV[role=button],
+  // et l'avatar « Photo de profil de nmfagence » qui confirme le pseudo.
+  const d = dom(
+    `<body>
+       <div role="button"><h2><span>nmfagence</span></h2></div>
+       <img alt="Photo de profil de nmfagence" />
+       <header><a href="/laura_x/"><img alt="Photo de profil de laura_x" /></a></header>
+     </body>`,
+    "https://www.instagram.com/direct/t/1/",
+  );
+  assert.equal(NMFDetect.loggedInAccount(d.window.document, { exclude: "laura_x" }), "nmfagence");
+});
+
+test("loggedInAccount: un titre sans avatar correspondant n'est pas retenu", () => {
+  // Sans le second signal, le pseudo d'un tiers affiché en titre passerait
+  // pour le compte connecté.
+  const d = dom(`<body><h2><span>un_autre_compte</span></h2></body>`);
+  assert.equal(NMFDetect.loggedInAccount(d.window.document, { strict: true }), null);
+});
+
 test("loggedInAccount: JSON embarqué → compte connecté détecté même dans les DM", () => {
   const d = dom(
     `<body>
@@ -197,6 +218,51 @@ test("lastIncomingText: rien de plausible → null, jamais une exception", () =>
   const sortants = dom(`<body><div role="row" aria-label="You sent: yo"><span>yo</span></div></body>`);
   assert.equal(NMFDetect.lastIncomingText(sortants.window.document), null);
   assert.equal(NMFDetect.lastIncomingText(null), null);
+});
+
+test("insertIntoComposer: remplace le contenu, ne l'ajoute PAS à la suite", async () => {
+  const d = dom(`<body><div contenteditable="true" aria-label="Message">brouillon fautif</div></body>`);
+  const node = NMFDetect.composerNode(d.window.document);
+  // jsdom n'implémente pas execCommand : on simule un éditeur qui vide et
+  // écrit via le pipeline d'édition, comme le fait Instagram.
+  d.window.document.execCommand = (cmd, _ui, val) => {
+    if (cmd === "selectAll") return true;
+    if (cmd === "delete") { node.textContent = ""; return true; }
+    if (cmd === "insertText") { node.textContent += val ?? ""; return true; }
+    return false;
+  };
+  const ok = await NMFDetect.insertIntoComposer(node, "Brouillon corrigé.", { win: d.window, settleMs: 1 });
+  assert.equal(ok, true);
+  assert.equal(node.textContent, "Brouillon corrigé.", "le texte d'origine ne doit pas subsister devant");
+});
+
+test("insertIntoComposer: champ qu'on n'arrive pas à vider → on renonce, rien n'est ajouté", async () => {
+  // Le bug réel : sélection inopérante ⇒ le texte partait à la suite, deux
+  // fois. L'invariant « jamais écrire dans un champ non vide » l'interdit.
+  const d = dom(`<body><div contenteditable="true" aria-label="Message">texte tenace</div></body>`);
+  const node = NMFDetect.composerNode(d.window.document);
+  d.window.document.execCommand = (cmd, _ui, val) => {
+    if (cmd === "selectAll") return true;
+    if (cmd === "delete") return true;            // prétend effacer, n'efface rien
+    if (cmd === "insertText") { node.textContent += val ?? ""; return true; }
+    return false;
+  };
+  const ok = await NMFDetect.insertIntoComposer(node, "Nouveau texte", { win: d.window, settleMs: 1 });
+  assert.equal(ok, false);
+  assert.equal(node.textContent, "texte tenace", "le champ doit rester intact");
+});
+
+test("insertIntoComposer: champ déjà vide → écriture directe", async () => {
+  const d = dom(`<body><div contenteditable="true" aria-label="Message"></div></body>`);
+  const node = NMFDetect.composerNode(d.window.document);
+  d.window.document.execCommand = (cmd, _ui, val) => {
+    if (cmd === "insertText") { node.textContent += val ?? ""; return true; }
+    return cmd === "selectAll";
+  };
+  assert.equal(await NMFDetect.insertIntoComposer(node, "Hello", { win: d.window, settleMs: 1 }), true);
+  assert.equal(node.textContent, "Hello");
+  // Nœud absent : jamais d'exception.
+  assert.equal(await NMFDetect.insertIntoComposer(null, "x", { win: d.window, settleMs: 1 }), false);
 });
 
 test("watchSend: déclenche quand le champ passe de rempli à vide, une seule fois", async () => {

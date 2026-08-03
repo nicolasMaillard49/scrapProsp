@@ -44,12 +44,18 @@ test("clean: réponse vide → on garde l'original, jamais un champ vidé", () =
   assert.equal(cleanProofread('""', "mon message"), "mon message");
 });
 
-test("clean: réécriture ou explication (longueur qui explose) → original conservé", () => {
+test("clean: aucune limite de longueur — un message long reste corrigé", () => {
+  // Ajouter la ponctuation manquante rallonge légitimement le texte ; refuser
+  // au-delà d'un ratio annulait des corrections parfaitement valables.
   const orig = "slt cv";
-  const bavard =
-    "Le message contient plusieurs fautes. Voici mon analyse détaillée point par point, " +
-    "puis la version corrigée avec des explications sur chaque correction apportée au texte.";
-  assert.equal(cleanProofread(bavard, orig), orig);
-  // Une vraie correction d'un message court reste acceptée.
   assert.equal(cleanProofread("Salut, ça va ?", orig), "Salut, ça va ?");
+  const long = "Bonjour. ".repeat(200).trim();
+  assert.equal(cleanProofread(long, orig), long);
+});
+
+test("prompt: la ponctuation est poussée, pas seulement tolérée", () => {
+  const p = buildProofreadSystem();
+  assert.match(p, /PONCTUATION/);
+  assert.match(p, /points d'interrogation/i);
+  assert.match(p, /majuscule en début de chaque phrase/i);
 });

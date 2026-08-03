@@ -52,20 +52,23 @@
         sendResponse({ ok: false, reason: "no-composer" });
         return;
       }
-      // On ne répond « ok » que si le champ contient réellement le texte —
-      // annoncer un succès qui n'a pas eu lieu envoie chercher le bug au
-      // mauvais endroit (cf. « Corrigé ✓ » sans effet).
-      const ok = NMFDetect.insertIntoComposer(node, msg.text);
-      if (!ok) {
-        sendResponse({ ok: false, reason: "insert-failed" });
-        return;
-      }
-      // Arme la détection d'envoi (one-shot). Ré-armer remplace l'ancienne.
-      unwatch();
-      unwatch = NMFDetect.watchSend(node, () => {
-        chrome.runtime.sendMessage({ type: "ig:sent" }).catch(() => {});
+      // Asynchrone : l'insertion vide le champ, laisse l'éditeur se
+      // réconcilier, puis vérifie. On ne répond « ok » que si le champ
+      // contient réellement le texte — annoncer un succès qui n'a pas eu lieu
+      // envoie chercher le bug au mauvais endroit (cf. « Corrigé ✓ » sans effet).
+      NMFDetect.insertIntoComposer(node, msg.text).then((ok) => {
+        if (!ok) {
+          sendResponse({ ok: false, reason: "insert-failed" });
+          return;
+        }
+        // Arme la détection d'envoi (one-shot). Ré-armer remplace l'ancienne.
+        unwatch();
+        unwatch = NMFDetect.watchSend(node, () => {
+          chrome.runtime.sendMessage({ type: "ig:sent" }).catch(() => {});
+        });
+        sendResponse({ ok: true });
       });
-      sendResponse({ ok: true });
+      return true; // réponse asynchrone
     } else if (msg?.type === "ig:ping") {
       // Sert au service worker à savoir si ce script est encore vivant.
       sendResponse({ ok: true });

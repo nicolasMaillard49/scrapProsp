@@ -33,7 +33,9 @@ export async function POST(req: NextRequest) {
     const call = (model: string) =>
       client.messages.create({
         model,
-        max_tokens: 1000,
+        // Large : la sortie doit pouvoir contenir le message entier corrigé,
+        // ponctuation ajoutée comprise, sans jamais être tronquée.
+        max_tokens: 8000,
         system: buildProofreadSystem(),
         messages: [{ role: "user", content: original }],
       });
