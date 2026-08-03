@@ -7,7 +7,7 @@
   "host_permissions": ["https://www.instagram.com/*", "https://*.nmf-agence.com/*", "http://localhost:3000/*"],
   "background": {
     "service_worker": "background.js",
-    "scripts": ["background.js"]
+    "scripts": ["util.js", "background.js"]
   },
   "content_scripts": [
     {
