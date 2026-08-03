@@ -186,9 +186,49 @@ const NMFUtil = (() => {
     return `in:${String(username || "?").toLowerCase()}:${norm(text).slice(0, 140)}`;
   }
 
+  // ── Mes liens ────────────────────────────────────────────────────────────
+  // Les liens qu'on colle dix fois par jour dans un DM. Ils vivaient dans les
+  // marque-pages : retrouver le bon coupait la conversation en deux.
+
+  const DEFAULT_LINKS = [
+    { label: "Audit gratuit — 20 min", url: "https://rdv.nmf-agence.com/nicolas/reunion-nicolas-maillard" },
+    { label: "Entretien exceptionnel", url: "https://rdv.nmf-agence.com/nicolas/entretien-exceptionnel" },
+    { label: "Simulateur ROI", url: "https://bienvenue.nmf-agence.com/simulateur" },
+    { label: "Formulaire d'audit", url: "https://bienvenue.nmf-agence.com/audit" },
+    { label: "Site de l'agence", url: "https://nmf-agence.com" },
+  ];
+
+  /**
+   * Liste éditable dans les options : une ligne `Libellé | https://…`.
+   *
+   * Une ligne sans URL valide est ÉCARTÉE, pas conservée à moitié : coller un
+   * lien tronqué dans un DM se voit une fois qu'il est parti. Le libellé est
+   * facultatif — sans lui, l'URL se nomme elle-même.
+   */
+  function parseLinks(text) {
+    return String(text ?? "")
+      .split(/\r?\n/)
+      .map((line) => {
+        const raw = line.trim();
+        if (!raw || raw.startsWith("#")) return null;
+        const i = raw.indexOf("|");
+        const label = i >= 0 ? raw.slice(0, i).trim() : "";
+        const url = (i >= 0 ? raw.slice(i + 1) : raw).trim();
+        if (!/^https:\/\/\S+$/.test(url)) return null;
+        return { label: label || url.replace(/^https:\/\//, ""), url };
+      })
+      .filter(Boolean);
+  }
+
+  /** Remet la liste au format des options (une ligne par lien). */
+  function serializeLinks(links) {
+    return (Array.isArray(links) ? links : []).map((l) => `${l.label} | ${l.url}`).join("\n");
+  }
+
   return {
     dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread,
     parisDay, replyKey, similarity, matchStep, pendingIncoming, incomingKey,
+    DEFAULT_LINKS, parseLinks, serializeLinks,
   };
 })();
 if (typeof module !== "undefined") module.exports = NMFUtil;

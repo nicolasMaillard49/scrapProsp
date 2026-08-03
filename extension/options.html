@@ -8,6 +8,9 @@
     input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
     button { margin-top: 14px; padding: 7px 14px; border: 0; border-radius: 6px; background: #4f46e5; color: #fff; font-weight: 600; cursor: pointer; }
     #status { margin-left: 8px; color: #059669; }
+    textarea { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; font: 11.5px ui-monospace, monospace; resize: vertical; }
+    code { font: 11px ui-monospace, monospace; color: #475569; }
+    .hint { margin-top: 4px; font-size: 11px; color: #64748b; }
   </style>
 </head>
 <body>
@@ -16,7 +19,11 @@
   <input id="appUrl" placeholder="https://prospects.nmf-agence.com" />
   <label for="extToken">EXT_TOKEN</label>
   <input id="extToken" type="password" placeholder="le secret EXT_TOKEN du .env" />
+  <label for="links">Mes liens — une ligne <code>Libellé | https://…</code></label>
+  <textarea id="links" rows="7" spellcheck="false"></textarea>
+  <div class="hint" id="linksHint"></div>
   <button id="save">Enregistrer</button><span id="status"></span>
+  <script src="util.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

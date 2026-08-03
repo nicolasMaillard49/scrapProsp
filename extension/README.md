@@ -28,6 +28,22 @@ détecté dans l'app (quota, stade, relance).
 - **Raccourcis** : `Alt+I` insère l'étape à envoyer, `Alt+O` corrige le champ,
   `Alt+N` passe au suivant. Ils fonctionnent même panneau fermé.
 
+## Mes liens
+
+Les liens qu'on colle dix fois par jour — prise de RDV, simulateur, site.
+Ils vivaient dans les marque-pages : aller les chercher coupait la
+conversation en deux.
+
+Par défaut : audit gratuit 20 min, entretien exceptionnel, simulateur ROI,
+formulaire d'audit, site de l'agence. **Modifiables dans les options**, une
+ligne `Libellé | https://…` (le libellé est facultatif, une ligne sans URL
+`https://` valide est écartée et signalée — un lien tronqué ne se voit
+qu'une fois collé dans un DM parti).
+
+Le geste par défaut est **Copier**, pas ouvrir : ces liens finissent dans un
+message écrit à la main. Rien n'est inséré d'office dans le champ — la trame
+reste seule à décider de ce qui part, et quand.
+
 ## Auto-journalisation
 
 Tout ce qui part du champ est rattaché à une étape de la trame par

@@ -198,3 +198,37 @@ test("incomingKey: meme message = meme cle, insensible a la casse et aux espaces
   );
   assert.notEqual(NMFUtil.incomingKey("a", "oui"), NMFUtil.incomingKey("a", "non"));
 });
+
+test("parseLinks: libelle optionnel, une ligne par lien", () => {
+  const out = NMFUtil.parseLinks(`
+    Audit gratuit | https://rdv.nmf-agence.com/nicolas/reunion-nicolas-maillard
+    https://nmf-agence.com
+    # une note, pas un lien
+  `);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out[0], {
+    label: "Audit gratuit",
+    url: "https://rdv.nmf-agence.com/nicolas/reunion-nicolas-maillard",
+  });
+  assert.equal(out[1].label, "nmf-agence.com"); // sans libelle, l'URL se nomme elle-meme
+});
+
+test("parseLinks: une ligne sans URL valide est ecartee, pas gardee a moitie", () => {
+  // Un lien tronque ne se voit qu'une fois colle dans un DM parti.
+  assert.deepEqual(NMFUtil.parseLinks("Portfolio | nmf-agence.com"), []);
+  assert.deepEqual(NMFUtil.parseLinks("Portfolio | http://nmf-agence.com"), []);
+  assert.deepEqual(NMFUtil.parseLinks("Portfolio |"), []);
+  assert.deepEqual(NMFUtil.parseLinks(""), []);
+});
+
+test("serializeLinks: aller-retour sans perte", () => {
+  const text = NMFUtil.serializeLinks(NMFUtil.DEFAULT_LINKS);
+  assert.deepEqual(NMFUtil.parseLinks(text), NMFUtil.DEFAULT_LINKS);
+});
+
+test("DEFAULT_LINKS: tous en https, libelles renseignes", () => {
+  for (const l of NMFUtil.DEFAULT_LINKS) {
+    assert.match(l.url, /^https:\/\/\S+$/);
+    assert.ok(l.label.length > 0);
+  }
+});

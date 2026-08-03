@@ -585,6 +585,46 @@ function showStage(v) {
   });
 }
 
+// ── Mes liens ──────────────────────────────────────────────────────────────
+// Le geste par défaut est COPIER, pas ouvrir : ces liens finissent dans un DM
+// qu'on écrit à la main. Rien n'est inséré d'office dans le champ — la trame
+// décide seule de ce qui part et quand (M8 ne donne aucune ressource).
+
+async function loadLinks() {
+  const { links } = await chrome.storage.local.get("links");
+  const list = Array.isArray(links) && links.length ? links : NMFUtil.DEFAULT_LINKS;
+  $("linksOut").innerHTML = list
+    .map(
+      (l, i) => `<div class="link-row">
+        <div class="lbl"><b>${esc(l.label)}</b><span>${esc(l.url)}</span></div>
+        <button class="quiet" data-copy="${i}">Copier</button>
+        <a href="${esc(l.url)}" target="_blank" rel="noopener" title="Ouvrir">↗</a>
+      </div>`,
+    )
+    .join("");
+
+  $("linksOut").querySelectorAll("button[data-copy]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const link = list[Number(btn.dataset.copy)];
+      try {
+        await navigator.clipboard.writeText(link.url);
+        const before = btn.textContent;
+        btn.textContent = "Copié ✓";
+        setTimeout(() => { btn.textContent = before; }, 1200);
+      } catch {
+        // Presse-papiers refusé (panneau sans focus) : le lien reste
+        // sélectionnable, mais le dire vaut mieux qu'un bouton sans effet.
+        $("error").textContent = "Copie refusée — clique dans le panneau puis réessaie.";
+      }
+    });
+  });
+}
+
+// Édition dans les options : le panneau se remet à jour sans être rouvert.
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.links) loadLinks();
+});
+
 // ── File du jour : le panneau pilote, Instagram n'est plus que l'écran ─────
 
 async function loadQueue() {
@@ -713,6 +753,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   refresh(null);
   loadQueue();
   loadRadar();
+  loadLinks();
   // Laisse au content script fraîchement injecté le temps d'annoncer le
   // prospect : à la première passe, le contexte est encore vide.
   setTimeout(() => { if (!state.manual) refresh(null); }, 600);
