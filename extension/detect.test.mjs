@@ -47,6 +47,71 @@ test("loggedInAccount: lien de nav vers son propre profil (img alt « photo de p
   assert.equal(NMFDetect.loggedInAccount(vide.window.document), null);
 });
 
+test("loggedInAccount: dans un DM, l'avatar du header est celui du PROSPECT — jamais retenu", () => {
+  // Nav réduite à des icônes (cas /direct/), header = avatar du prospect.
+  const d = dom(
+    `<body>
+       <nav><a href="/direct/inbox/"><svg></svg></a></nav>
+       <header><a href="/laura_x/"><img alt="Photo de profil de laura_x" /></a></header>
+     </body>`,
+    "https://www.instagram.com/direct/t/123/",
+  );
+  assert.equal(NMFDetect.loggedInAccount(d.window.document, { exclude: "laura_x" }), null);
+  // Sans l'exclusion, on retomberait sur le prospect : c'est bien ce garde-fou
+  // qui empêche de créditer les quotas du mauvais compte.
+  assert.equal(NMFDetect.loggedInAccount(d.window.document), "laura_x");
+});
+
+test("loggedInAccount: JSON embarqué → compte connecté détecté même dans les DM", () => {
+  const d = dom(
+    `<body>
+       <nav><a href="/direct/inbox/"><svg></svg></a></nav>
+       <header><a href="/laura_x/"><img alt="Photo de profil de laura_x" /></a></header>
+       <script type="application/json">{"config":{"viewer":{"id":"42","username":"nmfagence","is_pro":true}}}</script>
+     </body>`,
+    "https://www.instagram.com/direct/t/123/",
+  );
+  assert.equal(NMFDetect.loggedInAccount(d.window.document, { exclude: "laura_x" }), "nmfagence");
+});
+
+test("loggedInAccount: la nav prime sur le JSON, et rien de plausible → null", () => {
+  const d = dom(
+    `<body>
+       <nav><a href="/nmf.agence/"><img alt="Photo de profil de nmf.agence" /></a></nav>
+       <script type="application/json">{"viewer":{"username":"vieux_compte"}}</script>
+     </body>`,
+  );
+  assert.equal(NMFDetect.loggedInAccount(d.window.document), "nmf.agence");
+  assert.equal(NMFDetect.loggedInAccount(dom("<body></body>").window.document), null);
+});
+
+test("conversationThread: rend le fil ordonné avec l'auteur de chaque message", () => {
+  const d = dom(`<body>
+    <div role="row" aria-label="Vous avez envoyé : Hello ! Vous êtes toujours menuisier ?"><span>Hello ! Vous êtes toujours menuisier ?</span></div>
+    <div role="row"><img alt="Photo de profil de laura_x" /><span>Oui toujours</span></div>
+    <div role="row" aria-label="Vous avez envoyé : Parfait !"><span>Parfait !</span></div>
+    <div role="row"><img alt="Photo de profil de laura_x" /><span>C'est quoi votre tarif ?</span></div>
+  </body>`);
+  const rows = NMFDetect.conversationThread(d.window.document, { username: "laura_x" });
+  assert.deepEqual(
+    rows.map((r) => r.from),
+    ["moi", "lui", "moi", "lui"],
+  );
+  assert.equal(rows[3].text, "C'est quoi votre tarif ?");
+  assert.equal(NMFDetect.lastIncomingText(d.window.document, { username: "laura_x" }), "C'est quoi votre tarif ?");
+});
+
+test("conversationThread: auteur indéterminé reste « ? » — on n'invente pas", () => {
+  const d = dom(`<body>
+    <div role="row"><span>message sans le moindre indice</span></div>
+    <div role="row"><span>Vu</span></div>
+  </body>`);
+  const rows = NMFDetect.conversationThread(d.window.document);
+  assert.equal(rows.length, 1, "les accusés de lecture ne sont pas des messages");
+  assert.equal(rows[0].from, "?");
+  assert.deepEqual(NMFDetect.conversationThread(null), []);
+});
+
 test("lastIncomingText: rend le dernier message REÇU, pas le dernier envoyé", () => {
   const d = dom(`<body>
     <div role="row" aria-label="Vous avez envoyé : Hello ! Vous êtes toujours menuisier ?"><span>Hello ! Vous êtes toujours menuisier ?</span></div>

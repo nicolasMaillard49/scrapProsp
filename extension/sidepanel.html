@@ -30,7 +30,8 @@
     #ai { border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 8px; }
     #ai .head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     #ai strong { font-size: 12px; }
-    textarea { width: 100%; min-height: 54px; margin-top: 6px; padding: 6px; font: 12px system-ui; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; resize: vertical; }
+    code { font: 11px ui-monospace, monospace; background: light-dark(#f1f5f9, #1e293b); padding: 0 3px; border-radius: 3px; }
+    textarea { width: 100%; min-height: 110px; margin-top: 6px; padding: 6px; font: 12px system-ui; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; resize: vertical; }
     .sugg { border: 1px solid light-dark(#e2e8f0, #334155); border-left: 3px solid #0d9488; border-radius: 6px; padding: 7px; margin-top: 7px; }
     .sugg .tag { font: 700 10px system-ui; text-transform: uppercase; color: #0d9488; }
     .sugg p { margin: 4px 0 6px; font-size: 12px; white-space: pre-line; }
@@ -71,8 +72,9 @@
       <button id="aiToggle" class="link">déplier</button>
     </div>
     <div id="aiBody" hidden>
-      <div class="muted">Quand il répond un truc que la trame ne prévoit pas.</div>
-      <textarea id="aiIncoming" placeholder="Son dernier message…"></textarea>
+      <div class="muted">Le fil est relu automatiquement — <code>moi:</code> tes messages, <code>lui:</code> les siens. Corrige si besoin.</div>
+      <textarea id="aiIncoming" placeholder="lui: son message&#10;moi: ta réponse&#10;lui: sa relance…"></textarea>
+      <div id="aiHint" class="warn"></div>
       <div class="row">
         <button id="aiGen" class="primary">Générer 3 réponses</button>
         <button id="aiGrab" class="link">↻ relire le fil</button>

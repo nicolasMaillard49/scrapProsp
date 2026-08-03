@@ -33,8 +33,15 @@ détecté dans l'app (quota, stade, relance).
 ## Réponse IA (hors trame)
 
 Quand le prospect répond quelque chose que la trame ne prévoit pas : déplie
-« Réponse IA », relis le message récupéré du fil (corrige-le si besoin),
-« Générer 3 réponses » → `POST /api/instagram/reply-ai`.
+« Réponse IA ». Le **fil complet** est relu et mis en texte éditable, une ligne
+par message — `moi:` les tiens, `lui:` les siens, `?:` quand l'auteur n'a pas pu
+être déterminé (corrige-le, c'est un caractère). Puis « Générer 3 réponses »
+→ `POST /api/instagram/reply-ai`, qui reçoit tout le fil comme contexte.
+
+L'auteur de chaque message est déterminé par stratégies décroissantes :
+nom accessible (« Vous avez envoyé… »), avatar du prospect dans la ligne,
+alignement calculé, et enfin correspondance avec un message de la trame
+(un texte qui EST une étape de la trame vient forcément de toi).
 
 Le prompt (`app/lib/igReplyPrompt.ts`) impose la méthode : vouvoiement,
 1-3 phrases, **aucune signature ni coordonnée**, aucun lien avant M9, aucun
@@ -45,7 +52,7 @@ journalisée et ne fait pas avancer le stade.
 
 ## Quand Instagram casse la détection
 
-Tout le couplage DOM vit dans `detect.js` (5 fonctions). Réparer là, puis :
+Tout le couplage DOM vit dans `detect.js` (6 fonctions). Réparer là, puis :
 `node --test extension/detect.test.mjs`
 
 ## Tests

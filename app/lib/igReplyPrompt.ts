@@ -20,7 +20,10 @@ export interface ReplyContext {
   nextStep: string | null;
   /** Ce que le prospect vient d'écrire. */
   incoming: string;
-  /** Contexte optionnel de la conversation (copié du fil). */
+  /**
+   * Fil de la conversation, une ligne par message préfixée de son auteur :
+   * `moi:` (Nicolas), `lui:` (le prospect), `?:` (auteur incertain).
+   */
   history?: string;
 }
 
@@ -68,6 +71,13 @@ ${
     ? `Le prochain message prévu par la trame est ${target.step} (« ${target.title} »). Ton objectif : répondre à ce que le prospect vient de dire, puis ramener naturellement la conversation vers ce message-là — sans le recopier mot pour mot si ça tombe à plat.`
     : `La trame n'a plus d'étape à proposer (séquence terminée ou close). Réponds de façon utile sans relancer de séquence.`
 }
+
+# Lire la conversation
+Le fil t'est donné une ligne par message, préfixée par son auteur :
+- \`moi:\` = un message déjà envoyé par Nicolas ;
+- \`lui:\` = un message du prospect ;
+- \`?:\` = auteur incertain (détection imparfaite) — sers-t'en pour le sens, jamais pour affirmer qui a dit quoi.
+Sers-toi de TOUT le fil, pas seulement du dernier message : ce qui a déjà été demandé, ce qu'il a déjà répondu, son niveau d'intérêt et son ton (s'il tutoie, s'il écrit court, s'il plaisante). Ne repose jamais une question déjà posée et ne répète jamais un message déjà envoyé — s'il n'a pas répondu à une question, reformule-la autrement plutôt que de la recopier.
 
 # Règles absolues
 - Vouvoiement, ton direct et humain, jamais commercial ni "corporate".

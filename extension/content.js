@@ -10,7 +10,9 @@
   /** Annonce le contexte courant (pseudo affiché + compte connecté). */
   function announce() {
     const username = NMFDetect.currentUsername(location, document);
-    const account = NMFDetect.loggedInAccount(document);
+    // exclude : dans un DM, l'avatar du header est celui du prospect — sans ça
+    // il serait pris pour le compte connecté.
+    const account = NMFDetect.loggedInAccount(document, { exclude: username });
     const key = `${username}|${account}`;
     if (key === lastAnnounced) return;
     lastAnnounced = key;
@@ -55,9 +57,14 @@
         chrome.runtime.sendMessage({ type: "ig:sent" }).catch(() => {});
       });
       sendResponse({ ok: true });
-    } else if (msg?.type === "ig:last-incoming") {
-      // Lecture seule du fil : sert à pré-remplir le champ « réponse IA ».
-      sendResponse({ text: NMFDetect.lastIncomingText(document) });
+    } else if (msg?.type === "ig:thread") {
+      // Lecture seule du fil : alimente le bloc « réponse IA ». Le pseudo du
+      // prospect aide à reconnaître son avatar donc ses messages.
+      sendResponse({
+        rows: NMFDetect.conversationThread(document, {
+          username: msg.username || NMFDetect.currentUsername(location, document),
+        }),
+      });
     } else if (msg?.type === "ig:rescan") {
       // Le sidepanel peut demander un re-scan explicite (à son ouverture).
       lastAnnounced = "";

@@ -31,6 +31,60 @@ const NMFUtil = (() => {
     return match ? match.id : null;
   }
 
-  return { dedupeKey, shouldLog, prune, pickAccountId };
+  // ── Fil de conversation ──────────────────────────────────────────────────
+  // Format d'échange : une ligne par message, préfixée par son auteur.
+  //   moi: …   ce que Nicolas a envoyé
+  //   lui: …   ce que le prospect a écrit
+  //   ?: …     auteur indéterminé — à corriger d'un caractère
+
+  const SPEAKER = /^\s*(moi|lui|prospect|me|him|her|\?)\s*:\s?([\s\S]*)$/i;
+  const norm = (s) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+
+  /**
+   * Met en texte le fil détecté. Les auteurs restés indéterminés sont d'abord
+   * confrontés aux messages que l'app dit avoir été envoyés (la trame) : un
+   * texte qui EST un message de la trame vient forcément de Nicolas.
+   */
+  function formatThread(rows, sentTexts = []) {
+    const known = new Set(sentTexts.map(norm).filter(Boolean));
+    return (Array.isArray(rows) ? rows : [])
+      .filter((r) => r && String(r.text ?? "").trim())
+      .map((r) => {
+        let who = r.from === "moi" ? "moi" : r.from === "lui" ? "lui" : "?";
+        if (who === "?" && known.has(norm(r.text))) who = "moi";
+        // Une ligne par message : les retours et espaces multiples du DOM
+        // d'Instagram casseraient le format « auteur: message ».
+        return `${who}: ${String(r.text).replace(/\s+/g, " ").trim()}`;
+      })
+      .join("\n");
+  }
+
+  /**
+   * Sépare le fil édité en (fil complet, dernier message du prospect).
+   * Sans aucun préfixe reconnu, tout le texte est pris pour le message du
+   * prospect — le cas « je colle juste ce qu'il m'a écrit » doit marcher.
+   */
+  function splitThread(text) {
+    const raw = String(text ?? "").trim();
+    if (!raw) return { incoming: "", history: "" };
+    const blocks = [];
+    for (const line of raw.split(/\r?\n/)) {
+      const m = SPEAKER.exec(line);
+      if (m) {
+        const who = /^(moi|me)$/i.test(m[1]) ? "moi" : m[1] === "?" ? "?" : "lui";
+        blocks.push({ from: who, text: m[2] });
+      } else if (blocks.length) {
+        blocks[blocks.length - 1].text += `\n${line}`; // suite du message précédent
+      } else {
+        blocks.push({ from: "?", text: line });
+      }
+    }
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      if (blocks[i].from === "lui") return { incoming: blocks[i].text.trim(), history: raw };
+    }
+    return { incoming: raw, history: "" };
+  }
+
+  return { dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread };
 })();
 if (typeof module !== "undefined") module.exports = NMFUtil;

@@ -192,32 +192,42 @@ async function insert(step) {
 // Aide à la rédaction uniquement : une réponse IA n'est pas une étape de la
 // séquence, donc elle n'est jamais journalisée et ne fait pas bouger le stade.
 
-async function grabIncoming() {
+/** Relit le fil affiché et le met en texte éditable (« moi: » / « lui: »). */
+async function grabThread() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
-  const r = await chrome.tabs.sendMessage(tab.id, { type: "ig:last-incoming" }).catch(() => null);
-  if (r?.text) $("aiIncoming").value = r.text;
+  const r = await chrome.tabs.sendMessage(tab.id, { type: "ig:thread", username: state.username }).catch(() => null);
+  const rows = r?.rows ?? [];
+  if (!rows.length) return;
+  // Les messages de la trame sont, par construction, ceux de Nicolas : ils
+  // lèvent l'ambiguïté sur les lignes qu'Instagram n'étiquette pas.
+  const sent = (state.data?.steps ?? []).map((s) => s.text);
+  $("aiIncoming").value = NMFUtil.formatThread(rows, sent);
+  const unknown = rows.filter((x) => x.from !== "moi" && x.from !== "lui").length;
+  $("aiHint").textContent = unknown
+    ? `${unknown} ligne(s) « ?: » — corrige en « moi: » ou « lui: » avant de générer.`
+    : "";
 }
 
 $("aiToggle").addEventListener("click", async () => {
   const body = $("aiBody");
   body.hidden = !body.hidden;
   $("aiToggle").textContent = body.hidden ? "déplier" : "replier";
-  if (!body.hidden && !$("aiIncoming").value.trim()) await grabIncoming();
+  if (!body.hidden && !$("aiIncoming").value.trim()) await grabThread();
 });
 
-$("aiGrab").addEventListener("click", grabIncoming);
+$("aiGrab").addEventListener("click", grabThread);
 
 $("aiGen").addEventListener("click", async () => {
   if (state.aiBusy) return;
-  const incoming = $("aiIncoming").value.trim();
-  if (!incoming) { $("error").textContent = "Colle son message d'abord."; return; }
+  const { incoming, history } = NMFUtil.splitThread($("aiIncoming").value);
+  if (!incoming) { $("error").textContent = "Colle son message (ou le fil) d'abord."; return; }
   state.aiBusy = true;
   $("aiGen").disabled = true;
   $("aiGen").textContent = "Génération…";
   $("aiOut").innerHTML = "";
   try {
-    const r = await chrome.runtime.sendMessage({ type: "ig:ai-reply", username: state.username, incoming });
+    const r = await chrome.runtime.sendMessage({ type: "ig:ai-reply", username: state.username, incoming, history });
     if (r?.status !== 200) {
       $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`;
       return;
@@ -274,6 +284,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     // Nouvelle conversation : ce qui restait du bloc IA ne la concerne pas.
     $("aiIncoming").value = "";
     $("aiOut").innerHTML = "";
+    $("aiHint").textContent = "";
     refresh(msg.username, msg.account);
   }
   if (msg?.type === "ig:logged") {

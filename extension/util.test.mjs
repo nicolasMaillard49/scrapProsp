@@ -46,6 +46,54 @@ test("pickAccountId: aucune liste exploitable = null, jamais une exception", () 
   assert.equal(NMFUtil.pickAccountId(null, null), null);
 });
 
+test("formatThread: une ligne par message, prefixee par son auteur", () => {
+  const rows = [
+    { from: "moi", text: "Hello ! Vous etes toujours menuisier ?" },
+    { from: "lui", text: "Oui toujours" },
+    { from: "?", text: "ligne ambigue" },
+  ];
+  assert.equal(
+    NMFUtil.formatThread(rows),
+    "moi: Hello ! Vous etes toujours menuisier ?\nlui: Oui toujours\n?: ligne ambigue",
+  );
+});
+
+test("formatThread: une ligne ambigue qui EST un message de la trame vient de Nicolas", () => {
+  const trame = ["Parfait ! Votre post est remonte dans mon feed."];
+  const rows = [{ from: "?", text: "Parfait !  Votre post est remonte  dans mon feed." }];
+  // Comparaison normalisee (espaces, casse) : la trame leve l'ambiguite.
+  assert.equal(NMFUtil.formatThread(rows, trame), "moi: Parfait ! Votre post est remonte dans mon feed.");
+});
+
+test("formatThread: entrees vides ignorees, liste absente = chaine vide", () => {
+  assert.equal(NMFUtil.formatThread([{ from: "lui", text: "   " }, null]), "");
+  assert.equal(NMFUtil.formatThread(undefined), "");
+});
+
+test("splitThread: le dernier « lui: » est le message auquel on repond", () => {
+  const txt = "moi: Hello\nlui: Oui toujours\nmoi: Parfait !\nlui: c'est quoi votre tarif ?";
+  const { incoming, history } = NMFUtil.splitThread(txt);
+  assert.equal(incoming, "c'est quoi votre tarif ?");
+  assert.equal(history, txt, "le fil complet part en contexte");
+});
+
+test("splitThread: message multiligne — les lignes suivantes restent collees a leur auteur", () => {
+  const txt = "lui: bonjour\net sinon vous faites quoi exactement ?\nmoi: je vous explique";
+  assert.equal(NMFUtil.splitThread(txt).incoming, "bonjour\net sinon vous faites quoi exactement ?");
+});
+
+test("splitThread: texte colle sans prefixe = le message du prospect, sans fil", () => {
+  const { incoming, history } = NMFUtil.splitThread("  c'est combien ?  ");
+  assert.equal(incoming, "c'est combien ?");
+  assert.equal(history, "");
+});
+
+test("splitThread: aucun « lui: » (que des messages sortants) → repli sur le texte entier", () => {
+  const { incoming } = NMFUtil.splitThread("moi: Hello\nmoi: toujours la ?");
+  assert.equal(incoming, "moi: Hello\nmoi: toujours la ?");
+  assert.deepEqual(NMFUtil.splitThread("   "), { incoming: "", history: "" });
+});
+
 test("prune: garde les plus recents, borne la taille", () => {
   const keys = Array.from({ length: 250 }, (_, i) => `k${i}`);
   const pruned = NMFUtil.prune(keys, 200);
