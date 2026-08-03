@@ -9,6 +9,7 @@
 
 import { REPLY_KINDS, STAGES, STAGE_LABEL, type ReplyKind, type Stage } from "./igPipeline";
 import { skillForWriting } from "./igSkill";
+import { stripFence, firstParsableObject } from "./jsonSalvage";
 
 export interface ClassifyVerdict {
   /** Le prospect a écrit quelque chose après le premier message de Nicolas. */
@@ -72,19 +73,23 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour, sans bloc de c
  * qualification par défaut — ils produisent « rien à conclure ».
  */
 export function parseVerdict(raw: string): ClassifyVerdict | null {
-  const text = (raw ?? "").trim();
-  if (!text) return null;
-  const unfenced = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+  const unfenced = stripFence(raw);
+  if (!unfenced) return null;
+
+  // Parse strict d'abord, puis sauvetage : une réponse coupée après le verdict
+  // reste parfaitement lisible, il serait absurde de la jeter.
+  let o: Record<string, unknown> | null = null;
   const start = unfenced.indexOf("{");
   const end = unfenced.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-
-  let o: Record<string, unknown>;
-  try {
-    o = JSON.parse(unfenced.slice(start, end + 1)) as Record<string, unknown>;
-  } catch {
-    return null;
+  if (start >= 0 && end > start) {
+    try {
+      o = JSON.parse(unfenced.slice(start, end + 1)) as Record<string, unknown>;
+    } catch {
+      o = null;
+    }
   }
+  if (!o) o = firstParsableObject(unfenced);
+  if (!o) return null;
 
   const replied = o.replied === true;
   const kindRaw = typeof o.kind === "string" ? o.kind.toLowerCase().trim() : "";

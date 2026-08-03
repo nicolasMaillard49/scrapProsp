@@ -5,6 +5,7 @@
 
 import type { TrameStep } from "./igTrame";
 import { skillForWriting } from "./igSkill";
+import { stripFence, balancedObjects } from "./jsonSalvage";
 
 export interface ReplyProspect {
   username: string;
@@ -117,22 +118,6 @@ export function buildReplyUserMessage(ctx: ReplyContext): string {
  * ne doit jamais rendre la fonctionnalité inutilisable — au pire on rend le
  * texte brut comme proposition unique, à Nicolas de juger.
  */
-/**
- * Extrait tous les objets `{...}` équilibrés d'un texte, imbriqués compris.
- * Sert à récupérer les propositions d'un JSON TRONQUÉ : quand la réponse est
- * coupée en cours de route, le tableau extérieur n'est jamais refermé, mais
- * les premiers objets, eux, sont complets et parfaitement exploitables.
- */
-function balancedObjects(s: string): string[] {
-  const stack: number[] = [];
-  const out: string[] = [];
-  for (let i = 0; i < s.length; i++) {
-    if (s[i] === "{") stack.push(i);
-    else if (s[i] === "}" && stack.length) out.push(s.slice(stack.pop() as number, i + 1));
-  }
-  return out;
-}
-
 function toSuggestion(v: unknown): ReplySuggestion | null {
   const o = v as { label?: unknown; text?: unknown };
   const t = typeof o?.text === "string" ? o.text.trim() : "";
@@ -142,11 +127,9 @@ function toSuggestion(v: unknown): ReplySuggestion | null {
 }
 
 export function parseSuggestions(raw: string): ReplySuggestion[] {
-  const text = (raw ?? "").trim();
-  if (!text) return [];
+  const unfenced = stripFence(raw);
+  if (!unfenced) return [];
 
-  // Retire un éventuel bloc de code ```json … ```
-  const unfenced = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
   // Isole le premier objet JSON plausible (le modèle bavarde parfois autour).
   const start = unfenced.indexOf("{");
   const end = unfenced.lastIndexOf("}");

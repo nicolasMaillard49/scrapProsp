@@ -114,7 +114,21 @@ export async function POST(req: NextRequest) {
     const raw = msg.content.map((c) => (c.type === "text" ? c.text : "")).join("");
     const verdict = parseVerdict(raw);
     if (!verdict) {
-      return NextResponse.json({ error: "Qualification non concluante — à saisir à la main." }, { status: 502 });
+      // Diagnostic embarqué : sans lui, « non concluante » ne dit pas si le
+      // modèle a été coupé, a refusé, ou a rendu autre chose que du JSON.
+      return NextResponse.json(
+        {
+          error: "Qualification non concluante — à saisir à la main.",
+          debug: {
+            model: msg.model,
+            stopReason: msg.stop_reason,
+            blocks: msg.content.map((c) => c.type),
+            rawLength: raw.length,
+            rawHead: raw.slice(0, 200),
+          },
+        },
+        { status: 502 },
+      );
     }
     return NextResponse.json({
       verdict,
