@@ -153,6 +153,36 @@ const PROSPECT_COLUMNS =
   "id,username,full_name,bio,external_url,followers,category,metier,ville,booking_platform,hashtag_source,status,notes,discovered_at,email,phone,has_website,score,score_tier,qualification,qualification_reason,profession_ia,last_post_at,stage,followup_count,next_followup_at,last_dm_at,contacted_by,reply_count,first_reply_at";
 
 /**
+ * Plafond DUR de PostgREST (`db-max-rows` côté Supabase) : au-delà, le serveur
+ * tronque en silence. Demander plus ne sert à rien — il faut paginer.
+ */
+const PAGE_SIZE = 1000;
+/** Garde-fou : 20 pages = 20 000 prospects travaillés, très au-delà du réel (447). */
+const MAX_PAGES = 20;
+
+/**
+ * Tous les prospects ENGAGÉS — ceux qui ont un stade ou un DM envoyé. Paginé,
+ * car c'est le jeu qui grossit avec l'activité et qui doit être complet : c'est
+ * lui qui remplit les colonnes du pipeline.
+ */
+async function fetchWorkedProspects(): Promise<{ data: IgLead[] | null; error: { message: string } | null }> {
+  const out: IgLead[] = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { data, error } = await supabase
+      .from("instagram_prospects")
+      .select(PROSPECT_COLUMNS)
+      .or("stage.not.is.null,last_dm_at.not.is.null")
+      .order("discovered_at", { ascending: false })
+      .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+    if (error) return { data: null, error };
+    const rows = (data ?? []) as IgLead[];
+    out.push(...rows);
+    if (rows.length < PAGE_SIZE) break; // page incomplète = fin du jeu
+  }
+  return { data: out, error: null };
+}
+
+/**
  * Nom d'onglet FIXE pour Instagram : chaque ouverture réutilise le même onglet
  * (au lieu d'en empiler un nouveau à chaque prospect → Chrome saturé). `target`
  * sur les liens + 2e argument de window.open.
@@ -243,6 +273,9 @@ export default function InstagramPage() {
   // trompeur dans l'en-tête. `loadError` remonte une panne au lieu de la taire.
   const [firstLoaded, setFirstLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Stock RÉEL de la file « À contacter » en base. On n'en charge qu'une page :
+  // ce compteur évite d'afficher « 1000 » pour 5297 (troncature silencieuse).
+  const [todoStock, setTodoStock] = useState<number | null>(null);
   // Cockpit replié par défaut sur mobile (la file d'abord) ; toujours ouvert ≥ xl.
   const [cockpitOpen, setCockpitOpen] = useState(false);
   // Ordre : « recent » (défaut), « followers » (abonnés décroissants) ou « random ».
@@ -846,8 +879,20 @@ export default function InstagramPage() {
     [villeInput, toggleCompetitors],
   );
 
-  // Charge TOUS les prospects, du plus récent au plus ancien.
-  // Toute panne est remontée dans `loadError` (plus de « 0 » silencieux).
+  /**
+   * Charge les prospects en DEUX requêtes disjointes, et non plus « les N plus
+   * récents » — ce tri seul vidait le pipeline.
+   *
+   * Le scraper empile bien plus vite qu'on ne démarche (5 300 en attente pour
+   * 50 DM/jour). Un simple `order(discovered_at desc).limit(n)` ne ramenait donc
+   * QUE des profils jamais contactés : les prospects travaillés, plus anciens,
+   * tombaient hors fenêtre et toutes les cartes atterrissaient dans « À contacter ».
+   * Aggravé par le plafond serveur : PostgREST coupe à 1000 lignes quoi qu'on
+   * demande, donc `.limit(2000)` n'en servait que la moitié.
+   *
+   *   1. les TRAVAILLÉS (stade ou DM posé) — tous, paginés : c'est eux le pipeline ;
+   *   2. la FILE d'attente — une page des plus récents suffit à alimenter la journée.
+   */
   const loadLeads = useCallback(async () => {
     if (!supabaseConfigured) {
       // Cause n°1 d'un « 0 prospects » : les clés NEXT_PUBLIC_SUPABASE_* sont
@@ -864,14 +909,27 @@ export default function InstagramPage() {
     // ou dépasser le statement_timeout au 1er appel — le 2e passe presque toujours.
     let lastErr: string | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
-      const { data, error } = await supabase
-        .from("instagram_prospects")
-        .select(PROSPECT_COLUMNS)
-        .order("discovered_at", { ascending: false })
-        .limit(2000);
+      const [worked, queue, stock] = await Promise.all([
+        fetchWorkedProspects(),
+        supabase
+          .from("instagram_prospects")
+          .select(PROSPECT_COLUMNS)
+          .is("stage", null)
+          .is("last_dm_at", null)
+          .order("discovered_at", { ascending: false })
+          .limit(PAGE_SIZE),
+        supabase
+          .from("instagram_prospects")
+          .select("id", { count: "exact", head: true })
+          .is("stage", null)
+          .is("last_dm_at", null),
+      ]);
+      const error = worked.error ?? queue.error;
       if (!error) {
         setLoadError(null);
-        setLeads((data ?? []) as IgLead[]);
+        // Prédicats disjoints (stade/DM posé vs ni l'un ni l'autre) : pas de doublon.
+        setLeads([...(worked.data ?? []), ...((queue.data ?? []) as IgLead[])]);
+        setTodoStock(stock.count ?? null);
         setFirstLoaded(true);
         setLoading(false);
         return;
@@ -1008,6 +1066,16 @@ export default function InstagramPage() {
     }
     return cols;
   }, [baseFiltered, orderMode]);
+
+  /**
+   * « À contacter » n'est chargé qu'une page (`PAGE_SIZE`) : on le DIT plutôt que
+   * d'afficher un total faux. Les autres colonnes, elles, sont exhaustives.
+   */
+  const todoNote = useMemo(() => {
+    const loaded = leads.filter((l) => !l.stage && !l.last_dm_at).length;
+    if (todoStock == null || todoStock <= loaded) return null;
+    return `${loaded} chargés sur ${todoStock} en file`;
+  }, [leads, todoStock]);
 
   // Pastilles de statut : comptées sur la base filtrée → elles suivent les filtres actifs.
   const counts = useMemo(() => {
@@ -1668,6 +1736,7 @@ export default function InstagramPage() {
                       key={col.key}
                       col={col}
                       items={pipeline[col.key] ?? []}
+                      note={col.key === "todo" ? todoNote : null}
                       cardProps={{
                         origin,
                         activeAccount,
@@ -2788,10 +2857,13 @@ function SelectionView({
 function PipelineColumn({
   col,
   items,
+  note,
   cardProps,
 }: {
   col: { key: string; label: string; tone: StageTone };
   items: IgLead[];
+  /** Mention sous l'en-tête quand la colonne n'est pas exhaustive (file « À contacter »). */
+  note?: string | null;
   cardProps: PipelineCardHandlers;
 }) {
   const droppable = col.key !== "todo";
@@ -2809,6 +2881,7 @@ function PipelineColumn({
         <span className={`text-xs font-semibold ${tone.text}`}>{col.label}</span>
         <span className="font-mono-num text-[11px] text-[var(--color-text-muted)]">{items.length}</span>
       </div>
+      {note && <p className="px-1 pb-1.5 text-[10px] text-[var(--color-text-muted)]">{note}</p>}
       <div className={`h-[3px] rounded-full mb-2.5 ${items.length ? tone.rail : "bg-[var(--color-border)]"}`} />
       <div className="flex flex-col gap-2 min-h-[44px]">
         {items.length === 0 ? (
