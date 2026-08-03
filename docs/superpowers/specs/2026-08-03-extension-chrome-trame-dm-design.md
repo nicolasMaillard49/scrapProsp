@@ -107,6 +107,37 @@ depuis le service worker, couvert par `host_permissions`, il n'y a **pas de pré
 CORS à gérer**. D'où : `content.js` observe et manipule, `background.js` parle au réseau,
 les deux communiquent par `chrome.runtime.sendMessage`.
 
+### Portabilité navigateurs — par structure, pas par abstraction
+
+Décision analysée (Chrome pur / module d'abstraction du panneau / structure portable) :
+un module d'abstraction n'aurait presque rien à envelopper — le side panel est
+**déclaratif** (un chemin dans le manifest, un unique `setPanelBehavior` à l'install).
+On obtient la même portabilité sans couche d'indirection :
+
+- **Manifest à double déclaration** — chaque navigateur lit la clé qu'il connaît,
+  l'autre est ignorée (motif documenté MDN) :
+
+  ```jsonc
+  "background": {
+    "service_worker": "background.js",   // Chrome/Edge/Brave
+    "scripts": ["background.js"]         // Firefox (event page)
+  },
+  "side_panel":     { "default_path":  "sidepanel.html" },   // Chrome
+  "sidebar_action": { "default_panel": "sidepanel.html" }    // Firefox
+  ```
+
+- **Namespace `chrome.*` partout** : Firefox le supporte pour tout ce qu'on utilise
+  (runtime, storage, tabs). Aucun polyfill.
+- **Le seul appel spécifique Chrome** — `chrome.sidePanel.setPanelBehavior(…)` à
+  l'installation — est gardé par `if (chrome.sidePanel)`.
+- La page du panneau est du HTML/JS ordinaire alimenté par messages runtime :
+  identique dans les deux navigateurs.
+
+Chromium (Edge, Brave, Opera…) : le dossier se charge tel quel. Firefox : les clés
+ci-dessus suffisent côté code ; reste la friction de **signature** (une extension non
+signée n'y survit pas au redémarrage) — assumée hors périmètre tant que le besoin
+n'existe pas.
+
 ## 6. `detect.js` — toute la fragilité dans un seul fichier
 
 Seul module qui connaît le DOM d'Instagram. Quatre fonctions, une responsabilité chacune :
@@ -175,5 +206,6 @@ fois, donc :
 ## 11. Hors périmètre
 
 Envoi automatique · réponses suggérées par IA · scraping depuis l'extension · publication
-sur le Chrome Web Store · support Firefox · lecture des réponses entrantes (elle reste dans
-`ReplyButton` côté app).
+sur le Chrome Web Store · signature Mozilla et Safari (la structure du § 5 laisse Firefox
+ouvert, on ne paie la signature que si le besoin arrive) · lecture des réponses entrantes
+(elle reste dans `ReplyButton` côté app).
