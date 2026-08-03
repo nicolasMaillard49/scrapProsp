@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
+import { sinceParisDays } from "@/app/lib/igKpiWindow";
 
 export const dynamic = "force-dynamic";
-
-const DAY_MS = 24 * 3600_000;
 
 /** Jour civil Europe/Paris (YYYY-MM-DD) d'un timestamp ISO. */
 function parisDate(iso: string): string {
@@ -69,7 +68,10 @@ function strongest(kinds: Set<string>): "positive" | "refus" | "neutre" {
 export async function GET(req: NextRequest) {
   if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
   const days = Math.min(180, Math.max(1, Number(req.nextUrl.searchParams.get("days")) || 3));
-  const since = new Date(Date.now() - days * DAY_MS).toISOString();
+  // JOURS CIVILS Paris, pas une fenêtre glissante : les agrégats sont indexés
+  // par jour, donc une borne « il y a N×24 h » amputait toujours le jour le
+  // plus ancien — et le Sheet le réécrivait tronqué à chaque resynchro.
+  const since = sinceParisDays(new Date(), days);
 
   const [{ data: logs, error: e1 }, { data: booked, error: e2 }, { data: m2rows, error: e3 }, { data: replies, error: e4 }] =
     await Promise.all([
