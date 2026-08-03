@@ -24,3 +24,9 @@ test("extAuth: portée bornée à /api/instagram/ — rien d'autre", () => {
   assert.equal(isExtRequestAllowed("/api/eligibilite/create", "s3cret", "s3cret"), false);
   assert.equal(isExtRequestAllowed("/instagram", "s3cret", "s3cret"), false);
 });
+
+test("extAuth: allowlist STRICTE — même sous /api/instagram/, seules /trame et /dm passent", () => {
+  assert.equal(isExtRequestAllowed("/api/instagram/export", "s3cret", "s3cret"), false);
+  assert.equal(isExtRequestAllowed("/api/instagram/discover", "s3cret", "s3cret"), false);
+  assert.equal(isExtRequestAllowed("/api/instagram/trame/x", "s3cret", "s3cret"), false);
+});

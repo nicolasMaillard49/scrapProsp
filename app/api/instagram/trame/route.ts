@@ -21,14 +21,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const [prospectRes, accounts] = await Promise.all([
+      // eq (pas ilike) : la colonne est UNIQUE + lowercase et le paramètre est
+      // déjà toLowerCase() — ilike laisserait `_`/`%` agir comme joker SQL
+      // (mauvais prospect renvoyé, ou 500 sur doublon de motif).
       username
-        ? supabase.from("instagram_prospects").select(TRAME_COLUMNS).ilike("username", username).maybeSingle()
+        ? supabase.from("instagram_prospects").select(TRAME_COLUMNS).eq("username", username).maybeSingle()
         : Promise.resolve({ data: null, error: null }),
       getAccountsWithCounters(new Date()),
     ]);
     if (prospectRes.error) return NextResponse.json({ error: prospectRes.error.message }, { status: 500 });
 
-    const payload = buildTrame((prospectRes.data as TrameProspect | null) ?? null, req.nextUrl.origin);
+    // Même motif que app/api/blast/route.ts : l'origin de la requête est
+    // l'URL tapée dans les options de l'extension (localhost en dev) — le
+    // lien de démo part dans un vrai DM, il ne doit jamais pointer dessus.
+    const base = (process.env.NEXT_PUBLIC_DEMO_BASE_URL ?? "").replace(/\/$/, "") || req.nextUrl.origin;
+    const payload = buildTrame((prospectRes.data as TrameProspect | null) ?? null, base);
     return NextResponse.json({
       ...payload,
       accounts: accounts.map((a) => ({
