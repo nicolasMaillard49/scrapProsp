@@ -4,6 +4,12 @@
 // AUCUN clic programmatique sur « Envoyer » — l'humain envoie.
 
 (() => {
+  // Ré-injection après un rechargement de l'extension : sans cette garde, on
+  // empilerait un second intervalle et un second écouteur de messages, chacun
+  // répondant à la même requête.
+  if (window.__nmfTrameContent) return;
+  window.__nmfTrameContent = true;
+
   let lastAnnounced = "";
   let unwatch = () => {};
 
@@ -58,6 +64,9 @@
       unwatch = NMFDetect.watchSend(node, () => {
         chrome.runtime.sendMessage({ type: "ig:sent" }).catch(() => {});
       });
+      sendResponse({ ok: true });
+    } else if (msg?.type === "ig:ping") {
+      // Sert au service worker à savoir si ce script est encore vivant.
       sendResponse({ ok: true });
     } else if (msg?.type === "ig:composer-text") {
       const node = NMFDetect.composerNode(document);

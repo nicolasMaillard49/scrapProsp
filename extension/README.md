@@ -64,6 +64,18 @@ réécriture ou une explication, pas une correction — et rend l'original.
 L'armement de journalisation **survit** à la correction : c'est le même
 message, donc la même étape de la trame.
 
+## Après un rechargement de l'extension
+
+Recharger l'extension **orpheline** les content scripts déjà injectés : la page
+Instagram reste ouverte mais plus rien de l'extension n'y tourne — le champ,
+le prospect et le fil deviennent tous introuvables en même temps, sans erreur
+visible. Le service worker ping donc la page et **ré-injecte** `detect.js` +
+`content.js` au besoin (permission `scripting`) : aucune page à recharger.
+
+Symptôme d'une version antérieure à ce correctif : « Le champ est vide » alors
+qu'il ne l'est pas, et « Aucune conversation détectée » sur une conversation
+ouverte. Recharge la page Instagram une dernière fois.
+
 ## Quand Instagram casse la détection
 
 **Filet immédiat** : si le prospect n'est pas détecté, le panneau affiche un

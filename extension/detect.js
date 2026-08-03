@@ -6,7 +6,10 @@
 // Script classique (pas un module ES) : content scripts MV3 en scope partagé.
 // ══════════════════════════════════════════════════════════════════════
 
-const NMFDetect = (() => {
+// `var` et garde de réinjection : après un rechargement de l'extension, ce
+// fichier peut être ré-injecté dans une page qui l'a déjà exécuté — un `const`
+// y jetterait « NMFDetect has already been declared » et tuerait l'injection.
+var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   // Segments de premier niveau qui ne sont PAS des profils.
   const RESERVED = new Set([
     "direct", "explore", "reels", "reel", "stories", "p", "accounts",

@@ -16,6 +16,24 @@ let state = {
   manual: null,        // pseudo saisi à la main (détection en échec)
 };
 
+/**
+ * Tout message vers la page passe par le service worker : lui seul peut
+ * garantir que les content scripts y tournent encore (ils sont orphelinés à
+ * chaque rechargement de l'extension).
+ */
+const toTab = (payload) => chrome.runtime.sendMessage({ type: "ig:tab", payload }).catch(() => null);
+
+/** Traduit un échec du pont en phrase qui dit quoi faire. */
+function tabError(r) {
+  switch (r?.reason) {
+    case "not-instagram": return "Mets l'onglet Instagram au premier plan.";
+    case "no-tab": return "Aucun onglet actif.";
+    case "no-content-script": return "Extension pas encore active sur cette page — recharge l'onglet Instagram (F5).";
+    case "no-composer": return "Champ de message introuvable — ouvre la conversation.";
+    default: return "Action impossible sur cette page.";
+  }
+}
+
 const STAGE_LABEL = {
   accroche: "Accroche envoyée", presentation: "Présentation", connexion: "Connexion",
   douleur: "Douleur", appel_propose: "Appel proposé", questionnaire_envoye: "Questionnaire envoyé",
@@ -158,9 +176,7 @@ async function insertRaw(text) {
   state.lastArm = null;
   clearTimeout(state.fallbackTimer);
   $("fallback").style.display = "none";
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return { ok: false, reason: "no-tab" };
-  return (await chrome.tabs.sendMessage(tab.id, { type: "ig:insert", text }).catch(() => null)) ?? { ok: false, reason: "no-content-script" };
+  return await toTab({ type: "ig:insert", text });
 }
 
 async function insert(step) {
@@ -179,12 +195,7 @@ async function insert(step) {
     return;
   }
   const r = await chrome.runtime.sendMessage({ type: "ig:arm", prospectId: p.id, accountId, step, text: s.text });
-  if (!r?.ok) {
-    $("error").textContent = r?.reason === "no-composer"
-      ? "Champ de message introuvable — ouvre la conversation, ou copie-colle."
-      : "Onglet Instagram introuvable.";
-    return;
-  }
+  if (!r?.ok) { $("error").textContent = tabError(r); return; }
   $("error").textContent = "";
   state.lastArm = { prospectId: p.id, accountId, step };
   // Filet § 7 : si aucun ig:logged sous 30 s après l'insertion, bouton manuel.
@@ -201,10 +212,9 @@ async function insert(step) {
 
 /** Relit le fil affiché et le met en texte éditable (« moi: » / « lui: »). */
 async function grabThread() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
-  const r = await chrome.tabs.sendMessage(tab.id, { type: "ig:thread", username: state.username }).catch(() => null);
-  const rows = r?.rows ?? [];
+  const r = await toTab({ type: "ig:thread", username: state.username });
+  if (!r || r.reason) { $("error").textContent = tabError(r); return; }
+  const rows = r.rows ?? [];
   if (!rows.length) return;
   // Les messages de la trame sont, par construction, ceux de Nicolas : ils
   // lèvent l'ambiguïté sur les lignes qu'Instagram n'étiquette pas.
@@ -287,12 +297,11 @@ $("moreToggle").addEventListener("click", () => {
 $("fixSpell").addEventListener("click", async () => {
   const btn = $("fixSpell");
   if (btn.disabled) return;
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) { $("error").textContent = "Onglet Instagram introuvable."; return; }
-  const c = await chrome.tabs.sendMessage(tab.id, { type: "ig:composer-text" }).catch(() => null);
-  const text = (c?.text ?? "").trim();
+  const c = await toTab({ type: "ig:composer-text" });
+  if (!c || c.reason) { $("error").textContent = tabError(c); return; }
+  const text = (c.text ?? "").trim();
   if (!text) {
-    $("error").textContent = c?.text === null
+    $("error").textContent = c.text === null
       ? "Champ de message introuvable — ouvre la conversation."
       : "Le champ est vide — tape ton message d'abord.";
     return;
@@ -303,8 +312,8 @@ $("fixSpell").addEventListener("click", async () => {
     const r = await chrome.runtime.sendMessage({ type: "ig:proofread", text });
     if (r?.status !== 200) { $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`; return; }
     if (!r.data.changed) { $("error").textContent = "Rien à corriger."; return; }
-    const ins = await chrome.tabs.sendMessage(tab.id, { type: "ig:insert", text: r.data.text }).catch(() => null);
-    $("error").textContent = ins?.ok ? "Corrigé ✓ — relis avant d'envoyer." : "Champ de message introuvable.";
+    const ins = await toTab({ type: "ig:insert", text: r.data.text });
+    $("error").textContent = ins?.ok ? "Corrigé ✓ — relis avant d'envoyer." : tabError(ins);
   } finally {
     btn.disabled = false;
     btn.textContent = "Corriger l'orthographe du champ";
@@ -349,9 +358,13 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-// Au montage : demande un re-scan au content script puis charge le contexte.
+// Au montage : re-scan de la page (les content scripts sont ré-injectés si le
+// rechargement de l'extension les a orphelinés), puis chargement du contexte.
 (async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) await chrome.tabs.sendMessage(tab.id, { type: "ig:rescan" }).catch(() => {});
+  const r = await toTab({ type: "ig:rescan" });
+  if (r?.reason && r.reason !== "not-instagram") $("error").textContent = tabError(r);
   refresh(null);
+  // Laisse au content script fraîchement injecté le temps d'annoncer le
+  // prospect : à la première passe, le contexte est encore vide.
+  setTimeout(() => { if (!state.manual) refresh(null); }, 600);
 })();

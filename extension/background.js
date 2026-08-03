@@ -85,6 +85,44 @@ async function logSend(armed) {
 
 const broadcast = (msg) => chrome.runtime.sendMessage(msg).catch(() => {});
 
+// ── Pont vers la page Instagram ────────────────────────────────────────────
+
+/** Onglet actif, s'il est bien sur instagram.com. */
+async function instagramTab() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return { id: null, reason: "no-tab" };
+  if (!/^https:\/\/www\.instagram\.com\//.test(tab.url || "")) return { id: null, reason: "not-instagram" };
+  return { id: tab.id, reason: null };
+}
+
+/**
+ * Garantit que les content scripts tournent dans l'onglet.
+ *
+ * Recharger l'extension ORPHELINE les scripts déjà injectés : la page reste
+ * ouverte, mais plus rien de l'extension n'y vit — insertion, détection du
+ * prospect et lecture du champ échouent toutes en même temps, sans erreur
+ * visible. On ping, et on ré-injecte au besoin : Nicolas n'a jamais à
+ * recharger sa page après une mise à jour.
+ */
+async function ensureContent(tabId) {
+  const pong = await chrome.tabs.sendMessage(tabId, { type: "ig:ping" }).catch(() => null);
+  if (pong?.ok) return true;
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["detect.js", "content.js"] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Envoie un message à la page, en s'assurant d'abord qu'elle peut l'entendre. */
+async function sendToTab(payload) {
+  const { id, reason } = await instagramTab();
+  if (!id) return { ok: false, reason };
+  if (!(await ensureContent(id))) return { ok: false, reason: "no-content-script" };
+  return (await chrome.tabs.sendMessage(id, payload).catch(() => null)) ?? { ok: false, reason: "no-content-script" };
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     switch (msg?.type) {
@@ -104,11 +142,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }
       // sidepanel : « Insérer » cliqué — insère d'abord via content, n'arme la
       // journalisation QUE si l'insertion a réussi (sinon rien à journaliser).
+      // sidepanel → page : tout passe par ici, content scripts garantis.
+      case "ig:tab":
+        sendResponse(await sendToTab(msg.payload));
+        break;
       case "ig:arm": {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab?.id) { sendResponse({ ok: false, reason: "no-tab" }); break; }
-        const r = await chrome.tabs.sendMessage(tab.id, { type: "ig:insert", text: msg.text }).catch(() => null);
-        if (!r?.ok) { sendResponse(r ?? { ok: false, reason: "no-content-script" }); break; }
+        const r = await sendToTab({ type: "ig:insert", text: msg.text });
+        if (!r?.ok) { sendResponse(r); break; }
         // Mémorise le pseudo de la conversation courante : si elle change
         // avant l'envoi détecté, l'armement ne doit pas fuiter sur le
         // nouveau prospect affiché (ig:sent le vérifiera).
