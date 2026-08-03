@@ -16,6 +16,20 @@
       "run_at": "document_idle"
     }
   ],
+  "commands": {
+    "insert-next": {
+      "suggested_key": { "default": "Alt+I" },
+      "description": "Insérer l'étape à envoyer"
+    },
+    "fix-spelling": {
+      "suggested_key": { "default": "Alt+O" },
+      "description": "Corriger l'orthographe du champ"
+    },
+    "next-prospect": {
+      "suggested_key": { "default": "Alt+N" },
+      "description": "Prospect suivant de la file du jour"
+    }
+  },
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",

@@ -85,6 +85,25 @@ async function logSend(armed) {
 
 const broadcast = (msg) => chrome.runtime.sendMessage(msg).catch(() => {});
 
+/** Trame du prospect affiché, mise en cache le temps de la conversation. */
+async function currentTrame() {
+  const { current } = await chrome.storage.session.get("current");
+  const username = current?.username;
+  if (!username) return null;
+  const { cachedTrame } = await chrome.storage.session.get("cachedTrame");
+  if (cachedTrame?.username === username) return cachedTrame.payload;
+  const { status, json } = await api(`/api/instagram/trame?username=${encodeURIComponent(username)}`);
+  if (status !== 200 || !json?.steps) return null;
+  await chrome.storage.session.set({ cachedTrame: { username, payload: json } });
+  return json;
+}
+
+/** Compte émetteur à créditer, d'après la trame et le compte détecté. */
+async function currentAccountId(payload) {
+  const { current } = await chrome.storage.session.get("current");
+  return NMFUtil.pickAccountId(payload?.accounts ?? [], current?.account ?? null);
+}
+
 // ── Pont vers la page Instagram ────────────────────────────────────────────
 
 /** Onglet actif, s'il est bien sur instagram.com. */
@@ -123,12 +142,50 @@ async function sendToTab(payload) {
   return (await chrome.tabs.sendMessage(id, payload).catch(() => null)) ?? { ok: false, reason: "no-content-script" };
 }
 
+// ── Raccourcis clavier ──────────────────────────────────────────────────────
+// À 50 DM/jour, chaque aller-retour souris casse le flux. Le service worker
+// exécute directement l'action : elle marche même panneau fermé.
+if (chrome.commands) {
+  chrome.commands.onCommand.addListener(async (command) => {
+    try {
+      if (command === "insert-next") {
+        const payload = await currentTrame();
+        const step = payload?.steps?.find((s) => s.step === payload.nextStep);
+        if (!step) return;
+        const accountId = await currentAccountId(payload);
+        const r = await sendToTab({ type: "ig:insert", text: step.text });
+        if (r?.ok && payload.prospect?.id && accountId) {
+          const { current } = await chrome.storage.session.get("current");
+          await setArmed({ prospectId: payload.prospect.id, accountId, step: step.step, username: current?.username ?? null });
+        }
+        broadcast({ type: "ig:shortcut", command, ok: !!r?.ok });
+      } else if (command === "fix-spelling") {
+        const c = await sendToTab({ type: "ig:composer-text" });
+        const text = (c?.text ?? "").trim();
+        if (!text) return;
+        const { status, json } = await api("/api/instagram/proofread", { method: "POST", body: JSON.stringify({ text }) });
+        if (status === 200 && json.changed) await sendToTab({ type: "ig:insert", text: json.text });
+        broadcast({ type: "ig:shortcut", command, ok: status === 200 });
+      } else if (command === "next-prospect") {
+        broadcast({ type: "ig:shortcut", command });
+        const { status, json } = await api("/api/instagram/queue");
+        const next = status === 200 ? json.next?.[0] : null;
+        if (next?.username) {
+          const { id } = await instagramTab();
+          if (id) await chrome.tabs.update(id, { url: `https://www.instagram.com/${next.username}/` });
+        }
+      }
+    } catch { /* un raccourci ne doit jamais faire tomber le service worker */ }
+  });
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   (async () => {
     switch (msg?.type) {
       // content.js : la conversation/le profil affiché a changé.
       case "ig:prospect":
         await chrome.storage.session.set({ current: { username: msg.username, account: msg.account } });
+        await chrome.storage.session.remove("cachedTrame"); // autre prospect, autre trame
         broadcast({ type: "ig:prospect-changed", username: msg.username, account: msg.account });
         sendResponse({ ok: true });
         break;
@@ -236,6 +293,40 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const result = await logSend(armed);
         broadcast({ type: "ig:logged", ...result });
         sendResponse(result);
+        break;
+      }
+      // content.js : un message vient de partir du champ, sans être passé par
+      // « Insérer ». On le rattache à une étape de la trame par ressemblance,
+      // et on ne journalise QUE si la correspondance est nette — journaliser
+      // la mauvaise étape fausserait le stade et la relance.
+      case "ig:sent-auto": {
+        const armed = await getArmed();
+        if (armed) { sendResponse({ ok: false, reason: "armed" }); break; } // ig:sent s'en charge
+        const payload = await currentTrame();
+        const prospectId = payload?.prospect?.id;
+        if (!prospectId) { sendResponse({ ok: false, reason: "no-prospect" }); break; }
+        const hit = NMFUtil.matchStep(msg.text ?? "", payload.steps ?? []);
+        if (!hit) { sendResponse({ ok: false, reason: "no-match" }); break; }
+        const accountId = await currentAccountId(payload);
+        if (!accountId) { sendResponse({ ok: false, reason: "no-account" }); break; }
+        const result = await logSend({ prospectId, accountId, step: hit.step });
+        await chrome.storage.session.remove("cachedTrame"); // le stade a bougé
+        broadcast({ type: "ig:logged", ...result, auto: hit.step });
+        sendResponse(result);
+        break;
+      }
+      // content.js : nombre de conversations en attente → badge sur l'icône.
+      case "ig:inbox-count": {
+        const n = Number(msg.count) || 0;
+        await chrome.action.setBadgeText({ text: n > 0 ? String(n) : "" });
+        await chrome.action.setBadgeBackgroundColor({ color: "#7B4FE0" });
+        sendResponse({ ok: true });
+        break;
+      }
+      // sidepanel : file de prospection du jour (lecture seule).
+      case "ig:queue": {
+        const { status, json } = await api("/api/instagram/queue");
+        sendResponse({ status, data: json });
         break;
       }
       // content.js : changement de conversation détecté — désarme (l'armement

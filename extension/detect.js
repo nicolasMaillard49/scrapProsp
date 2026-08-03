@@ -363,6 +363,88 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     }
   }
 
+  /** Aperçu d'une conversation où c'est NOUS qui avons parlé en dernier. */
+  const MINE_PREFIX = /^(vous|you)\s*:/i;
+  /** Lignes d'événement : ce n'est pas un message en attente de réponse. */
+  const EVENT_PREVIEW = /^(a aimé|liked|a réagi|reacted|vous avez|you )/i;
+  /**
+   * Avis d'Instagram lui-même (compte fermé aux DM, demande en attente…).
+   * Vérifié sur la vraie boîte : sans ce filtre, le radar annonçait une
+   * réponse là où personne n'avait écrit.
+   */
+  const SYSTEM_PREVIEW = /ne peut pas recevoir|can'?t receive|n'autorise pas|does ?n'?t allow|demande de message|message request/i;
+
+  /**
+   * Conversations où le prospect a parlé en DERNIER — donc celles qui
+   * attendent une réponse.
+   *
+   * Instagram n'offre aucune vue de ce genre : la liste mélange tout, et rien
+   * ne distingue « il attend » de « j'attends ». L'aperçu, lui, est préfixé de
+   * « Vous : » quand c'est nous qui avons écrit en dernier.
+   */
+  function inboxRows(doc, opts = {}) {
+    const rectOf = opts.rectOf || ((el) => el.getBoundingClientRect());
+    const seen = new Set();
+    const cand = [];
+    let scanned = 0;
+    for (const d of doc.querySelectorAll("div")) {
+      if (++scanned > 6000) break;
+      // Signature d'une ligne de conversation, relevée sur le DOM réel :
+      // exactement un avatar, et deux à cinq lignes de texte.
+      if (d.querySelectorAll("img").length !== 1) continue;
+      const t = (d.textContent || "").trim();
+      if (!t || seen.has(t)) continue;
+      // Les lignes viennent des nœuds FEUILLES, pas des retours à la ligne de
+      // `innerText` : ceux-ci dépendent de la mise en page rendue, absente
+      // hors navigateur et susceptible de changer sans prévenir.
+      const lines = Array.from(d.querySelectorAll("span, div"))
+        .filter((e) => e.children.length === 0)
+        .map((e) => (e.textContent || "").trim())
+        .filter(Boolean);
+      if (lines.length < 2 || lines.length > 5) continue;
+      seen.add(t);
+      cand.push({ el: d, lines, h: Math.round(rectOf(d).height) });
+    }
+    // Les lignes de conversation ont toutes la MÊME hauteur ; ce qui dépasse
+    // est autre chose (le bloc des notes, une bannière…).
+    const byHeight = new Map();
+    for (const c of cand) byHeight.set(c.h, (byHeight.get(c.h) || 0) + 1);
+    let modal = null;
+    let best = 0;
+    for (const [h, n] of byHeight) if (n > best) { best = n; modal = h; }
+    return best >= 2 ? cand.filter((c) => c.h === modal) : cand;
+  }
+
+  function inboxWaiting(doc, opts = {}) {
+    try {
+      const max = opts.max ?? 40;
+      const out = [];
+      inboxRows(doc, opts).forEach((row, index) => {
+        if (out.length >= max) return;
+        const [name, preview = ""] = row.lines;
+        if (!name || !preview) return;
+        if (MINE_PREFIX.test(preview) || EVENT_PREVIEW.test(preview) || SYSTEM_PREVIEW.test(preview)) return;
+        out.push({ index, name, preview: preview.slice(0, 120) });
+      });
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Ouvre la conversation de rang `index` (tel que rendu par `inboxWaiting`).
+   * Un clic pour NAVIGUER, jamais pour envoyer : l'invariant « l'humain
+   * envoie » reste entier.
+   */
+  function openInboxRow(doc, index, opts = {}) {
+    const rows = inboxRows(doc, opts);
+    const row = rows[index];
+    if (!row) return false;
+    row.el.click();
+    return true;
+  }
+
   /** Dernier message REÇU (repli quand on ne veut que celui-là). */
   function lastIncomingText(doc, opts = {}) {
     const thread = conversationThread(doc, opts);
@@ -408,6 +490,7 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   return {
     currentUsername, composerNode, loggedInAccount, watchSend,
     usernameFromHref, lastIncomingText, conversationThread, insertIntoComposer,
+    inboxWaiting, openInboxRow,
   };
 })();
 

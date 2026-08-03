@@ -286,6 +286,54 @@ test("insertIntoComposer: champ déjà vide → écriture directe", async () => 
   assert.equal(await NMFDetect.insertIntoComposer(null, "x", { win: d.window, settleMs: 1 }), false);
 });
 
+/** Liste de conversations façon Instagram : un avatar, un nom, un aperçu. */
+function inboxDom(rows, oddHeights = {}) {
+  const html = rows
+    .map((r, i) => `<div data-i="${i}"><img alt="avatar" /><span>${r.name}</span><span>${r.preview}</span></div>`)
+    .join("");
+  const d = new JSDOM(`<body>${html}</body>`, { url: "https://www.instagram.com/direct/inbox/" });
+  const rectOf = (el) => ({ height: oddHeights[el.getAttribute("data-i")] ?? 72, width: 399, left: 0 });
+  return { doc: d.window.document, rectOf };
+}
+
+test("inboxWaiting: ne garde que les conversations où le PROSPECT a parlé en dernier", () => {
+  const { doc, rectOf } = inboxDom([
+    { name: "Thomas Pecoud", preview: "Et vous avez un portfolio ?" },
+    { name: "Sun Nails", preview: "Vous: parfait alors bonne journée" },
+    { name: "Open Fitness Club", preview: "A aimé un message" },
+    { name: "Marine G", preview: "You: thanks!" },
+    { name: "Beaute Dinterieur", preview: "Ça m'intéresse, on en parle quand ?" },
+  ], {});
+  const w = NMFDetect.inboxWaiting(doc, { rectOf });
+  assert.deepEqual(w.map((x) => x.name), ["Thomas Pecoud", "Beaute Dinterieur"]);
+  assert.equal(w[0].preview, "Et vous avez un portfolio ?");
+});
+
+test("inboxWaiting: les avis d'Instagram ne sont pas des réponses", () => {
+  // Relevé sur la vraie boîte : sans ce filtre, le radar annonçait une réponse
+  // là où personne n'avait écrit.
+  const { doc, rectOf } = inboxDom([
+    { name: "Lisa", preview: "Ce compte ne peut pas recevoir vos messages, car il n'autorise pas…" },
+    { name: "Thomas", preview: "Et vous avez un portfolio ?" },
+  ], {});
+  assert.deepEqual(NMFDetect.inboxWaiting(doc, { rectOf }).map((x) => x.name), ["Thomas"]);
+});
+
+test("inboxWaiting: ce qui n'a pas la hauteur d'une conversation est écarté", () => {
+  // Le bloc des notes en tête de liste a la même forme mais pas la même taille.
+  const { doc, rectOf } = inboxDom([
+    { name: "Donnez votre avis…", preview: "Votre note" },
+    { name: "Thomas", preview: "Et vous avez un portfolio ?" },
+    { name: "Karim", preview: "je vous écoute" },
+  ], { 0: 140 });
+  assert.deepEqual(NMFDetect.inboxWaiting(doc, { rectOf }).map((x) => x.name), ["Thomas", "Karim"]);
+});
+
+test("inboxWaiting: page sans liste → aucune alerte, jamais d'exception", () => {
+  assert.deepEqual(NMFDetect.inboxWaiting(dom("<body><div>rien</div></body>").window.document), []);
+  assert.deepEqual(NMFDetect.inboxWaiting(null), []);
+});
+
 test("watchSend: déclenche quand le champ passe de rempli à vide, une seule fois", async () => {
   const d = dom(`<body><div contenteditable="true" aria-label="Message">brouillon</div></body>`);
   const node = NMFDetect.composerNode(d.window.document);

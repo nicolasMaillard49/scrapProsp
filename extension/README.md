@@ -17,6 +17,27 @@ détecté dans l'app (quota, stade, relance).
      Les options priment sur le fichier.
 4. Ouvrir instagram.com, cliquer l'icône → le panel s'ouvre.
 
+## Le panneau pilote, Instagram est l'écran
+
+- **Prospect suivant** (`Alt+N`) ouvre le profil du prochain prospect de la
+  sélection du jour (`GET /api/instagram/queue`, lecture seule). Plus besoin
+  de chercher qui contacter.
+- **Radar** : les conversations où le prospect a parlé en dernier — donc
+  celles qui attendent une réponse. Instagram n'offre aucune vue de ce genre.
+  Le compte s'affiche en badge sur l'icône ; un clic ouvre la conversation.
+- **Raccourcis** : `Alt+I` insère l'étape à envoyer, `Alt+O` corrige le champ,
+  `Alt+N` passe au suivant. Ils fonctionnent même panneau fermé.
+
+## Auto-journalisation
+
+Tout ce qui part du champ est rattaché à une étape de la trame par
+ressemblance (`NMFUtil.matchStep`), même écrit à la main sans passer par
+« Insérer ». Le seuil est volontairement haut et un écart net avec le second
+candidat est exigé : journaliser la MAUVAISE étape fausserait le stade et la
+relance, alors que ne rien journaliser reste rattrapable à la main.
+
+C'est ce qui empêche le stade de décrocher de la conversation.
+
 ## Règles encodées
 
 - L'extension **n'envoie jamais** : elle écrit dans le champ, tu envoies.

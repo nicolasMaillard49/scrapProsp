@@ -13,6 +13,33 @@
   let lastAnnounced = "";
   let unwatch = () => {};
 
+  // ── Auto-journalisation : surveille TOUT ce qui part du champ ────────────
+  // Nicolas écrit souvent à la main, sans passer par « Insérer ». Ces envois
+  // n'étaient jamais journalisés, et le stade décrochait de la conversation.
+  // On mémorise le dernier brouillon non vide ; quand le champ se vide, c'est
+  // qu'il est parti — le service worker décidera s'il correspond à une étape.
+  let lastDraft = "";
+  setInterval(() => {
+    const node = NMFDetect.composerNode(document);
+    const now = node ? (node.textContent || "").trim() : "";
+    if (!now && lastDraft) {
+      const sent = lastDraft;
+      lastDraft = "";
+      chrome.runtime.sendMessage({ type: "ig:sent-auto", text: sent }).catch(() => {});
+      return;
+    }
+    if (now) lastDraft = now;
+  }, 500);
+
+  // Radar : combien de conversations attendent une réponse. Poussé au service
+  // worker, qui en fait un badge sur l'icône.
+  const pushInboxCount = () => {
+    const n = NMFDetect.inboxWaiting(document).length;
+    chrome.runtime.sendMessage({ type: "ig:inbox-count", count: n }).catch(() => {});
+  };
+  setTimeout(pushInboxCount, 3000);
+  setInterval(pushInboxCount, 60000);
+
   /** Annonce le contexte courant (pseudo affiché + compte connecté). */
   function announce() {
     // Le compte connecté d'abord, par les seules sources qui ne peuvent pas
@@ -69,6 +96,15 @@
         sendResponse({ ok: true });
       });
       return true; // réponse asynchrone
+    } else if (msg?.type === "ig:navigate") {
+      // Navigation demandée par le panneau (file du jour).
+      location.assign(msg.url);
+      sendResponse({ ok: true });
+    } else if (msg?.type === "ig:inbox") {
+      sendResponse({ rows: NMFDetect.inboxWaiting(document) });
+    } else if (msg?.type === "ig:open-inbox") {
+      // Clic de NAVIGATION uniquement — jamais sur « Envoyer ».
+      sendResponse({ ok: NMFDetect.openInboxRow(document, msg.index) });
     } else if (msg?.type === "ig:ping") {
       // Sert au service worker à savoir si ce script est encore vivant.
       sendResponse({ ok: true });

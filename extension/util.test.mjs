@@ -94,6 +94,50 @@ test("splitThread: aucun « lui: » (que des messages sortants) → repli sur le
   assert.deepEqual(NMFUtil.splitThread("   "), { incoming: "", history: "" });
 });
 
+const STEPS = [
+  { step: "M1", text: "Hello Thomas ! J'ai vu que vous etiez osteopathe, c'est toujours le cas ?" },
+  { step: "M2", text: "Parfait ! Votre post est remonte dans mon feed, j'ai jete un oeil au profil et deux-trois trucs m'ont interpelle." },
+  { step: "M5", text: "Avant ca, vous faites ce metier depuis longtemps ?" },
+  { step: "M8", text: "Ok. Le plus simple c'est qu'on se cale 15-20 min et je vous montre ce que j'ai vu. Vous avez un creneau cette semaine ?" },
+];
+
+test("matchStep: reconnait une etape envoyee telle quelle", () => {
+  assert.equal(NMFUtil.matchStep(STEPS[1].text, STEPS).step, "M2");
+  assert.equal(NMFUtil.matchStep(STEPS[3].text, STEPS).step, "M8");
+});
+
+test("matchStep: tolere les retouches de Nicolas avant envoi", () => {
+  // Cas reel : il personnalise et rallonge presque toujours le message.
+  const retouche = "Parfait Thomas ! Votre post est remonte dans mon feed hier soir, j'ai jete un oeil au profil et deux-trois trucs m'ont interpelle du coup.";
+  assert.equal(NMFUtil.matchStep(retouche, STEPS).step, "M2");
+});
+
+test("matchStep: un message HORS trame n'est jamais rattache a une etape", () => {
+  // Journaliser la mauvaise etape fausse le stade ET la relance ; ne rien
+  // journaliser reste rattrapable a la main.
+  assert.equal(NMFUtil.matchStep("Bien sur, la maintenance couvre l'hebergement et les certificats SSL.", STEPS), null);
+  assert.equal(NMFUtil.matchStep("ok merci", STEPS), null);
+  assert.equal(NMFUtil.matchStep("", STEPS), null);
+  assert.equal(NMFUtil.matchStep("Hello", []), null);
+});
+
+test("matchStep: deux etapes indiscernables → aucune conclusion", () => {
+  // Memes mots, tournure differente : rien ne permet de trancher, donc on ne
+  // tranche pas. Le stade reste juste plutot que probable.
+  const jumelles = [
+    { step: "A", text: "Vous avez un creneau cette semaine ?" },
+    { step: "B", text: "Un creneau cette semaine, vous avez ?" },
+  ];
+  assert.equal(NMFUtil.matchStep("Vous avez un creneau cette semaine ?", jumelles), null);
+});
+
+test("similarity: recouvrement, pas egalite stricte", () => {
+  assert.equal(NMFUtil.similarity("aucun rapport ici", "totalement different ailleurs"), 0);
+  assert.ok(NMFUtil.similarity("le chat noir dort", "le chat noir dort") === 1);
+  // Ajout de mots par Nicolas : le recouvrement de la trame reste total.
+  assert.equal(NMFUtil.similarity("le chat noir dort tranquillement chez lui", "le chat noir dort"), 1);
+});
+
 test("prune: garde les plus recents, borne la taille", () => {
   const keys = Array.from({ length: 250 }, (_, i) => `k${i}`);
   const pruned = NMFUtil.prune(keys, 200);

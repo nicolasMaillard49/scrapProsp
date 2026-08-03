@@ -7,6 +7,7 @@ test("extAuth: token exact sur /api/instagram/ → autorisé", () => {
   assert.equal(isExtRequestAllowed("/api/instagram/dm", "s3cret", "s3cret"), true);
   assert.equal(isExtRequestAllowed("/api/instagram/reply-ai", "s3cret", "s3cret"), true);
   assert.equal(isExtRequestAllowed("/api/instagram/proofread", "s3cret", "s3cret"), true);
+  assert.equal(isExtRequestAllowed("/api/instagram/queue", "s3cret", "s3cret"), true);
 });
 
 test("extAuth: EXT_TOKEN absent ou vide = branche MORTE, jamais un laissez-passer", () => {

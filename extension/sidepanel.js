@@ -494,6 +494,56 @@ function showStage(v) {
   });
 }
 
+// ── File du jour : le panneau pilote, Instagram n'est plus que l'écran ─────
+
+async function loadQueue() {
+  const r = await chrome.runtime.sendMessage({ type: "ig:queue" }).catch(() => null);
+  if (r?.status !== 200) { $("queueInfo").textContent = ""; return null; }
+  const { remaining, total, next } = r.data;
+  $("queueInfo").textContent = remaining ? `${remaining} sur ${total} à contacter` : "file du jour terminée ✓";
+  $("nextProspect").disabled = !next?.length;
+  return next?.[0] ?? null;
+}
+
+$("nextProspect").addEventListener("click", async () => {
+  const btn = $("nextProspect");
+  btn.disabled = true;
+  const next = await loadQueue();
+  if (!next?.username) { $("error").textContent = "Plus personne dans la file du jour."; btn.disabled = false; return; }
+  // Ouvre son PROFIL : c'est de là qu'on engage un premier contact, et aucun
+  // identifiant de conversation n'existe encore pour un prospect jamais écrit.
+  const r = await toTab({ type: "ig:navigate", url: `https://www.instagram.com/${next.username}/` });
+  if (!r?.ok) $("error").textContent = tabError(r);
+  btn.disabled = false;
+});
+
+// ── Radar : qui attend une réponse (Instagram ne le dit nulle part) ────────
+
+let radarRows = [];
+async function loadRadar() {
+  const r = await toTab({ type: "ig:inbox" });
+  radarRows = r?.rows ?? [];
+  $("radarStrip").hidden = !radarRows.length;
+  $("radarToggle").textContent = radarRows.length === 1
+    ? "1 conversation attend ta réponse"
+    : `${radarRows.length} conversations attendent ta réponse`;
+}
+
+$("radarToggle").addEventListener("click", () => {
+  const out = $("radarOut");
+  if (out.innerHTML) { out.innerHTML = ""; return; }
+  out.innerHTML = radarRows
+    .map((w) => `<div class="waiting" data-open="${esc(w.index)}"><b>${esc(w.name)}</b><span>${esc(w.preview)}</span></div>`)
+    .join("");
+  for (const el of out.querySelectorAll("[data-open]")) {
+    el.addEventListener("click", async () => {
+      const r = await toTab({ type: "ig:open-inbox", index: Number(el.dataset.open) });
+      if (!r?.ok) $("error").textContent = "Conversation introuvable — reviens à la boîte de réception.";
+      else out.innerHTML = "";
+    });
+  }
+});
+
 async function loadManual() {
   const u = $("manualUser").value.replace(/^@/, "").trim().toLowerCase();
   if (!u) return;
@@ -530,8 +580,15 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "ig:logged") {
     clearTimeout(state.fallbackTimer);
     $("fallback").hidden = true;
-    if (msg.ok) refresh(state.username); // stade avancé → nextStep suivant surligné
-    else { $("error").textContent = msg.error || "Journalisation refusée."; $("fallback").hidden = false; }
+    if (msg.ok) {
+      // `auto` : reconnu tout seul dans le champ, sans passer par « Insérer ».
+      if (msg.auto) $("error").textContent = `${msg.auto} journalisé automatiquement.`;
+      refresh(state.username); // stade avancé → nextStep suivant surligné
+      loadQueue();
+    } else { $("error").textContent = msg.error || "Journalisation refusée."; $("fallback").hidden = false; }
+  }
+  if (msg?.type === "ig:shortcut" && msg.ok === false) {
+    $("error").textContent = "Raccourci sans effet — vérifie que la conversation est ouverte.";
   }
 });
 
@@ -541,6 +598,8 @@ chrome.runtime.onMessage.addListener((msg) => {
   const r = await toTab({ type: "ig:rescan" });
   if (r?.reason && r.reason !== "not-instagram") $("error").textContent = tabError(r);
   refresh(null);
+  loadQueue();
+  loadRadar();
   // Laisse au content script fraîchement injecté le temps d'annoncer le
   // prospect : à la première passe, le contexte est encore vide.
   setTimeout(() => { if (!state.manual) refresh(null); }, 600);

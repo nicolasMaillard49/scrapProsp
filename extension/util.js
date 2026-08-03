@@ -85,11 +85,65 @@ const NMFUtil = (() => {
     return { incoming: raw, history: "" };
   }
 
+  // ── Reconnaissance d'une étape envoyée ───────────────────────────────────
+  // Nicolas écrit souvent à la main, sans passer par « Insérer ». Sans
+  // reconnaissance, ces envois ne sont jamais journalisés et le stade décroche
+  // — c'est exactement ce qui s'est produit sur la conversation de Thomas.
+
+  const words = (s) =>
+    String(s ?? "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .split(" ")
+      .filter((w) => w.length > 2);
+
+  /**
+   * Proximité entre le texte envoyé et un message de la trame, dans [0,1].
+   * Mesure de RECOUVREMENT (combien des mots de la trame se retrouvent dans
+   * l'envoi), pas d'égalité : Nicolas retouche presque toujours le message
+   * avant de l'envoyer, et un ajout de sa part ne doit pas faire chuter le
+   * score.
+   */
+  function similarity(sent, step) {
+    const a = new Set(words(sent));
+    const b = words(step);
+    if (!a.size || !b.length) return 0;
+    let hit = 0;
+    for (const w of new Set(b)) if (a.has(w)) hit++;
+    return hit / new Set(b).size;
+  }
+
+  /**
+   * Étape de la trame que ce texte envoyé represente, ou null.
+   * Le seuil est volontairement haut : journaliser la MAUVAISE étape fausse le
+   * stade et la relance, alors que ne rien journaliser reste rattrapable à la
+   * main. Un écart net avec le second candidat est aussi exigé — deux étapes
+   * proches ne doivent pas se départager sur un cheveu.
+   */
+  function matchStep(sent, steps, opts = {}) {
+    const min = opts.min ?? 0.7;
+    const gap = opts.gap ?? 0.12;
+    const scored = (Array.isArray(steps) ? steps : [])
+      .map((s) => ({ step: s.step, score: similarity(sent, s.text) }))
+      .sort((x, y) => y.score - x.score);
+    const best = scored[0];
+    if (!best || best.score < min) return null;
+    const second = scored[1];
+    if (second && best.score - second.score < gap) return null;
+    return { step: best.step, score: best.score };
+  }
+
   /** Clé d'idempotence d'une réponse qualifiée : une par prospect et par jour. */
   function replyKey(username, now) {
     return `reply:${String(username || "?").toLowerCase()}:${parisDay(now)}`;
   }
 
-  return { dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread, parisDay, replyKey };
+  return {
+    dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread,
+    parisDay, replyKey, similarity, matchStep,
+  };
 })();
 if (typeof module !== "undefined") module.exports = NMFUtil;
