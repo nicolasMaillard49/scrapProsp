@@ -145,3 +145,56 @@ test("prune: garde les plus recents, borne la taille", () => {
   assert.equal(pruned[0], "k50");
   assert.equal(pruned[199], "k249");
 });
+
+test("pendingIncoming: le prospect a parle en dernier", () => {
+  const rows = [
+    { from: "moi", text: "Salut, joli travail sur vos rendus" },
+    { from: "lui", text: "Merci !" },
+    { from: "lui", text: "Vous faites quoi exactement ?" },
+  ];
+  const hit = NMFUtil.pendingIncoming(rows);
+  assert.equal(hit.lines, 2);
+  assert.equal(hit.text, "Merci ! Vous faites quoi exactement ?");
+});
+
+test("pendingIncoming: c'est nous qui avons parle en dernier → rien", () => {
+  const rows = [
+    { from: "moi", text: "Salut" },
+    { from: "lui", text: "Bonjour" },
+    { from: "moi", text: "Vous gerez le site vous-meme ?" },
+  ];
+  assert.equal(NMFUtil.pendingIncoming(rows), null);
+});
+
+test("pendingIncoming: derniere ligne d'auteur indetermine → aucune conclusion", () => {
+  // Journaliser un de NOS messages comme reponse du prospect le sortirait de
+  // la file de relance et gonflerait le taux de reponse.
+  const rows = [
+    { from: "moi", text: "Salut" },
+    { from: "?", text: "texte non attribue" },
+  ];
+  assert.equal(NMFUtil.pendingIncoming(rows), null);
+});
+
+test("pendingIncoming: le `?` reconnu comme un message de la trame est a nous", () => {
+  const steps = ["Vous gerez le site vous-meme ?"];
+  const rows = [
+    { from: "moi", text: "Salut" },
+    { from: "lui", text: "Bonjour" },
+    { from: "?", text: "Vous gerez le site vous-meme ?" },
+  ];
+  assert.equal(NMFUtil.pendingIncoming(rows, steps), null);
+});
+
+test("pendingIncoming: sans message de nous, ce n'est pas une reponse", () => {
+  const rows = [{ from: "lui", text: "Bonjour, vous faites des sites ?" }];
+  assert.equal(NMFUtil.pendingIncoming(rows), null);
+});
+
+test("incomingKey: meme message = meme cle, insensible a la casse et aux espaces", () => {
+  assert.equal(
+    NMFUtil.incomingKey("Atelier", "Merci  !\nVous faites QUOI ?"),
+    NMFUtil.incomingKey("atelier", "merci ! vous faites quoi ?"),
+  );
+  assert.notEqual(NMFUtil.incomingKey("a", "oui"), NMFUtil.incomingKey("a", "non"));
+});

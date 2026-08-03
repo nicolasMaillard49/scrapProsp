@@ -681,6 +681,25 @@ chrome.runtime.onMessage.addListener((msg) => {
       loadQueue();
     } else { $("error").textContent = msg.error || "Journalisation refusée."; $("fallback").hidden = false; }
   }
+  // Réponse reçue détectée dans la conversation ouverte. Inscrite d'office
+  // quand le modèle est sûr ; sinon le verdict s'affiche avec son bouton, la
+  // décision reste à Nicolas — mais il la voit, au lieu de rater la réponse.
+  if (msg?.type === "ig:reply-logged") {
+    if (msg.username && state.username && msg.username !== state.username) return;
+    if (!msg.ok) { $("error").textContent = msg.error || "Réponse détectée, journalisation en échec."; return; }
+    const auto = msg.auto ?? {};
+    if (auto.recorded) {
+      $("qualifyOut").innerHTML = `<div class="card verdict"><div class="tag">Réponse enregistrée ✓</div>
+        <p class="muted">${esc(KIND_LABEL[auto.kind] ?? auto.kind ?? "")} — inscrite toute seule ; le prospect sort de la file de relance.</p></div>`;
+      refresh(state.username);
+      loadQueue();
+      return;
+    }
+    if (auto.reason === "deja-journalisee" || auto.reason === "pas-de-reponse") return;
+    // Doute (ou erreur) : on affiche le verdict tel quel, avec son bouton.
+    if (msg.verdict) { showVerdict(msg.verdict); showStage(msg.verdict); }
+    if (auto.reason === "erreur" && auto.error) $("error").textContent = auto.error;
+  }
   if (msg?.type === "ig:shortcut" && msg.ok === false) {
     $("error").textContent = "Raccourci sans effet — vérifie que la conversation est ouverte.";
   }

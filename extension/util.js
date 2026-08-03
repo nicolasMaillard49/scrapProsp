@@ -141,9 +141,54 @@ const NMFUtil = (() => {
     return `reply:${String(username || "?").toLowerCase()}:${parisDay(now)}`;
   }
 
+  // ── Réponse entrante en attente ──────────────────────────────────────────
+  // L'auto-journalisation ne couvrait que le SORTANT : une réponse reçue
+  // n'entrait au CRM que si Nicolas cliquait « Qualifier » puis « Enregistrer ».
+  // Une journée de réponses traitées à la main ne laissait donc aucune trace —
+  // prospects maintenus dans la file de relance, KPI d'accroche sous-comptés.
+
+  /**
+   * Le prospect a-t-il parlé en DERNIER ? Rend son dernier bloc de messages,
+   * ou null.
+   *
+   * Deux garde-fous, car ce qui sort d'ici déclenche une écriture au CRM :
+   *  - un fil qui se termine par une ligne d'auteur INDÉTERMINÉ (`?`) ne
+   *    conclut rien — mieux vaut ne rien journaliser qu'inscrire un de nos
+   *    propres messages comme réponse du prospect ;
+   *  - sans aucun message de nous en amont, ce n'est pas une réponse : c'est
+   *    une prise de contact entrante, qui ne dit rien de notre accroche.
+   */
+  function pendingIncoming(rows, sentTexts = []) {
+    const known = new Set(sentTexts.map(norm).filter(Boolean));
+    const list = (Array.isArray(rows) ? rows : [])
+      .filter((r) => r && String(r.text ?? "").trim())
+      .map((r) => {
+        let who = r.from === "moi" ? "moi" : r.from === "lui" ? "lui" : "?";
+        if (who === "?" && known.has(norm(r.text))) who = "moi";
+        return { from: who, text: String(r.text).replace(/\s+/g, " ").trim() };
+      });
+    const last = list[list.length - 1];
+    if (!last || last.from !== "lui") return null;
+    if (!list.some((r) => r.from === "moi")) return null;
+    const block = [];
+    for (let i = list.length - 1; i >= 0 && list[i].from === "lui"; i--) block.unshift(list[i].text);
+    return { text: block.join(" "), lines: block.length };
+  }
+
+  /**
+   * Clé d'un message entrant PRÉCIS — pour ne pas rappeler le modèle à chaque
+   * passe du radar sur la même réponse. Distincte de `replyKey`, qui borne
+   * l'écriture au CRM : ici on borne l'APPEL, y compris quand il ne conclut
+   * rien (doute, autorépondeur), sinon un fil resté à l'écran relance la
+   * qualification indéfiniment.
+   */
+  function incomingKey(username, text) {
+    return `in:${String(username || "?").toLowerCase()}:${norm(text).slice(0, 140)}`;
+  }
+
   return {
     dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread,
-    parisDay, replyKey, similarity, matchStep,
+    parisDay, replyKey, similarity, matchStep, pendingIncoming, incomingKey,
   };
 })();
 if (typeof module !== "undefined") module.exports = NMFUtil;

@@ -38,6 +38,36 @@ relance, alors que ne rien journaliser reste rattrapable à la main.
 
 C'est ce qui empêche le stade de décrocher de la conversation.
 
+### Le SORTANT ne suffisait pas
+
+Une réponse reçue n'entrait au CRM que si tu cliquais « Qualifier la réponse »
+puis « Enregistrer ». Une journée de réponses traitées à la main ne laissait
+donc **aucune trace** : prospects maintenus dans la file de relance, taux de
+réponse sous-compté.
+
+Désormais, quand le prospect a parlé **en dernier** dans la conversation
+ouverte, le fil part se faire qualifier tout seul (`auto: true`) :
+
+- **confiance haute** → la réponse est inscrite, sans clic, et le prospect sort
+  de la file de relance ;
+- **doute** → rien n'est écrit, mais le verdict s'affiche dans le panneau avec
+  son bouton. Le doute reste à toi — la différence, c'est que tu le vois.
+
+Deux bornes distinctes, pour deux risques distincts :
+
+| Borne | Portée | Où | Contre quoi |
+|---|---|---|---|
+| `NMFUtil.incomingKey` | ce message précis | `storage.session` | rappeler le modèle toutes les 4 s sur un fil resté à l'écran |
+| `NMFUtil.replyKey` | prospect × jour Paris | `storage.local` **et serveur** | compter deux fois la même réponse |
+
+L'idempotence est **aussi** côté serveur (`autoRecord`) : le `storage` d'un
+profil Chrome ne protège de rien depuis un autre poste ou après un rechargement
+de l'extension.
+
+Un fil dont la dernière ligne est d'auteur indéterminé (`?:`) ne conclut rien,
+et un fil sans aucun message de nous n'est pas une réponse — c'est une prise de
+contact entrante, qui ne dit rien de l'accroche.
+
 ## Règles encodées
 
 - L'extension **n'envoie jamais** : elle écrit dans le champ, tu envoies.

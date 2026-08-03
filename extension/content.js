@@ -31,6 +31,27 @@
     if (now) lastDraft = now;
   }, 500);
 
+  // ── Réponses reçues : détection dans la conversation ouverte ─────────────
+  // Le pendant entrant de l'auto-journalisation. Sans lui, une réponse lue et
+  // traitée à la main ne laissait AUCUNE trace au CRM : le prospect restait
+  // dans la file de relance et le taux de réponse était sous-compté.
+  // On pousse le fil brut ; c'est le service worker qui tranche (il a la
+  // trame, donc les messages qui sont de nous) et qui appelle l'app.
+  let lastIncomingSeen = "";
+  const pushIncoming = () => {
+    const username = NMFDetect.currentUsername(location, document);
+    if (!username) return;
+    const rows = NMFDetect.conversationThread(document, { username });
+    if (!rows.length) return;
+    const last = rows[rows.length - 1];
+    if (!last || last.from === "moi") return;
+    const sig = `${username}|${String(last.text || "").slice(0, 140)}`;
+    if (sig === lastIncomingSeen) return; // déjà poussé : rien de neuf à l'écran
+    lastIncomingSeen = sig;
+    chrome.runtime.sendMessage({ type: "ig:incoming", username, rows }).catch(() => {});
+  };
+  setInterval(pushIncoming, 4000);
+
   // Radar : combien de conversations attendent une réponse. Poussé au service
   // worker, qui en fait un badge sur l'icône.
   const pushInboxCount = () => {

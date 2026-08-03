@@ -331,6 +331,57 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse(result);
         break;
       }
+      // content.js : le prospect a parlé en dernier dans la conversation
+      // ouverte → qualifie, et inscrit la réponse au CRM si le modèle est SÛR.
+      // Le doute n'est jamais écrit : il remonte au panneau pour un clic.
+      case "ig:incoming": {
+        const payload = await currentTrame();
+        const prospectId = payload?.prospect?.id;
+        if (!prospectId) { sendResponse({ ok: false, reason: "no-prospect" }); break; }
+
+        const steps = (payload.steps ?? []).map((s) => s.text);
+        const hit = NMFUtil.pendingIncoming(msg.rows ?? [], steps);
+        if (!hit) { sendResponse({ ok: false, reason: "no-incoming" }); break; }
+
+        const username = msg.username;
+        // Borne l'APPEL au modèle : un fil laissé à l'écran ne doit pas
+        // relancer la qualification toutes les 4 s, y compris quand elle ne
+        // conclut rien.
+        const { seenIncoming = [] } = await chrome.storage.session.get("seenIncoming");
+        const msgKey = NMFUtil.incomingKey(username, hit.text);
+        if (seenIncoming.includes(msgKey)) { sendResponse({ ok: false, reason: "seen" }); break; }
+        await chrome.storage.session.set({ seenIncoming: NMFUtil.prune([...seenIncoming, msgKey], 100) });
+
+        // Borne l'ÉCRITURE : même clé que la validation manuelle, pour que les
+        // deux chemins ne comptent jamais deux réponses le même jour.
+        const { replyKeys = [] } = await chrome.storage.local.get("replyKeys");
+        const dayKey = NMFUtil.replyKey(username, new Date());
+        if (!NMFUtil.shouldLog(replyKeys, dayKey)) { sendResponse({ ok: false, reason: "deduped" }); break; }
+
+        const accountId = await currentAccountId(payload);
+        const { status, json } = await api("/api/instagram/classify-reply", {
+          method: "POST",
+          body: JSON.stringify({
+            username,
+            history: NMFUtil.formatThread(msg.rows ?? [], steps),
+            auto: true,
+            account_id: accountId ?? null,
+          }),
+        });
+        if (status !== 200 || !json?.verdict) {
+          broadcast({ type: "ig:reply-logged", ok: false, error: json?.error || `Erreur ${status}` });
+          sendResponse({ ok: false, reason: "api", error: json?.error });
+          break;
+        }
+        const auto = json.auto ?? { recorded: false, reason: "doute" };
+        if (auto.recorded) {
+          await chrome.storage.local.set({ replyKeys: NMFUtil.prune([...replyKeys, dayKey]) });
+          await chrome.storage.session.remove("cachedTrame"); // stade et file ont bougé
+        }
+        broadcast({ type: "ig:reply-logged", ok: true, username, auto, verdict: json.verdict });
+        sendResponse({ ok: true, auto });
+        break;
+      }
       // content.js : nombre de conversations en attente → badge sur l'icône.
       case "ig:inbox-count": {
         const n = Number(msg.count) || 0;

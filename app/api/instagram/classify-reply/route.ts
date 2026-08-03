@@ -5,6 +5,7 @@ import { buildClassifySystemPrompt, parseVerdict } from "@/app/lib/igClassify";
 import { STAGES } from "@/app/lib/igPipeline";
 import { logReply } from "@/app/lib/igReplyLog";
 import { MAX_HISTORY } from "@/app/lib/igReplyPrompt";
+import { parisDayStart } from "@/app/lib/igCockpit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,11 @@ const FALLBACK_MODEL = "claude-sonnet-4-6";
 interface Body {
   username?: string;
   history?: string;
+  /**
+   * Journalisation automatique (extension) : qualifie PUIS inscrit, sans clic,
+   * mais uniquement sur confiance haute. Le doute reste à l'humain.
+   */
+  auto?: boolean;
   /**
    * Écriture dans le CRM — seulement après validation humaine.
    * `"reply"` (ou `true`) journalise la réponse ; `"stage"` recale le stade.
@@ -130,11 +136,66 @@ export async function POST(req: NextRequest) {
         { status: 502 },
       );
     }
+    // ── Journalisation automatique (extension) ─────────────────────────────
+    // L'humain reste seul juge du DOUTE : on n'inscrit que ce que le modèle
+    // affirme avec une confiance haute. Le reste remonte au panneau pour un
+    // clic. Ne rien inscrire du tout — ce qui était le cas jusqu'ici — laisse
+    // le prospect dans la file de relance alors qu'il vient de répondre.
+    const auto = body.auto === true
+      ? await autoRecord(prospect.id as string, verdict, body.account_id ?? null)
+      : undefined;
+
     return NextResponse.json({
       verdict,
+      auto,
       prospect: { id: prospect.id, username: prospect.username, stage: prospect.stage, replyCount: prospect.reply_count },
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
+}
+
+export interface AutoRecordResult {
+  recorded: boolean;
+  /** Pourquoi rien n'a été inscrit — le panneau l'affiche tel quel. */
+  reason?: "pas-de-reponse" | "doute" | "deja-journalisee" | "erreur";
+  kind?: string;
+  error?: string;
+}
+
+/**
+ * Inscrit la réponse détectée par l'extension, sans clic — et seulement si le
+ * modèle est SÛR.
+ *
+ * L'idempotence est ici, côté serveur, et pas seulement dans le `storage` de
+ * l'extension : celui-ci est propre à une machine et à un profil Chrome, donc
+ * il ne protège de rien dès qu'on prospecte depuis un autre poste, ou après
+ * avoir rechargé l'extension. La règle reste celle du cockpit — une réponse
+ * par prospect et par jour civil Paris.
+ */
+async function autoRecord(
+  prospectId: string,
+  verdict: { replied: boolean; kind: string | null; excerpt?: string | null; confidence: string },
+  accountId: string | null,
+): Promise<AutoRecordResult> {
+  if (!verdict.replied || !verdict.kind) return { recorded: false, reason: "pas-de-reponse" };
+  if (verdict.confidence !== "haute") return { recorded: false, reason: "doute", kind: verdict.kind };
+
+  const { data: already, error: dupErr } = await supabase
+    .from("ig_replies")
+    .select("id")
+    .eq("prospect_id", prospectId)
+    .gte("received_at", parisDayStart().toISOString())
+    .limit(1);
+  if (dupErr) return { recorded: false, reason: "erreur", error: dupErr.message };
+  if (already && already.length > 0) return { recorded: false, reason: "deja-journalisee", kind: verdict.kind };
+
+  const r = await logReply({
+    prospect_id: prospectId,
+    kind: verdict.kind,
+    account_id: accountId,
+    excerpt: verdict.excerpt ?? null,
+  });
+  if (!r.ok) return { recorded: false, reason: "erreur", error: r.error };
+  return { recorded: true, kind: verdict.kind };
 }
