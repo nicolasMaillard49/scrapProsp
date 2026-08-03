@@ -52,13 +52,14 @@
         sendResponse({ ok: false, reason: "no-composer" });
         return;
       }
-      // Insertion via execCommand : Instagram (React/Lexical) ignore une
-      // écriture directe de textContent — execCommand passe par le pipeline
-      // d'édition du navigateur, que l'éditeur écoute.
-      node.focus();
-      const sel = window.getSelection();
-      sel.selectAllChildren(node);
-      document.execCommand("insertText", false, msg.text);
+      // On ne répond « ok » que si le champ contient réellement le texte —
+      // annoncer un succès qui n'a pas eu lieu envoie chercher le bug au
+      // mauvais endroit (cf. « Corrigé ✓ » sans effet).
+      const ok = NMFDetect.insertIntoComposer(node, msg.text);
+      if (!ok) {
+        sendResponse({ ok: false, reason: "insert-failed" });
+        return;
+      }
       // Arme la détection d'envoi (one-shot). Ré-armer remplace l'ancienne.
       unwatch();
       unwatch = NMFDetect.watchSend(node, () => {

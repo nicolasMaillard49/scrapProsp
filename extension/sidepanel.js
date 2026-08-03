@@ -30,6 +30,7 @@ function tabError(r) {
     case "no-tab": return "Aucun onglet actif.";
     case "no-content-script": return "Extension pas encore active sur cette page — recharge l'onglet Instagram (F5).";
     case "no-composer": return "Champ de message introuvable — ouvre la conversation.";
+    case "insert-failed": return "Instagram a refusé l'écriture dans le champ — copie le texte ci-dessous.";
     default: return "Action impossible sur cette page.";
   }
 }
@@ -287,6 +288,28 @@ $("moreToggle").addEventListener("click", () => {
   renderTrame();
 });
 
+/** Affiche le texte corrigé dans le panneau : à relire, à copier, à réinsérer. */
+function showCorrection(text) {
+  $("fixOut").innerHTML = `<div class="sugg">
+      <div class="tag">Corrigé</div>
+      <p>${esc(text)}</p>
+      <div class="row">
+        <button id="fixCopy">Copier</button>
+        <button class="primary" id="fixInsert">Réinsérer</button>
+      </div>
+    </div>`;
+  $("fixCopy").addEventListener("click", (e) => {
+    navigator.clipboard.writeText(text);
+    e.target.textContent = "Copié ✓";
+    setTimeout(() => (e.target.textContent = "Copier"), 1200);
+  });
+  $("fixInsert").addEventListener("click", async () => {
+    // Réinsertion du MÊME message corrigé : l'armement doit survivre.
+    const r = await toTab({ type: "ig:insert", text });
+    $("error").textContent = r?.ok ? "Réinséré ✓" : tabError(r);
+  });
+}
+
 /**
  * Corrige l'orthographe du texte présent dans le champ Instagram, en place.
  *
@@ -311,14 +334,90 @@ $("fixSpell").addEventListener("click", async () => {
   try {
     const r = await chrome.runtime.sendMessage({ type: "ig:proofread", text });
     if (r?.status !== 200) { $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`; return; }
-    if (!r.data.changed) { $("error").textContent = "Rien à corriger."; return; }
+    if (!r.data.changed) { $("fixOut").innerHTML = ""; $("error").textContent = "Rien à corriger."; return; }
+    // La correction est TOUJOURS affichée dans le panneau, même quand
+    // l'insertion réussit : c'est le seul moyen de voir ce qui a changé, et
+    // le seul recours si Instagram refuse l'écriture.
     const ins = await toTab({ type: "ig:insert", text: r.data.text });
+    showCorrection(r.data.text);
     $("error").textContent = ins?.ok ? "Corrigé ✓ — relis avant d'envoyer." : tabError(ins);
   } finally {
     btn.disabled = false;
     btn.textContent = "Corriger l'orthographe du champ";
   }
 });
+
+// ── Qualification de la réponse à froid ────────────────────────────────────
+// Le modèle PROPOSE, Nicolas VALIDE. Une qualification écrite d'office
+// sortirait le prospect de la file de relance et fausserait les KPI
+// d'accroche sur une simple erreur de lecture.
+
+const KIND_LABEL = { positive: "Positive", neutre: "Neutre", refus: "Refus", autorepondeur: "Autorépondeur" };
+
+$("qualify").addEventListener("click", async () => {
+  const btn = $("qualify");
+  if (btn.disabled) return;
+  if (!state.data?.prospect) { $("error").textContent = "Prospect hors base — rien à qualifier."; return; }
+  // Le fil est la matière première : on le relit si le bloc IA est vide.
+  if (!$("aiIncoming").value.trim()) await grabThread();
+  const history = $("aiIncoming").value.trim();
+  if (!history) { $("error").textContent = "Fil de conversation illisible — déplie « Réponse IA » et colle-le."; return; }
+
+  btn.disabled = true;
+  btn.textContent = "Analyse…";
+  try {
+    const r = await chrome.runtime.sendMessage({ type: "ig:classify", username: state.username, history });
+    if (r?.status !== 200) { $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`; return; }
+    $("error").textContent = "";
+    showVerdict(r.data.verdict);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Qualifier la réponse";
+  }
+});
+
+function showVerdict(v) {
+  if (!v?.replied || !v.kind) {
+    $("qualifyOut").innerHTML = `<div class="sugg doubt"><div class="tag">Aucune réponse</div>
+      <p>${esc(v?.reason || "Le prospect n'a pas encore répondu.")}</p></div>`;
+    return;
+  }
+  const doubt = v.confidence !== "haute";
+  $("qualifyOut").innerHTML = `<div class="sugg verdict ${doubt ? "doubt" : ""}">
+      <div class="tag">${esc(KIND_LABEL[v.kind] ?? v.kind)}${v.cold ? " · à froid" : ""} · confiance ${esc(v.confidence)}</div>
+      <p>${esc(v.excerpt || "—")}</p>
+      <div class="muted">${esc(v.reason)}</div>
+      <div class="row">
+        <select id="kindPick">${Object.entries(KIND_LABEL)
+          .map(([k, l]) => `<option value="${esc(k)}"${k === v.kind ? " selected" : ""}>${esc(l)}</option>`)
+          .join("")}</select>
+      </div>
+      <div class="row"><button class="primary" id="recordReply">Enregistrer dans le CRM</button></div>
+    </div>`;
+
+  $("recordReply").addEventListener("click", async () => {
+    const btn = $("recordReply");
+    btn.disabled = true;
+    btn.textContent = "Enregistrement…";
+    const r = await chrome.runtime.sendMessage({
+      type: "ig:classify",
+      record: true,
+      username: state.username,
+      kind: $("kindPick").value,
+      excerpt: v.excerpt,
+      accountId: state.accountId,
+    });
+    if (r?.status === 200 && r.data?.ok) {
+      $("qualifyOut").innerHTML = `<div class="sugg verdict"><div class="tag">Enregistré ✓</div>
+        <p class="muted">${r.data.deduped ? "Déjà enregistré aujourd'hui — rien de compté en double." : "Réponse inscrite au CRM ; le prospect sort de la file de relance."}</p></div>`;
+      refresh(state.username);
+    } else {
+      $("error").textContent = r?.data?.error || "Enregistrement refusé.";
+      btn.disabled = false;
+      btn.textContent = "Enregistrer dans le CRM";
+    }
+  });
+}
 
 async function loadManual() {
   const u = $("manualUser").value.replace(/^@/, "").trim().toLowerCase();
@@ -348,6 +447,8 @@ chrome.runtime.onMessage.addListener((msg) => {
     $("aiIncoming").value = "";
     $("aiOut").innerHTML = "";
     $("aiHint").textContent = "";
+    $("fixOut").innerHTML = "";
+    $("qualifyOut").innerHTML = "";
     refresh(msg.username, msg.account);
   }
   if (msg?.type === "ig:logged") {

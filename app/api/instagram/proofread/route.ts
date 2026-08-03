@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { cleanProofread, PROOFREAD_SYSTEM, MAX_PROOFREAD } from "@/app/lib/igProofread";
+import { cleanProofread, buildProofreadSystem, MAX_PROOFREAD } from "@/app/lib/igProofread";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       client.messages.create({
         model,
         max_tokens: 1000,
-        system: PROOFREAD_SYSTEM,
+        system: buildProofreadSystem(),
         messages: [{ role: "user", content: original }],
       });
 

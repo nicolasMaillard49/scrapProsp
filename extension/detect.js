@@ -88,6 +88,68 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     }
   }
 
+  /**
+   * Écrit `text` dans le composer, en remplaçant tout ce qu'il contient.
+   * Rend `true` seulement si le champ contient VRAIMENT le texte après coup.
+   *
+   * Trois stratégies, parce qu'aucune ne marche partout :
+   *  1. execCommand — le chemin normal, mais il exige que le DOCUMENT ait le
+   *     focus. Depuis le side panel, ce n'est pas le cas : la commande échoue
+   *     sans rien dire, et c'est exactement le bug « Corrigé ✓ » sans effet.
+   *  2. un événement `paste` synthétique — l'éditeur d'Instagram (Lexical)
+   *     écoute le collage, qui ne dépend pas du focus du document.
+   *  3. écriture directe + événements d'édition — dernier recours.
+   */
+  function insertIntoComposer(node, text, opts = {}) {
+    if (!node) return false;
+    const win = opts.win || (typeof window !== "undefined" ? window : null);
+    const doc = node.ownerDocument;
+    const reached = () => (node.textContent || "").trim() === String(text).trim();
+
+    const selectAll = () => {
+      try {
+        const sel = win && win.getSelection ? win.getSelection() : null;
+        if (!sel || !doc.createRange) return;
+        sel.removeAllRanges();
+        const range = doc.createRange();
+        range.selectNodeContents(node);
+        sel.addRange(range);
+      } catch { /* pas de sélection : les stratégies suivantes s'en passent */ }
+    };
+
+    try { node.focus(); } catch { /* focus refusé : on tente quand même */ }
+
+    // 1. execCommand
+    try {
+      selectAll();
+      if (doc.execCommand && doc.execCommand("insertText", false, text) && reached()) return true;
+    } catch { /* stratégie suivante */ }
+
+    // 2. Collage synthétique
+    try {
+      if (win && typeof win.DataTransfer === "function" && typeof win.ClipboardEvent === "function") {
+        selectAll();
+        const dt = new win.DataTransfer();
+        dt.setData("text/plain", text);
+        node.dispatchEvent(new win.ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+        if (reached()) return true;
+      }
+    } catch { /* stratégie suivante */ }
+
+    // 3. Écriture directe + événements d'édition
+    try {
+      node.textContent = text;
+      if (win && typeof win.InputEvent === "function") {
+        node.dispatchEvent(new win.InputEvent("input", { bubbles: true, inputType: "insertText", data: text }));
+      } else if (typeof Event === "function") {
+        node.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      return reached();
+    } catch {
+      return false;
+    }
+  }
+
   /** Le contenteditable du champ de message. */
   function composerNode(doc) {
     try {
@@ -265,7 +327,10 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     return () => { done = true; win.clearInterval(id); };
   }
 
-  return { currentUsername, composerNode, loggedInAccount, watchSend, usernameFromHref, lastIncomingText, conversationThread };
+  return {
+    currentUsername, composerNode, loggedInAccount, watchSend,
+    usernameFromHref, lastIncomingText, conversationThread, insertIntoComposer,
+  };
 })();
 
 // Export de test (node) — inerte dans le navigateur.

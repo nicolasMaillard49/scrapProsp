@@ -4,6 +4,7 @@
 // aide à revenir vers l'étape suivante de la séquence.
 
 import type { TrameStep } from "./igTrame";
+import { skillForWriting } from "./igSkill";
 
 export interface ReplyProspect {
   username: string;
@@ -57,7 +58,9 @@ export function buildReplySystemPrompt(ctx: ReplyContext): string {
         .join("\n")
     : "Prospect inconnu de la base — reste générique, n'invente aucun détail sur son activité.";
 
-  return `Tu es l'assistant de Nicolas, fondateur de NMF Agence (agence web de proximité). Nicolas prospecte des indépendants et commerces locaux en DM Instagram. Il t'écrit parce que le prospect vient de répondre quelque chose qui sort de sa trame, et il a besoin d'une réponse courte pour rebondir.
+  return `Tu es l'assistant de prospection de Nicolas. Il t'écrit parce que le prospect vient de répondre quelque chose qui sort de sa trame, et il a besoin d'une réponse courte pour rebondir.
+
+${skillForWriting()}
 
 # Le prospect
 ${who}

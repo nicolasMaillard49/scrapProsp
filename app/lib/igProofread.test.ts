@@ -1,17 +1,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanProofread, PROOFREAD_SYSTEM } from "./igProofread";
+import { cleanProofread, buildProofreadSystem } from "./igProofread";
 
 test("prompt: corrige sans réécrire, et n'ajoute jamais signature ni lien", () => {
-  assert.match(PROOFREAD_SYSTEM, /ne reformule pas/i);
-  assert.match(PROOFREAD_SYSTEM, /aucune signature/i);
-  assert.match(PROOFREAD_SYSTEM, /aucun lien/i);
-  assert.match(PROOFREAD_SYSTEM, /garde le tutoiement ou le vouvoiement/i);
+  const p = buildProofreadSystem();
+  assert.match(p, /ne reformule pas/i);
+  assert.match(p, /aucune signature/i);
+  assert.match(p, /aucun lien/i);
+  assert.match(p, /garde le tutoiement ou le vouvoiement/i);
 });
 
 test("prompt: français uniquement — jamais de traduction", () => {
-  assert.match(PROOFREAD_SYSTEM, /FRANÇAIS/);
-  assert.match(PROOFREAD_SYSTEM, /ne traduis jamais/i);
+  const p = buildProofreadSystem();
+  assert.match(p, /FRANÇAIS/);
+  assert.match(p, /ne traduis jamais/i);
+});
+
+test("prompt: embarque le vocabulaire métier, pour ne pas « corriger » un mot juste", () => {
+  const p = buildProofreadSystem();
+  assert.match(p, /prothésiste ongulaire/);
+  assert.match(p, /slt, tjr/);
 });
 
 test("clean: texte corrigé rendu tel quel", () => {

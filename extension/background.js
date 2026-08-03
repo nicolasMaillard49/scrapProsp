@@ -172,6 +172,41 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ status, data: json });
         break;
       }
+      // sidepanel : qualification de la réponse à froid, puis — sur validation
+      // explicite (record: true) — inscription au CRM. Idempotent par
+      // (prospect, jour Paris) : une double validation ne compte pas deux
+      // réponses, ce qui gonflerait les KPI d'accroche.
+      case "ig:classify": {
+        if (msg.record) {
+          const { replyKeys = [] } = await chrome.storage.local.get("replyKeys");
+          const key = NMFUtil.replyKey(msg.username, new Date());
+          if (!NMFUtil.shouldLog(replyKeys, key)) {
+            sendResponse({ status: 200, data: { ok: true, deduped: true } });
+            break;
+          }
+          const res = await api("/api/instagram/classify-reply", {
+            method: "POST",
+            body: JSON.stringify({
+              username: msg.username,
+              record: true,
+              kind: msg.kind,
+              excerpt: msg.excerpt,
+              account_id: msg.accountId ?? null,
+            }),
+          });
+          if (res.status === 200 && res.json.ok) {
+            await chrome.storage.local.set({ replyKeys: NMFUtil.prune([...replyKeys, key]) });
+          }
+          sendResponse({ status: res.status, data: res.json });
+          break;
+        }
+        const { status, json } = await api("/api/instagram/classify-reply", {
+          method: "POST",
+          body: JSON.stringify({ username: msg.username, history: msg.history ?? "" }),
+        });
+        sendResponse({ status, data: json });
+        break;
+      }
       // sidepanel : correction orthographique du texte du champ. Lecture
       // seule côté app ; le remplacement dans le champ se fait côté panneau.
       case "ig:proofread": {

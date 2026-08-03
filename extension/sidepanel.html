@@ -36,6 +36,10 @@
     textarea { width: 100%; min-height: 110px; margin-top: 6px; padding: 6px; font: 12px system-ui; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; resize: vertical; }
     .sugg { border: 1px solid light-dark(#e2e8f0, #334155); border-left: 3px solid #0d9488; border-radius: 6px; padding: 7px; margin-top: 7px; }
     .sugg .tag { font: 700 10px system-ui; text-transform: uppercase; color: #0d9488; }
+    .sugg.verdict { border-left-color: #7c3aed; }
+    .sugg.verdict .tag { color: #7c3aed; }
+    .sugg.doubt { border-left-color: #d97706; }
+    .sugg.doubt .tag { color: #d97706; }
     .sugg p { margin: 4px 0 6px; font-size: 12px; white-space: pre-line; }
 
     /* Étapes de la trame */
@@ -61,7 +65,11 @@
   <div id="account" class="muted"></div>
   <div class="row">
     <button id="fixSpell" title="Corrige l'orthographe de ce que tu as tapé dans Instagram, sans changer le ton">Corriger l'orthographe du champ</button>
+    <button id="qualify" title="Qualifie la réponse à froid du prospect et l'inscrit au CRM">Qualifier la réponse</button>
   </div>
+
+  <div id="fixOut"></div>
+  <div id="qualifyOut"></div>
 
   <div id="error" class="err"></div>
 

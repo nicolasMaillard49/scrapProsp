@@ -3,9 +3,13 @@
 // Corriger n'est pas réécrire : le message doit rester CELUI de Nicolas, avec
 // son ton, ses tournures et ses éventuels emojis. Seules les fautes partent.
 
+import { skillForProofreading } from "./igSkill";
+
 export const MAX_PROOFREAD = 2000;
 
-export const PROOFREAD_SYSTEM = `Tu corriges l'orthographe de messages courts écrits en français, envoyés en DM Instagram par Nicolas à des prospects.
+export const buildProofreadSystem = (): string => `Tu corriges l'orthographe de messages courts écrits en français, envoyés en DM Instagram par Nicolas à des prospects.
+
+${skillForProofreading()}
 
 Corrige : fautes d'orthographe, accords, conjugaison, accents manquants, ponctuation, majuscules en début de phrase, doublons de mots, espaces en trop.
 

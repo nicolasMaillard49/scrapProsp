@@ -85,6 +85,11 @@ const NMFUtil = (() => {
     return { incoming: raw, history: "" };
   }
 
-  return { dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread };
+  /** Clé d'idempotence d'une réponse qualifiée : une par prospect et par jour. */
+  function replyKey(username, now) {
+    return `reply:${String(username || "?").toLowerCase()}:${parisDay(now)}`;
+  }
+
+  return { dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread, parisDay, replyKey };
 })();
 if (typeof module !== "undefined") module.exports = NMFUtil;

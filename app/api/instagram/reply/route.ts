@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { REPLY_KINDS, type ReplyKind } from "@/app/lib/igPipeline";
+import { logReply } from "@/app/lib/igReplyLog";
 
 export const dynamic = "force-dynamic";
 
@@ -31,64 +31,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const { prospect_id } = body;
-  const kind = (body.kind ?? "").toLowerCase() as ReplyKind;
-  if (!prospect_id) return NextResponse.json({ error: "prospect_id requis" }, { status: 400 });
-  if (!REPLY_KINDS.includes(kind)) {
-    return NextResponse.json({ error: `kind invalide (${kind}) — attendu : ${REPLY_KINDS.join(", ")}` }, { status: 400 });
-  }
-
-  const receivedAt = body.received_at ? new Date(body.received_at) : new Date();
-  if (Number.isNaN(receivedAt.getTime())) {
-    return NextResponse.json({ error: "received_at invalide" }, { status: 400 });
-  }
-
-  const { data: prospect, error: prosErr } = await supabase
-    .from("instagram_prospects")
-    .select("id, username, status")
-    .eq("id", prospect_id)
-    .single();
-  if (prosErr || !prospect) return NextResponse.json({ error: "prospect introuvable" }, { status: 404 });
-
-  const { data: reply, error: insErr } = await supabase
-    .from("ig_replies")
-    .insert({
-      prospect_id,
-      account_id: body.account_id ?? null,
-      kind,
-      received_at: receivedAt.toISOString(),
-      excerpt: body.excerpt?.slice(0, 500) ?? null,
-    })
-    .select("id, kind, received_at, excerpt")
-    .single();
-  if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
-
-  // Le trigger de la migration 018 a déjà recalculé reply_count / first_reply_at /
-  // last_reply_at ; on ne touche ici qu'à ce qui relève de la décision métier.
-  const patch: Record<string, unknown> = {};
-  if (kind !== "autorepondeur") patch.next_followup_at = null;
-  if (prospect.status === "todo") patch.status = "contacted";
-
-  let updated = null;
-  if (Object.keys(patch).length > 0) {
-    const { data, error: upErr } = await supabase
-      .from("instagram_prospects")
-      .update(patch)
-      .eq("id", prospect_id)
-      .select("id, status, stage, next_followup_at, reply_count, first_reply_at, last_reply_at")
-      .single();
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
-    updated = data;
-  } else {
-    const { data } = await supabase
-      .from("instagram_prospects")
-      .select("id, status, stage, next_followup_at, reply_count, first_reply_at, last_reply_at")
-      .eq("id", prospect_id)
-      .single();
-    updated = data;
-  }
-
-  return NextResponse.json({ ok: true, reply, prospect: updated });
+  const r = await logReply({
+    prospect_id: body.prospect_id ?? "",
+    kind: body.kind ?? "",
+    account_id: body.account_id ?? null,
+    received_at: body.received_at,
+    excerpt: body.excerpt,
+  });
+  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+  return NextResponse.json({ ok: true, reply: r.reply, prospect: r.prospect });
 }
 
 /**
