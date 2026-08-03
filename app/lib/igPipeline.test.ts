@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { warmupCaps, clampToWindow, nextFollowup, stageForStep, VALID_STEPS, MAX_DAILY } from "./igPipeline";
+import { warmupCaps, clampToWindow, nextFollowup, stageForStep, nextStepFor, STAGES, VALID_STEPS, MAX_DAILY } from "./igPipeline";
 
 const day = (n: number, base = Date.parse("2026-07-01T12:00:00")) => base + (n - 1) * 24 * 3600 * 1000;
 
@@ -66,4 +66,38 @@ test("stageForStep: mapping M1→accroche … M9→questionnaire, Rn→null", ()
   assert.equal(stageForStep("M9"), "questionnaire_envoye");
   assert.equal(stageForStep("R2"), null);
   assert.ok(VALID_STEPS.has("R3") && !VALID_STEPS.has("M10"));
+});
+
+test("nextStepFor: le stade dit quel message envoyer ensuite", () => {
+  assert.equal(nextStepFor(null), "M1"); // jamais contacté
+  assert.equal(nextStepFor(""), "M1");
+  assert.equal(nextStepFor("accroche"), "M2");
+  assert.equal(nextStepFor("presentation"), "M5"); // M2-M4 tiennent dans « présentation »
+  assert.equal(nextStepFor("connexion"), "M7"); // M5-M6 tiennent dans « connexion »
+  assert.equal(nextStepFor("douleur"), "M8");
+  assert.equal(nextStepFor("appel_propose"), "M9");
+});
+
+test("nextStepFor: plus rien à envoyer une fois la séquence épuisée ou close", () => {
+  // Après M9 c'est à lui de jouer ; booké et perdu sont des fins.
+  assert.equal(nextStepFor("questionnaire_envoye"), null);
+  assert.equal(nextStepFor("call_booke"), null);
+  assert.equal(nextStepFor("perdu"), null);
+  assert.equal(nextStepFor("stade_inconnu"), null);
+});
+
+test("nextStepFor: aller-retour cohérent avec stageForStep sur toute la séquence", () => {
+  // Envoyer le message proposé doit faire AVANCER le stade, jamais reculer ni stagner.
+  for (const stage of STAGES) {
+    const step = nextStepFor(stage);
+    if (!step) continue;
+    const reached = stageForStep(step);
+    assert.ok(reached, `${step} devrait mener à un stade`);
+    assert.ok(
+      STAGES.indexOf(reached!) > STAGES.indexOf(stage),
+      `depuis « ${stage} », ${step} mène à « ${reached} » — ce n'est pas une avancée`,
+    );
+  }
+  // Et le tout premier pas mène bien à l'accroche.
+  assert.equal(stageForStep(nextStepFor(null)!), "accroche");
 });

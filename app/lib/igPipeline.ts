@@ -168,6 +168,37 @@ export function stageForStep(step: string): Stage | null {
 export const VALID_STEPS = new Set(["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "R1", "R2", "R3"]);
 
 /**
+ * Prochain message de la séquence à envoyer, d'après le stade atteint —
+ * l'inverse de `stageForStep`. Sert à pointer une étape dans la trame plutôt
+ * que d'afficher douze messages sans repère.
+ *
+ * `null` quand la séquence n'a plus rien à proposer : après M9 la balle est
+ * dans le camp du prospect (questionnaire puis call), et booké/perdu sont des
+ * fins. Les relances n'en font pas partie : elles sont pilotées par
+ * `next_followup_at`, pas par le stade.
+ */
+export function nextStepFor(stage: string | null): string | null {
+  switch (stage) {
+    case null:
+    case "":
+      return "M1";
+    case "accroche":
+      return "M2";
+    case "presentation":
+      return "M5";
+    case "connexion":
+      return "M7";
+    case "douleur":
+      return "M8";
+    case "appel_propose":
+      return "M9";
+    default:
+      // questionnaire_envoye, call_booke, perdu — et tout stade inconnu.
+      return null;
+  }
+}
+
+/**
  * Genres de réponse ENTRANTE (table `ig_replies`, migration 018).
  * `autorepondeur` ne compte pas comme une réponse humaine : ni dans les KPI, ni
  * pour sortir le prospect de la file de relance.

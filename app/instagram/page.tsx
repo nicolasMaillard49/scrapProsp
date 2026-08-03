@@ -23,7 +23,7 @@ import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { matchesProspect } from "@/app/lib/search";
 import { instagramDmSequence, detectMetier, firstNameOf, competitorHook } from "@/app/lib/instagram";
-import { STAGE_LABEL, STAGE_SHORT, STAGES, stageTone, type Stage, type StageTone } from "@/app/lib/igPipeline";
+import { STAGE_LABEL, STAGE_SHORT, STAGES, stageTone, nextStepFor, type Stage, type StageTone } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
 import type { IgCompetitorReport } from "@/app/lib/igCompetitor";
 import ProspectionTool from "./ProspectionTool";
@@ -285,6 +285,9 @@ export default function InstagramPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [expandedDm, setExpandedDm] = useState<string | null>(null);
+  // Vue pipeline : prospect dont la trame est affichée en tête (bouton « Trame »
+  // d'une carte). null = trame générique, lisible comme simple méthode.
+  const [trameFor, setTrameFor] = useState<string | null>(null);
   // Rapport concurrentiel par prospect (panneau repliable, chargé à la demande).
   const [expandedComp, setExpandedComp] = useState<string | null>(null);
   const [compReports, setCompReports] = useState<Record<string, IgCompetitorReport>>({});
@@ -1071,6 +1074,9 @@ export default function InstagramPage() {
    * « À contacter » n'est chargé qu'une page (`PAGE_SIZE`) : on le DIT plutôt que
    * d'afficher un total faux. Les autres colonnes, elles, sont exhaustives.
    */
+  /** Prospect dont la trame est affichée en tête du pipeline (null = générique). */
+  const trameLead = useMemo(() => leads.find((l) => l.id === trameFor) ?? null, [leads, trameFor]);
+
   const todoNote = useMemo(() => {
     const loaded = leads.filter((l) => !l.stage && !l.last_dm_at).length;
     if (todoStock == null || todoStock <= loaded) return null;
@@ -1729,6 +1735,38 @@ export default function InstagramPage() {
           ) : viewMode === "pipeline" ? (
             /* ─── VUE PIPELINE : une colonne par stade, glisser-déposer souris + tactile ─── */
             <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveDrag(null)}>
+              {/* La trame, en tête de vue comme dans la sélection du jour : les
+                  colonnes disent où on en est, la trame dit quoi envoyer ensuite.
+                  Le bouton « Trame » d'une carte la réécrit pour ce prospect. */}
+              <div className="mb-3">
+                <TrameDM
+                  next={trameLead}
+                  origin={origin}
+                  activeAccount={activeAccount}
+                  copied={copied}
+                  onCopy={copy}
+                  onMarkSent={markSent}
+                  highlight={trameLead ? nextStepFor(trameLead.stage) : null}
+                  subtitle={
+                    trameLead ? (
+                      <>
+                        écrite pour <span className="font-medium text-[var(--color-text-secondary)]">@{trameLead.username}</span>
+                        {" · "}
+                        {trameLead.stage ? STAGE_LABEL[trameLead.stage as Stage] ?? trameLead.stage : "jamais contacté"}
+                        {" — "}
+                        <button
+                          onClick={() => setTrameFor(null)}
+                          className="underline hover:text-[var(--color-text-secondary)] cursor-pointer"
+                        >
+                          revenir au générique
+                        </button>
+                      </>
+                    ) : (
+                      "version générique — clique « Trame » sur une carte pour l'écrire pour ce prospect"
+                    )
+                  }
+                />
+              </div>
               <PipelineScroller>
                 <div className="flex gap-3 min-w-min items-start">
                   {PIPE_COLS.map((col) => (
@@ -1748,6 +1786,7 @@ export default function InstagramPage() {
                         onCopy: copy,
                         onMarkSent: markSent,
                         onReplyLogged: (id, p) => setLeads((prev) => prev.map((x) => (x.id === id ? { ...x, ...p } : x))),
+                        onOpenTrame: setTrameFor,
                       }}
                     />
                   ))}
@@ -2465,6 +2504,8 @@ type PipelineCardHandlers = {
   onReplyLogged: (id: string, p: Record<string, unknown>) => void;
   onCopy: (key: string, text: string) => void;
   onMarkSent: (id: string, step: string) => void;
+  /** Vue « Pipeline » uniquement : réécrit la trame en tête pour ce prospect. */
+  onOpenTrame?: (id: string) => void;
   /** Vue « Sélection du jour » uniquement : retire le prospect de la liste du jour. */
   onSkip?: (id: string) => void;
   /** Vue « Sélection du jour » uniquement : perdu + écarté, en un clic. */
@@ -2472,24 +2513,31 @@ type PipelineCardHandlers = {
 };
 
 /**
- * TRAME DM en tête de la sélection du jour.
+ * TRAME DM — le panneau de référence, partagé par la sélection du jour et le
+ * pipeline.
  *
  * La trame vivait uniquement dans le dépliant « Séquence DM » de chaque fiche,
- * en vue liste : pour la relire il fallait quitter la sélection. Or c'est la
+ * en vue liste : pour la relire il fallait quitter la vue en cours. Or c'est la
  * référence qu'on suit toute la session (M1 → M9, un message à la fois), donc
- * elle est ici, juste sous le compteur du jour.
+ * elle est en tête de vue.
  *
- * Elle est personnalisée pour le PROCHAIN compte à démarcher — sinon les textes
- * seraient des gabarits à trous, inutilisables tels quels. Quand la journée est
- * finie, elle retombe sur la version générique, qui reste lisible comme méthode.
+ * Elle est personnalisée pour UN prospect — sinon les textes seraient des
+ * gabarits à trous, inutilisables tels quels. Sans prospect (file du jour vide,
+ * ou aucune carte choisie), elle retombe sur la version générique, qui reste
+ * lisible comme méthode.
+ *
+ * `highlight` désigne l'étape à envoyer maintenant (cf. `nextStepFor`) : dans le
+ * pipeline, douze messages sans repère ne disent pas où on en est.
  */
-function TrameDuJour({
+function TrameDM({
   next,
   origin,
   activeAccount,
   copied,
   onCopy,
   onMarkSent,
+  subtitle,
+  highlight,
 }: {
   next: IgLead | null;
   origin: string;
@@ -2497,6 +2545,10 @@ function TrameDuJour({
   copied: string | null;
   onCopy: (key: string, text: string) => void;
   onMarkSent: (id: string, step: string) => void;
+  /** Mention à droite du titre — le contexte diffère selon la vue appelante. */
+  subtitle?: ReactNode;
+  /** Étape mise en avant (« à envoyer maintenant »), ou null. */
+  highlight?: string | null;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -2542,11 +2594,12 @@ function TrameDuJour({
           Trame DM
         </button>
         <span className="text-[11px] text-[var(--color-text-muted)]">
-          {next ? (
-            <>écrite pour <span className="font-medium text-[var(--color-text-secondary)]">@{next.username}</span>, le prochain de la file</>
-          ) : (
-            "version générique — la file du jour est vide"
-          )}
+          {subtitle ??
+            (next ? (
+              <>écrite pour <span className="font-medium text-[var(--color-text-secondary)]">@{next.username}</span>, le prochain de la file</>
+            ) : (
+              "version générique — la file du jour est vide"
+            ))}
         </span>
         <span className="flex-1" />
         <span className="text-[11px] text-[var(--color-text-muted)]">un message à la fois · aucun lien avant M8</span>
@@ -2557,8 +2610,16 @@ function TrameDuJour({
           {steps.map((s) => {
             const key = `trame-${next?.id ?? "generique"}-${s.step}`;
             const isRelance = s.step.startsWith("R");
+            const isNext = !!highlight && s.step === highlight;
             return (
-              <div key={key} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)]/50 p-2.5">
+              <div
+                key={key}
+                className={`rounded-lg border p-2.5 ${
+                  isNext
+                    ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)] ring-1 ring-[var(--color-accent)]/30"
+                    : "border-[var(--color-border)] bg-[var(--color-surface-2)]/50"
+                }`}
+              >
                 <div className="flex items-center justify-between gap-1.5 mb-1">
                   <span
                     className={`font-mono-num text-[11px] font-semibold truncate ${isRelance ? "text-[var(--color-text-muted)]" : "text-[var(--color-accent)]"}`}
@@ -2590,6 +2651,11 @@ function TrameDuJour({
                     )}
                   </span>
                 </div>
+                {isNext && (
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-accent)] mb-1">
+                    à envoyer maintenant
+                  </p>
+                )}
                 <p className="text-[11.5px] text-[var(--color-text-secondary)] whitespace-pre-line leading-relaxed">
                   {s.text}
                 </p>
@@ -2769,13 +2835,14 @@ function SelectionView({
 
       {/* La trame, juste sous le compteur : c'est la référence qu'on suit toute
           la session, elle ne doit pas obliger à quitter la sélection. */}
-      <TrameDuJour
+      <TrameDM
         next={(restants[0]?.prospect as IgLead | undefined) ?? null}
         origin={cardProps.origin}
         activeAccount={cardProps.activeAccount}
         copied={cardProps.copied}
         onCopy={cardProps.onCopy}
         onMarkSent={cardProps.onMarkSent}
+        highlight={nextStepFor((restants[0]?.prospect as IgLead | undefined)?.stage ?? null)}
       />
 
       {selection.rows.length === 0 ? (
@@ -2900,7 +2967,7 @@ function PipelineColumn({
 }
 
 /** Carte compacte de la vue Pipeline — draggable (souris + tactile), mêmes actions que la fiche liste. */
-function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetStage, onSaveNote, onOpenInsta, onReplyLogged, onSkip, onLost }: { l: IgLead } & PipelineCardHandlers) {
+function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetStage, onSaveNote, onOpenInsta, onReplyLogged, onOpenTrame, onSkip, onLost }: { l: IgLead } & PipelineCardHandlers) {
   const metierEff =
     detectMetier(l.profession_ia, null) ||
     detectMetier(l.category, `${l.username} ${l.bio ?? ""}`) ||
@@ -3049,6 +3116,26 @@ function PipelineCard({ l, origin, activeAccount, copied, onQuickContact, onSetS
               </button>
             )}
           </>
+        )}
+        {/* Ouvre la trame en tête de pipeline, réécrite pour CE prospect et
+            pointée sur l'étape à envoyer maintenant. Le libellé porte déjà le
+            numéro : depuis une colonne, savoir « M5 » évite d'aller le chercher. */}
+        {onOpenTrame && (
+          <button
+            onClick={() => onOpenTrame(l.id)}
+            title={
+              nextStepFor(l.stage)
+                ? `Trame DM — prochaine étape : ${nextStepFor(l.stage)}`
+                : "Trame DM — séquence terminée pour ce prospect"
+            }
+            className="tap inline-flex items-center gap-1 px-2 py-1.5 text-[11px] font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-accent)] hover:border-[var(--color-accent)]/40 transition-colors cursor-pointer"
+          >
+            <ListIcon className="w-3 h-3" />
+            Trame
+            {nextStepFor(l.stage) && (
+              <span className="font-mono-num text-[var(--color-accent)]">{nextStepFor(l.stage)}</span>
+            )}
+          </button>
         )}
         {/* Sélection du jour, deux sorties distinctes et volontairement séparées :
             — « Perdu » (rouge) : le compte est mort, il sort du circuit (stade
