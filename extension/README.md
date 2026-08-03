@@ -50,6 +50,20 @@ prix, une seule question, et retour vers l'étape suivante de la trame.
 Une réponse IA n'est **pas** une étape de la séquence : elle s'insère sans être
 journalisée et ne fait pas avancer le stade.
 
+## Correction orthographique
+
+« Corriger l'orthographe du champ » relit ce que tu viens de taper dans
+Instagram et le remplace corrigé, en place (`POST /api/instagram/proofread`).
+
+Corriger n'est pas réécrire : le prompt (`app/lib/igProofread.ts`) interdit
+toute reformulation, garde le ton parlé, le tutoiement/vouvoiement, les emojis
+et les retours à la ligne, et **reste en français** (aucune traduction).
+`cleanProofread` refuse une sortie qui triple la longueur — c'est une
+réécriture ou une explication, pas une correction — et rend l'original.
+
+L'armement de journalisation **survit** à la correction : c'est le même
+message, donc la même étape de la trame.
+
 ## Quand Instagram casse la détection
 
 **Filet immédiat** : si le prospect n'est pas détecté, le panneau affiche un

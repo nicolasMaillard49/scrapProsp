@@ -59,6 +59,9 @@
         chrome.runtime.sendMessage({ type: "ig:sent" }).catch(() => {});
       });
       sendResponse({ ok: true });
+    } else if (msg?.type === "ig:composer-text") {
+      const node = NMFDetect.composerNode(document);
+      sendResponse({ text: node ? (node.innerText || node.textContent || "") : null });
     } else if (msg?.type === "ig:thread") {
       // Lecture seule du fil : alimente le bloc « réponse IA ». Le pseudo du
       // prospect aide à reconnaître son avatar donc ses messages.

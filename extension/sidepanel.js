@@ -277,6 +277,40 @@ $("moreToggle").addEventListener("click", () => {
   renderTrame();
 });
 
+/**
+ * Corrige l'orthographe du texte présent dans le champ Instagram, en place.
+ *
+ * Réinsère SANS passer par insertRaw : c'est le même message, corrigé — s'il
+ * était armé pour la journalisation, il doit le rester. Désarmer ici ferait
+ * perdre l'étape au moment de l'envoi.
+ */
+$("fixSpell").addEventListener("click", async () => {
+  const btn = $("fixSpell");
+  if (btn.disabled) return;
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) { $("error").textContent = "Onglet Instagram introuvable."; return; }
+  const c = await chrome.tabs.sendMessage(tab.id, { type: "ig:composer-text" }).catch(() => null);
+  const text = (c?.text ?? "").trim();
+  if (!text) {
+    $("error").textContent = c?.text === null
+      ? "Champ de message introuvable — ouvre la conversation."
+      : "Le champ est vide — tape ton message d'abord.";
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Correction…";
+  try {
+    const r = await chrome.runtime.sendMessage({ type: "ig:proofread", text });
+    if (r?.status !== 200) { $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`; return; }
+    if (!r.data.changed) { $("error").textContent = "Rien à corriger."; return; }
+    const ins = await chrome.tabs.sendMessage(tab.id, { type: "ig:insert", text: r.data.text }).catch(() => null);
+    $("error").textContent = ins?.ok ? "Corrigé ✓ — relis avant d'envoyer." : "Champ de message introuvable.";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Corriger l'orthographe du champ";
+  }
+});
+
 async function loadManual() {
   const u = $("manualUser").value.replace(/^@/, "").trim().toLowerCase();
   if (!u) return;

@@ -132,6 +132,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ status, data: json });
         break;
       }
+      // sidepanel : correction orthographique du texte du champ. Lecture
+      // seule côté app ; le remplacement dans le champ se fait côté panneau.
+      case "ig:proofread": {
+        const { status, json } = await api("/api/instagram/proofread", {
+          method: "POST",
+          body: JSON.stringify({ text: msg.text ?? "" }),
+        });
+        sendResponse({ status, data: json });
+        break;
+      }
       // content.js : envoi détecté → journalise avec l'armement en cours.
       case "ig:sent": {
         const armed = await getArmed();

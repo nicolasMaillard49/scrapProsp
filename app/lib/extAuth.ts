@@ -16,6 +16,7 @@ const EXT_PATHS = new Set([
   "/api/instagram/trame",
   "/api/instagram/dm",
   "/api/instagram/reply-ai",
+  "/api/instagram/proofread",
 ]);
 
 export function isExtRequestAllowed(
