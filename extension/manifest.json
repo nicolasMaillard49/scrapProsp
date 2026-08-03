@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "NMF — Trame DM Instagram",
+  "version": "0.1.0",
+  "description": "Affiche la trame DM du prospect à l'écran, insère le message, journalise l'envoi. N'envoie jamais.",
+  "permissions": ["storage", "tabs", "sidePanel"],
+  "host_permissions": ["https://www.instagram.com/*", "https://*.nmf-agence.com/*", "http://localhost:3000/*"],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.instagram.com/*"],
+      "js": ["detect.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": { "default_path": "sidepanel.html" },
+  "sidebar_action": { "default_panel": "sidepanel.html", "default_title": "Trame DM" },
+  "options_ui": { "page": "options.html", "open_in_tab": false },
+  "action": { "default_title": "Trame DM" }
+}

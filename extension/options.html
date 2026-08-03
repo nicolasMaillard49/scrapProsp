@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font: 13px system-ui; padding: 16px; width: 340px; color: #1e293b; }
+    label { display: block; font-weight: 600; margin: 12px 0 4px; }
+    input { width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px; }
+    button { margin-top: 14px; padding: 7px 14px; border: 0; border-radius: 6px; background: #4f46e5; color: #fff; font-weight: 600; cursor: pointer; }
+    #status { margin-left: 8px; color: #059669; }
+  </style>
+</head>
+<body>
+  <h3>Trame DM — réglages</h3>
+  <label for="appUrl">URL de l'app</label>
+  <input id="appUrl" placeholder="https://prospects.nmf-agence.com" />
+  <label for="extToken">EXT_TOKEN</label>
+  <input id="extToken" type="password" placeholder="le secret EXT_TOKEN du .env" />
+  <button id="save">Enregistrer</button><span id="status"></span>
+  <script src="options.js"></script>
+</body>
+</html>
