@@ -19,7 +19,7 @@ const STAGE_LABEL = {
   call_booke: "Call booké ✓", perdu: "Perdu",
 };
 
-async function refresh(username) {
+async function refresh(username, detectedAccount) {
   const r = await chrome.runtime.sendMessage({ type: "ig:get-trame", username });
   if (!r || r.status === 0) { $("error").textContent = r?.data?.error || "Extension non configurée."; return; }
   if (r.status === 401) { $("error").textContent = "401 — EXT_TOKEN invalide (options de l'extension / .env de l'app)."; return; }
@@ -28,18 +28,24 @@ async function refresh(username) {
   state.username = username ?? r.context?.username ?? null;
   state.data = r.data;
   const accounts = r.data.accounts ?? [];
-  const detectedAccount = r.context?.account ?? state.igAccount;
-  // m1 : ne jamais écraser un choix manuel silencieusement — on ne recalcule
+  // m1 : le compte détecté DOIT transiter par les paramètres de refresh — pas
+  // par une mutation de state.igAccount faite par l'appelant AVANT refresh(),
+  // sinon prevDetected/nextDetected sont identiques par construction et le
+  // choix manuel n'est plus jamais réévalué (régression : DM journalisé sur
+  // le mauvais émetteur si le compte Instagram connecté change réellement).
+  const prevDetected = state.igAccount;
+  const nextDetected = detectedAccount ?? r.context?.account ?? prevDetected;
+  // Ne jamais écraser un choix manuel silencieusement — on ne recalcule
   // l'appariement que si le compte détecté a changé ou si l'émetteur choisi
   // n'existe plus (ex. supprimé côté app).
   const accountStillValid = state.accountId && accounts.some((a) => a.id === state.accountId);
-  const detectedUnchanged = detectedAccount === state.igAccount;
+  const detectedUnchanged = nextDetected === prevDetected;
   if (!(state.accountId && detectedUnchanged && accountStillValid)) {
     // § 8 : compte émetteur DÉTECTÉ — apparié par pseudo, sinon choix explicite.
-    const match = accounts.find((a) => a.username === detectedAccount);
+    const match = accounts.find((a) => a.username === nextDetected);
     state.accountId = match ? match.id : null;
   }
-  state.igAccount = detectedAccount;
+  state.igAccount = nextDetected;
   render();
 }
 
@@ -142,8 +148,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "ig:prospect-changed") {
     $("fallback").style.display = "none";
     clearTimeout(state.fallbackTimer);
-    state.igAccount = msg.account ?? state.igAccount;
-    refresh(msg.username);
+    refresh(msg.username, msg.account);
   }
   if (msg?.type === "ig:logged") {
     clearTimeout(state.fallbackTimer);
