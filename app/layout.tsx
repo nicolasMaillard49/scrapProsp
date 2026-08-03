@@ -26,6 +26,10 @@ const mono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Prospects Tracker",
   description: "Suivi des appels de prospection",
+  manifest: "/manifest.webmanifest",
+  // Sans `apple-icon.png` (émis par app/apple-icon.png), l'ajout à l'écran
+  // d'accueil iPhone retombe sur la première lettre du titre — le « P ».
+  appleWebApp: { capable: true, title: "Prospects" },
 };
 
 export const viewport: Viewport = {

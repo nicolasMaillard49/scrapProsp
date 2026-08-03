@@ -1,19 +1,25 @@
+<!--
+  Marque scrapProsp — SOURCE DE VÉRITÉ de toutes les icônes.
+  Le X de NMF (deux arcs opposés, vide central) dont le vide porte un point :
+  la marque de l'agence, rendue propre à l'outil par la cible acquise.
+  Régénérer les PNG (app, PWA, extension) : node scripts/build-icons.mjs
+-->
 <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <rect width="64" height="64" rx="14" fill="#0a0a0c"/>
-  <g fill="#7B4FE0" stroke="#7B4FE0" stroke-linecap="round" stroke-linejoin="round">
-    <ellipse cx="30" cy="36" rx="9" ry="6"/>
-    <circle cx="20" cy="36" r="4"/>
-    <path d="M17 31 Q9 24 5 30 Q4 34 9 35 L13 33 Z" stroke-width="1.5"/>
-    <path d="M17 41 Q9 48 5 42 Q4 38 9 37 L13 39 Z" stroke-width="1.5"/>
-    <line x1="25" y1="42" x2="22" y2="50" stroke-width="2.5"/>
-    <line x1="29" y1="43" x2="28" y2="52" stroke-width="2.5"/>
-    <line x1="33" y1="43" x2="34" y2="52" stroke-width="2.5"/>
-    <line x1="37" y1="42" x2="39" y2="50" stroke-width="2.5"/>
-    <line x1="25" y1="30" x2="22" y2="22" stroke-width="2.5"/>
-    <line x1="29" y1="29" x2="28" y2="20" stroke-width="2.5"/>
-    <line x1="33" y1="29" x2="34" y2="20" stroke-width="2.5"/>
-    <line x1="37" y1="30" x2="39" y2="22" stroke-width="2.5"/>
-    <path d="M39 36 Q50 36 53 28 Q55 18 47 16 L45 11" fill="none" stroke-width="3.5"/>
-    <circle cx="45" cy="9" r="2.5"/>
+  <defs>
+    <linearGradient id="g" x1="12" y1="56" x2="52" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8B5CF6"/>
+      <stop offset=".55" stop-color="#B84FE8"/>
+      <stop offset="1" stop-color="#E85FD4"/>
+    </linearGradient>
+    <mask id="void">
+      <rect width="64" height="64" fill="#fff"/>
+      <circle cx="32" cy="32" r="10" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0B0D14"/>
+  <g mask="url(#void)" fill="none" stroke="url(#g)" stroke-width="10.5" stroke-linecap="round">
+    <path d="M13.5 10 C13.5 32 50.5 32 50.5 10"/>
+    <path d="M13.5 54 C13.5 32 50.5 32 50.5 54"/>
   </g>
+  <circle cx="32" cy="32" r="4.25" fill="#E85FD4"/>
 </svg>
