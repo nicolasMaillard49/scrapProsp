@@ -11,7 +11,6 @@ let state = {
   accountId: null,     // compte émetteur retenu pour journaliser
   lastArm: null,       // { prospectId, accountId, step } — filet manuel
   fallbackTimer: null,
-  showAll: false,      // trame complète dépliée
   aiBusy: false,
   manual: null,        // pseudo saisi à la main (détection en échec)
 };
@@ -71,23 +70,14 @@ async function refresh(username, detectedAccount) {
   render();
 }
 
-/** Ordre des stades — sert au rail d'avancement. */
-const STAGE_ORDER = ["accroche", "presentation", "connexion", "douleur", "appel_propose", "questionnaire_envoye", "call_booke"];
-const STAGE_TONE = {
-  accroche: "cold", presentation: "progress", connexion: "progress",
-  douleur: "warm", appel_propose: "warm", questionnaire_envoye: "warm",
-  call_booke: "won", perdu: "lost",
-};
-
 function render() {
   const { data, username } = state;
   if (!data) return;
   const p = data.prospect;
   $("title").textContent = p ? `@${p.username}` : username ? `@${username}` : "Trame DM";
-  $("dot").className = `dot ${p ? STAGE_TONE[p.stage] ?? "" : ""}`;
   const stage = $("stage");
   stage.hidden = !p;
-  if (p) stage.textContent = `· ${STAGE_LABEL[p.stage] ?? "jamais contacté"}`;
+  if (p) stage.textContent = STAGE_LABEL[p.stage] ?? "jamais contacté";
 
   $("sub").textContent = p
     ? [p.metier || "métier ?", p.ville, p.followers ? `${p.followers} abonnés` : null].filter(Boolean).join(" · ")
@@ -104,19 +94,28 @@ function render() {
 }
 
 /**
- * Rail d'avancement : sept segments, un par stade. Donne en un coup d'œil ce
- * qu'aucune phrase ne donne aussi vite — d'où l'on vient, où l'on va.
+ * La partition : un temps par message de la séquence (M1…M9).
+ *
+ * La trame EST une suite ordonnée, donc la numéroter dit quelque chose de
+ * vrai — ce n'est pas de la décoration. Les temps joués restent sourds, seul
+ * le temps courant est violet : la règle de couleur du panneau veut que le
+ * violet ne désigne que ce qui part.
  */
 function renderRail() {
-  const p = state.data?.prospect;
-  const idx = p ? STAGE_ORDER.indexOf(p.stage) : -1;
-  $("rail").innerHTML = STAGE_ORDER.map((_, i) => {
-    const cls = i < idx ? "done" : i === idx ? "now" : "";
-    return `<i class="${cls}"></i>`;
-  }).join("");
-  $("railLeft").textContent = p?.stage === "perdu" ? "Perdu" : STAGE_LABEL[STAGE_ORDER[Math.max(0, idx)]] ?? "Jamais contacté";
-  const next = state.data?.nextStep;
-  $("railRight").textContent = next ? `${next} · ${STAGE_ORDER.length - Math.max(0, idx) - 1} étapes avant le call` : "séquence close";
+  const beats = (state.data?.steps ?? []).filter((s) => /^M\d$/.test(s.step));
+  const nextStep = state.data?.nextStep;
+  const idx = beats.findIndex((s) => s.step === nextStep);
+  $("rail").innerHTML = beats
+    .map((s, i) => {
+      const cls = idx < 0 ? "done" : i < idx ? "done" : i === idx ? "now" : "";
+      return `<span class="beat ${cls}"><i></i><b>${esc(s.step.replace("M", ""))}</b></span>`;
+    })
+    .join("");
+
+  const left = idx < 0 ? 0 : beats.length - idx - 1;
+  $("railRight").textContent = nextStep
+    ? `${nextStep} — ${left} temps avant le call`
+    : "séquence close";
 }
 
 function renderAccount() {
@@ -129,12 +128,14 @@ function renderAccount() {
     // Un seul émetteur (le cas normal) : une jauge discrète en pied de
     // panneau. Le dépassement n'est plus un blocage — c'est une info : un DM
     // parti à la main est journalisé quoi qu'il arrive.
+    // Le dépassement se lit à la TEXTURE (hachures), pas à la teinte : le
+    // violet reste réservé à ce qui part.
     const over = match.sentDay >= match.daily;
     const pct = Math.min(100, Math.round((match.sentDay / Math.max(1, match.daily)) * 100));
     el.className = "quota";
     el.innerHTML = `<span>@${esc(match.username)}</span>
-      <span class="gauge"><i class="${over ? "full" : ""}" style="width:${pct}%"></i></span>
-      <span>${esc(match.sentDay)}/${esc(match.daily)}${over ? " · au-delà, journalisé quand même" : ""}</span>`;
+      <span class="gauge"><i class="${over ? "over" : ""}" style="width:${pct}%"></i></span>
+      <span>${esc(match.sentDay)}/${esc(match.daily)}${over ? " dépassé" : ""}</span>`;
     return;
   }
   if (!accounts.length) {
@@ -150,22 +151,23 @@ function renderAccount() {
   $("accountSelect").addEventListener("change", (e) => { state.accountId = e.target.value || null; render(); });
 }
 
-/** La seule chose à faire maintenant : mise en avant, action unique. */
-function heroCard(s) {
-  return `<div class="hero">
-    <div class="cap"><span class="step">${esc(s.step)}</span><span class="title">${esc(s.title)}</span></div>
-    <div class="body">${esc(s.text)}</div>
-    <div class="act">
-      <button class="primary" data-insert="${esc(s.step)}">Insérer dans Instagram</button>
+/**
+ * Le message rendu comme la bulle que le prospect verra — forme, alignement
+ * et couleur d'un message sortant. On juge un DM à ce qu'il donne à l'arrivée,
+ * pas à ce qu'il donne dans un champ de formulaire.
+ */
+function heroBubble(s) {
+  return `<div class="bubble" id="heroBubble">${esc(s.text)}</div>
+    <div class="bubble-act">
       <button data-copy="${esc(s.step)}">Copier</button>
-    </div>
-  </div>`;
+      <button class="send" data-insert="${esc(s.step)}">Insérer<kbd>Alt+I</kbd></button>
+    </div>`;
 }
 
-/** Les autres étapes, repliées : utiles, mais jamais prioritaires. */
+/** Les autres temps de la partition : consultables, jamais prioritaires. */
 function stepCard(s) {
-  return `<div class="step-card ${s.step.startsWith("R") ? "relance" : ""}">
-    <div class="cap"><span class="step">${esc(s.step)}</span><span class="muted">${esc(s.title)}</span></div>
+  return `<div class="step-card">
+    <div class="cap"><span class="code">${esc(s.step)}</span><span class="name">${esc(s.title)}</span></div>
     <p>${esc(s.text)}</p>
     <div class="row">
       <button data-copy="${esc(s.step)}">Copier</button>
@@ -179,15 +181,15 @@ function renderTrame() {
   const next = data.steps.find((s) => s.step === data.nextStep);
   // L'insertion est toujours proposée : écrire dans le champ ne dépend pas de
   // la présence du prospect en base — seule la JOURNALISATION en dépend.
-  $("eyebrow").textContent = next ? "À envoyer maintenant" : "Séquence close";
+  $("eyebrow").innerHTML = next ? `À envoyer — <em>${esc(next.step)}</em>` : "Séquence close";
+  $("stepTitle").textContent = next ? next.title : "";
   $("next").innerHTML = next
-    ? heroCard(next)
-    : `<div class="card"><p class="muted">Plus rien à envoyer depuis la trame — la balle est dans son camp.</p></div>`;
+    ? heroBubble(next)
+    : `<div class="closed">Plus rien à envoyer depuis la trame — la balle est dans son camp.</div>`;
 
   const others = data.steps.filter((s) => s.step !== data.nextStep);
   $("steps").innerHTML = others.map((s) => stepCard(s)).join("");
-  $("steps").hidden = !state.showAll;
-  $("moreToggle").textContent = state.showAll ? "Masquer la trame" : `Voir toute la trame (${others.length})`;
+  $("moreLabel").textContent = `Toute la trame (${others.length})`;
 
   bindStepButtons();
 }
@@ -236,6 +238,11 @@ async function insert(step) {
   const r = await chrome.runtime.sendMessage({ type: "ig:arm", prospectId: p.id, accountId, step, text: s.text });
   if (!r?.ok) { $("error").textContent = tabError(r); return; }
   $("error").textContent = "";
+  // La bulle part vers la droite : le geste à l'écran raconte ce qui vient de
+  // se passer dans la conversation. Neutralisé si l'utilisateur réduit les
+  // animations.
+  const bubble = $("heroBubble");
+  if (bubble && step === data.nextStep) bubble.classList.add("sent");
   state.lastArm = { prospectId: p.id, accountId, step };
   // Filet § 7 : si aucun ig:logged sous 30 s après l'insertion, bouton manuel.
   // Délai généreux : un délai court faisait apparaître le bouton « Envoyé »
@@ -324,10 +331,6 @@ $("aiGen").addEventListener("click", async () => {
   }
 });
 
-$("moreToggle").addEventListener("click", () => {
-  state.showAll = !state.showAll;
-  renderTrame();
-});
 
 /** Affiche le texte corrigé dans le panneau : à relire, à copier, à réinsérer. */
 function showCorrection(text) {

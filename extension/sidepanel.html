@@ -3,175 +3,196 @@
 <head>
   <meta charset="utf-8" />
   <style>
-    /* ── Identité : le violet de l'icône scrapProsp ─────────────────────── */
+    /*
+      Trame DM — panneau de prospection.
+      Règle de couleur, tenue partout : le VIOLET ne désigne que ce qui PART.
+      La bulle à envoyer, le temps courant de la partition, l'action d'envoi.
+      Tout le reste — compteurs, radar, file, avertissements — est en encre,
+      différencié par le poids, la graisse et la texture, jamais par la teinte.
+    */
     :root {
       color-scheme: light dark;
-      --brand: #7B4FE0;
-      --brand-soft: #7B4FE01f;
-      --ok: #0d9488;
-      --warn: #d97706;
-      --bad: #e11d48;
-      --line: light-dark(#e6e8ee, #262b3a);
-      --surface: light-dark(#fbfbfd, #131826);
-      --text: light-dark(#171a21, #e8ebf2);
-      --muted: light-dark(#6b7280, #8b93a7);
+      --send: #6E3FF3;
+      --send-weak: #6E3FF31a;
+      --paper: light-dark(#fcfcfd, #0f1119);
+      --surface: light-dark(#f3f4f8, #161a25);
+      --ink: light-dark(#14161d, #e9ebf2);
+      --mute: light-dark(#6b7280, #878ea0);
+      --rule: light-dark(#e4e6ee, #232838);
+      --alarm: #b4442f;
+
+      /* Condensée industrielle livrée avec Windows : les codes d'étape et les
+         compteurs se lisent comme une partition, pas comme du texte courant. */
+      --label: "Bahnschrift", "DIN Alternate", "Roboto Condensed", system-ui, sans-serif;
+      /* La police que Nicolas tape réellement dans Instagram. */
+      --body: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      --data: Consolas, "Cascadia Mono", ui-monospace, monospace;
     }
     * { box-sizing: border-box; }
-    body {
-      font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-      margin: 0; padding: 0 0 20px;
-      color: var(--text);
-      background: light-dark(#fff, #0b0e17);
-    }
+    body { margin: 0; padding: 0 0 22px; background: var(--paper); color: var(--ink); font: 13px/1.5 var(--body); }
+    ::selection { background: var(--send-weak); }
 
-    /* ── En-tête collant : qui, et où on en est ─────────────────────────── */
-    header {
-      position: sticky; top: 0; z-index: 5;
-      padding: 10px 12px 8px;
-      background: light-dark(#fff, #0b0e17);
-      border-bottom: 1px solid var(--line);
-    }
-    .who { display: flex; align-items: center; gap: 7px; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
-    .dot.cold { background: #64748b; } .dot.progress { background: var(--brand); }
-    .dot.warm { background: var(--warn); } .dot.won { background: var(--ok); } .dot.lost { background: var(--bad); }
-    h1 { font-size: 13.5px; font-weight: 650; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sub { color: var(--muted); font-size: 11px; margin-top: 1px; }
+    /* ── En-tête : qui, et la partition ─────────────────────────────────── */
+    header { position: sticky; top: 0; z-index: 5; background: var(--paper); border-bottom: 1px solid var(--rule); padding: 11px 13px 9px; }
+    .who { display: flex; align-items: baseline; gap: 6px; }
+    h1 { margin: 0; font: 600 14px/1.2 var(--body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #stage { font: 600 9.5px/1 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); white-space: nowrap; }
+    #sub { margin-top: 3px; font: 11px/1.4 var(--body); color: var(--mute); }
 
-    /* Rail d'avancement : neuf segments, l'étape courante pulse. */
-    .rail { display: flex; gap: 3px; margin-top: 8px; }
-    .rail i {
-      flex: 1; height: 4px; border-radius: 2px;
-      background: light-dark(#e6e8ee, #232a3b);
-    }
-    .rail i.done { background: var(--brand); opacity: .5; }
-    .rail i.now { background: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
-    .rail-legend { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; margin-top: 4px; }
+    /* La partition : neuf temps. Les temps joués sont pleins mais sourds,
+       le temps courant est le seul violet — c'est lui qui va partir. */
+    .score { display: flex; align-items: flex-end; gap: 2px; height: 22px; margin-top: 10px; }
+    .beat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .beat i { display: block; width: 100%; height: 5px; border-radius: 1px; background: var(--rule); }
+    .beat.done i { background: var(--ink); opacity: .28; }
+    .beat.now i { height: 13px; background: var(--send); }
+    .beat b { font: 600 8px/1 var(--label); letter-spacing: .04em; color: var(--mute); opacity: .5; }
+    .beat.now b { color: var(--send); opacity: 1; }
+    .score-legend { display: flex; justify-content: flex-end; margin-top: 6px; font: 10px/1 var(--data); color: var(--mute); }
 
-    /* ── Bloc principal : la seule chose à faire maintenant ─────────────── */
-    main { padding: 12px; }
-    .eyebrow { font: 700 9.5px system-ui; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
-    .hero {
-      border: 1px solid var(--brand); border-radius: 12px; overflow: hidden;
-      background: light-dark(#fff, #10152233);
-      box-shadow: 0 1px 2px #0000000d, 0 0 0 3px var(--brand-soft);
-    }
-    .hero .cap { display: flex; align-items: center; gap: 6px; padding: 8px 10px 0; }
-    .hero .step { font: 700 11px system-ui; color: var(--brand); }
-    .hero .title { color: var(--muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .hero .body { padding: 6px 10px 10px; font-size: 13px; white-space: pre-line; }
-    .hero .act { display: flex; gap: 6px; padding: 0 10px 10px; }
+    /* ── Corps ──────────────────────────────────────────────────────────── */
+    main { padding: 13px; }
+    .eyebrow { font: 600 9.5px/1 var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+    .eyebrow em { font-style: normal; color: var(--send); }
+    /* Le libellé de l'étape en casse normale : en capitales condensées il
+       débordait sur deux lignes et pesait plus que le message lui-même. */
+    .step-title { margin: 4px 0 10px; font: 11.5px/1.4 var(--body); color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* ── Boutons ────────────────────────────────────────────────────────── */
+    /*
+      SIGNATURE — le message rendu comme la bulle que le prospect verra.
+      Aucun autre outil ne montre le message dans sa forme d'arrivée ; ici
+      c'est le seul objet violet de l'écran, et il « part » à l'insertion.
+    */
+    .bubble {
+      margin-left: auto; max-width: 94%;
+      background: var(--send); color: #fff;
+      padding: 11px 14px; border-radius: 19px 19px 5px 19px;
+      font: 15px/1.5 var(--body); white-space: pre-line;
+      box-shadow: 0 1px 2px #0000001a, 0 6px 18px -10px var(--send);
+      transition: transform .2s ease, opacity .2s ease;
+    }
+    .bubble.sent { transform: translateX(14px); opacity: 0; }
+    .bubble-act { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+    .closed { color: var(--mute); font-size: 12px; padding: 10px 0; border-top: 1px solid var(--rule); }
+
+    /* ── Boutons : monochromes, sauf l'action d'envoi ───────────────────── */
     button {
-      font: 600 11.5px system-ui; padding: 7px 10px; border-radius: 8px;
-      border: 1px solid var(--line); background: var(--surface); color: inherit; cursor: pointer;
-      transition: background .12s, border-color .12s, transform .06s;
+      font: 600 11.5px/1 var(--label); letter-spacing: .05em; text-transform: uppercase;
+      padding: 8px 11px; border-radius: 7px; cursor: pointer;
+      border: 1px solid var(--rule); background: var(--surface); color: var(--ink);
+      transition: border-color .12s, background .12s;
     }
-    button:hover { border-color: var(--brand); }
-    button:active { transform: translateY(1px); }
-    button.primary { background: var(--brand); border-color: var(--brand); color: #fff; flex: 1; }
-    button.primary:hover { filter: brightness(1.08); }
-    button.link { border: 0; background: none; color: var(--brand); padding: 2px 0; }
-    button:disabled { opacity: .5; cursor: default; transform: none; }
-    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    button:hover { border-color: var(--ink); }
+    button:focus-visible { outline: 2px solid var(--send); outline-offset: 2px; }
+    button.send { background: var(--send); border-color: var(--send); color: #fff; }
+    button.send:hover { filter: brightness(1.1); border-color: var(--send); }
+    button.quiet { border: 0; background: none; padding: 3px 0; text-transform: none; letter-spacing: 0; font-family: var(--body); font-size: 11.5px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--rule); }
+    button.quiet:hover { text-decoration-color: var(--ink); }
+    button:disabled { opacity: .42; cursor: default; }
+    .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    kbd { font: 10px var(--data); border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; margin-left: 5px; opacity: .55; }
 
-    /* ── Outils secondaires ─────────────────────────────────────────────── */
-    .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 14px; }
-    .tools button { width: 100%; }
+    /* ── Bandeaux file / radar ──────────────────────────────────────────── */
+    .strip { display: flex; align-items: center; gap: 9px; padding: 9px 0; border-bottom: 1px solid var(--rule); }
+    .strip:first-child { padding-top: 0; }
+    #queueInfo { font: 10.5px var(--data); color: var(--mute); }
+    .waiting { padding: 8px 0; border-bottom: 1px solid var(--rule); cursor: pointer; }
+    .waiting:hover b { text-decoration: underline; text-underline-offset: 3px; }
+    .waiting b { font: 600 12.5px var(--body); }
+    .waiting span { display: block; margin-top: 2px; color: var(--mute); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* ── Cartes de résultat (correction, IA, verdict) ───────────────────── */
-    .card { border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: 10px; padding: 8px 10px; margin-top: 8px; background: var(--surface); }
-    .card .tag { font: 700 9.5px system-ui; letter-spacing: .6px; text-transform: uppercase; color: var(--ok); }
-    .card p { margin: 5px 0 7px; font-size: 12.5px; white-space: pre-line; }
-    .card.verdict { border-left-color: var(--brand); } .card.verdict .tag { color: var(--brand); }
-    .card.doubt { border-left-color: var(--warn); } .card.doubt .tag { color: var(--warn); }
+    /* ── Cartes de retour (correction, IA, verdict) ─────────────────────── */
+    .card { border-left: 2px solid var(--ink); padding: 8px 0 8px 11px; margin-top: 11px; }
+    .card .tag { font: 600 9.5px/1 var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--mute); }
+    .card p { margin: 6px 0 8px; font-size: 13px; white-space: pre-line; }
+    .card.doubt { border-left-style: dashed; }
+    .card.act { border-left-color: var(--send); }
 
-    /* ── Bloc IA repliable ──────────────────────────────────────────────── */
-    details { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-    summary { padding: 8px 10px; cursor: pointer; font-weight: 650; font-size: 12px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+    /* ── Outils ─────────────────────────────────────────────────────────── */
+    /* Les outils viennent APRÈS le geste principal, séparés par un filet :
+       sans lui, leurs deux boutons pesaient autant que « Insérer ». */
+    .tools { display: flex; gap: 7px; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--rule); }
+    .tools button { flex: 1; }
+
+    /* ── Trame complète / IA ────────────────────────────────────────────── */
+    details { margin-top: 14px; border-top: 1px solid var(--rule); }
+    summary { padding: 10px 0 8px; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; font: 600 10px/1 var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
     summary::-webkit-details-marker { display: none; }
-    summary::after { content: "▾"; color: var(--muted); font-size: 10px; }
-    details[open] summary::after { content: "▴"; }
-    details .in { padding: 0 10px 10px; }
-    textarea, input {
-      width: 100%; padding: 7px 8px; font: 12px/1.45 system-ui; color: inherit;
-      background: light-dark(#fff, #0d1220); border: 1px solid var(--line); border-radius: 8px;
+    summary::after { content: "+"; font: 400 14px var(--data); }
+    details[open] summary::after { content: "−"; }
+    summary:hover { color: var(--ink); }
+    textarea, input, select {
+      width: 100%; padding: 8px 9px; color: var(--ink); background: var(--surface);
+      border: 1px solid var(--rule); border-radius: 7px; font: 12px/1.5 var(--body);
     }
-    textarea { min-height: 120px; resize: vertical; margin-top: 6px; }
-    textarea:focus, input:focus { outline: none; border-color: var(--brand); }
+    textarea { min-height: 124px; resize: vertical; margin-top: 7px; font-family: var(--data); font-size: 11.5px; }
+    textarea:focus, input:focus { outline: none; border-color: var(--send); }
 
-    /* ── Étapes secondaires de la trame ─────────────────────────────────── */
-    .step-card { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
-    .step-card .cap { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
-    .step-card .step { font: 700 10.5px system-ui; color: var(--brand); }
-    .step-card.relance .step { color: var(--muted); }
-    .step-card p { margin: 4px 0 6px; font-size: 12px; white-space: pre-line; }
+    .step-card { padding: 9px 0; border-bottom: 1px solid var(--rule); }
+    .step-card .cap { display: flex; align-items: baseline; gap: 7px; }
+    .step-card .code { font: 600 11px var(--label); letter-spacing: .06em; }
+    .step-card .name { font-size: 10.5px; color: var(--mute); }
+    .step-card p { margin: 5px 0 7px; font-size: 12.5px; white-space: pre-line; }
 
-    /* ── Pied : le compte émetteur et son quota, discrets ───────────────── */
-    footer { position: sticky; bottom: 0; padding: 8px 12px; background: light-dark(#fff, #0b0e17); border-top: 1px solid var(--line); }
-    .quota { display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--muted); }
-    .gauge { flex: 1; height: 3px; border-radius: 2px; background: light-dark(#e6e8ee, #232a3b); overflow: hidden; }
-    .gauge i { display: block; height: 100%; background: var(--ok); }
-    .gauge i.full { background: var(--warn); }
+    /* ── Pied : quota. Le dépassement se lit à la TEXTURE, pas à la teinte. */
+    footer { position: sticky; bottom: 0; padding: 8px 13px; background: var(--paper); border-top: 1px solid var(--rule); }
+    .quota { display: flex; align-items: center; gap: 8px; font: 10.5px var(--data); color: var(--mute); }
+    .gauge { flex: 1; height: 4px; border-radius: 2px; background: var(--rule); overflow: hidden; }
+    .gauge i { display: block; height: 100%; background: var(--ink); opacity: .45; }
+    .gauge i.over {
+      opacity: .9;
+      background: repeating-linear-gradient(45deg, var(--ink) 0 3px, transparent 3px 6px);
+    }
 
-    /* Bandeau file / radar */
-    .strip { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-    .strip button { flex: none; }
-    kbd { font: 10px ui-monospace, monospace; opacity: .65; border: 1px solid currentColor; border-radius: 4px; padding: 0 3px; margin-left: 4px; }
-    .waiting { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 8px; padding: 6px 8px; margin-top: 5px; cursor: pointer; }
-    .waiting:hover { border-color: var(--warn); }
-    .waiting b { font-size: 12px; }
-    .waiting span { display: block; color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    .muted { color: var(--muted); font-size: 11px; }
-    .warn { color: var(--warn); font-size: 11px; }
-    .err { color: var(--bad); font-size: 11.5px; margin-top: 8px; }
-    code { font: 11px ui-monospace, monospace; background: light-dark(#f1f3f8, #1a2133); padding: 0 3px; border-radius: 3px; }
+    .muted { color: var(--mute); font-size: 11px; }
+    .err { color: var(--alarm); font-size: 11.5px; margin-top: 10px; }
+    code { font: 11px var(--data); color: var(--mute); }
     [hidden] { display: none !important; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bubble { transition: none; }
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="who">
-      <span class="dot" id="dot"></span>
       <h1 id="title">Trame DM</h1>
-      <span id="stage" class="muted" hidden></span>
+      <span id="stage" hidden></span>
     </div>
-    <div id="sub" class="sub">Ouvre une conversation Instagram…</div>
-    <div class="rail" id="rail"></div>
-    <div class="rail-legend"><span id="railLeft">—</span><span id="railRight"></span></div>
+    <div id="sub">Ouvre une conversation Instagram…</div>
+    <div class="score" id="rail"></div>
+    <!-- Une seule légende : le stade est déjà dit par le badge de l'en-tête. -->
+    <div class="score-legend"><span id="railRight"></span></div>
   </header>
 
   <main>
     <div class="strip">
-      <button id="nextProspect">Prospect suivant <kbd>Alt+N</kbd></button>
-      <span id="queueInfo" class="muted"></span>
+      <button id="nextProspect">Suivant<kbd>Alt+N</kbd></button>
+      <span id="queueInfo"></span>
     </div>
     <div class="strip" id="radarStrip" hidden>
-      <button id="radarToggle" class="link"></button>
+      <button id="radarToggle" class="quiet"></button>
     </div>
     <div id="radarOut"></div>
 
     <div id="manual" hidden>
-      <div class="warn">Prospect non détecté — saisis son pseudo :</div>
-      <div class="row" style="margin-top:6px">
-        <input id="manualUser" placeholder="pseudo_instagram" style="flex:1" />
-        <button id="manualLoad" class="primary" style="flex:none">Charger</button>
+      <div class="card doubt">
+        <div class="tag">Prospect non détecté</div>
+        <div class="row" style="margin-top:7px">
+          <input id="manualUser" placeholder="pseudo_instagram" style="flex:1" />
+          <button id="manualLoad" class="send" style="flex:none">Charger</button>
+        </div>
       </div>
     </div>
 
-    <div class="eyebrow" id="eyebrow">À envoyer maintenant</div>
+    <div class="eyebrow" id="eyebrow" style="margin-top:16px">À envoyer</div>
+    <div class="step-title" id="stepTitle"></div>
     <div id="next"></div>
 
-    <div class="row" style="margin-top:8px">
-      <button id="moreToggle" class="link">Voir toute la trame</button>
-    </div>
-    <div id="steps" hidden></div>
-
     <div class="tools">
-      <button id="fixSpell" title="Corrige l'orthographe de ce que tu as tapé dans Instagram">Corriger le champ</button>
-      <button id="qualify" title="Qualifie la réponse et recale le stade">Analyser le fil</button>
+      <button id="fixSpell" title="Corrige l'orthographe de ce que tu as tapé dans Instagram">Corriger</button>
+      <button id="qualify" title="Qualifie la réponse et recale le stade">Analyser</button>
     </div>
 
     <div id="fixOut"></div>
@@ -182,24 +203,30 @@
     <div id="fallback" hidden>
       <div class="card doubt">
         <div class="tag">Envoi non détecté</div>
-        <p class="muted">Si tu as bien envoyé le message :</p>
-        <button class="primary" id="manualSent">Envoyé — journaliser</button>
+        <p class="muted">Si le message est bien parti :</p>
+        <button class="send" id="manualSent">Journaliser</button>
       </div>
     </div>
 
     <details id="ai">
-      <summary>Réponse IA — hors trame</summary>
-      <div class="in">
-        <div class="muted">Le fil est relu automatiquement — <code>moi:</code> tes messages, <code>lui:</code> les siens.</div>
+      <summary>Réponse assistée — hors trame</summary>
+      <div>
+        <div class="muted"><code>moi:</code> tes messages · <code>lui:</code> les siens. Corrige si besoin.</div>
         <textarea id="aiIncoming" placeholder="lui: son message&#10;moi: ta réponse…"></textarea>
-        <div id="aiHint" class="warn"></div>
-        <div class="row" style="margin-top:6px">
-          <button id="aiGen" class="primary">Générer 3 réponses</button>
-          <button id="aiGrab" class="link">↻ relire le fil</button>
+        <div id="aiHint" class="muted"></div>
+        <div class="row" style="margin-top:8px">
+          <button id="aiGen" class="send">Proposer 3 réponses</button>
+          <button id="aiGrab" class="quiet">Relire le fil</button>
         </div>
         <div id="aiOut"></div>
       </div>
     </details>
+
+    <details id="allSteps">
+      <summary><span id="moreLabel">Toute la trame</span></summary>
+      <div id="steps"></div>
+    </details>
+    <button id="moreToggle" hidden></button>
   </main>
 
   <footer>
