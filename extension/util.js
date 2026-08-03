@@ -198,6 +198,56 @@ const NMFUtil = (() => {
     return `in:${String(username || "?").toLowerCase()}:${norm(text).slice(0, 140)}`;
   }
 
+  // ── État de réponse du prospect ──────────────────────────────────────────
+
+  /** Ancienneté en clair. Jamais « il y a 0 j » : sous une heure, c'est récent. */
+  function sinceLabel(iso, now = new Date()) {
+    if (!iso) return null;
+    const t = new Date(iso).getTime();
+    if (Number.isNaN(t)) return null;
+    const min = Math.floor((now.getTime() - t) / 60000);
+    if (min < 0) return "à l'instant"; // horloge décalée : ne jamais afficher un futur
+    if (min < 60) return min <= 1 ? "à l'instant" : `il y a ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `il y a ${h} h`;
+    const j = Math.floor(h / 24);
+    if (j < 7) return `il y a ${j} j`;
+    const sem = Math.floor(j / 7);
+    return sem < 5 ? `il y a ${sem} sem` : `il y a ${Math.floor(j / 30)} mois`;
+  }
+
+  /**
+   * A-t-il déjà répondu, et quand ?
+   *
+   * Ce qui se joue ici : ne pas confondre une VRAIE nouvelle réponse avec une
+   * conversation qu'on poursuit. Un prospect qui a déjà répondu ne redevient
+   * jamais une réponse à froid — seule la première compte, et elle est déjà
+   * comptée. C'est aussi ce que l'auto-journalisation applique : elle
+   * n'inscrit un fil déjà traité que si `reply_count === 0`.
+   *
+   * `tone` : "attente" (jamais répondu), "engage" (a répondu), "vierge"
+   * (jamais contacté — il n'y a rien à attendre).
+   */
+  function replyState(p, now = new Date()) {
+    if (!p) return null;
+    const n = Number(p.reply_count || 0);
+    if (n > 0) {
+      const since = sinceLabel(p.last_reply_at, now);
+      return {
+        tone: "engage",
+        text: `A répondu${since ? ` · ${since}` : ""}`,
+        detail: n > 1 ? `${n} réponses — conversation en cours` : "conversation en cours",
+      };
+    }
+    const since = sinceLabel(p.last_dm_at, now);
+    if (!p.last_dm_at) return { tone: "vierge", text: "Jamais contacté", detail: "" };
+    return {
+      tone: "attente",
+      text: `Jamais répondu${since ? ` · accroche ${since}` : ""}`,
+      detail: "sa prochaine réponse sera une réponse à froid",
+    };
+  }
+
   // ── Mes liens ────────────────────────────────────────────────────────────
   // Les liens qu'on colle dix fois par jour dans un DM. Ils vivaient dans les
   // marque-pages : retrouver le bon coupait la conversation en deux.
@@ -240,7 +290,7 @@ const NMFUtil = (() => {
   return {
     dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread,
     parisDay, replyKey, similarity, matchStep, incomingReply, incomingKey,
-    DEFAULT_LINKS, parseLinks, serializeLinks,
+    DEFAULT_LINKS, parseLinks, serializeLinks, sinceLabel, replyState,
   };
 })();
 if (typeof module !== "undefined") module.exports = NMFUtil;

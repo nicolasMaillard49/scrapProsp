@@ -28,6 +28,24 @@ détecté dans l'app (quota, stade, relance).
 - **Raccourcis** : `Alt+I` insère l'étape à envoyer, `Alt+O` corrige le champ,
   `Alt+N` passe au suivant. Ils fonctionnent même panneau fermé.
 
+## A-t-il déjà répondu ?
+
+Sous le métier, une ligne dit l'essentiel avant tout geste :
+
+- **Jamais répondu · accroche il y a 9 h** → sa prochaine réponse sera une
+  **réponse à froid**, celle qui compte pour le taux d'accroche.
+- **A répondu · il y a 2 j** + *3 réponses — conversation en cours* → on
+  poursuit un échange. Une nouvelle réponse ici ne redevient jamais une
+  réponse à froid : seule la première compte, et elle est déjà comptée.
+- **Jamais contacté** → il n'y a rien à attendre.
+
+L'état se lit à la **pastille** autant qu'au mot : la couleur double
+l'information, elle ne la remplace pas (le panneau vit en clair comme en
+sombre).
+
+C'est la même règle que l'auto-journalisation : un fil déjà traité n'est
+inscrit que si `reply_count === 0`.
+
 ## Mes liens
 
 Les liens qu'on colle dix fois par jour — prise de RDV, simulateur, site.

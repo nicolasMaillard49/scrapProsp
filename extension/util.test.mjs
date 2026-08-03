@@ -251,3 +251,38 @@ test("DEFAULT_LINKS: tous en https, libelles renseignes", () => {
     assert.ok(l.label.length > 0);
   }
 });
+
+test("sinceLabel: jamais de futur, jamais « il y a 0 j »", () => {
+  const now = new Date("2026-08-03T18:00:00+02:00");
+  const at = (min) => new Date(now.getTime() - min * 60000).toISOString();
+  assert.equal(NMFUtil.sinceLabel(at(0), now), "à l'instant");
+  assert.equal(NMFUtil.sinceLabel(at(1), now), "à l'instant");
+  assert.equal(NMFUtil.sinceLabel(at(20), now), "il y a 20 min");
+  assert.equal(NMFUtil.sinceLabel(at(60), now), "il y a 1 h");
+  assert.equal(NMFUtil.sinceLabel(at(60 * 26), now), "il y a 1 j");
+  assert.equal(NMFUtil.sinceLabel(at(60 * 24 * 9), now), "il y a 1 sem");
+  assert.equal(NMFUtil.sinceLabel(at(60 * 24 * 70), now), "il y a 2 mois");
+  // Horloge decalee : afficher « dans 3 min » ferait douter de toute la ligne.
+  assert.equal(NMFUtil.sinceLabel(at(-3), now), "à l'instant");
+  assert.equal(NMFUtil.sinceLabel(null, now), null);
+  assert.equal(NMFUtil.sinceLabel("pas une date", now), null);
+});
+
+test("replyState: distingue la conversation en cours de la reponse a venir", () => {
+  const now = new Date("2026-08-03T18:00:00+02:00");
+  const engage = NMFUtil.replyState(
+    { reply_count: 3, last_reply_at: "2026-08-01T18:00:00+02:00", last_dm_at: "2026-08-02T10:00:00+02:00" },
+    now,
+  );
+  assert.equal(engage.tone, "engage");
+  assert.match(engage.text, /^A répondu · il y a 2 j$/);
+  assert.match(engage.detail, /3 réponses/);
+
+  const attente = NMFUtil.replyState({ reply_count: 0, last_dm_at: "2026-08-03T09:00:00+02:00" }, now);
+  assert.equal(attente.tone, "attente");
+  assert.match(attente.text, /Jamais répondu · accroche il y a 9 h/);
+  assert.match(attente.detail, /réponse à froid/);
+
+  assert.equal(NMFUtil.replyState({ reply_count: 0, last_dm_at: null }, now).tone, "vierge");
+  assert.equal(NMFUtil.replyState(null, now), null);
+});

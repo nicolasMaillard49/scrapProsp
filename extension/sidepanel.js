@@ -85,6 +85,17 @@ function render() {
     : username
       ? "Hors base — trame générique, rien ne sera journalisé."
       : "Aucune conversation détectée — trame générique.";
+  // A-t-il déjà répondu, et depuis quand ? Sans cette ligne, une conversation
+  // qu'on poursuit ressemble à une nouvelle réponse — et seule la PREMIÈRE
+  // réponse d'un prospect compte comme réponse à froid.
+  const rs = NMFUtil.replyState(p);
+  const rsEl = $("replyState");
+  rsEl.hidden = !rs;
+  if (rs) {
+    rsEl.className = rs.tone;
+    rsEl.innerHTML = `<b>${esc(rs.text)}</b>${rs.detail ? `<i>${esc(rs.detail)}</i>` : ""}`;
+  }
+
   // Saisie manuelle : le seul recours quand Instagram change son DOM. Tant
   // qu'aucun prospect n'est chargé, la trame est générique et rien n'est
   // journalisable — autant pouvoir le débloquer soi-même.

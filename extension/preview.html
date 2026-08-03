@@ -24,6 +24,10 @@
         metier: "osteopathe", ville: null, followers: 79,
         stage: "accroche", status: "contacted", reply_count: 0,
         next_followup_at: null, score_tier: "hot",
+        // Accroche partie ce matin, aucune réponse : l'état que le panneau doit
+        // rendre lisible avant tout — sa prochaine réponse sera « à froid ».
+        last_dm_at: new Date(Date.now() - 9 * 3600e3).toISOString(),
+        first_reply_at: null, last_reply_at: null,
       },
       steps: [
         { step: "M1", title: "Accroche (à varier d'un prospect à l'autre)", text: "Hello Thomas ! J'ai vu que vous étiez ostéopathe, c'est toujours le cas ?" },

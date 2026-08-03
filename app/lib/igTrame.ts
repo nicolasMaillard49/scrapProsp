@@ -24,6 +24,10 @@ export interface TrameProspect {
   reply_count: number | null;
   next_followup_at: string | null;
   score_tier: string | null;
+  /** Journal des réponses ENTRANTES (migration 018) — alimente l'état du panneau. */
+  first_reply_at: string | null;
+  last_reply_at: string | null;
+  last_dm_at: string | null;
 }
 
 export interface TrameStep {
@@ -40,7 +44,7 @@ export interface TramePayload {
 
 /** Colonnes à sélectionner dans instagram_prospects pour ce payload. */
 export const TRAME_COLUMNS =
-  "id,username,full_name,bio,category,metier,ville,booking_platform,profession_ia,stage,status,followers,reply_count,next_followup_at,score_tier";
+  "id,username,full_name,bio,category,metier,ville,booking_platform,profession_ia,stage,status,followers,reply_count,next_followup_at,score_tier,first_reply_at,last_reply_at,last_dm_at";
 
 export function buildTrame(prospect: TrameProspect | null, origin: string): TramePayload {
   if (!prospect) {

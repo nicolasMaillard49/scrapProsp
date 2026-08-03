@@ -10,6 +10,8 @@ const laura: TrameProspect = {
   metier: "estheticienne", ville: "Angers", booking_platform: "Planity",
   profession_ia: null, stage: "presentation", status: "contacted",
   followers: 1240, reply_count: 1, next_followup_at: null, score_tier: "hot",
+  first_reply_at: "2026-07-22T09:00:00Z", last_reply_at: "2026-07-22T09:00:00Z",
+  last_dm_at: "2026-07-23T08:00:00Z",
 };
 
 test("igTrame: prospect connu → 12 étapes personnalisées + nextStep depuis le stade", () => {

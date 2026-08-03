@@ -160,6 +160,21 @@
     .link-row a { color: var(--mute); text-decoration: none; font-size: 13px; padding: 0 2px; }
     .link-row a:hover { color: var(--ink); }
 
+    /* ── État de réponse ────────────────────────────────────────────────────
+       L'état se lit à la PASTILLE, pas à la teinte du texte : le panneau vit
+       en clair comme en sombre, et la couleur seule n'est pas une information
+       (elle double le mot, elle ne le remplace pas). */
+    #replyState { margin-top: 7px; font-size: 11.5px; }
+    #replyState b { display: block; font-weight: 600; }
+    #replyState b::before {
+      content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+      margin-right: 6px; vertical-align: middle; position: relative; top: -1px;
+    }
+    #replyState i { display: block; margin: 2px 0 0 12px; font-style: normal; color: var(--mute); font-size: 10.5px; }
+    #replyState.engage b::before { background: var(--send); }
+    #replyState.attente b::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--mute); }
+    #replyState.vierge b::before { background: var(--rule); }
+
     .muted { color: var(--mute); font-size: 11px; }
     .err { color: var(--alarm); font-size: 11.5px; margin-top: 10px; }
     code { font: 11px var(--data); color: var(--mute); }
@@ -177,6 +192,9 @@
       <span id="stage" hidden></span>
     </div>
     <div id="sub">Ouvre une conversation Instagram…</div>
+    <!-- A-t-il déjà répondu ? Sans ça, une conversation qu'on poursuit se
+         confond avec une vraie nouvelle réponse. -->
+    <div id="replyState" hidden></div>
     <div class="score" id="rail"></div>
     <!-- Une seule légende : le stade est déjà dit par le badge de l'en-tête. -->
     <div class="score-legend"><span id="railRight"></span></div>
