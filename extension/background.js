@@ -75,25 +75,48 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ status, data: json, context: current || null });
         break;
       }
-      // sidepanel : « Insérer » cliqué — pose l'armement puis insère via content.
+      // sidepanel : « Insérer » cliqué — insère d'abord via content, n'arme la
+      // journalisation QUE si l'insertion a réussi (sinon rien à journaliser).
       case "ig:arm": {
-        await setArmed({ prospectId: msg.prospectId, accountId: msg.accountId, step: msg.step });
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (!tab?.id) { sendResponse({ ok: false, reason: "no-tab" }); break; }
         const r = await chrome.tabs.sendMessage(tab.id, { type: "ig:insert", text: msg.text }).catch(() => null);
-        sendResponse(r ?? { ok: false, reason: "no-content-script" });
+        if (!r?.ok) { sendResponse(r ?? { ok: false, reason: "no-content-script" }); break; }
+        // Mémorise le pseudo de la conversation courante : si elle change
+        // avant l'envoi détecté, l'armement ne doit pas fuiter sur le
+        // nouveau prospect affiché (ig:sent le vérifiera).
+        const { current } = await chrome.storage.session.get("current");
+        await setArmed({ prospectId: msg.prospectId, accountId: msg.accountId, step: msg.step, username: current?.username ?? null });
+        sendResponse(r);
         break;
       }
       // content.js : envoi détecté → journalise avec l'armement en cours.
       case "ig:sent": {
         const armed = await getArmed();
         if (!armed) { sendResponse({ ok: false, reason: "not-armed" }); break; }
+        if (armed.username) {
+          const { current } = await chrome.storage.session.get("current");
+          if (current?.username !== armed.username) {
+            // La conversation a changé entre l'armement et l'envoi détecté :
+            // on ne sait plus à qui attribuer l'envoi → pas de journalisation.
+            await setArmed(null);
+            broadcast({ type: "ig:logged", ok: false, error: "Conversation changée — journalisation annulée (utilise le bouton Envoyé si le message est bien parti)." });
+            sendResponse({ ok: false, reason: "context-changed" });
+            break;
+          }
+        }
         await setArmed(null); // consommé : une détection par armement
         const result = await logSend(armed);
         broadcast({ type: "ig:logged", ...result });
         sendResponse(result);
         break;
       }
+      // content.js : changement de conversation détecté — désarme (l'armement
+      // ne survit jamais à un changement de conversation).
+      case "ig:disarm":
+        await setArmed(null);
+        sendResponse({ ok: true });
+        break;
       // sidepanel : filet manuel (« Envoyé ») — même chemin, même idempotence.
       case "ig:sent-manual": {
         await setArmed(null);

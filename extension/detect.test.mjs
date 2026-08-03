@@ -62,3 +62,15 @@ test("watchSend: déclenche quand le champ passe de rempli à vide, une seule fo
   assert.equal(fired, 1, "one-shot : une détection par armement");
   unwatch();
 });
+
+test("watchSend: nœud retiré du DOM (recyclé par Instagram) → pas de détection d'envoi", async () => {
+  const d = dom(`<body><div contenteditable="true" aria-label="Message">brouillon</div></body>`);
+  const node = NMFDetect.composerNode(d.window.document);
+  let fired = 0;
+  const unwatch = NMFDetect.watchSend(node, () => fired++, { intervalMs: 5, win: d.window });
+  node.remove();
+  node.textContent = "";
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(fired, 0, "nœud non connecté ≠ envoi");
+  unwatch();
+});

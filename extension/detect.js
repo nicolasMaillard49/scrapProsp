@@ -95,6 +95,14 @@ const NMFDetect = (() => {
     let done = false;
     const id = win.setInterval(() => {
       if (done) return;
+      if (!node.isConnected) {
+        // Nœud recyclé/retiré par Instagram (React) ≠ envoi : on arrête le
+        // poll sans déclencher cb, sinon un simple changement de vue serait
+        // pris pour un message envoyé.
+        done = true;
+        win.clearInterval(id);
+        return;
+      }
       const filled = (node.textContent || "").trim().length > 0;
       if (wasFilled && !filled) {
         done = true;

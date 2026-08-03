@@ -26,11 +26,20 @@ async function refresh(username) {
   if (r.status !== 200) { $("error").textContent = r.data?.error || `Erreur ${r.status}`; return; }
   $("error").textContent = "";
   state.username = username ?? r.context?.username ?? null;
-  state.igAccount = r.context?.account ?? state.igAccount;
   state.data = r.data;
-  // § 8 : compte émetteur DÉTECTÉ — apparié par pseudo, sinon choix explicite.
-  const match = r.data.accounts.find((a) => a.username === state.igAccount);
-  state.accountId = match ? match.id : null;
+  const accounts = r.data.accounts ?? [];
+  const detectedAccount = r.context?.account ?? state.igAccount;
+  // m1 : ne jamais écraser un choix manuel silencieusement — on ne recalcule
+  // l'appariement que si le compte détecté a changé ou si l'émetteur choisi
+  // n'existe plus (ex. supprimé côté app).
+  const accountStillValid = state.accountId && accounts.some((a) => a.id === state.accountId);
+  const detectedUnchanged = detectedAccount === state.igAccount;
+  if (!(state.accountId && detectedUnchanged && accountStillValid)) {
+    // § 8 : compte émetteur DÉTECTÉ — apparié par pseudo, sinon choix explicite.
+    const match = accounts.find((a) => a.username === detectedAccount);
+    state.accountId = match ? match.id : null;
+  }
+  state.igAccount = detectedAccount;
   render();
 }
 
@@ -51,16 +60,17 @@ function render() {
 function renderAccount() {
   const { data, igAccount, accountId } = state;
   const el = $("account");
-  const match = data.accounts.find((a) => a.id === accountId);
+  const accounts = data.accounts ?? [];
+  const match = accounts.find((a) => a.id === accountId);
   if (match) {
     const full = !match.canSend;
-    el.innerHTML = `<div class="${full ? "warn" : "muted"}">Émetteur : @${esc(match.username)} — ${match.sentDay}/${match.daily} aujourd'hui${full ? " · PLAFOND : la journalisation sera refusée (429)" : ""}</div>`;
+    el.innerHTML = `<div class="${full ? "warn" : "muted"}">Émetteur : @${esc(match.username)} — ${esc(match.sentDay)}/${esc(match.daily)} aujourd'hui${full ? " · PLAFOND : la journalisation sera refusée (429)" : ""}</div>`;
     return;
   }
   // Aucun match : choix explicite obligatoire (§ 8 — jamais deviné).
   el.innerHTML = `<div class="warn">Compte connecté${igAccount ? ` @${esc(igAccount)}` : ""} non déclaré dans l'app — choisis l'émetteur :</div>
     <select id="accountSelect"><option value="">— choisir —</option>
-    ${data.accounts.map((a) => `<option value="${a.id}">@${esc(a.username)} (${a.sentDay}/${a.daily})</option>`).join("")}</select>`;
+    ${accounts.map((a) => `<option value="${esc(a.id)}">@${esc(a.username)} (${esc(a.sentDay)}/${esc(a.daily)})</option>`).join("")}</select>`;
   $("accountSelect").addEventListener("change", (e) => { state.accountId = e.target.value || null; render(); });
 }
 
@@ -113,9 +123,12 @@ async function insert(step) {
   }
   $("error").textContent = "";
   state.lastArm = { prospectId: p.id, accountId, step };
-  // Filet § 7 : si aucun ig:logged sous 5 s après l'envoi supposé, bouton manuel.
+  // Filet § 7 : si aucun ig:logged sous 30 s après l'insertion, bouton manuel.
+  // Délai généreux : un délai court faisait apparaître le bouton « Envoyé »
+  // pendant la simple relecture du message, avant même qu'il soit parti,
+  // ce qui invitait à journaliser un message pas encore envoyé.
   clearTimeout(state.fallbackTimer);
-  state.fallbackTimer = setTimeout(() => { $("fallback").style.display = "block"; }, 5000);
+  state.fallbackTimer = setTimeout(() => { $("fallback").style.display = "block"; }, 30000);
 }
 
 $("manualSent").addEventListener("click", async () => {

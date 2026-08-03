@@ -24,6 +24,11 @@
   setInterval(() => {
     if (location.href !== lastHref) {
       lastHref = location.href;
+      // Un armement ne survit jamais à un changement de conversation : on
+      // arrête la détection d'envoi en cours et on désarme côté background.
+      unwatch();
+      unwatch = () => {};
+      chrome.runtime.sendMessage({ type: "ig:disarm" }).catch(() => {});
       setTimeout(announce, 800);
       setTimeout(announce, 2500); // 2e passe : header parfois lent à monter
     }
@@ -50,9 +55,8 @@
         chrome.runtime.sendMessage({ type: "ig:sent" }).catch(() => {});
       });
       sendResponse({ ok: true });
-    }
-    // Le sidepanel peut demander un re-scan explicite (à son ouverture).
-    if (msg?.type === "ig:rescan") {
+    } else if (msg?.type === "ig:rescan") {
+      // Le sidepanel peut demander un re-scan explicite (à son ouverture).
       lastAnnounced = "";
       announce();
       sendResponse({ ok: true });
