@@ -239,6 +239,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       // RÉPONSES (avalé sans bruit si une réponse était déjà journalisée ce
       // jour-là) puis postait `record: true` en dur, sans transmettre le stade.
       // Le bouton « Recaler » n'a donc jamais recalé quoi que ce soit.
+      // sidepanel : « Refus ». Geste composite côté app (réponse du jour
+      // reclassée + sortie du pipeline), donc un seul aller-retour ici. PAS de
+      // dedup locale : reclasser un `neutre` en `refus` est justement ce que
+      // la dedup des réponses empêchait.
+      case "ig:refus": {
+        const { status, json } = await api("/api/instagram/classify-reply", {
+          method: "POST",
+          body: JSON.stringify({
+            username: msg.username,
+            record: "refus",
+            account_id: msg.accountId ?? null,
+            excerpt: msg.excerpt ?? null,
+          }),
+        });
+        sendResponse({ status, data: json });
+        break;
+      }
       case "ig:set-stage": {
         const { status, json } = await api("/api/instagram/classify-reply", {
           method: "POST",

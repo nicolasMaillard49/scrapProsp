@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { buildClassifySystemPrompt, parseVerdict } from "@/app/lib/igClassify";
 import { parseStage, setStage } from "@/app/lib/igStage";
+import { markRefusal } from "@/app/lib/igRefusal";
 import { logReply } from "@/app/lib/igReplyLog";
 import { MAX_HISTORY } from "@/app/lib/igReplyPrompt";
 import { parisDayStart } from "@/app/lib/igCockpit";
@@ -22,9 +23,10 @@ interface Body {
   auto?: boolean;
   /**
    * Écriture dans le CRM — seulement après validation humaine.
-   * `"reply"` (ou `true`) journalise la réponse ; `"stage"` recale le stade.
+   * `"reply"` (ou `true`) journalise la réponse ; `"stage"` recale le stade ;
+   * `"refus"` reclasse la réponse du jour ET sort le prospect du pipeline.
    */
-  record?: boolean | "reply" | "stage";
+  record?: boolean | "reply" | "stage" | "refus";
   kind?: string;
   excerpt?: string;
   account_id?: string;
@@ -62,6 +64,19 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!prospect) return NextResponse.json({ error: `@${username} n'est pas dans la base.` }, { status: 404 });
+
+  // ── Refus (après validation humaine) ─────────────────────────────────────
+  // Geste composite : la réponse du jour passe en `refus` ET le prospect sort
+  // du pipeline. Séparé de `record: "stage"` parce qu'un refus touche les DEUX
+  // axes — un « perdu » seul ne dit rien au KPI de réponse.
+  if (body.record === "refus") {
+    const r = await markRefusal(prospect.id as string, {
+      accountId: body.account_id ?? null,
+      excerpt: body.excerpt ?? null,
+    });
+    if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.status });
+    return NextResponse.json({ ok: true, recorded: "refus", action: r.action });
+  }
 
   // ── Recalage du stade (après validation humaine) ─────────────────────────
   if (body.record === "stage") {

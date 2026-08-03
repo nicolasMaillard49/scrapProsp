@@ -49,7 +49,10 @@ const STAGE_LABEL = {
 const STAGE_PICKS = [
   { stage: "receptif", label: "Réceptif", title: "Il a répondu — la conversation est vivante" },
   { stage: "call_booke", label: "Booké", title: "Appel calé : statut positif, relances coupées" },
-  { stage: "perdu", label: "Perdu", title: "Clos : relances coupées et sorti de la sélection du jour", cls: "lost" },
+  // « Refus » n'est PAS un stade : c'est une réponse de genre `refus` qui vaut
+  // aussi fin de conversation. Il touche les deux axes, d'où le mode à part.
+  { mode: "refus", label: "Refus", title: "Il a dit non : réponse comptée en refus (colonne F) + sorti du pipeline", cls: "lost" },
+  { stage: "perdu", label: "Perdu", title: "Injoignable, il n'a jamais parlé : sorti du pipeline, AUCUN refus compté", cls: "lost" },
 ];
 
 async function refresh(username, detectedAccount) {
@@ -592,8 +595,8 @@ function renderStagePicker() {
   const current = p.stage ?? null;
   box.innerHTML = `<div class="eyebrow">Stade</div>
     <div class="row" style="margin-top:7px">
-      ${STAGE_PICKS.map((s) => `<button class="stage-btn ${s.cls ?? ""} ${s.stage === current ? "on" : ""}"
-        data-stage="${s.stage}" title="${esc(s.title)}">${esc(s.label)}</button>`).join("")}
+      ${STAGE_PICKS.map((s) => `<button class="stage-btn ${s.cls ?? ""} ${s.stage && s.stage === current ? "on" : ""}"
+        data-pick="${s.mode ?? s.stage}" title="${esc(s.title)}">${esc(s.label)}</button>`).join("")}
       <select id="stageOther" title="Les autres stades du pipeline">
         <option value="">autre stade…</option>
         ${Object.entries(STAGE_LABEL)
@@ -604,30 +607,45 @@ function renderStagePicker() {
     </div>`;
 
   for (const b of box.querySelectorAll(".stage-btn")) {
-    b.addEventListener("click", () => applyStage(b.dataset.stage, b));
+    b.addEventListener("click", () => applyPick(b.dataset.pick, b));
   }
   $("stageOther").addEventListener("change", (e) => {
-    if (e.target.value) applyStage(e.target.value, null);
+    if (e.target.value) applyPick(e.target.value, null);
   });
 }
 
-/** Un seul chemin d'écriture du stade, quel que soit le bouton cliqué. */
-async function applyStage(stage, btn) {
-  const label = STAGE_LABEL[stage] ?? stage;
+/** Un seul chemin d'écriture, quel que soit le bouton cliqué. */
+async function applyPick(pick, btn) {
   const before = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = "…"; }
-  const r = await chrome.runtime.sendMessage({ type: "ig:set-stage", username: state.username, stage });
+
+  const msg = pick === "refus"
+    ? { type: "ig:refus", username: state.username, accountId: state.accountId }
+    : { type: "ig:set-stage", username: state.username, stage: pick };
+  const r = await chrome.runtime.sendMessage(msg);
+
   if (r?.status === 200 && r.data?.ok) {
     $("error").textContent = "";
-    $("stageOut").innerHTML = `<div class="card verdict"><div class="tag">Stade posé ✓</div>
-      <p class="muted">« ${esc(label)} »${stage === "perdu"
-        ? " — relances coupées, sorti de la sélection du jour."
-        : stage === "call_booke" ? " — relances coupées." : ""}</p></div>`;
+    $("stageOut").innerHTML = `<div class="card verdict"><div class="tag">${pick === "refus" ? "Refus compté ✓" : "Stade posé ✓"}</div>
+      <p class="muted">${esc(pickOutcome(pick, r.data.action))}</p></div>`;
     refresh(state.username);
     return;
   }
-  $("error").textContent = r?.data?.error || "Changement de stade refusé.";
+  $("error").textContent = r?.data?.error || "Action refusée.";
   if (btn) { btn.disabled = false; btn.textContent = before; }
+}
+
+/** Dire ce qui vient d'être écrit — les deux axes bougent, ça doit se voir. */
+function pickOutcome(pick, action) {
+  if (pick === "refus") {
+    return action === "reclass"
+      ? "Sa réponse du jour est reclassée en refus (colonne F) et il sort du pipeline."
+      : "Refus journalisé (colonne F) et il sort du pipeline.";
+  }
+  const label = STAGE_LABEL[pick] ?? pick;
+  if (pick === "perdu") return `« ${label} » — relances coupées, sorti de la sélection du jour. Aucun refus compté.`;
+  if (pick === "call_booke") return `« ${label} » — statut positif, relances coupées.`;
+  return `« ${label} »`;
 }
 
 /**
