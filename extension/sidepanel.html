@@ -3,115 +3,190 @@
 <head>
   <meta charset="utf-8" />
   <style>
-    :root { color-scheme: light dark; }
+    /* ── Identité : le violet de l'icône scrapProsp ─────────────────────── */
+    :root {
+      color-scheme: light dark;
+      --brand: #7B4FE0;
+      --brand-soft: #7B4FE01f;
+      --ok: #0d9488;
+      --warn: #d97706;
+      --bad: #e11d48;
+      --line: light-dark(#e6e8ee, #262b3a);
+      --surface: light-dark(#fbfbfd, #131826);
+      --text: light-dark(#171a21, #e8ebf2);
+      --muted: light-dark(#6b7280, #8b93a7);
+    }
     * { box-sizing: border-box; }
-    body { font: 13px/1.45 system-ui; margin: 0; padding: 10px 12px 24px; color: light-dark(#1e293b, #e2e8f0); background: light-dark(#fff, #0f172a); }
+    body {
+      font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0; padding: 0 0 20px;
+      color: var(--text);
+      background: light-dark(#fff, #0b0e17);
+    }
 
-    /* En-tête : qui, où on en est. Compact — le panneau est étroit. */
-    header { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-    h1 { font-size: 14px; margin: 0; }
-    .badge { font: 700 10px system-ui; text-transform: uppercase; letter-spacing: .3px; padding: 2px 6px; border-radius: 999px; background: #4f46e51a; color: #4f46e5; }
-    .muted { color: light-dark(#64748b, #94a3b8); font-size: 11.5px; }
-    .warn { color: #d97706; font-size: 11.5px; }
-    .err { color: #e11d48; font-size: 12px; margin-top: 6px; }
-    #account { margin-top: 2px; }
-    select { width: 100%; margin-top: 4px; padding: 4px; }
-    input { flex: 1; min-width: 0; padding: 5px 7px; font: 12px system-ui; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; }
-    #manual { margin-top: 6px; }
+    /* ── En-tête collant : qui, et où on en est ─────────────────────────── */
+    header {
+      position: sticky; top: 0; z-index: 5;
+      padding: 10px 12px 8px;
+      background: light-dark(#fff, #0b0e17);
+      border-bottom: 1px solid var(--line);
+    }
+    .who { display: flex; align-items: center; gap: 7px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+    .dot.cold { background: #64748b; } .dot.progress { background: var(--brand); }
+    .dot.warm { background: var(--warn); } .dot.won { background: var(--ok); } .dot.lost { background: var(--bad); }
+    h1 { font-size: 13.5px; font-weight: 650; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sub { color: var(--muted); font-size: 11px; margin-top: 1px; }
 
-    hr { border: 0; border-top: 1px solid light-dark(#e2e8f0, #334155); margin: 10px 0; }
+    /* Rail d'avancement : neuf segments, l'étape courante pulse. */
+    .rail { display: flex; gap: 3px; margin-top: 8px; }
+    .rail i {
+      flex: 1; height: 4px; border-radius: 2px;
+      background: light-dark(#e6e8ee, #232a3b);
+    }
+    .rail i.done { background: var(--brand); opacity: .5; }
+    .rail i.now { background: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+    .rail-legend { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; margin-top: 4px; }
 
-    /* Boutons */
-    button { font: 600 11px system-ui; padding: 5px 9px; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; cursor: pointer; }
-    button.primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
-    button.link { border: 0; padding: 2px 0; color: #4f46e5; background: none; }
-    button:disabled { opacity: .55; cursor: default; }
-    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+    /* ── Bloc principal : la seule chose à faire maintenant ─────────────── */
+    main { padding: 12px; }
+    .eyebrow { font: 700 9.5px system-ui; letter-spacing: .8px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+    .hero {
+      border: 1px solid var(--brand); border-radius: 12px; overflow: hidden;
+      background: light-dark(#fff, #10152233);
+      box-shadow: 0 1px 2px #0000000d, 0 0 0 3px var(--brand-soft);
+    }
+    .hero .cap { display: flex; align-items: center; gap: 6px; padding: 8px 10px 0; }
+    .hero .step { font: 700 11px system-ui; color: var(--brand); }
+    .hero .title { color: var(--muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hero .body { padding: 6px 10px 10px; font-size: 13px; white-space: pre-line; }
+    .hero .act { display: flex; gap: 6px; padding: 0 10px 10px; }
 
-    /* Bloc réponse IA */
-    #ai { border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 8px; }
-    #ai .head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
-    #ai strong { font-size: 12px; }
-    code { font: 11px ui-monospace, monospace; background: light-dark(#f1f5f9, #1e293b); padding: 0 3px; border-radius: 3px; }
-    textarea { width: 100%; min-height: 110px; margin-top: 6px; padding: 6px; font: 12px system-ui; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; resize: vertical; }
-    .sugg { border: 1px solid light-dark(#e2e8f0, #334155); border-left: 3px solid #0d9488; border-radius: 6px; padding: 7px; margin-top: 7px; }
-    .sugg .tag { font: 700 10px system-ui; text-transform: uppercase; color: #0d9488; }
-    .sugg.verdict { border-left-color: #7c3aed; }
-    .sugg.verdict .tag { color: #7c3aed; }
-    .sugg.doubt { border-left-color: #d97706; }
-    .sugg.doubt .tag { color: #d97706; }
-    .sugg p { margin: 4px 0 6px; font-size: 12px; white-space: pre-line; }
+    /* ── Boutons ────────────────────────────────────────────────────────── */
+    button {
+      font: 600 11.5px system-ui; padding: 7px 10px; border-radius: 8px;
+      border: 1px solid var(--line); background: var(--surface); color: inherit; cursor: pointer;
+      transition: background .12s, border-color .12s, transform .06s;
+    }
+    button:hover { border-color: var(--brand); }
+    button:active { transform: translateY(1px); }
+    button.primary { background: var(--brand); border-color: var(--brand); color: #fff; flex: 1; }
+    button.primary:hover { filter: brightness(1.08); }
+    button.link { border: 0; background: none; color: var(--brand); padding: 2px 0; }
+    button:disabled { opacity: .5; cursor: default; transform: none; }
+    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 
-    /* Étapes de la trame */
-    .step { border: 1px solid light-dark(#e2e8f0, #334155); border-radius: 8px; padding: 8px; margin-top: 8px; }
-    .step.next { border-color: #4f46e5; box-shadow: 0 0 0 1px #4f46e533; }
-    .step .head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
-    .step .tag { font-weight: 700; color: #4f46e5; font-size: 11px; }
-    .step.relance .tag { color: light-dark(#64748b, #94a3b8); }
-    .step .now { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #4f46e5; }
-    .step p { margin: 4px 0 6px; white-space: pre-line; font-size: 12px; }
+    /* ── Outils secondaires ─────────────────────────────────────────────── */
+    .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 14px; }
+    .tools button { width: 100%; }
 
-    #fallback { display: none; margin-top: 10px; padding: 8px; border: 1px solid #d97706; border-radius: 8px; }
-    #fallback button { width: 100%; padding: 6px; font-weight: 700; background: #d97706; border: 0; color: #fff; }
+    /* ── Cartes de résultat (correction, IA, verdict) ───────────────────── */
+    .card { border: 1px solid var(--line); border-left: 3px solid var(--ok); border-radius: 10px; padding: 8px 10px; margin-top: 8px; background: var(--surface); }
+    .card .tag { font: 700 9.5px system-ui; letter-spacing: .6px; text-transform: uppercase; color: var(--ok); }
+    .card p { margin: 5px 0 7px; font-size: 12.5px; white-space: pre-line; }
+    .card.verdict { border-left-color: var(--brand); } .card.verdict .tag { color: var(--brand); }
+    .card.doubt { border-left-color: var(--warn); } .card.doubt .tag { color: var(--warn); }
+
+    /* ── Bloc IA repliable ──────────────────────────────────────────────── */
+    details { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    summary { padding: 8px 10px; cursor: pointer; font-weight: 650; font-size: 12px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "▾"; color: var(--muted); font-size: 10px; }
+    details[open] summary::after { content: "▴"; }
+    details .in { padding: 0 10px 10px; }
+    textarea, input {
+      width: 100%; padding: 7px 8px; font: 12px/1.45 system-ui; color: inherit;
+      background: light-dark(#fff, #0d1220); border: 1px solid var(--line); border-radius: 8px;
+    }
+    textarea { min-height: 120px; resize: vertical; margin-top: 6px; }
+    textarea:focus, input:focus { outline: none; border-color: var(--brand); }
+
+    /* ── Étapes secondaires de la trame ─────────────────────────────────── */
+    .step-card { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-top: 6px; }
+    .step-card .cap { display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+    .step-card .step { font: 700 10.5px system-ui; color: var(--brand); }
+    .step-card.relance .step { color: var(--muted); }
+    .step-card p { margin: 4px 0 6px; font-size: 12px; white-space: pre-line; }
+
+    /* ── Pied : le compte émetteur et son quota, discrets ───────────────── */
+    footer { position: sticky; bottom: 0; padding: 8px 12px; background: light-dark(#fff, #0b0e17); border-top: 1px solid var(--line); }
+    .quota { display: flex; align-items: center; gap: 7px; font-size: 10.5px; color: var(--muted); }
+    .gauge { flex: 1; height: 3px; border-radius: 2px; background: light-dark(#e6e8ee, #232a3b); overflow: hidden; }
+    .gauge i { display: block; height: 100%; background: var(--ok); }
+    .gauge i.full { background: var(--warn); }
+
+    .muted { color: var(--muted); font-size: 11px; }
+    .warn { color: var(--warn); font-size: 11px; }
+    .err { color: var(--bad); font-size: 11.5px; margin-top: 8px; }
+    code { font: 11px ui-monospace, monospace; background: light-dark(#f1f3f8, #1a2133); padding: 0 3px; border-radius: 3px; }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <header>
-    <h1 id="title">Trame DM</h1>
-    <span id="stage" class="badge" hidden></span>
+    <div class="who">
+      <span class="dot" id="dot"></span>
+      <h1 id="title">Trame DM</h1>
+      <span id="stage" class="muted" hidden></span>
+    </div>
+    <div id="sub" class="sub">Ouvre une conversation Instagram…</div>
+    <div class="rail" id="rail"></div>
+    <div class="rail-legend"><span id="railLeft">—</span><span id="railRight"></span></div>
   </header>
-  <div id="sub" class="muted">Ouvre une conversation Instagram…</div>
-  <div id="account" class="muted"></div>
-  <div class="row">
-    <button id="fixSpell" title="Corrige l'orthographe de ce que tu as tapé dans Instagram, sans changer le ton">Corriger l'orthographe du champ</button>
-    <button id="qualify" title="Qualifie la réponse à froid du prospect et l'inscrit au CRM">Qualifier la réponse</button>
-  </div>
 
-  <div id="fixOut"></div>
-  <div id="qualifyOut"></div>
-  <div id="stageOut"></div>
-
-  <div id="error" class="err"></div>
-
-  <div id="manual" hidden>
-    <div class="warn">Prospect non détecté — saisis son pseudo :</div>
-    <div class="row">
-      <input id="manualUser" placeholder="pseudo_instagram" />
-      <button id="manualLoad" class="primary">Charger</button>
-    </div>
-  </div>
-
-  <div id="fallback">
-    <div class="warn">Envoi non détecté. Si tu as bien envoyé le message :</div>
-    <button id="manualSent">Envoyé — journaliser</button>
-  </div>
-
-  <hr />
-
-  <section id="ai">
-    <div class="head">
-      <strong>Réponse IA — hors trame</strong>
-      <button id="aiToggle" class="link">déplier</button>
-    </div>
-    <div id="aiBody" hidden>
-      <div class="muted">Le fil est relu automatiquement — <code>moi:</code> tes messages, <code>lui:</code> les siens. Corrige si besoin.</div>
-      <textarea id="aiIncoming" placeholder="lui: son message&#10;moi: ta réponse&#10;lui: sa relance…"></textarea>
-      <div id="aiHint" class="warn"></div>
-      <div class="row">
-        <button id="aiGen" class="primary">Générer 3 réponses</button>
-        <button id="aiGrab" class="link">↻ relire le fil</button>
+  <main>
+    <div id="manual" hidden>
+      <div class="warn">Prospect non détecté — saisis son pseudo :</div>
+      <div class="row" style="margin-top:6px">
+        <input id="manualUser" placeholder="pseudo_instagram" style="flex:1" />
+        <button id="manualLoad" class="primary" style="flex:none">Charger</button>
       </div>
-      <div id="aiOut"></div>
     </div>
-  </section>
 
-  <div id="next"></div>
+    <div class="eyebrow" id="eyebrow">À envoyer maintenant</div>
+    <div id="next"></div>
 
-  <div class="row">
-    <button id="moreToggle" class="link">Voir toute la trame</button>
-  </div>
-  <div id="steps" hidden></div>
+    <div class="row" style="margin-top:8px">
+      <button id="moreToggle" class="link">Voir toute la trame</button>
+    </div>
+    <div id="steps" hidden></div>
+
+    <div class="tools">
+      <button id="fixSpell" title="Corrige l'orthographe de ce que tu as tapé dans Instagram">Corriger le champ</button>
+      <button id="qualify" title="Qualifie la réponse et recale le stade">Analyser le fil</button>
+    </div>
+
+    <div id="fixOut"></div>
+    <div id="qualifyOut"></div>
+    <div id="stageOut"></div>
+    <div id="error" class="err"></div>
+
+    <div id="fallback" hidden>
+      <div class="card doubt">
+        <div class="tag">Envoi non détecté</div>
+        <p class="muted">Si tu as bien envoyé le message :</p>
+        <button class="primary" id="manualSent">Envoyé — journaliser</button>
+      </div>
+    </div>
+
+    <details id="ai">
+      <summary>Réponse IA — hors trame</summary>
+      <div class="in">
+        <div class="muted">Le fil est relu automatiquement — <code>moi:</code> tes messages, <code>lui:</code> les siens.</div>
+        <textarea id="aiIncoming" placeholder="lui: son message&#10;moi: ta réponse…"></textarea>
+        <div id="aiHint" class="warn"></div>
+        <div class="row" style="margin-top:6px">
+          <button id="aiGen" class="primary">Générer 3 réponses</button>
+          <button id="aiGrab" class="link">↻ relire le fil</button>
+        </div>
+        <div id="aiOut"></div>
+      </div>
+    </details>
+  </main>
+
+  <footer>
+    <div id="account" class="quota"></div>
+  </footer>
 
   <script src="util.js"></script>
   <script src="sidepanel.js"></script>

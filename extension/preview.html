@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Trame DM — aperçu local</title>
+  <style>
+    /* Cadre qui imite la largeur réelle d'un side panel Chrome (≈ 360 px). */
+    html, body { margin: 0; background: #1c1c1f; }
+    #frame { width: 360px; margin: 0 auto; min-height: 100vh; background: light-dark(#fff, #0f172a); box-shadow: 0 0 0 1px #333; }
+  </style>
+</head>
+<body>
+  <div id="frame"></div>
+
+  <script>
+    // ── Faux `chrome` : le panneau croit parler au service worker ────────────
+    // Sert UNIQUEMENT à travailler le design hors du navigateur d'extension.
+    // Les fixtures reprennent une vraie conversation (Thomas, ostéopathe).
+    const FIXTURE = {
+      prospect: {
+        id: "36a0af30-6150-431d-92af-a7edfea6ded9",
+        username: "thomas.pecoud_osteopathe",
+        full_name: "Thomas Pecoud",
+        metier: "osteopathe", ville: null, followers: 79,
+        stage: "accroche", status: "contacted", reply_count: 0,
+        next_followup_at: null, score_tier: "hot",
+      },
+      steps: [
+        { step: "M1", title: "Accroche (à varier d'un prospect à l'autre)", text: "Hello Thomas ! J'ai vu que vous étiez ostéopathe, c'est toujours le cas ?" },
+        { step: "M2", title: "Présentation 1/3 — contexte (après son oui)", text: "Parfait ! Votre post est remonté dans mon feed, j'ai jeté un œil au profil et deux-trois trucs m'ont interpellé." },
+        { step: "M3", title: "Présentation 2/3 — qui je suis", text: "Moi c'est Nicolas, 6 ans dans le digital, surtout avec les indépendants et commerces de proximité." },
+        { step: "M5", title: "Connexion", text: "Avant ça, vous faites ce métier depuis longtemps ?" },
+        { step: "M7", title: "Recherche de douleur", text: "Et ça donne quoi ? Vous avez assez de demandes, ou c'est en dents de scie ?" },
+        { step: "M8", title: "Proposition d'appel", text: "Ok. Le plus simple c'est qu'on se cale 15-20 min et je vous montre ce que j'ai vu. Vous avez un créneau cette semaine ?" },
+        { step: "R1", title: "Relance — 1 h après un vu", text: "Vous avez eu le temps de checker mon message Thomas ?" },
+      ],
+      nextStep: "M2",
+      accounts: [{ id: "a1", username: "nmfagence", sentDay: 50, daily: 50, canSend: false }],
+    };
+
+    window.chrome = {
+      runtime: {
+        sendMessage: async (msg) => {
+          if (msg.type === "ig:get-trame") return { status: 200, data: FIXTURE, context: { username: FIXTURE.prospect.username, account: "nmfagence" } };
+          if (msg.type === "ig:tab") return { ok: true };
+          if (msg.type === "ig:proofread") return { status: 200, data: { text: "Parfait, donc vous êtes chaud pour la suite, ou il reste des points bloquants ?", changed: true } };
+          if (msg.type === "ig:ai-reply") return { status: 200, data: { suggestions: [
+            { label: "Recadrer vers l'appel", text: "Toutes ces questions méritent une vraie réponse, pas un roman en DM. On se cale 15-20 min cette semaine ?" },
+            { label: "Franc + report détails", text: "La maintenance sert à garder le site à jour, mais pour le prix je préfère vous montrer ça de vive voix. Un appel de 15 min ?" },
+            { label: "Direct sans détour", text: "C'est le genre de trucs qu'on règle mieux en 15 min à l'oral qu'en DM. Vous auriez un créneau cette semaine ?" },
+          ] } };
+          if (msg.type === "ig:classify") return { status: 200, data: { verdict: {
+            replied: true, kind: "positive", cold: false, excerpt: "Non c'est tous nouveau, je suis fraîchement installé",
+            confidence: "haute", reason: "Il répond et embraye sur la suite.",
+            stage: "douleur", stageReason: "L'offre et le prix de la maintenance sont déjà discutés.",
+          } } };
+          return { ok: true };
+        },
+        onMessage: { addListener: () => {} },
+      },
+      tabs: { query: async () => [{ id: 1 }], sendMessage: async () => ({ ok: true, rows: [] }) },
+      storage: { local: { get: async () => ({}), set: async () => {} }, session: { get: async () => ({}), set: async () => {} } },
+    };
+
+    // ── Monte le VRAI sidepanel.html, pour qu'aucun balisage ne diverge ─────
+    (async () => {
+      const html = await fetch("sidepanel.html").then((r) => r.text());
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      for (const st of parsed.head.querySelectorAll("style")) document.head.append(st);
+      const frame = document.getElementById("frame");
+      frame.innerHTML = parsed.body.innerHTML; // les <script> ne s'exécutent pas ainsi
+      for (const src of ["util.js", "sidepanel.js"]) {
+        await new Promise((res) => {
+          const el = document.createElement("script");
+          el.src = src;
+          el.onload = res;
+          el.onerror = res;
+          document.body.append(el);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

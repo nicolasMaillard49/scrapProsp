@@ -71,20 +71,26 @@ async function refresh(username, detectedAccount) {
   render();
 }
 
+/** Ordre des stades — sert au rail d'avancement. */
+const STAGE_ORDER = ["accroche", "presentation", "connexion", "douleur", "appel_propose", "questionnaire_envoye", "call_booke"];
+const STAGE_TONE = {
+  accroche: "cold", presentation: "progress", connexion: "progress",
+  douleur: "warm", appel_propose: "warm", questionnaire_envoye: "warm",
+  call_booke: "won", perdu: "lost",
+};
+
 function render() {
   const { data, username } = state;
   if (!data) return;
   const p = data.prospect;
   $("title").textContent = p ? `@${p.username}` : username ? `@${username}` : "Trame DM";
+  $("dot").className = `dot ${p ? STAGE_TONE[p.stage] ?? "" : ""}`;
   const stage = $("stage");
-  if (p) {
-    stage.hidden = false;
-    stage.textContent = STAGE_LABEL[p.stage] ?? "Jamais contacté";
-  } else {
-    stage.hidden = true;
-  }
+  stage.hidden = !p;
+  if (p) stage.textContent = `· ${STAGE_LABEL[p.stage] ?? "jamais contacté"}`;
+
   $("sub").textContent = p
-    ? [p.metier || "métier ?", p.ville || "ville ?", p.followers ? `${p.followers} abonnés` : null].filter(Boolean).join(" · ")
+    ? [p.metier || "métier ?", p.ville, p.followers ? `${p.followers} abonnés` : null].filter(Boolean).join(" · ")
     : username
       ? "Hors base — trame générique, rien ne sera journalisé."
       : "Aucune conversation détectée — trame générique.";
@@ -92,8 +98,25 @@ function render() {
   // qu'aucun prospect n'est chargé, la trame est générique et rien n'est
   // journalisable — autant pouvoir le débloquer soi-même.
   $("manual").hidden = !!p;
+  renderRail();
   renderAccount();
   renderTrame();
+}
+
+/**
+ * Rail d'avancement : sept segments, un par stade. Donne en un coup d'œil ce
+ * qu'aucune phrase ne donne aussi vite — d'où l'on vient, où l'on va.
+ */
+function renderRail() {
+  const p = state.data?.prospect;
+  const idx = p ? STAGE_ORDER.indexOf(p.stage) : -1;
+  $("rail").innerHTML = STAGE_ORDER.map((_, i) => {
+    const cls = i < idx ? "done" : i === idx ? "now" : "";
+    return `<i class="${cls}"></i>`;
+  }).join("");
+  $("railLeft").textContent = p?.stage === "perdu" ? "Perdu" : STAGE_LABEL[STAGE_ORDER[Math.max(0, idx)]] ?? "Jamais contacté";
+  const next = state.data?.nextStep;
+  $("railRight").textContent = next ? `${next} · ${STAGE_ORDER.length - Math.max(0, idx) - 1} étapes avant le call` : "séquence close";
 }
 
 function renderAccount() {
@@ -103,36 +126,50 @@ function renderAccount() {
   const match = accounts.find((a) => a.id === accountId);
 
   if (match) {
-    // Un seul émetteur (le cas normal) : une ligne d'info, aucun choix à faire.
-    // Le dépassement de plafond n'est plus un blocage — c'est une info : un DM
+    // Un seul émetteur (le cas normal) : une jauge discrète en pied de
+    // panneau. Le dépassement n'est plus un blocage — c'est une info : un DM
     // parti à la main est journalisé quoi qu'il arrive.
     const over = match.sentDay >= match.daily;
-    el.className = over ? "warn" : "muted";
-    el.textContent = `@${match.username} · ${match.sentDay}/${match.daily} aujourd'hui${over ? " · au-dessus du plafond (journalisé quand même)" : ""}`;
+    const pct = Math.min(100, Math.round((match.sentDay / Math.max(1, match.daily)) * 100));
+    el.className = "quota";
+    el.innerHTML = `<span>@${esc(match.username)}</span>
+      <span class="gauge"><i class="${over ? "full" : ""}" style="width:${pct}%"></i></span>
+      <span>${esc(match.sentDay)}/${esc(match.daily)}${over ? " · au-delà, journalisé quand même" : ""}</span>`;
     return;
   }
   if (!accounts.length) {
     el.className = "warn";
-    el.textContent = "Aucun compte émetteur déclaré dans l'app — rien ne pourra être journalisé.";
+    el.textContent = "Aucun compte émetteur déclaré — rien ne pourra être journalisé.";
     return;
   }
   // Plusieurs comptes et aucun apparié : choix explicite obligatoire (§ 8).
   el.className = "";
   el.innerHTML = `<div class="warn">Compte connecté${igAccount ? ` @${esc(igAccount)}` : ""} non reconnu — choisis l'émetteur :</div>
-    <select id="accountSelect"><option value="">— choisir —</option>
+    <select id="accountSelect" style="width:100%;margin-top:4px"><option value="">— choisir —</option>
     ${accounts.map((a) => `<option value="${esc(a.id)}">@${esc(a.username)} (${esc(a.sentDay)}/${esc(a.daily)})</option>`).join("")}</select>`;
   $("accountSelect").addEventListener("change", (e) => { state.accountId = e.target.value || null; render(); });
 }
 
-/** Carte d'une étape de la séquence. */
-function stepCard(s, isNext, canInsert) {
-  const relance = s.step.startsWith("R");
-  return `<div class="step ${isNext ? "next" : ""} ${relance ? "relance" : ""}">
-    <div class="head"><span class="tag">${esc(s.step)} · ${esc(s.title)}</span>${isNext ? '<span class="now">à envoyer</span>' : ""}</div>
+/** La seule chose à faire maintenant : mise en avant, action unique. */
+function heroCard(s) {
+  return `<div class="hero">
+    <div class="cap"><span class="step">${esc(s.step)}</span><span class="title">${esc(s.title)}</span></div>
+    <div class="body">${esc(s.text)}</div>
+    <div class="act">
+      <button class="primary" data-insert="${esc(s.step)}">Insérer dans Instagram</button>
+      <button data-copy="${esc(s.step)}">Copier</button>
+    </div>
+  </div>`;
+}
+
+/** Les autres étapes, repliées : utiles, mais jamais prioritaires. */
+function stepCard(s) {
+  return `<div class="step-card ${s.step.startsWith("R") ? "relance" : ""}">
+    <div class="cap"><span class="step">${esc(s.step)}</span><span class="muted">${esc(s.title)}</span></div>
     <p>${esc(s.text)}</p>
     <div class="row">
       <button data-copy="${esc(s.step)}">Copier</button>
-      ${canInsert ? `<button class="primary" data-insert="${esc(s.step)}">Insérer</button>` : ""}
+      <button data-insert="${esc(s.step)}">Insérer</button>
     </div>
   </div>`;
 }
@@ -142,12 +179,13 @@ function renderTrame() {
   const next = data.steps.find((s) => s.step === data.nextStep);
   // L'insertion est toujours proposée : écrire dans le champ ne dépend pas de
   // la présence du prospect en base — seule la JOURNALISATION en dépend.
+  $("eyebrow").textContent = next ? "À envoyer maintenant" : "Séquence close";
   $("next").innerHTML = next
-    ? stepCard(next, true, true)
-    : `<div class="muted">Séquence terminée pour ce prospect — plus rien à envoyer depuis la trame.</div>`;
+    ? heroCard(next)
+    : `<div class="card"><p class="muted">Plus rien à envoyer depuis la trame — la balle est dans son camp.</p></div>`;
 
   const others = data.steps.filter((s) => s.step !== data.nextStep);
-  $("steps").innerHTML = others.map((s) => stepCard(s, false, true)).join("");
+  $("steps").innerHTML = others.map((s) => stepCard(s)).join("");
   $("steps").hidden = !state.showAll;
   $("moreToggle").textContent = state.showAll ? "Masquer la trame" : `Voir toute la trame (${others.length})`;
 
@@ -176,7 +214,7 @@ async function insertRaw(text) {
   await chrome.runtime.sendMessage({ type: "ig:disarm" }).catch(() => {});
   state.lastArm = null;
   clearTimeout(state.fallbackTimer);
-  $("fallback").style.display = "none";
+  $("fallback").hidden = true;
   return await toTab({ type: "ig:insert", text });
 }
 
@@ -204,7 +242,7 @@ async function insert(step) {
   // pendant la simple relecture du message, avant même qu'il soit parti,
   // ce qui invitait à journaliser un message pas encore envoyé.
   clearTimeout(state.fallbackTimer);
-  state.fallbackTimer = setTimeout(() => { $("fallback").style.display = "block"; }, 30000);
+  state.fallbackTimer = setTimeout(() => { $("fallback").hidden = false; }, 30000);
 }
 
 // ── Réponse IA (hors trame) ────────────────────────────────────────────────
@@ -232,11 +270,9 @@ async function grabThread() {
     : "";
 }
 
-$("aiToggle").addEventListener("click", async () => {
-  const body = $("aiBody");
-  body.hidden = !body.hidden;
-  $("aiToggle").textContent = body.hidden ? "déplier" : "replier";
-  if (!body.hidden && !$("aiIncoming").value.trim()) await grabThread();
+// <details> natif : à l'ouverture, on relit le fil si le champ est vide.
+$("ai").addEventListener("toggle", async () => {
+  if ($("ai").open && !$("aiIncoming").value.trim()) await grabThread();
 });
 
 $("aiGrab").addEventListener("click", grabThread);
@@ -258,7 +294,7 @@ $("aiGen").addEventListener("click", async () => {
     $("error").textContent = "";
     const list = r.data.suggestions ?? [];
     $("aiOut").innerHTML = list
-      .map((s, i) => `<div class="sugg">
+      .map((s, i) => `<div class="card">
           <div class="tag">${esc(s.label)}</div>
           <p>${esc(s.text)}</p>
           <div class="row">
@@ -295,7 +331,7 @@ $("moreToggle").addEventListener("click", () => {
 
 /** Affiche le texte corrigé dans le panneau : à relire, à copier, à réinsérer. */
 function showCorrection(text) {
-  $("fixOut").innerHTML = `<div class="sugg">
+  $("fixOut").innerHTML = `<div class="card">
       <div class="tag">Corrigé</div>
       <p>${esc(text)}</p>
       <div class="row">
@@ -384,12 +420,12 @@ $("qualify").addEventListener("click", async () => {
 
 function showVerdict(v) {
   if (!v?.replied || !v.kind) {
-    $("qualifyOut").innerHTML = `<div class="sugg doubt"><div class="tag">Aucune réponse</div>
+    $("qualifyOut").innerHTML = `<div class="card doubt"><div class="tag">Aucune réponse</div>
       <p>${esc(v?.reason || "Le prospect n'a pas encore répondu.")}</p></div>`;
     return;
   }
   const doubt = v.confidence !== "haute";
-  $("qualifyOut").innerHTML = `<div class="sugg verdict ${doubt ? "doubt" : ""}">
+  $("qualifyOut").innerHTML = `<div class="card verdict ${doubt ? "doubt" : ""}">
       <div class="tag">${esc(KIND_LABEL[v.kind] ?? v.kind)}${v.cold ? " · à froid" : ""} · confiance ${esc(v.confidence)}</div>
       <p>${esc(v.excerpt || "—")}</p>
       <div class="muted">${esc(v.reason)}</div>
@@ -414,7 +450,7 @@ function showVerdict(v) {
       accountId: state.accountId,
     });
     if (r?.status === 200 && r.data?.ok) {
-      $("qualifyOut").innerHTML = `<div class="sugg verdict"><div class="tag">Enregistré ✓</div>
+      $("qualifyOut").innerHTML = `<div class="card verdict"><div class="tag">Enregistré ✓</div>
         <p class="muted">${r.data.deduped ? "Déjà enregistré aujourd'hui — rien de compté en double." : "Réponse inscrite au CRM ; le prospect sort de la file de relance."}</p></div>`;
       refresh(state.username);
     } else {
@@ -433,7 +469,7 @@ function showVerdict(v) {
 function showStage(v) {
   const current = state.data?.prospect?.stage ?? null;
   if (!v?.stage || v.stage === current) { $("stageOut").innerHTML = ""; return; }
-  $("stageOut").innerHTML = `<div class="sugg doubt">
+  $("stageOut").innerHTML = `<div class="card doubt">
       <div class="tag">Stade en retard</div>
       <p>CRM : <b>${esc(STAGE_LABEL[current] ?? "Jamais contacté")}</b> · d'après le fil : <b>${esc(STAGE_LABEL[v.stage] ?? v.stage)}</b></p>
       <div class="muted">${esc(v.stageReason)}</div>
@@ -447,7 +483,7 @@ function showStage(v) {
       type: "ig:classify", record: "stage", username: state.username, stage: v.stage,
     });
     if (r?.status === 200 && r.data?.ok) {
-      $("stageOut").innerHTML = `<div class="sugg verdict"><div class="tag">Stade recalé ✓</div>
+      $("stageOut").innerHTML = `<div class="card verdict"><div class="tag">Stade recalé ✓</div>
         <p class="muted">L'étape « à envoyer » suit maintenant la conversation.</p></div>`;
       refresh(state.username);
     } else {
@@ -470,7 +506,7 @@ $("manualUser").addEventListener("keydown", (e) => { if (e.key === "Enter") load
 $("manualSent").addEventListener("click", async () => {
   if (!state.lastArm) return;
   const r = await chrome.runtime.sendMessage({ type: "ig:sent-manual", ...state.lastArm });
-  if (r?.ok) { $("fallback").style.display = "none"; refresh(state.username); }
+  if (r?.ok) { $("fallback").hidden = true; refresh(state.username); }
   else $("error").textContent = r?.error || "Journalisation refusée.";
 });
 
@@ -480,7 +516,7 @@ chrome.runtime.onMessage.addListener((msg) => {
     // « rien détecté » à chaque re-scan de la SPA.
     if (!msg.username && state.manual) return;
     state.manual = null;
-    $("fallback").style.display = "none";
+    $("fallback").hidden = true;
     clearTimeout(state.fallbackTimer);
     // Nouvelle conversation : ce qui restait du bloc IA ne la concerne pas.
     $("aiIncoming").value = "";
@@ -493,9 +529,9 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
   if (msg?.type === "ig:logged") {
     clearTimeout(state.fallbackTimer);
-    $("fallback").style.display = "none";
+    $("fallback").hidden = true;
     if (msg.ok) refresh(state.username); // stade avancé → nextStep suivant surligné
-    else { $("error").textContent = msg.error || "Journalisation refusée."; $("fallback").style.display = "block"; }
+    else { $("error").textContent = msg.error || "Journalisation refusée."; $("fallback").hidden = false; }
   }
 });
 
