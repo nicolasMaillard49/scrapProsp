@@ -2,6 +2,7 @@
 // UI de la trame. État minimal : la trame affichée + l'armement local (pour
 // le filet manuel). Le vrai état (quota, stade) vit dans l'app — on refetch.
 const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 let state = {
   username: null,      // pseudo affiché sur instagram.com
@@ -53,13 +54,13 @@ function renderAccount() {
   const match = data.accounts.find((a) => a.id === accountId);
   if (match) {
     const full = !match.canSend;
-    el.innerHTML = `<div class="${full ? "warn" : "muted"}">Émetteur : @${match.username} — ${match.sentDay}/${match.daily} aujourd'hui${full ? " · PLAFOND : la journalisation sera refusée (429)" : ""}</div>`;
+    el.innerHTML = `<div class="${full ? "warn" : "muted"}">Émetteur : @${esc(match.username)} — ${match.sentDay}/${match.daily} aujourd'hui${full ? " · PLAFOND : la journalisation sera refusée (429)" : ""}</div>`;
     return;
   }
   // Aucun match : choix explicite obligatoire (§ 8 — jamais deviné).
-  el.innerHTML = `<div class="warn">Compte connecté${igAccount ? ` @${igAccount}` : ""} non déclaré dans l'app — choisis l'émetteur :</div>
+  el.innerHTML = `<div class="warn">Compte connecté${igAccount ? ` @${esc(igAccount)}` : ""} non déclaré dans l'app — choisis l'émetteur :</div>
     <select id="accountSelect"><option value="">— choisir —</option>
-    ${data.accounts.map((a) => `<option value="${a.id}">@${a.username} (${a.sentDay}/${a.daily})</option>`).join("")}</select>`;
+    ${data.accounts.map((a) => `<option value="${a.id}">@${esc(a.username)} (${a.sentDay}/${a.daily})</option>`).join("")}</select>`;
   $("accountSelect").addEventListener("change", (e) => { state.accountId = e.target.value || null; render(); });
 }
 
@@ -70,10 +71,10 @@ function renderSteps() {
     const isNext = s.step === data.nextStep;
     const relance = s.step.startsWith("R");
     return `<div class="step ${isNext ? "next" : ""} ${relance ? "relance" : ""}">
-      <div class="head"><span class="tag">${s.step} · ${s.title}</span>${isNext ? '<span class="now">à envoyer</span>' : ""}</div>
-      <p>${s.text.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</p>
-      <button data-copy="${s.step}">Copier</button>
-      ${p ? `<button class="primary" data-insert="${s.step}" ${accountId ? "" : 'title="Choisis un émetteur pour journaliser — l\'insertion reste possible"'}>Insérer</button>` : ""}
+      <div class="head"><span class="tag">${esc(s.step)} · ${esc(s.title)}</span>${isNext ? '<span class="now">à envoyer</span>' : ""}</div>
+      <p>${esc(s.text)}</p>
+      <button data-copy="${esc(s.step)}">Copier</button>
+      ${p ? `<button class="primary" data-insert="${esc(s.step)}" ${accountId ? "" : 'title="Choisis un émetteur pour journaliser — l\'insertion reste possible"'}>Insérer</button>` : ""}
     </div>`;
   }).join("");
 
@@ -94,11 +95,12 @@ async function insert(step) {
   const p = data.prospect;
   const s = data.steps.find((x) => x.step === step);
   if (!p || !s) return;
-  // Sans émetteur : on insère quand même (copier-colle assisté), mais on
-  // n'arme PAS la journalisation — § 8, jamais deviné.
+  // Sans émetteur : on insère quand même (copier-coller assisté), mais on
+  // n'arme PAS la journalisation — § 8, jamais deviné. Insertion directe via
+  // content.js : garantie structurelle que rien ne peut être journalisé.
   if (!accountId) {
-    await chrome.runtime.sendMessage({ type: "ig:arm", prospectId: p.id, accountId: "", step, text: s.text })
-      .then(() => chrome.storage.session.set({ armed: null })); // désarme aussitôt
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) await chrome.tabs.sendMessage(tab.id, { type: "ig:insert", text: s.text }).catch(() => {});
     $("error").textContent = "Inséré SANS journalisation (aucun émetteur choisi).";
     return;
   }
