@@ -52,6 +52,21 @@ journalisée et ne fait pas avancer le stade.
 
 ## Quand Instagram casse la détection
 
+**Filet immédiat** : si le prospect n'est pas détecté, le panneau affiche un
+champ « saisis son pseudo ». Tape-le, tout redevient fonctionnel (trame,
+journalisation, réponse IA) — pas besoin d'attendre un correctif.
+
+Le pseudo de la conversation est cherché dans l'URL (page profil), puis dans
+le `<header>`, puis par **vote sur les liens de profil** de la page : dans un
+DM, l'interlocuteur revient plusieurs fois (en-tête, carte, « Voir profil »)
+alors que la liste de gauche n'expose que des liens `/direct/t/…`. Égalité
+entre candidats = aucune certitude = rien n'est détecté (jamais de pari :
+un mauvais pseudo journaliserait sur le mauvais prospect).
+
+Les textes alternatifs d'avatar ne servent jamais à extraire un pseudo :
+« Photo de profil de <pseudo> » en français devient « <Nom Complet>'s profile
+picture » en anglais — un nom complet n'est pas un identifiant.
+
 Tout le couplage DOM vit dans `detect.js` (6 fonctions). Réparer là, puis :
 `node --test extension/detect.test.mjs`
 

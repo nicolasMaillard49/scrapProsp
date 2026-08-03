@@ -22,28 +22,64 @@ const NMFDetect = (() => {
     return clean(m[1]);
   }
 
-  /** Pseudo du profil ou de la conversation ouverte. */
-  function currentUsername(loc, doc) {
+  /**
+   * Pseudos candidats du document, par nombre d'occurrences.
+   *
+   * Ne s'appuie QUE sur les liens de profil (`/pseudo/`) : c'est la seule
+   * source indépendante de la langue de l'interface. Les textes alternatifs
+   * d'avatar valent « Photo de profil de <pseudo> » en français mais
+   * « <Nom Complet>'s profile picture » en anglais — le nom complet n'est pas
+   * un pseudo, on ne peut pas en tirer d'identifiant fiable.
+   */
+  function candidateUsernames(doc, exclude) {
+    const counts = new Map();
+    for (const a of doc.querySelectorAll("a[href]")) {
+      const u = usernameFromHref(a.getAttribute("href"));
+      if (!u || u === exclude) continue;
+      counts.set(u, (counts.get(u) || 0) + 1);
+    }
+    return counts;
+  }
+
+  /** Candidat strictement majoritaire, ou null si personne ne se détache. */
+  function topCandidate(counts) {
+    let best = null;
+    let bestN = 0;
+    let tie = false;
+    for (const [u, n] of counts) {
+      if (n > bestN) { best = u; bestN = n; tie = false; }
+      else if (n === bestN) tie = true;
+    }
+    return tie ? null : best;
+  }
+
+  /**
+   * Pseudo du profil ou de la conversation ouverte.
+   * `opts.exclude` : le compte connecté, à ne jamais confondre avec le prospect.
+   */
+  function currentUsername(loc, doc, opts = {}) {
     try {
+      const exclude = opts.exclude ? String(opts.exclude).toLowerCase() : null;
       const path = loc.pathname;
       // 1. Page profil : le pseudo est dans l'URL — la stratégie la plus stable.
       const direct = usernameFromHref(path);
       if (direct) return direct;
-      // 2. Conversation (/direct/t/…) : lien de profil dans le header.
-      if (/^\/direct\/t\//.test(path)) {
-        const header = doc.querySelector("header");
-        if (header) {
-          for (const a of header.querySelectorAll("a[href]")) {
-            const u = usernameFromHref(a.getAttribute("href"));
-            if (u) return u;
-          }
-          // 3. Repli : alt de l'avatar « Photo de profil de <pseudo> ».
-          const img = header.querySelector("img[alt]");
-          const m = /photo de profil de (@?[A-Za-z0-9._]+)/i.exec(img?.getAttribute("alt") || "");
-          if (m) return clean(m[1]);
+      if (!/^\/direct\//.test(path)) return null;
+
+      // 2. Conversation : lien de profil dans le header, quand il existe.
+      const header = doc.querySelector("header");
+      if (header) {
+        for (const a of header.querySelectorAll("a[href]")) {
+          const u = usernameFromHref(a.getAttribute("href"));
+          if (u && u !== exclude) return u;
         }
       }
-      return null;
+      // 3. Repli : vote sur les liens de profil de la page. Dans une
+      //    conversation ouverte, le pseudo de l'interlocuteur revient
+      //    plusieurs fois (en-tête, carte de profil, « Voir profil ») là où
+      //    la liste de gauche ne contient que des liens /direct/t/…, qui ne
+      //    sont pas des profils. Égalité = aucune certitude = null.
+      return topCandidate(candidateUsernames(doc, exclude));
     } catch {
       return null;
     }
@@ -98,6 +134,9 @@ const NMFDetect = (() => {
    * `opts.exclude` : pseudo de la conversation ouverte. Indispensable dans un
    * DM — le header y affiche l'avatar du PROSPECT, et le prendre pour le
    * compte connecté ferait créditer ses quotas de chauffe au mauvais compte.
+   * `opts.strict` : ne garde que les sources qui ne peuvent PAS désigner un
+   * tiers (nav, JSON). Sert à obtenir le compte connecté avant même de savoir
+   * qui est le prospect — sinon les deux détections s'excluent en rond.
    */
   function loggedInAccount(doc, opts = {}) {
     try {
@@ -114,7 +153,7 @@ const NMFDetect = (() => {
       if (fromJson) return fromJson;
 
       // 3. Dernier repli : tout le document, en excluant la conversation.
-      return ok(fromAvatarLinks(doc));
+      return opts.strict ? null : ok(fromAvatarLinks(doc));
     } catch {
       return null;
     }

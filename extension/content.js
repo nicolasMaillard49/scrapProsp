@@ -9,10 +9,12 @@
 
   /** Annonce le contexte courant (pseudo affiché + compte connecté). */
   function announce() {
-    const username = NMFDetect.currentUsername(location, document);
-    // exclude : dans un DM, l'avatar du header est celui du prospect — sans ça
-    // il serait pris pour le compte connecté.
-    const account = NMFDetect.loggedInAccount(document, { exclude: username });
+    // Le compte connecté d'abord, par les seules sources qui ne peuvent pas
+    // désigner un tiers (nav, JSON) : il sert ensuite à ne pas confondre
+    // Nicolas avec son interlocuteur, dans un sens comme dans l'autre.
+    const own = NMFDetect.loggedInAccount(document, { strict: true });
+    const username = NMFDetect.currentUsername(location, document, { exclude: own });
+    const account = own || NMFDetect.loggedInAccount(document, { exclude: username });
     const key = `${username}|${account}`;
     if (key === lastAnnounced) return;
     lastAnnounced = key;

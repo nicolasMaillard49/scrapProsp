@@ -13,6 +13,7 @@ let state = {
   fallbackTimer: null,
   showAll: false,      // trame complète dépliée
   aiBusy: false,
+  manual: null,        // pseudo saisi à la main (détection en échec)
 };
 
 const STAGE_LABEL = {
@@ -68,6 +69,10 @@ function render() {
     : username
       ? "Hors base — trame générique, rien ne sera journalisé."
       : "Aucune conversation détectée — trame générique.";
+  // Saisie manuelle : le seul recours quand Instagram change son DOM. Tant
+  // qu'aucun prospect n'est chargé, la trame est générique et rien n'est
+  // journalisable — autant pouvoir le débloquer soi-même.
+  $("manual").hidden = !!p;
   renderAccount();
   renderTrame();
 }
@@ -115,16 +120,15 @@ function stepCard(s, isNext, canInsert) {
 
 function renderTrame() {
   const { data } = state;
-  const p = data.prospect;
-  const canInsert = !!p;
   const next = data.steps.find((s) => s.step === data.nextStep);
-
+  // L'insertion est toujours proposée : écrire dans le champ ne dépend pas de
+  // la présence du prospect en base — seule la JOURNALISATION en dépend.
   $("next").innerHTML = next
-    ? stepCard(next, true, canInsert)
+    ? stepCard(next, true, true)
     : `<div class="muted">Séquence terminée pour ce prospect — plus rien à envoyer depuis la trame.</div>`;
 
   const others = data.steps.filter((s) => s.step !== data.nextStep);
-  $("steps").innerHTML = others.map((s) => stepCard(s, false, canInsert)).join("");
+  $("steps").innerHTML = others.map((s) => stepCard(s, false, true)).join("");
   $("steps").hidden = !state.showAll;
   $("moreToggle").textContent = state.showAll ? "Masquer la trame" : `Voir toute la trame (${others.length})`;
 
@@ -163,12 +167,15 @@ async function insert(step) {
   const { data, accountId } = state;
   const p = data.prospect;
   const s = data.steps.find((x) => x.step === step);
-  if (!p || !s) return;
-  // Sans émetteur : on insère quand même (copier-coller assisté), mais on
-  // n'arme PAS la journalisation — § 8, jamais deviné.
-  if (!accountId) {
+  if (!s) return;
+  // Prospect hors base ou émetteur inconnu : on insère quand même (le texte
+  // reste utile), mais on n'arme PAS la journalisation — rien à journaliser
+  // contre un prospect inexistant, et § 8 : l'émetteur n'est jamais deviné.
+  if (!p || !accountId) {
     await insertRaw(s.text);
-    $("error").textContent = "Inséré SANS journalisation (aucun émetteur retenu).";
+    $("error").textContent = p
+      ? "Inséré SANS journalisation (aucun émetteur retenu)."
+      : "Inséré SANS journalisation (prospect hors base).";
     return;
   }
   const r = await chrome.runtime.sendMessage({ type: "ig:arm", prospectId: p.id, accountId, step, text: s.text });
@@ -270,6 +277,15 @@ $("moreToggle").addEventListener("click", () => {
   renderTrame();
 });
 
+async function loadManual() {
+  const u = $("manualUser").value.replace(/^@/, "").trim().toLowerCase();
+  if (!u) return;
+  state.manual = u;
+  await refresh(u);
+}
+$("manualLoad").addEventListener("click", loadManual);
+$("manualUser").addEventListener("keydown", (e) => { if (e.key === "Enter") loadManual(); });
+
 $("manualSent").addEventListener("click", async () => {
   if (!state.lastArm) return;
   const r = await chrome.runtime.sendMessage({ type: "ig:sent-manual", ...state.lastArm });
@@ -279,6 +295,10 @@ $("manualSent").addEventListener("click", async () => {
 
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type === "ig:prospect-changed") {
+    // Détection toujours en échec : ne pas écraser la saisie manuelle par un
+    // « rien détecté » à chaque re-scan de la SPA.
+    if (!msg.username && state.manual) return;
+    state.manual = null;
     $("fallback").style.display = "none";
     clearTimeout(state.fallbackTimer);
     // Nouvelle conversation : ce qui restait du bloc IA ne la concerne pas.

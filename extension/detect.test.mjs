@@ -31,6 +31,67 @@ test("currentUsername: conversation sans header reconnaissable → null, sans je
   assert.equal(NMFDetect.currentUsername(d.window.location, d.window.document), null);
 });
 
+test("currentUsername: DM sans <header> → vote sur les liens de profil de la page", () => {
+  // Cas réel : la liste de gauche n'expose que des liens /direct/t/…, tandis
+  // que l'interlocuteur apparaît plusieurs fois (en-tête, carte, Voir profil).
+  const d = dom(
+    `<body>
+       <nav><a href="/nmfagence/"><img alt="Photo de profil de nmfagence" /></a></nav>
+       <aside>
+         <a href="/direct/t/111/">Sun Nails</a>
+         <a href="/direct/t/222/">Thomas Pecoud</a>
+       </aside>
+       <div>
+         <a href="/thomas.pecoud_osteopathe/"><img alt="Thomas Pecoud's profile picture" /></a>
+         <a href="/thomas.pecoud_osteopathe/">thomas.pecoud_osteopathe</a>
+         <a href="/thomas.pecoud_osteopathe/">Voir profil</a>
+       </div>
+     </body>`,
+    "https://www.instagram.com/direct/t/222/",
+  );
+  assert.equal(
+    NMFDetect.currentUsername(d.window.location, d.window.document, { exclude: "nmfagence" }),
+    "thomas.pecoud_osteopathe",
+  );
+});
+
+test("currentUsername: le compte connecté n'est jamais pris pour le prospect", () => {
+  // Sa propre photo de profil est partout dans l'interface : sans exclusion,
+  // elle gagnerait le vote et Nicolas se prospecterait lui-même.
+  const d = dom(
+    `<body>
+       <a href="/nmfagence/">a</a><a href="/nmfagence/">b</a><a href="/nmfagence/">c</a>
+       <a href="/laura_x/">profil</a>
+     </body>`,
+    "https://www.instagram.com/direct/t/333/",
+  );
+  assert.equal(NMFDetect.currentUsername(d.window.location, d.window.document, { exclude: "nmfagence" }), "laura_x");
+});
+
+test("currentUsername: égalité entre candidats → null (aucune certitude, jamais de pari)", () => {
+  const d = dom(
+    `<body><a href="/laura_x/">1</a><a href="/marc_y/">2</a></body>`,
+    "https://www.instagram.com/direct/t/444/",
+  );
+  assert.equal(NMFDetect.currentUsername(d.window.location, d.window.document), null);
+  // Boîte de réception sans conversation ouverte : rien à détecter.
+  const inbox = dom(
+    `<body><a href="/direct/t/1/">c1</a><a href="/direct/t/2/">c2</a></body>`,
+    "https://www.instagram.com/direct/inbox/",
+  );
+  assert.equal(NMFDetect.currentUsername(inbox.window.location, inbox.window.document), null);
+});
+
+test("loggedInAccount strict: n'utilise que nav et JSON, jamais un tiers du document", () => {
+  const d = dom(
+    `<body><header><a href="/laura_x/"><img alt="Photo de profil de laura_x" /></a></header></body>`,
+    "https://www.instagram.com/direct/t/555/",
+  );
+  // Sans strict, le repli « tout le document » ramènerait le prospect.
+  assert.equal(NMFDetect.loggedInAccount(d.window.document), "laura_x");
+  assert.equal(NMFDetect.loggedInAccount(d.window.document, { strict: true }), null);
+});
+
 test("composerNode: contenteditable avec aria-label Message → trouvé ; sinon null", () => {
   const ok = dom(`<body><div contenteditable="true" aria-label="Message" role="textbox"></div></body>`);
   assert.ok(NMFDetect.composerNode(ok.window.document));

@@ -16,6 +16,8 @@
     .err { color: #e11d48; font-size: 12px; margin-top: 6px; }
     #account { margin-top: 2px; }
     select { width: 100%; margin-top: 4px; padding: 4px; }
+    input { flex: 1; min-width: 0; padding: 5px 7px; font: 12px system-ui; border-radius: 6px; border: 1px solid light-dark(#cbd5e1, #475569); background: none; color: inherit; }
+    #manual { margin-top: 6px; }
 
     hr { border: 0; border-top: 1px solid light-dark(#e2e8f0, #334155); margin: 10px 0; }
 
@@ -58,6 +60,14 @@
   <div id="sub" class="muted">Ouvre une conversation Instagram…</div>
   <div id="account" class="muted"></div>
   <div id="error" class="err"></div>
+
+  <div id="manual" hidden>
+    <div class="warn">Prospect non détecté — saisis son pseudo :</div>
+    <div class="row">
+      <input id="manualUser" placeholder="pseudo_instagram" />
+      <button id="manualLoad" class="primary">Charger</button>
+    </div>
+  </div>
 
   <div id="fallback">
     <div class="warn">Envoi non détecté. Si tu as bien envoyé le message :</div>
