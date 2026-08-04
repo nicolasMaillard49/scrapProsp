@@ -77,7 +77,13 @@ async function logSend(armed) {
     body: JSON.stringify({ prospect_id: armed.prospectId, account_id: armed.accountId, step: armed.step, force: true }),
   });
   if (status === 200 && json.ok) {
-    await chrome.storage.local.set({ sentKeys: NMFUtil.prune([...sentKeys, key]) });
+    // La cadence se mesure sur les envois RÉELLEMENT journalisés : un message
+    // dédupliqué ou refusé n'est pas parti, il ne doit pas serrer le frein.
+    const { paceStamps = [] } = await chrome.storage.local.get("paceStamps");
+    await chrome.storage.local.set({
+      sentKeys: NMFUtil.prune([...sentKeys, key]),
+      paceStamps: NMFUtil.pushSend(paceStamps, Date.now()),
+    });
     return { ok: true, counters: json.counters };
   }
   return { ok: false, error: json.error || `Erreur ${status}` };
@@ -450,6 +456,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         await chrome.action.setBadgeText({ text: n > 0 ? String(n) : "" });
         await chrome.action.setBadgeBackgroundColor({ color: "#7B4FE0" });
         sendResponse({ ok: true });
+        break;
+      }
+      // sidepanel : cadence d'envoi (métronome de chauffe).
+      case "ig:pace": {
+        const { paceStamps = [] } = await chrome.storage.local.get("paceStamps");
+        sendResponse(NMFUtil.paceState(paceStamps, Date.now()));
+        break;
+      }
+      // sidepanel : la journée en chiffres (carte de clôture). Agrégé, aucun
+      // pseudo — c'est ce qui permet à l'extension d'y avoir accès.
+      case "ig:session": {
+        const { status, json } = await api("/api/instagram/session");
+        sendResponse({ status, data: json });
         break;
       }
       // sidepanel : file de prospection du jour (lecture seule).

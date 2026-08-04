@@ -28,6 +28,65 @@ détecté dans l'app (quota, stade, relance).
 - **Raccourcis** : `Alt+I` insère l'étape à envoyer, `Alt+O` corrige le champ,
   `Alt+N` passe au suivant. Ils fonctionnent même panneau fermé.
 
+## Sa maquette
+
+Sous l'en-tête, une ligne porte l'aperçu sur-mesure du prospect
+(`/di/<code>`) : **Copier** et **↗ ouvrir**.
+
+Elle n'existait qu'à l'intérieur du texte de l'étape S3 — donc invisible en
+trame standard, et impossible à rouvrir pendant l'appel sans aller rechercher
+le DM. C'est pourtant la seule chose de ce panneau qui parle du prospect à sa
+place. Elle s'affiche dès qu'elle existe, quelle que soit la trame.
+
+Les champs qu'un compte Instagram ne donne pas sont remplis en **factice**,
+pour que la maquette projette au lieu de sortir des blocs creux : note, nombre
+d'avis, « Centre-ville », et un téléphone tiré de la plage **réservée à la
+fiction par l'ARCEP** (`06 39 98 XX XX`) — il projette et ne peut faire sonner
+personne. Les pages `/di` sont en `noindex, nofollow`.
+
+## Le sas — Instagram sans Instagram
+
+Bouton **Sas**, à droite de la file. Tant qu'il est ouvert, la page d'accueil
+ne montre plus ni feed, ni stories, ni suggestions, ni pastille de
+notification. **Les conversations (`/direct/`) ne sont jamais touchées.**
+
+L'ennemi d'une session de 50 DM n'est pas la trame, c'est le fil : on vient
+envoyer un message, on repart vingt minutes plus tard.
+
+Masquage par CSS et rien d'autre — aucun nœud supprimé, aucun clic, aucune
+requête interceptée. Instagram reste intact dessous, aucune page à recharger,
+et couper le sas restitue tout à l'identique. L'état vit dans le `storage` :
+il survit à une navigation, à un nouvel onglet et à un rechargement de
+l'extension.
+
+## Le métronome de chauffe
+
+La jauge de quota dit quand tu es allé **trop loin**. Elle ne dit rien du
+**rythme** — or c'est la cadence, pas le total, qui fait ressembler un compte à
+un robot : douze DM en quatre minutes est un signal que douze DM en une heure
+n'envoie pas.
+
+Sous les 45 s entre deux envois, une ligne apparaît : `23 s — 5 envois sur la
+dernière minute. Instagram compte les cadences.`
+
+**Ça ne bloque jamais.** Refuser l'insertion ferait retaper le message à la
+main : il partirait quand même, mais hors du compteur. La cadence n'est
+mesurée que sur les envois réellement journalisés — un doublon dédupliqué n'a
+pas quitté le champ, il ne doit pas serrer le frein.
+
+## La carte du jour
+
+Quand la file est vide, le bandeau devient une carte : accroches, réponses,
+positives, appels proposés, et la série de jours consécutifs.
+
+Elle n'apparaît **qu'**à ce moment-là. Affichée en permanence, ce serait un
+tableau de bord de plus ; réservée à la fin, c'est la seule chose du panneau
+qui dise « c'est fait ».
+
+Servie par `GET /api/instagram/session` — volontairement **agrégée** : aucun
+pseudo, aucun extrait, aucun identifiant. C'est ce qui permet de l'ouvrir à
+l'extension là où `/api/instagram/kpi/day`, nominatif, reste fermé.
+
 ## Deux trames — « Standard » et « Site »
 
 Sous la partition, une bascule choisit la méthode déroulée sur ce prospect.

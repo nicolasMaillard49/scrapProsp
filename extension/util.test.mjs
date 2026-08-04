@@ -286,3 +286,49 @@ test("replyState: distingue la conversation en cours de la reponse a venir", () 
   assert.equal(NMFUtil.replyState({ reply_count: 0, last_dm_at: null }, now).tone, "vierge");
   assert.equal(NMFUtil.replyState(null, now), null);
 });
+
+// ── Métronome de chauffe ─────────────────────────────────────────────────────
+
+test("paceState: rien envoyé → aucune attente", () => {
+  const s = NMFUtil.paceState([], Date.parse("2026-08-04T10:00:00Z"));
+  assert.deepEqual({ wait: s.wait, burst: s.burst }, { wait: 0, burst: 0 });
+});
+
+test("paceState: deux envois collés → il reste des secondes à attendre", () => {
+  const t0 = Date.parse("2026-08-04T10:00:00Z");
+  let stamps = NMFUtil.pushSend([], t0);
+  // 10 s plus tard : on est très en dessous des 45 s.
+  const s = NMFUtil.paceState(stamps, t0 + 10_000);
+  assert.equal(s.wait, 35);
+  assert.equal(s.burst, 1);
+  // 45 s plus tard : la voie est libre, au tick près.
+  assert.equal(NMFUtil.paceState(stamps, t0 + 45_000).wait, 0);
+  assert.equal(NMFUtil.paceState(stamps, t0 + 90_000).wait, 0);
+});
+
+test("paceState: la rafale compte la DERNIÈRE minute, pas toute la session", () => {
+  const t0 = Date.parse("2026-08-04T10:00:00Z");
+  let stamps = [];
+  for (let i = 0; i < 6; i++) stamps = NMFUtil.pushSend(stamps, t0 + i * 8_000); // 6 en 40 s
+  assert.equal(NMFUtil.paceState(stamps, t0 + 40_000).burst, 6);
+  // Deux minutes plus tard, la rafale est retombée — le frein doit lâcher.
+  const calme = NMFUtil.paceState(stamps, t0 + 160_000);
+  assert.equal(calme.burst, 0);
+  assert.equal(calme.wait, 0);
+});
+
+test("pushSend: l'historique reste borné et ordonné", () => {
+  const t0 = Date.parse("2026-08-04T10:00:00Z");
+  let stamps = [];
+  for (let i = 0; i < 40; i++) stamps = NMFUtil.pushSend(stamps, t0 + i * 60_000);
+  assert.ok(stamps.length <= 12, `borné, ${stamps.length} gardés`);
+  assert.equal(stamps[stamps.length - 1], t0 + 39 * 60_000); // le plus récent survit
+});
+
+test("paceState: une horloge qui recule ne fabrique pas une attente absurde", () => {
+  const t0 = Date.parse("2026-08-04T10:00:00Z");
+  // Horodatage dans le futur (changement d'heure, machine resynchronisée) :
+  // il est ignoré plutôt que de bloquer l'insertion pendant des heures.
+  const s = NMFUtil.paceState([t0 + 3600_000], t0);
+  assert.equal(s.wait, 0);
+});

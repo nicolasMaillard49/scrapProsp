@@ -8,6 +8,13 @@ test("extAuth: token exact sur /api/instagram/ → autorisé", () => {
   assert.equal(isExtRequestAllowed("/api/instagram/reply-ai", "s3cret", "s3cret"), true);
   assert.equal(isExtRequestAllowed("/api/instagram/proofread", "s3cret", "s3cret"), true);
   assert.equal(isExtRequestAllowed("/api/instagram/queue", "s3cret", "s3cret"), true);
+  // Appelées par le panneau : sans elles, « Reformuler » et la carte de
+  // clôture répondaient 401 (aucun cookie depuis chrome-extension://).
+  assert.equal(isExtRequestAllowed("/api/instagram/retone", "s3cret", "s3cret"), true);
+  assert.equal(isExtRequestAllowed("/api/instagram/session", "s3cret", "s3cret"), true);
+  // Le nominatif reste fermé, quel que soit le secret.
+  assert.equal(isExtRequestAllowed("/api/instagram/kpi/day", "s3cret", "s3cret"), false);
+  assert.equal(isExtRequestAllowed("/api/instagram/export", "s3cret", "s3cret"), false);
 });
 
 test("extAuth: EXT_TOKEN absent ou vide = branche MORTE, jamais un laissez-passer", () => {

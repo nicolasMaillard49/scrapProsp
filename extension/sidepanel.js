@@ -144,11 +144,69 @@ function render() {
   // qu'aucun prospect n'est chargé, la trame est générique et rien n'est
   // journalisable — autant pouvoir le débloquer soi-même.
   $("manual").hidden = !!p;
+  renderDemo();
   renderTrameSwitch();
   renderRail();
   renderAccount();
   renderTrame();
   renderStagePicker();
+}
+
+// ── Métronome de chauffe ───────────────────────────────────────────────────
+// À 50 DM/jour, ce n'est pas le total qui tue un compte, c'est la cadence :
+// douze messages en quatre minutes ne ressemblent à rien d'humain. Le panneau
+// FREINE — il n'interdit jamais. Bloquer l'insertion ferait retaper le message
+// à la main, donc partir quand même, mais hors du compteur.
+
+let paceTimer = null;
+
+async function refreshPace() {
+  const s = await chrome.runtime.sendMessage({ type: "ig:pace" }).catch(() => null);
+  const el = $("pace");
+  if (!s || (!s.wait && s.burst < 4)) {
+    el.hidden = true;
+    clearTimeout(paceTimer);
+    paceTimer = null;
+    return;
+  }
+  el.hidden = false;
+  el.className = s.wait > 0 ? "hot" : "";
+  el.innerHTML = s.wait > 0
+    ? `<i class="dot"></i><span><b>${s.wait} s</b> — ${s.burst} envoi${s.burst > 1 ? "s" : ""} sur la dernière minute. Instagram compte les cadences.</span>`
+    : `<i class="dot"></i><span>${s.burst} envois sur la dernière minute — laisse respirer.</span>`;
+  // Un compte à rebours qui ne descend pas est pire que pas de compte à
+  // rebours : on se demande s'il tourne encore.
+  clearTimeout(paceTimer);
+  paceTimer = setTimeout(refreshPace, 1000);
+}
+
+/**
+ * Sa maquette — l'aperçu sur-mesure du prospect (/di/<code>).
+ *
+ * Elle n'était visible qu'à l'intérieur du texte de S3 : invisible en trame
+ * standard, et impossible à rouvrir pendant l'appel sans aller rechercher le
+ * DM. C'est pourtant la seule chose de ce panneau qui parle du prospect à sa
+ * place. Elle s'affiche donc dès qu'elle existe, quelle que soit la trame.
+ */
+function renderDemo() {
+  const link = state.data?.demoLink || "";
+  const el = $("demo");
+  el.hidden = !link;
+  if (!link) return;
+  el.innerHTML = `<div class="link-row">
+      <div class="lbl"><b>Sa maquette</b><span>${esc(link)}</span></div>
+      <button class="quiet" id="demoCopy">Copier</button>
+      <a href="${esc(link)}" target="_blank" rel="noopener" title="Ouvrir l'aperçu">↗</a>
+    </div>`;
+  $("demoCopy").addEventListener("click", async (e) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      e.target.textContent = "Copié ✓";
+      setTimeout(() => { e.target.textContent = "Copier"; }, 1200);
+    } catch {
+      $("error").textContent = "Copie refusée — clique dans le panneau puis réessaie.";
+    }
+  });
 }
 
 const TRAME_PICKS = [
@@ -788,11 +846,41 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 async function loadQueue() {
   const r = await chrome.runtime.sendMessage({ type: "ig:queue" }).catch(() => null);
-  if (r?.status !== 200) { $("queueInfo").textContent = ""; return null; }
+  if (r?.status !== 200) { $("queueInfo").textContent = ""; $("card").hidden = true; return null; }
   const { remaining, total, next } = r.data;
   $("queueInfo").textContent = remaining ? `${remaining} sur ${total} à contacter` : "file du jour terminée ✓";
   $("nextProspect").disabled = !next?.length;
+  renderCard(remaining);
   return next?.[0] ?? null;
+}
+
+/**
+ * La carte du jour — la clôture de session.
+ *
+ * Elle n'apparaît QUE quand la file est vide. Affichée en permanence, elle
+ * deviendrait un tableau de bord de plus ; réservée à la fin, elle est la
+ * seule chose du panneau qui dise « c'est fait ».
+ */
+async function renderCard(remaining) {
+  const el = $("card");
+  if (remaining !== 0) { el.hidden = true; return; }
+  const r = await chrome.runtime.sendMessage({ type: "ig:session" }).catch(() => null);
+  if (r?.status !== 200) { el.hidden = true; return; }
+  const d = r.data;
+  const num = (v, label) => `<div class="num"><b>${esc(v)}</b><span>${esc(label)}</span></div>`;
+  el.hidden = false;
+  el.innerHTML = `<div class="done">File du jour terminée</div>
+    <div class="nums">
+      ${num(d.accroches, "accroches")}
+      ${num(d.reponses, d.reponses > 1 ? "réponses" : "réponse")}
+      ${num(d.positives, d.positives > 1 ? "positives" : "positive")}
+      ${num(d.propositions, "appels proposés")}
+    </div>
+    <div class="streak">${
+      d.streak > 1
+        ? `<b>${esc(d.streak)} jours d'affilée</b>${d.record > d.streak ? ` — record ${esc(d.record)}` : " — c'est ton record"}`
+        : "Premier jour de la série."
+    }</div>`;
 }
 
 $("nextProspect").addEventListener("click", async () => {
@@ -805,6 +893,34 @@ $("nextProspect").addEventListener("click", async () => {
   const r = await toTab({ type: "ig:navigate", url: `https://www.instagram.com/${next.username}/` });
   if (!r?.ok) $("error").textContent = tabError(r);
   btn.disabled = false;
+});
+
+// ── Le sas : Instagram sans Instagram ──────────────────────────────────────
+// L'ennemi d'une session de 50 DM n'est pas la trame, c'est le fil. Tant que
+// le sas est ouvert, la page d'accueil ne donne plus rien à scroller — les
+// conversations, elles, ne sont jamais touchées.
+
+async function paintSasButton(on) {
+  const b = $("sas");
+  b.classList.toggle("on", on);
+  b.textContent = on ? "Sas ✓" : "Sas";
+}
+
+async function loadSas() {
+  const { sasOn } = await chrome.storage.local.get("sasOn");
+  paintSasButton(sasOn === true);
+  // On (re)pose l'état sur la page : un onglet ouvert après coup, ou un
+  // content script ré-injecté, doit se retrouver dans le même état.
+  if (sasOn === true) toTab({ type: "ig:sas", on: true });
+}
+
+$("sas").addEventListener("click", async () => {
+  const { sasOn } = await chrome.storage.local.get("sasOn");
+  const next = sasOn !== true;
+  await chrome.storage.local.set({ sasOn: next });
+  paintSasButton(next);
+  const r = await toTab({ type: "ig:sas", on: next });
+  if (!r?.ok) $("error").textContent = tabError(r);
 });
 
 // ── Radar : qui attend une réponse (Instagram ne le dit nulle part) ────────
@@ -882,6 +998,7 @@ chrome.runtime.onMessage.addListener((msg) => {
       if (msg.auto) $("error").textContent = `${msg.auto} journalisé automatiquement.`;
       refresh(state.username); // stade avancé → nextStep suivant surligné
       loadQueue();
+      refreshPace(); // un envoi de plus : la cadence vient de changer
     } else { $("error").textContent = msg.error || "Journalisation refusée."; $("fallback").hidden = false; }
   }
   // Réponse reçue détectée dans la conversation ouverte. Inscrite d'office
@@ -917,6 +1034,8 @@ chrome.runtime.onMessage.addListener((msg) => {
   loadQueue();
   loadRadar();
   loadLinks();
+  refreshPace();
+  loadSas();
   // Laisse au content script fraîchement injecté le temps d'annoncer le
   // prospect : à la première passe, le contexte est encore vide.
   setTimeout(() => { if (!state.manual) refresh(null); }, 600);

@@ -13,6 +13,69 @@
   let lastAnnounced = "";
   let unwatch = () => {};
 
+  // ── Le sas : Instagram sans Instagram ───────────────────────────────────
+  //
+  // L'ennemi d'une session de 50 DM n'est pas la trame, c'est le fil : on
+  // vient envoyer un message, on repart vingt minutes plus tard. Pendant une
+  // session, on masque tout ce qui n'est pas la conversation — le feed, les
+  // stories, les suggestions, les pastilles de notification.
+  //
+  // Masquage par CSS et RIEN d'autre : aucun nœud supprimé, aucun clic, aucune
+  // requête interceptée. Instagram reste intact dessous, la page n'a pas
+  // besoin d'être rechargée, et couper le sas restitue tout à l'identique.
+  // Les pages de conversation (/direct/) ne sont jamais touchées.
+  const SAS_STYLE_ID = "nmf-sas";
+  const SAS_CSS = `
+    /* Le feed et les stories de l'accueil — la ou on se perd. */
+    html.nmf-sas main[role="main"] > div > div:first-child:not(:has(input)),
+    html.nmf-sas section > main > div > div:first-child:has(canvas),
+    html.nmf-sas article:has(video),
+    /* La colonne de suggestions « Suggestions pour vous ». */
+    html.nmf-sas main[role="main"] aside,
+    /* Les pastilles de notification : un chiffre rouge est un appel a cliquer. */
+    html.nmf-sas svg[aria-label="Notifications"] + div,
+    html.nmf-sas a[href="/explore/"],
+    html.nmf-sas a[href="/reels/"] {
+      display: none !important;
+    }
+    /* Sur l'accueil, on ne laisse rien a scroller : la messagerie est ailleurs. */
+    html.nmf-sas body { overflow-x: hidden; }
+  `;
+
+  /** Le sas ne s'applique jamais à une conversation : c'est là qu'on travaille. */
+  const sasApplies = () => !/^\/direct\//.test(location.pathname);
+
+  let sasOn = false;
+
+  function paintSas() {
+    const want = sasOn && sasApplies();
+    document.documentElement.classList.toggle("nmf-sas", want);
+    if (want && !document.getElementById(SAS_STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = SAS_STYLE_ID;
+      style.textContent = SAS_CSS;
+      (document.head || document.documentElement).appendChild(style);
+    }
+  }
+
+  function setSas(on) {
+    sasOn = on;
+    paintSas();
+  }
+
+  // La SPA change d'URL sans recharger : le sas doit suivre, sinon il reste
+  // collé à la conversation qu'on vient d'ouvrir (ou disparaît de l'accueil).
+  let sasPath = location.pathname;
+  setInterval(() => {
+    if (location.pathname === sasPath) return;
+    sasPath = location.pathname;
+    paintSas();
+  }, 500);
+
+  // Le sas survit à une navigation ET à une ré-injection du content script
+  // (rechargement de l'extension) : son état vit dans le storage, pas ici.
+  chrome.storage.local.get("sasOn").then(({ sasOn: saved }) => setSas(saved === true)).catch(() => {});
+
   // ── Auto-journalisation : surveille TOUT ce qui part du champ ────────────
   // Nicolas écrit souvent à la main, sans passer par « Insérer ». Ces envois
   // n'étaient jamais journalisés, et le stade décrochait de la conversation.
@@ -145,6 +208,9 @@
           username: msg.username || NMFDetect.currentUsername(location, document),
         }),
       });
+    } else if (msg?.type === "ig:sas") {
+      setSas(msg.on === true);
+      sendResponse({ ok: true, on: msg.on === true });
     } else if (msg?.type === "ig:rescan") {
       // Le sidepanel peut demander un re-scan explicite (à son ouverture).
       lastAnnounced = "";

@@ -17,8 +17,15 @@ const EXT_PATHS = new Set([
   "/api/instagram/dm",
   "/api/instagram/reply-ai",
   "/api/instagram/proofread",
+  // Le panneau appelle « Reformuler » depuis le service worker : sans cette
+  // entrée, le bouton répondait 401 (aucun cookie n'accompagne une requête
+  // émise depuis chrome-extension://). Lecture seule, comme proofread.
+  "/api/instagram/retone",
   "/api/instagram/classify-reply",
   "/api/instagram/queue",
+  // Carte de clôture : chiffres AGRÉGÉS du jour, aucun pseudo. C'est ce qui
+  // la rend ouvrable ici, là où /kpi/day (nominatif) reste fermé.
+  "/api/instagram/session",
 ]);
 
 export function isExtRequestAllowed(

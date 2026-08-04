@@ -282,6 +282,45 @@ const NMFUtil = (() => {
       .filter(Boolean);
   }
 
+  // ── Métronome de chauffe ─────────────────────────────────────────────────
+  // Le plafond jour dit quand on est allé TROP LOIN. Il ne dit rien du
+  // RYTHME — or c'est la cadence, pas le total, qui fait ressembler un compte
+  // à un robot : 12 DM en quatre minutes est un signal que 12 DM en une heure
+  // n'envoie pas. Un compte perdu, c'est le pipeline entier qui tombe.
+
+  /** Intervalle minimum souhaité entre deux envois, en secondes. */
+  const PACE_MIN_S = 45;
+  /** Nombre d'envois récents gardés pour juger la cadence. */
+  const PACE_WINDOW = 12;
+
+  /** Ajoute un envoi à l'historique de cadence (horodatages, plus récent en fin). */
+  function pushSend(stamps, now) {
+    const t = now instanceof Date ? now.getTime() : Number(now);
+    const list = (Array.isArray(stamps) ? stamps : []).filter((x) => Number.isFinite(x));
+    return prune([...list, t], PACE_WINDOW);
+  }
+
+  /**
+   * État du métronome : combien de secondes attendre avant le prochain envoi.
+   *
+   * `wait` > 0 = trop tôt. `burst` compte les envois de la dernière minute —
+   * c'est lui qui justifie le message, un délai seul se lit comme une lubie.
+   * Jamais un blocage : le panneau freine, l'humain décide. Refuser d'insérer
+   * un message ne ferait que le faire taper à la main, sans le compteur.
+   */
+  function paceState(stamps, now, minSeconds = PACE_MIN_S) {
+    const t = now instanceof Date ? now.getTime() : Number(now);
+    const list = (Array.isArray(stamps) ? stamps : []).filter((x) => Number.isFinite(x) && x <= t);
+    if (!list.length) return { wait: 0, burst: 0, last: null };
+    const last = Math.max(...list);
+    const elapsed = Math.floor((t - last) / 1000);
+    return {
+      wait: Math.max(0, minSeconds - elapsed),
+      burst: list.filter((x) => t - x <= 60_000).length,
+      last,
+    };
+  }
+
   /** Remet la liste au format des options (une ligne par lien). */
   function serializeLinks(links) {
     return (Array.isArray(links) ? links : []).map((l) => `${l.label} | ${l.url}`).join("\n");
@@ -291,6 +330,7 @@ const NMFUtil = (() => {
     dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread,
     parisDay, replyKey, similarity, matchStep, incomingReply, incomingKey,
     DEFAULT_LINKS, parseLinks, serializeLinks, sinceLabel, replyState,
+    pushSend, paceState, PACE_MIN_S,
   };
 })();
 if (typeof module !== "undefined") module.exports = NMFUtil;
