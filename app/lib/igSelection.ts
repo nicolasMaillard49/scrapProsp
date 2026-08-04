@@ -87,28 +87,73 @@ export function isSelectable(l: Selectable, now = Date.now()): boolean {
 }
 
 /**
+ * Plafond de prospects d'un MÊME métier dans une journée.
+ *
+ * Le round-robin seul ne suffit pas : il étale ce qu'on lui donne, il ne crée
+ * pas de diversité. Quand le stock qualifié ne contient que deux métiers — le
+ * cas normal, puisque le tri IA ne servait qu'une cible à la fois (cf.
+ * `refillStep`) — il rend 25 podologues et 25 sages-femmes, et la journée est
+ * ce qu'elle a été le 01/08 (97 % menuisier) puis le 04/08 (100 % libérales
+ * médicales). Le plafond, lui, refuse de remplir la journée avec du déjà-vu.
+ *
+ * Il est VOLONTAIREMENT dur : les créneaux qu'il laisse vides maintiennent le
+ * `shortfall` au-dessus de zéro, ce qui relance la boucle de refill sur
+ * d'AUTRES métiers. C'est le manque qui répare le mix — le combler avec une
+ * seconde passe non plafonnée redonnerait exactement l'ancien résultat.
+ */
+export const MAX_PER_METIER = 5;
+
+export interface RoundRobinOptions {
+  /** Plafond par métier (défaut `MAX_PER_METIER`). */
+  maxPerMetier?: number;
+  /**
+   * Prospects DÉJÀ posés dans la journée, par métier. `ensureDailySelection`
+   * complète la sélection à chaque appel : sans ce report, dix appels de suite
+   * reposeraient chacun cinq podologues et le plafond ne vaudrait rien.
+   */
+  already?: Map<string, number>;
+}
+
+/**
  * Round-robin par métier : un prospect de chaque métier à tour de rôle, chaque
  * file gardant son ordre d'entrée (score décroissant). Sans ça, un tri par score
  * pur sort N prospects du même corps de métier et on ne compare plus rien.
  * Les prospects sans métier détecté ferment chaque tour (M1 générique = plus faible).
+ * Aucun métier ne dépasse `maxPerMetier` sur la journée (voir la constante).
  */
-export function roundRobinByMetier<T extends Selectable>(rows: T[], n: number): T[] {
+export function roundRobinByMetier<T extends Selectable>(
+  rows: T[],
+  n: number,
+  opts: RoundRobinOptions = {},
+): T[] {
+  const cap = Math.max(1, opts.maxPerMetier ?? MAX_PER_METIER);
+  const pris = new Map(opts.already ?? []);
+
   const files = new Map<string, T[]>();
   for (const l of rows) {
     const m = metierOf(l).toLowerCase() || "(inconnu)";
     if (!files.has(m)) files.set(m, []);
     files.get(m)!.push(l);
   }
-  const ordered = [...files.entries()]
-    .sort((a, b) => Number(a[0] === "(inconnu)") - Number(b[0] === "(inconnu)"))
-    .map(([, f]) => f);
+  const ordered = [...files.entries()].sort(
+    (a, b) => Number(a[0] === "(inconnu)") - Number(b[0] === "(inconnu)"),
+  );
 
   const out: T[] = [];
-  for (let i = 0; out.length < n && ordered.some((f) => f.length > i); i++) {
-    for (const f of ordered) {
+  for (let i = 0; out.length < n && ordered.some(([, f]) => f.length > i); i++) {
+    let posesDansCeTour = 0;
+    for (const [metier, f] of ordered) {
       if (out.length >= n) break;
-      if (f[i]) out.push(f[i]);
+      if (!f[i]) continue;
+      if ((pris.get(metier) ?? 0) >= cap) continue;
+      out.push(f[i]);
+      pris.set(metier, (pris.get(metier) ?? 0) + 1);
+      posesDansCeTour++;
     }
+    // Tous les métiers encore servables sont au plafond : les tours suivants
+    // ne poseraient rien non plus. On rend la main plutôt que de parcourir la
+    // file la plus longue jusqu'au bout pour rien.
+    if (!posesDansCeTour) break;
   }
   return out;
 }
@@ -145,6 +190,13 @@ export interface DailySelection {
   shortfall: number;
   /** Prospects qualifiés encore disponibles après cette sélection. */
   stockLeft: number;
+  /**
+   * Plafond par métier appliqué à cette journée. Remonté au cockpit parce qu'il
+   * explique un `shortfall` que le stock seul contredirait (réserve pleine, mais
+   * de métiers déjà servis) — et parce que le module n'est pas importable côté
+   * client : il embarque les 450 Ko de `communes-fr.json`.
+   */
+  maxPerMetier: number;
 }
 
 interface AccountLite {
@@ -216,7 +268,10 @@ export async function ensureDailySelection(accountId?: string, now = new Date())
   let stockLeft = 0;
 
   if (missing > 0) {
-    const { fresh, stock } = await pickFreshProspects(missing, now);
+    // Le plafond par métier se compte sur la JOURNÉE entière, reports compris :
+    // on repart donc de ce qui est déjà posé, pas de zéro.
+    const dejaPoses = await metiersDuJour(account.id, day);
+    const { fresh, stock } = await pickFreshProspects(missing, now, dejaPoses);
     stockLeft = Math.max(0, stock - fresh.length);
     let rank = existing.length ? Math.max(...existing.map((r) => r.rank as number)) + 1 : 0;
     const toInsert = fresh.map((p) => ({
@@ -244,6 +299,7 @@ export async function ensureDailySelection(accountId?: string, now = new Date())
     carried,
     shortfall: Math.max(0, slots - stillActive),
     stockLeft,
+    maxPerMetier: MAX_PER_METIER,
   };
 }
 
@@ -260,13 +316,32 @@ export async function readSelectionRows(accountId: string, day: string): Promise
 }
 
 /**
- * Meilleurs prospects encore jamais sélectionnés, filtrés qualité puis mixés
- * par métier. On sur-récupère (×6) car les filtres qualité qui ne s'expriment
- * pas en SQL (hors-cible, activité) se jouent côté JS.
+ * Métiers déjà posés dans la journée (lignes écartées exclues : elles ont rendu
+ * leur créneau, elles ne doivent pas consommer le plafond du métier).
  */
-async function pickFreshProspects(n: number, now: Date): Promise<{ fresh: Selectable[]; stock: number }> {
-  const { data: already } = await supabase.from("ig_daily_selection").select("prospect_id").limit(50_000);
-  const served = new Set((already ?? []).map((r) => r.prospect_id as string));
+async function metiersDuJour(accountId: string, day: string): Promise<Map<string, number>> {
+  const rows = await readSelectionRows(accountId, day);
+  const tally = new Map<string, number>();
+  for (const r of rows) {
+    if (r.skipped_at) continue;
+    const m = metierOf(r.prospect as unknown as Selectable).toLowerCase() || "(inconnu)";
+    tally.set(m, (tally.get(m) ?? 0) + 1);
+  }
+  return tally;
+}
+
+/**
+ * Meilleurs prospects encore jamais sélectionnés, filtrés qualité puis mixés
+ * par métier sous plafond. On sur-récupère (×6) car les filtres qualité qui ne
+ * s'expriment pas en SQL (hors-cible, activité) se jouent côté JS.
+ */
+async function pickFreshProspects(
+  n: number,
+  now: Date,
+  dejaPoses?: Map<string, number>,
+): Promise<{ fresh: Selectable[]; stock: number }> {
+  const { data: servis } = await supabase.from("ig_daily_selection").select("prospect_id").limit(50_000);
+  const served = new Set((servis ?? []).map((r) => r.prospect_id as string));
 
   const { data, error } = await supabase
     .from("instagram_prospects")
@@ -284,7 +359,7 @@ async function pickFreshProspects(n: number, now: Date): Promise<{ fresh: Select
   const pool = ((data ?? []) as unknown as Selectable[]).filter(
     (p) => !served.has(p.id) && isSelectable(p, now.getTime()),
   );
-  return { fresh: roundRobinByMetier(pool, n), stock: pool.length };
+  return { fresh: roundRobinByMetier(pool, n, { already: dejaPoses }), stock: pool.length };
 }
 
 /** Compte les prospects qualifiés jamais sélectionnés (jauge de stock du cockpit). */
@@ -620,6 +695,27 @@ export async function refillStock(now = new Date(), opts?: RefillOptions): Promi
   };
 }
 
+/**
+ * Marque une cible comme SERVIE — c'est ce qui fait tourner le tourniquet.
+ *
+ * `scans` ne comptait que les collectes. Or une marche `qualify` ou `resolve`
+ * consomme elle aussi un tour (et du Claude), sans jamais faire avancer le
+ * compteur : la cible en tête de dette restait en tête et le refill la
+ * redrainait lot après lot — 400 profils par marche, tous du même métier. C'est
+ * l'unique cause des journées mono-métier (01/08 : 97 % menuisier ; 04/08 :
+ * 100 % de libérales médicales) alors que 4 358 prospects bien mixés dormaient
+ * sans verdict. Un tour servi, quel qu'il soit, avance donc le compteur.
+ *
+ * Lu-puis-écrit sans verrou : le refill a un seul appelant (le cron), et deux
+ * tours simultanés ne coûteraient qu'un passage en trop.
+ */
+async function markTargetServed(t: HuntTarget, now: Date): Promise<void> {
+  await supabase
+    .from("ig_hunt_targets")
+    .update({ last_scan_at: now.toISOString(), scans: (t.scans ?? 0) + 1 })
+    .eq("id", t.id);
+}
+
 /** Date du dernier scan en ms — jamais scanné = 0, donc prioritaire. */
 function scanTime(iso: string | null): number {
   if (!iso) return 0;
@@ -694,6 +790,12 @@ async function refillStep(
     // le refill 96 fois d'affilée sur la même ligne sans jamais atteindre la
     // collecte. On mesure donc le progrès RÉEL, et une cible qui n'en fait pas
     // est écartée pour le reste du run.
+    // Le tour a été servi (et payé en Claude) qu'il ait produit ou non : dans
+    // les deux cas la cible passe la main. Sans ça, une cible stérile revient
+    // en tête à CHAQUE nouveau refill et y brûle un lot — `sterile` ne la
+    // protège que le temps d'un run.
+    await markTargetServed(t, now);
+
     if ((await unqualifiedCount(t.metier)) >= avant) {
       sterile.add(t.metier);
       continue;
@@ -725,6 +827,7 @@ async function refillStep(
   for (const t of targets) {
     if (!pendingByMetier.get(t.metier)) continue;
     const res = await resolveLeads(opts?.resolveLimit, t.metier, { budgetMs: opts?.resolveBudgetMs });
+    await markTargetServed(t, now); // une résolution consomme un tour, comme une collecte
     if (!res.inserted) continue;
 
     // Même cadrage qu'en 1) : `scope` + `status`. Sans eux, le tri part sur les
@@ -765,14 +868,7 @@ async function refillStep(
     if (!hashtag) continue;
     try {
       const got = await collectLeads(hashtag, t.metier);
-      // `scans` est le compteur qui pilote le tourniquet pondéré : sans cette
-      // incrémentation la cible reste éternellement la moins servie et monopolise
-      // tous les tours. Lu-puis-écrit sans verrou — le refill a un seul appelant
-      // (le cron), et deux tours simultanés ne coûteraient qu'un passage en trop.
-      await supabase
-        .from("ig_hunt_targets")
-        .update({ last_scan_at: now.toISOString(), scans: (t.scans ?? 0) + 1 })
-        .eq("id", t.id);
+      await markTargetServed(t, now);
       return {
         ran: true,
         mode: "collect",

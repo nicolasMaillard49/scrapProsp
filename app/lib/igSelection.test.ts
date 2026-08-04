@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { daySlots, countRealFollowups, isSelectable, roundRobinByMetier, metierOf, parisDayKey, MAX_FOLLOWERS } from "./igSelection";
+import { daySlots, countRealFollowups, isSelectable, roundRobinByMetier, metierOf, parisDayKey, MAX_FOLLOWERS, MAX_PER_METIER } from "./igSelection";
 
 const base = {
   id: "x",
@@ -83,6 +83,47 @@ test("roundRobinByMetier: un prospect par métier à tour de rôle, sans-métier
   assert.equal(roundRobinByMetier(rows, 99).length, 6);
   assert.equal(roundRobinByMetier(rows, 0).length, 0);
   assert.equal(roundRobinByMetier([], 10).length, 0);
+});
+
+test("roundRobinByMetier: aucun métier ne dépasse le plafond, même si le stock n'a que lui", () => {
+  const mk = (id: string, bio: string) => ({ id, username: id, bio, full_name: null });
+  // Le cas réel du 04/08 : un stock qualifié à deux métiers pour 50 créneaux.
+  const rows = [
+    ...Array.from({ length: 20 }, (_, i) => mk(`pod${i}`, "pedicure podologue")),
+    ...Array.from({ length: 20 }, (_, i) => mk(`men${i}`, "menuisier")),
+  ];
+  const out = roundRobinByMetier(rows, 50);
+  // 2 métiers × 5 = 10, PAS 40. Le manque est voulu : il relance la chasse.
+  assert.equal(out.length, 2 * MAX_PER_METIER);
+  const parMetier = new Map<string, number>();
+  for (const r of out) parMetier.set(metierOf(r), (parMetier.get(metierOf(r)) ?? 0) + 1);
+  assert.deepEqual([...parMetier.values()], [MAX_PER_METIER, MAX_PER_METIER]);
+  // Et ce sont bien les premiers de chaque file (ordre de score préservé).
+  assert.deepEqual(out.map((r) => r.id).sort(), ["men0", "men1", "men2", "men3", "men4", "pod0", "pod1", "pod2", "pod3", "pod4"]);
+});
+
+test("roundRobinByMetier: le plafond tient compte de ce que la journée contient DÉJÀ", () => {
+  const mk = (id: string, bio: string) => ({ id, username: id, bio, full_name: null });
+  const rows = [
+    ...Array.from({ length: 10 }, (_, i) => mk(`pod${i}`, "pedicure podologue")),
+    ...Array.from({ length: 10 }, (_, i) => mk(`men${i}`, "menuisier")),
+  ];
+  // 4 podologues sont déjà posés (report de la veille) : il n'en reste qu'un.
+  const out = roundRobinByMetier(rows, 20, { already: new Map([["podologue", 4]]) });
+  assert.equal(out.filter((r) => metierOf(r) === "podologue").length, 1);
+  assert.equal(out.filter((r) => metierOf(r) === "menuisier").length, MAX_PER_METIER);
+  // Un métier déjà au plafond n'en reçoit plus aucun.
+  const sature = roundRobinByMetier(rows, 20, { already: new Map([["podologue", MAX_PER_METIER]]) });
+  assert.equal(sature.filter((r) => metierOf(r) === "podologue").length, 0);
+});
+
+test("roundRobinByMetier: plafond réglable, et jamais de boucle infinie sur un stock saturé", () => {
+  const mk = (id: string, bio: string) => ({ id, username: id, bio, full_name: null });
+  const rows = Array.from({ length: 30 }, (_, i) => mk(`p${i}`, "plombier"));
+  assert.equal(roundRobinByMetier(rows, 30, { maxPerMetier: 3 }).length, 3);
+  // Demander 30 quand tout est plafonné rend la main immédiatement.
+  assert.equal(roundRobinByMetier(rows, 30, { maxPerMetier: 1 }).length, 1);
+  assert.equal(roundRobinByMetier(rows, 30, { already: new Map([["plombier", 99]]) }).length, 0);
 });
 
 test("metierOf: la profession IA prime sur la catégorie puis sur le métier stocké", () => {

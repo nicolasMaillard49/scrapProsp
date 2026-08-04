@@ -132,6 +132,8 @@ interface DailySelection {
   /** Créneaux non pourvus faute de stock qualifié → bouton « Aller en chercher ». */
   shortfall: number;
   stockLeft: number;
+  /** Plafond par métier du jour (absent des réponses d'avant le 04/08). */
+  maxPerMetier?: number;
 }
 
 /** Cible quotidienne de réponses reçues — 2ᵉ objectif (qualité) à côté des M1 (volume). */
@@ -2770,7 +2772,14 @@ function SelectionView({
           <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-500/25 bg-amber-50/60 dark:bg-amber-500/5 px-3 py-2.5 flex flex-wrap items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
             <span className="text-xs text-amber-800 dark:text-amber-300 flex-1 min-w-40">
-              {selection.shortfall} créneau{selection.shortfall > 1 ? "x" : ""} non pourvu{selection.shortfall > 1 ? "s" : ""} — plus assez de comptes qualifiés en stock.
+              {selection.shortfall} créneau{selection.shortfall > 1 ? "x" : ""} non pourvu{selection.shortfall > 1 ? "s" : ""}
+              {/* Deux causes très différentes : ne plus RIEN avoir en réserve, ou
+                  n'avoir que du déjà-vu. Dans le second cas le stock est plein et
+                  c'est le plafond par métier qui refuse de faire une journée
+                  mono-métier — dire « plus assez de comptes » serait faux. */}
+              {selection.stockLeft > 0
+                ? ` — plafond de ${selection.maxPerMetier ?? 5} par métier atteint. Les ${selection.stockLeft} qualifiés restants sont des métiers déjà servis aujourd'hui : on va en chercher d'autres.`
+                : " — plus assez de comptes qualifiés en stock."}
             </span>
             <button
               onClick={onRefill}
