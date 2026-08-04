@@ -190,6 +190,83 @@ function threadDom(messages) {
   return { doc: d.window.document, scope, rectOf };
 }
 
+/**
+ * La page DM réelle, relevée le 04/08/2026 sur une vraie conversation
+ * (viewport 2048) : deux volets défilants côte à côte.
+ *   - la liste de gauche  : 399 px de large, DÉBORDE (des dizaines de fils) ;
+ *   - le fil ouvert       : 1561 px de large, NE DÉBORDE PAS quand la
+ *     conversation tient à l'écran (scrollHeight === clientHeight).
+ * C'est ce second point qui cassait tout : élire le volet sur « il déborde en
+ * ce moment » laissait la liste de gauche seule candidate.
+ */
+function pageDeuxVolets({ filDeborde = false } = {}) {
+  const d = dom(`<body>
+    <div id="liste" style="overflow-y: auto">
+      <span dir="auto">Vous : Hello ! J'ai vu que vous etiez chirurgien-dentiste</span>
+      <span dir="auto">Dr Lange Charlotte - Cabinet dentaire</span>
+      <span dir="auto">sourires de Venasque</span>
+    </div>
+    <div id="fil" style="overflow-y: scroll">
+      <span dir="auto">Hello ! J'ai vu que vous etiez estheticienne, c'est toujours le cas ?</span>
+      <span dir="auto">Bonjour, oui c'est toujours le cas pourquoi ?</span>
+    </div>
+  </body>`);
+  const doc = d.window.document;
+  const liste = doc.getElementById("liste");
+  const fil = doc.getElementById("fil");
+  // La liste déborde toujours ; le fil seulement si la conversation est longue.
+  Object.defineProperty(liste, "scrollHeight", { value: 4200 });
+  Object.defineProperty(liste, "clientHeight", { value: 1013 });
+  Object.defineProperty(fil, "scrollHeight", { value: filDeborde ? 3000 : 1180 });
+  Object.defineProperty(fil, "clientHeight", { value: 1180 });
+
+  const GEO = new Map([
+    [liste, { left: 72, width: 399, height: 1013 }],
+    [fil, { left: 472, width: 1561, height: 1180 }],
+  ]);
+  const rectOf = (el) => {
+    if (GEO.has(el)) return GEO.get(el);
+    // Sortant à droite du volet, entrant à gauche (mêmes ratios que le réel).
+    const sortant = /Hello ! J'ai vu/.test(el.textContent || "");
+    const rel = sortant ? 0.87 : 0.1;
+    return { left: 472 + rel * 1561 - 50, width: 100, height: 20 };
+  };
+  return { doc, win: d.window, rectOf, liste, fil };
+}
+
+test("messageScroller: le volet de conversation gagne même quand il ne déborde pas", () => {
+  const { doc, win, rectOf, fil } = pageDeuxVolets({ filDeborde: false });
+  // Le bug du 04/08 : seule la liste de gauche débordait, elle était donc élue,
+  // et l'IA recevait les apercus des AUTRES conversations.
+  assert.equal(NMFDetect.messageScroller(doc, win, { rectOf }), fil);
+  // Conversation longue : même résultat, pour la même raison (la largeur).
+  const long = pageDeuxVolets({ filDeborde: true });
+  assert.equal(NMFDetect.messageScroller(long.doc, long.win, { rectOf: long.rectOf }), long.fil);
+});
+
+test("conversationThread: sans scope explicite, ne lit QUE la conversation ouverte", () => {
+  const { doc, win, rectOf } = pageDeuxVolets();
+  const rows = NMFDetect.conversationThread(doc, { win, rectOf });
+  assert.deepEqual(rows, [
+    { from: "moi", text: "Hello ! J'ai vu que vous etiez estheticienne, c'est toujours le cas ?" },
+    { from: "lui", text: "Bonjour, oui c'est toujours le cas pourquoi ?" },
+  ]);
+  // Aucun nom d'un autre prospect n'a fuité dans le fil.
+  const tout = rows.map((r) => r.text).join(" ");
+  for (const intrus of ["Dr Lange", "Venasque", "chirurgien-dentiste"]) {
+    assert.ok(!tout.includes(intrus), `« ${intrus} » ne doit pas entrer dans le fil`);
+  }
+});
+
+test("conversationThread: aucun volet reconnu → fil vide, jamais tout le document", () => {
+  // Sans conteneur défilant, l'ancien repli sur `document.body` rendait la
+  // page entière — un fil crédible mais faux, que l'IA refusait de traiter.
+  // Le panneau, lui, sait dire « fil illisible » sur un tableau vide.
+  const d = dom(`<body><div><span dir="auto">Dr Lange Charlotte</span>
+    <span dir="auto">sourires de Venasque</span></div></body>`);
+  assert.deepEqual(NMFDetect.conversationThread(d.window.document, { win: d.window }), []);
+});
+
 test("conversationThread: auteur déduit de l'alignement, dans l'ordre du fil", () => {
   const { doc, scope, rectOf } = threadDom([
     { text: "Hello Thomas ! Vous êtes toujours ostéopathe ?", side: "moi" },

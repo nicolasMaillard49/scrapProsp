@@ -281,21 +281,39 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
    * des bouts de conversations qui n'ont rien à voir.
    * On retient le plus grand conteneur défilant — le volet de conversation est
    * bien plus large que la liste de gauche.
+   *
+   * On ne demande PAS qu'il déborde à cet instant. C'était la cause du bug du
+   * 04/08 : mesuré sur la vraie page, le volet ouvert est bien un conteneur
+   * défilant (`overflow-y: scroll`, 1561 px) mais `scrollHeight === clientHeight`
+   * tant que la conversation tient à l'écran. La liste de gauche, elle, déborde
+   * toujours — elle restait donc seule candidate, et l'IA recevait les aperçus
+   * d'une dizaine de prospects au lieu du fil. Autrement dit, la lecture ne
+   * marchait que sur les conversations assez longues pour défiler.
+   * Être défilant PAR NATURE est stable ; déborder ne l'est pas.
    */
-  function messageScroller(doc, win) {
-    let best = null;
-    let bestArea = 0;
+  function messageScroller(doc, win, opts = {}) {
+    const rectOf = opts.rectOf || ((el) => el.getBoundingClientRect());
+    const cands = [];
     let scanned = 0;
     for (const el of doc.querySelectorAll("div")) {
       if (++scanned > 3000) break;
-      if (el.scrollHeight <= el.clientHeight + 100) continue;
       const cs = win && win.getComputedStyle ? win.getComputedStyle(el) : null;
       if (!cs || (cs.overflowY !== "auto" && cs.overflowY !== "scroll")) continue;
-      const r = el.getBoundingClientRect();
-      const area = r.width * r.height;
-      if (r.width > 300 && area > bestArea) {
-        best = el;
-        bestArea = area;
+      const r = rectOf(el);
+      const w = r.width || 0;
+      if (w <= 300) continue;
+      cands.push({ el, area: w * (r.height || 0) });
+    }
+    // Un conteneur qui en enveloppe un autre englobe les deux volets : le
+    // retenir ramènerait la liste de gauche par la fenêtre. On ne garde que les
+    // volets eux-mêmes, et parmi eux le plus grand.
+    const volets = cands.filter((c) => !cands.some((o) => o !== c && c.el.contains(o.el)));
+    let best = null;
+    let bestArea = 0;
+    for (const c of volets) {
+      if (c.area > bestArea) {
+        best = c.el;
+        bestArea = c.area;
       }
     }
     return best;
@@ -322,7 +340,13 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
       const rectOf = opts.rectOf || ((el) => el.getBoundingClientRect());
 
       // Périmètre : le volet de conversation, jamais tout le document.
-      const scope = opts.scope || messageScroller(doc, win) || doc.body || doc;
+      // Aucun volet reconnu → on ne rend RIEN. Le repli sur `document.body`
+      // ramenait la barre latérale et fabriquait un fil crédible mais faux :
+      // l'IA le refusait (« ce fil mélange plusieurs conversations ») sans que
+      // rien n'indique d'où venait le mélange. Un tableau vide, lui, fait dire
+      // au panneau « fil illisible sur cette page » — la vérité, et un geste.
+      const scope = opts.scope || messageScroller(doc, win, { rectOf });
+      if (!scope) return [];
       const box = scope.getBoundingClientRect ? rectOf(scope) : null;
 
       // Chaque message est un span[dir="auto"] feuille. `div[role="row"]`,
@@ -490,6 +514,7 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   return {
     currentUsername, composerNode, loggedInAccount, watchSend,
     usernameFromHref, lastIncomingText, conversationThread, insertIntoComposer,
+    messageScroller,
     inboxWaiting, openInboxRow,
   };
 })();
