@@ -598,10 +598,50 @@ export interface IgDmStep {
  * phrases parlées. Les règles de fond ne bougent pas : vouvoiement, aucune
  * ressource avant M9, aucun pitch avant M8.
  */
+/**
+ * Valeurs de `profession_ia` qui ne désignent AUCUNE profession.
+ *
+ * La qualification IA rend parfois « inconnu », « indéterminé », « particulier ».
+ * Injectées telles quelles, elles produisent « J'ai vu que vous étiez inconnu,
+ * c'est toujours le cas ? » — dans un vrai DM, à un vrai prospect.
+ */
+const PROFESSION_VIDE = /^(inconnu|inconnue|ind[eé]termin[eé]e?|non renseign[eé]e?|non d[eé]fini|autre|particulier|particuliers|n\/?a|aucun|aucune|\?+)$/i;
+
+/**
+ * Valeurs qui désignent un ÉTABLISSEMENT, pas un métier.
+ *
+ * « Vous étiez restaurant » ne se dit pas : un lieu se TIENT. Plutôt que
+ * d'inventer un article et un genre (« un » menuiserie ?), on écarte la
+ * profession IA et on laisse la cascade reprendre la main — elle sait dire
+ * « vous teniez un restaurant », ou retomber sur l'accroche générique.
+ */
+const PROFESSION_LIEU = /^(restaurant|menuiserie|boulangerie|boucherie|p[aâ]tisserie|pharmacie|garage|clinique|magasin|boutique|[eé]picerie|brasserie|pizzeria|bar|h[oô]tel|camping|spa)\b|^(cabinet|salon|institut|agence|entreprise|soci[eé]t[eé]|studio|atelier|organisme|centre|[eé]cole|association|groupe|maison)\b/i;
+
 /** Nom du métier tel qu'on l'écrit dans une phrase (« vous étiez <noun> »). */
 function nounOf(p: IgDmInput): string | null {
-  // La profession IA (précise) prime sur le métier détecté par regex.
-  return (p.professionIa && p.professionIa.trim().toLowerCase()) || METIER_NOUN[p.metier] || null;
+  const ia = (p.professionIa ?? "").trim().toLowerCase();
+  // La profession IA (précise) prime sur le métier détecté par regex — SAUF
+  // quand elle ne nomme pas une profession. Relevé le 04/08/2026 sur la base :
+  // « restaurant » (52), « inconnu » (25), « indéterminé » (21), « menuiserie »
+  // (18), « cabinet dentaire » (17) partaient tels quels dans l'accroche.
+  return (professionIaUtilisable(ia) ? ia : "") || METIER_NOUN[p.metier] || null;
+}
+
+/**
+ * Vrai si la profession IA peut se dire dans une phrase.
+ *
+ * Trois refus, tous constatés sur la base le 04/08/2026 :
+ *  - les non-professions (« inconnu », « particulier ») ;
+ *  - les établissements (« restaurant », « cabinet dentaire ») ;
+ *  - les LIBELLÉS DE TAXONOMIE, reconnaissables à leur barre oblique
+ *    (« Agenceur/Marque », « SaaS/Logiciel ») ou à leur longueur. Personne ne
+ *    dit « vous êtes saas/logiciel » — c'est une case de classement, pas un
+ *    métier, et ça se voit immédiatement dans un DM.
+ */
+export function professionIaUtilisable(value: string | null | undefined): boolean {
+  const v = (value ?? "").trim();
+  if (!v || v.length > 30 || v.includes("/")) return false;
+  return !PROFESSION_VIDE.test(v) && !PROFESSION_LIEU.test(v);
 }
 
 /**
@@ -616,12 +656,44 @@ function accrocheOf(p: IgDmInput): string {
   const noun = nounOf(p);
   // Un établissement se « tient », un métier se « est » : « vous étiez coiffeur(se) »
   // sonnait comme un formulaire — un salon ou un resto se formule au lieu.
-  const lieu = p.professionIa ? null : METIER_LIEU[p.metier];
+  // « un salon de coiffure » l'emporte dès que la profession IA est écartée :
+  // sinon un restaurant dont profession_ia vaut « restaurant » perdrait la
+  // formulation au lieu ET son noun, et tomberait dans l'accroche générique.
+  const lieu = professionIaUtilisable(p.professionIa) ? null : METIER_LIEU[p.metier];
   return lieu
     ? `${hello} ! J'ai vu que vous teniez ${lieu}, c'est toujours le cas ?`
     : noun
       ? `${hello} ! J'ai vu que vous étiez ${noun}, c'est toujours le cas ?`
       : `${hello} ! Je suis tombé sur votre compte en scrollant — vous êtes toujours en activité en ce moment ?`;
+}
+
+/**
+ * Les mots dont une variante d'accroche a besoin pour rester personnalisée.
+ *
+ * Une variante est un texte fixe en base : sans ces valeurs, elle enverrait le
+ * même message à tout le monde et perdrait exactement ce qui fait marcher
+ * l'accroche standard (le prénom, le métier réel, la formulation au lieu).
+ */
+export interface AccrocheVars {
+  prenom: string;
+  /** « Hello Laura » ou « Hello » — l'ouverture, prénom inclus s'il est sûr. */
+  hello: string;
+  /** « esthéticienne », « menuisier »… vide si le métier est inconnu. */
+  metier: string;
+  /** « un salon de coiffure », « un restaurant » — vide hors établissements. */
+  lieu: string;
+  ville: string;
+}
+
+export function accrocheVars(p: IgDmInput): AccrocheVars {
+  const prenom = p.firstName && p.firstName.trim() ? p.firstName.trim() : "";
+  return {
+    prenom,
+    hello: prenom ? `Hello ${prenom}` : "Hello",
+    metier: nounOf(p) ?? "",
+    lieu: (professionIaUtilisable(p.professionIa) ? null : METIER_LIEU[p.metier]) ?? "",
+    ville: (p.ville ?? "").trim(),
+  };
 }
 
 /**

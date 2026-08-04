@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chooseVariant, verdict, best, rate, MIN_SENT, type Variant } from "./igVariants";
+import { chooseVariant, verdict, best, rate, fillVariant, MIN_SENT, type Variant } from "./igVariants";
 
 const v = (id: string, sent: number, replied: number): Variant =>
   ({ id, step: "M1", label: id, text: `accroche ${id}`, sent, replied });
@@ -51,4 +51,33 @@ test("verdict: écart net entre deux variantes matures → on annonce", () => {
   assert.equal(out!.winner.id, "gagnante");
   assert.equal(out!.runnerUp.id, "perdante");
   assert.ok(out!.gap > 0.19 && out!.gap < 0.21, `écart ${out!.gap}`);
+});
+
+// ── Gabarits ────────────────────────────────────────────────────────────────
+
+const vars = { prenom: "Laura", hello: "Hello Laura", metier: "esthéticienne", lieu: "", ville: "Angers" };
+
+test("fillVariant: remplit les gabarits présents", () => {
+  assert.equal(
+    fillVariant("{hello} ! Vous êtes toujours {metier} à {ville} ?", vars),
+    "Hello Laura ! Vous êtes toujours esthéticienne à Angers ?",
+  );
+  assert.equal(fillVariant("Message sans gabarit ?", vars), "Message sans gabarit ?");
+});
+
+test("fillVariant: un gabarit sans valeur ANNULE la variante", () => {
+  // C'est la règle qui compte : sans elle, ce DM partirait avec un trou
+  // (« vous tenez  ? ») ou pire, un « {lieu} » littéral dans un vrai message.
+  assert.equal(fillVariant("{hello} ! Vous tenez toujours {lieu} ?", vars), null);
+  assert.equal(fillVariant("Toujours {metier} ?", { ...vars, metier: "" }), null);
+  assert.equal(fillVariant("Toujours {metier} ?", { ...vars, metier: "   " }), null);
+});
+
+test("fillVariant: aucun gabarit inventé — une clé inconnue annule aussi", () => {
+  assert.equal(fillVariant("Salut {inconnu} !", vars), null);
+});
+
+test("fillVariant: les espaces surnuméraires sont resserrés, jamais laissés", () => {
+  assert.equal(fillVariant("  {hello}   !  ", vars), "Hello Laura !");
+  assert.equal(fillVariant("   ", vars), null);
 });

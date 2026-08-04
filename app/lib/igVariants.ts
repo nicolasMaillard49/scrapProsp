@@ -34,6 +34,26 @@ export const MIN_SENT = 30;
 /** Écart à partir duquel on ose annoncer un gagnant (en points de pourcentage). */
 export const DECISIVE_GAP = 0.05;
 
+/**
+ * Remplit les gabarits d'une variante : {prenom} {hello} {metier} {lieu} {ville}.
+ *
+ * Rend `null` dès qu'un gabarit utilisé n'a pas de valeur. C'est la règle qui
+ * compte : une variante à trous partirait en DM avec « vous êtes toujours  ? »
+ * ou, pire, un « {metier} » littéral. Mieux vaut retomber sur l'accroche
+ * standard — elle, sait se passer de ce qu'elle n'a pas.
+ */
+export function fillVariant(text: string, vars: Readonly<Record<string, string>> | object): string | null {
+  const table = vars as Record<string, string | undefined>;
+  let manque = false;
+  const out = String(text ?? "").replace(/\{(\w+)\}/g, (_, key: string) => {
+    const v = (table[key] ?? "").trim();
+    if (!v) manque = true;
+    return v;
+  });
+  if (manque) return null;
+  return out.replace(/\s+/g, " ").trim() || null;
+}
+
 export async function activeVariants(step: string): Promise<Variant[]> {
   const { data, error } = await supabase
     .from("ig_trame_variants")

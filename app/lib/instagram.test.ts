@@ -4,6 +4,7 @@ import {
   extractEmails, extractPhonesFr, pickContact, hasRealWebsite,
   extractLastPostAt, isActiveSince, prospectScore, detectMetier,
   instagramDmSequence, instagramDmSequenceSite, firstNameOf, QUESTIONNAIRE_URL, competitorHook, isHorsCible,
+  accrocheVars,
 } from "./instagram";
 
 test("extractEmails: trouve, déduplique, minuscule", () => {
@@ -276,4 +277,54 @@ test("isHorsCible: ecarte hors zone francophone, fournisseurs B2B et blogs perso
   assert.equal(isHorsCible({ bio: "BAR À VINS - BRASSERIE - MONS", full_name: "Le Cosmo" }), false);
   // Bio vide : on laisse passer (accroche generique).
   assert.equal(isHorsCible({ bio: "", full_name: "" }), false);
+});
+
+test("accroche: une profession_ia qui ne nomme aucune profession est écartée", () => {
+  // Relevé le 04/08/2026 sur la base : ces valeurs partaient telles quelles.
+  // « J'ai vu que vous étiez inconnu, c'est toujours le cas ? » — dans un vrai DM.
+  for (const junk of ["inconnu", "Indéterminé", "particulier", "n/a", "aucune"]) {
+    const steps = instagramDmSequence({ metier: "", ville: "Angers", professionIa: junk }, "");
+    assert.doesNotMatch(steps[0].text, new RegExp(junk, "i"), `« ${junk} » ne doit pas partir en DM`);
+    assert.match(steps[0].text, /toujours en activité/); // repli générique
+  }
+});
+
+test("accroche: un établissement se TIENT, il ne s'est jamais « été »", () => {
+  // profession_ia = « restaurant » (52 prospects) donnait « vous étiez restaurant ».
+  const resto = instagramDmSequence({ metier: "restaurant", ville: "", professionIa: "restaurant" }, "");
+  assert.match(resto[0].text, /teniez un restaurant/);
+  assert.doesNotMatch(resto[0].text, /étiez restaurant/);
+
+  // « cabinet dentaire » (17) : aucun lieu connu pour ce métier → générique,
+  // ce qui vaut infiniment mieux que « vous étiez cabinet dentaire ».
+  const dentiste = instagramDmSequence({ metier: "dentiste", ville: "", professionIa: "cabinet dentaire" }, "");
+  assert.doesNotMatch(dentiste[0].text, /cabinet dentaire/);
+
+  // Une VRAIE profession reste prioritaire — la garde ne doit rien casser.
+  const vraie = instagramDmSequence({ metier: "estheticienne", ville: "", professionIa: "prothésiste ongulaire" }, "");
+  assert.match(vraie[0].text, /vous étiez prothésiste ongulaire/);
+});
+
+test("accroche: un libellé de taxonomie n'est pas une profession", () => {
+  // Relevé sur la base : « Agenceur/Marque », « SaaS/Logiciel ». Une barre
+  // oblique trahit une case de classement — personne ne dit « vous êtes
+  // saas/logiciel », et ça se voit immédiatement dans un DM.
+  for (const label of ["Agenceur/Marque", "SaaS/Logiciel", "Commerce/Distribution"]) {
+    const s = instagramDmSequence({ metier: "", ville: "Nantes", professionIa: label }, "");
+    assert.doesNotMatch(s[0].text, /\//, `« ${label} » ne doit pas partir en DM`);
+  }
+  // Trop long pour être dit : c'est une description, pas un métier.
+  const longue = instagramDmSequence(
+    { metier: "", ville: "", professionIa: "spécialiste de l'aménagement intérieur sur mesure" },
+    "",
+  );
+  assert.match(longue[0].text, /toujours en activité/);
+});
+
+test("accrocheVars: les gabarits suivent exactement la même règle que l'accroche", () => {
+  // Sinon une variante dirait « un restaurant » là où l'accroche dit autre chose.
+  const v = accrocheVars({ metier: "restaurant", ville: "Merignac", firstName: "Jessica", professionIa: "particulier" });
+  assert.equal(v.metier, ""); // écartée : rien à injecter
+  assert.equal(v.lieu, "un restaurant"); // la formulation au lieu reprend la main
+  assert.equal(v.hello, "Hello Jessica");
 });

@@ -4,9 +4,10 @@
 // /instagram (PipelineCard, TrameDM). Si une formulation change dans l'app,
 // l'extension la sert à la requête suivante, sans republication.
 
-import { instagramDmSequence, instagramDmSequenceSite, detectMetier, firstNameOf } from "./instagram";
+import { instagramDmSequence, instagramDmSequenceSite, detectMetier, firstNameOf, accrocheVars } from "./instagram";
 import { nextStepFor, type Trame } from "./igPipeline";
 import { mapsHeadline, type MapsFacts } from "./igMaps";
+import { fillVariant } from "./igVariants";
 import { shortCode } from "./links";
 
 export interface TrameProspect {
@@ -105,22 +106,34 @@ export function buildTrame(
     prospect.metier ||
     "";
   const link = origin ? `${origin.replace(/\/$/, "")}/di/${shortCode(prospect.id)}` : "";
-  const steps = sequence(
-    {
-      metier: metierEff,
-      ville: prospect.ville ?? "",
-      bookingPlatform: prospect.booking_platform,
-      firstName: firstNameOf(prospect.full_name),
-      professionIa: prospect.profession_ia,
-    },
-    link,
-  );
+  const dmInput = {
+    metier: metierEff,
+    ville: prospect.ville ?? "",
+    bookingPlatform: prospect.booking_platform,
+    firstName: firstNameOf(prospect.full_name),
+    professionIa: prospect.profession_ia,
+  };
+  const steps = sequence(dmInput, link);
 
   // La variante remplace le TEXTE de l'accroche, jamais son identifiant : c'est
   // toujours M1 (ou S1) qui part, donc le stade, la dedup et les KPI ne bougent
   // pas d'un pouce. Une variante qui changerait l'étape casserait tout le reste.
+  //
+  // Ses gabarits sont remplis ici : une variante est un texte FIXE en base, et
+  // sans cette étape elle enverrait le même message à tout le monde — en
+  // perdant précisément ce qui fait marcher l'accroche standard. Si un gabarit
+  // n'a pas de valeur (métier inconnu, pas de prénom fiable), on retombe sur
+  // l'accroche standard ET on oublie la variante : la créditer d'un envoi qui
+  // n'a pas eu lieu fausserait la mesure qu'elle sert justement à produire.
   const accroche = steps.find((s) => /^[MS]1$/.test(s.step));
-  if (variant && accroche) accroche.text = variant.text;
+  let applied: string | null = null;
+  if (variant && accroche) {
+    const filled = fillVariant(variant.text, accrocheVars(dmInput));
+    if (filled) {
+      accroche.text = filled;
+      applied = variant.id;
+    }
+  }
 
   return {
     prospect,
@@ -136,6 +149,6 @@ export function buildTrame(
           checkedAt: facts.checkedAt,
         }
       : null,
-    variantId: variant?.id ?? null,
+    variantId: applied,
   };
 }
