@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { buildTrame, TRAME_COLUMNS, type TrameProspect } from "@/app/lib/igTrame";
 import { getAccountsWithCounters } from "@/app/lib/igCockpit";
+import { resolveTrame } from "@/app/lib/igTrameChoice";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +36,11 @@ export async function GET(req: NextRequest) {
     // l'URL tapée dans les options de l'extension (localhost en dev) — le
     // lien de démo part dans un vrai DM, il ne doit jamais pointer dessus.
     const base = (process.env.NEXT_PUBLIC_DEMO_BASE_URL ?? "").replace(/\/$/, "") || req.nextUrl.origin;
-    const payload = buildTrame((prospectRes.data as TrameProspect | null) ?? null, base);
+    const prospect = (prospectRes.data as TrameProspect | null) ?? null;
+
+    const trame = await resolveTrame(req.nextUrl.searchParams.get("trame"), prospect?.id ?? null);
+
+    const payload = buildTrame(prospect, base, trame);
     return NextResponse.json({
       ...payload,
       accounts: accounts.map((a) => ({

@@ -4,8 +4,8 @@
 // /instagram (PipelineCard, TrameDM). Si une formulation change dans l'app,
 // l'extension la sert à la requête suivante, sans republication.
 
-import { instagramDmSequence, detectMetier, firstNameOf } from "./instagram";
-import { nextStepFor } from "./igPipeline";
+import { instagramDmSequence, instagramDmSequenceSite, detectMetier, firstNameOf } from "./instagram";
+import { nextStepFor, type Trame } from "./igPipeline";
 import { shortCode } from "./links";
 
 export interface TrameProspect {
@@ -40,18 +40,32 @@ export interface TramePayload {
   prospect: TrameProspect | null;
   steps: TrameStep[];
   nextStep: string | null;
+  /** Trame servie — le panneau l'affiche, et elle décide des étapes rendues. */
+  trame: Trame;
+  /** Aperçu sur-mesure du prospect (/di/<code>), vide si prospect hors base. */
+  demoLink: string;
 }
 
 /** Colonnes à sélectionner dans instagram_prospects pour ce payload. */
 export const TRAME_COLUMNS =
   "id,username,full_name,bio,category,metier,ville,booking_platform,profession_ia,stage,status,followers,reply_count,next_followup_at,score_tier,first_reply_at,last_reply_at,last_dm_at";
 
-export function buildTrame(prospect: TrameProspect | null, origin: string): TramePayload {
+export function buildTrame(
+  prospect: TrameProspect | null,
+  origin: string,
+  trame: Trame = "standard",
+): TramePayload {
+  const sequence = trame === "site" ? instagramDmSequenceSite : instagramDmSequence;
   if (!prospect) {
+    // Hors base : aucun aperçu ne peut exister (il est calculé sur l'UUID du
+    // prospect). La trame site reste consultable — l'étape S3 le dit alors
+    // elle-même plutôt que d'afficher un lien mort.
     return {
       prospect: null,
-      steps: instagramDmSequence({ metier: "", ville: "" }, ""),
-      nextStep: "M1",
+      steps: sequence({ metier: "", ville: "" }, ""),
+      nextStep: trame === "site" ? "S1" : "M1",
+      trame,
+      demoLink: "",
     };
   }
   // Même cascade que PipelineCard (app/instagram/page.tsx) : la profession IA
@@ -64,7 +78,7 @@ export function buildTrame(prospect: TrameProspect | null, origin: string): Tram
   const link = origin ? `${origin.replace(/\/$/, "")}/di/${shortCode(prospect.id)}` : "";
   return {
     prospect,
-    steps: instagramDmSequence(
+    steps: sequence(
       {
         metier: metierEff,
         ville: prospect.ville ?? "",
@@ -74,6 +88,8 @@ export function buildTrame(prospect: TrameProspect | null, origin: string): Tram
       },
       link,
     ),
-    nextStep: nextStepFor(prospect.stage),
+    nextStep: nextStepFor(prospect.stage, trame),
+    trame,
+    demoLink: link,
   };
 }

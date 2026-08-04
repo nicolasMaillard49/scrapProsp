@@ -41,11 +41,16 @@ export const MAX_HISTORY = 4000;
 /**
  * System prompt : la méthode de prospection est la contrainte, pas une
  * suggestion. Les règles encodées ici reprennent celles de la trame —
- * vouvoiement, messages courts, aucun lien avant M9, objectif = le call.
+ * vouvoiement, messages courts, aucun lien avant la dernière étape, objectif = le call.
  */
 export function buildReplySystemPrompt(ctx: ReplyContext): string {
   const p = ctx.prospect;
   const target = ctx.steps.find((s) => s.step === ctx.nextStep);
+  // L'étape qui porte le questionnaire (dernière de la séquence, relances
+  // exclues) : M9 en trame standard, S5 en trame site. Elle était écrite en
+  // dur — sur la trame site, le modèle recevait une consigne qui parlait d'une
+  // étape inexistante, donc inapplicable.
+  const derniere = [...ctx.steps].reverse().find((s) => /^[MS]\d$/.test(s.step))?.step ?? "la dernière";
 
   const who = p
     ? [
@@ -89,7 +94,7 @@ Sers-toi de TOUT le fil, pas seulement du dernier message : ce qui a déjà ét�
 - Vouvoiement, ton direct et humain, jamais commercial ni "corporate".
 - TRÈS court : 1 à 3 phrases, comme un vrai DM tapé au pouce. Jamais de pavé.
 - Aucune signature, aucun nom d'agence en bas de message, aucune coordonnée (téléphone, email, site) : c'est un DM, pas un courrier.
-- Aucun lien tant que l'étape M9 n'est pas atteinte. Aucun prix, aucun devis, aucune promesse de résultat chiffrée.
+- Aucun lien tant que l'étape ${derniere} n'est pas atteinte. Aucun prix, aucun devis, aucune promesse de résultat chiffrée.
 - N'invente jamais un fait sur son activité que tu n'as pas dans le contexte ci-dessus.
 - Une seule question par message maximum.
 - Si le prospect refuse clairement, propose une sortie propre et respectueuse — on n'insiste pas.

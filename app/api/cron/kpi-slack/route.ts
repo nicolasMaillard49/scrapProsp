@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { parisDayStart } from "@/app/lib/igCockpit";
+import { isAccrocheStep, stageForStep } from "@/app/lib/igPipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -38,15 +39,15 @@ async function handle(req: NextRequest) {
   let pb = 0;
   let propositions = 0;
   let questionnaires = 0;
-  // Un M≥2 n'est envoyé qu'après une réponse du prospect → proxy « conversations actives ».
+  // Une étape ≥2 (M ou S) n'est envoyée qu'après une réponse du prospect → proxy « conversations actives ».
   const repondants = new Set<string>();
   for (const r of (logs ?? []) as { step: string; prospect_id: string }[]) {
     if (r.step.startsWith("R")) relances++;
     else sent++;
-    if (r.step !== "M1" && r.step.startsWith("M")) repondants.add(r.prospect_id);
-    if (r.step === "M7") pb++;
-    if (r.step === "M8") propositions++;
-    if (r.step === "M9") questionnaires++;
+    if (!isAccrocheStep(r.step) && /^[MS]\d$/.test(r.step)) repondants.add(r.prospect_id);
+    if (stageForStep(r.step) === "douleur") pb++;
+    if (stageForStep(r.step) === "appel_propose") propositions++;
+    if (stageForStep(r.step) === "questionnaire_envoye") questionnaires++;
   }
 
   const dateFr = now.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });

@@ -3,7 +3,7 @@
 
 import { supabase } from "./supabase";
 import { sendTelegram } from "./notify";
-import { warmupCaps, type AccountStatus, type Caps, STAGE_LABEL, type Stage } from "./igPipeline";
+import { warmupCaps, isAccrocheStep, ACCROCHE_STEPS, type AccountStatus, type Caps, STAGE_LABEL, type Stage } from "./igPipeline";
 
 export interface AccountRow {
   id: string;
@@ -125,7 +125,7 @@ export async function getSendStats(now = new Date()): Promise<SendStats> {
   for (const r of (logs ?? []) as { step: string; sent_at: string }[]) {
     bump(Date.parse(r.sent_at), (p) => {
       p.sent++;
-      if (r.step === "M1") p.m1++;
+      if (isAccrocheStep(r.step)) p.m1++;
       if (r.step.startsWith("R")) p.relances++;
     });
   }
@@ -151,7 +151,7 @@ export async function getStreak(now = new Date()): Promise<StreakInfo> {
   const { data } = await supabase
     .from("ig_dm_log")
     .select("step, sent_at")
-    .eq("step", "M1")
+    .in("step", ACCROCHE_STEPS)
     .gte("sent_at", since)
     .limit(20_000);
 

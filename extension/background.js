@@ -85,16 +85,26 @@ async function logSend(armed) {
 
 const broadcast = (msg) => chrome.runtime.sendMessage(msg).catch(() => {});
 
-/** Trame du prospect affiché, mise en cache le temps de la conversation. */
+/**
+ * Trame du prospect affiché, mise en cache le temps de la conversation.
+ *
+ * Le choix de trame du panneau est relu ici aussi : sans ça, `Alt+I` insérerait
+ * M1 pendant que le panneau affiche S1 — le raccourci doit envoyer EXACTEMENT
+ * ce que le panneau montre, sinon il devient impossible à faire de confiance.
+ * Il entre dans la clé de cache : changer de trame doit changer la partition.
+ */
 async function currentTrame() {
   const { current } = await chrome.storage.session.get("current");
   const username = current?.username;
   if (!username) return null;
+  const { trameChoice = {} } = await chrome.storage.local.get("trameChoice");
+  const trame = trameChoice[username] ?? null;
   const { cachedTrame } = await chrome.storage.session.get("cachedTrame");
-  if (cachedTrame?.username === username) return cachedTrame.payload;
-  const { status, json } = await api(`/api/instagram/trame?username=${encodeURIComponent(username)}`);
+  if (cachedTrame?.username === username && cachedTrame?.trame === trame) return cachedTrame.payload;
+  const q = trame ? `&trame=${encodeURIComponent(trame)}` : "";
+  const { status, json } = await api(`/api/instagram/trame?username=${encodeURIComponent(username)}${q}`);
   if (status !== 200 || !json?.steps) return null;
-  await chrome.storage.session.set({ cachedTrame: { username, payload: json } });
+  await chrome.storage.session.set({ cachedTrame: { username, trame, payload: json } });
   return json;
 }
 
@@ -193,7 +203,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       case "ig:get-trame": {
         const { current } = await chrome.storage.session.get("current");
         const username = msg.username ?? current?.username ?? "";
-        const { status, json } = await api(`/api/instagram/trame?username=${encodeURIComponent(username)}`);
+        // `trame` n'est transmise que si le panneau l'a explicitement choisie :
+        // sans elle, l'app déduit du journal d'envois quelle trame est déjà
+        // engagée avec ce prospect. Envoyer « standard » par défaut écraserait
+        // cette déduction et ferait repartir une conversation site en standard.
+        const q = msg.trame ? `&trame=${encodeURIComponent(msg.trame)}` : "";
+        const { status, json } = await api(`/api/instagram/trame?username=${encodeURIComponent(username)}${q}`);
         sendResponse({ status, data: json, context: current || null });
         break;
       }
@@ -224,6 +239,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
             username: msg.username ?? current?.username ?? "",
             incoming: msg.incoming ?? "",
             history: msg.history ?? "",
+            // Le modèle doit ramener vers l'étape de la trame RÉELLEMENT
+            // affichée : sans ça il propose un retour vers M7 pendant que le
+            // panneau déroule S3.
+            trame: msg.trame ?? null,
           }),
         });
         sendResponse({ status, data: json });

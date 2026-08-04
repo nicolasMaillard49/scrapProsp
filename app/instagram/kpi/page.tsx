@@ -74,11 +74,17 @@ interface DayProspect {
 }
 type DayDetail = { state: "loading" } | { state: "error"; msg: string } | { state: "ok"; prospects: DayProspect[] };
 
-/** Ordre d'affichage des étapes : la trame, puis les relances. */
-const STEP_ORDER = ["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "R1", "R2", "R3"];
+/** Ordre d'affichage des étapes : la trame standard, la trame site, puis les relances. */
+const STEP_ORDER = [
+  "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9",
+  "S1", "S2", "S3", "S4", "S5",
+  "R1", "R2", "R3",
+];
 const STEP_TITLE: Record<string, string> = {
   M1: "Accroche", M2: "Contexte", M3: "Présentation", M4: "Anti-objection", M5: "Connexion",
   M6: "Focus", M7: "Douleur", M8: "Proposition d'appel", M9: "Questionnaire",
+  S1: "Accroche (site)", S2: "On vous trouve où ?", S3: "Retournement + maquette",
+  S4: "Proposition d'appel (site)", S5: "Questionnaire (site)",
   R1: "Relance 1", R2: "Relance 2", R3: "Relance 3",
 };
 

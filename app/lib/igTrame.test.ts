@@ -43,6 +43,45 @@ test("igTrame: prospect inconnu → trame générique, nextStep M1, prospect nul
   assert.ok(m1.text.length > 10);
 });
 
+test("igTrame site: 8 étapes (S1-S5 + relances) et la maquette EST dans S3", () => {
+  const t = buildTrame(laura, "https://prospects.nmf-agence.com", "site");
+  assert.equal(t.trame, "site");
+  assert.deepEqual(t.steps.map((s) => s.step), ["S1", "S2", "S3", "S4", "S5", "R1", "R2", "R3"]);
+  // Le lien d'aperçu est bâti sur les 8 premiers caractères de l'UUID.
+  assert.equal(t.demoLink, "https://prospects.nmf-agence.com/di/a1b2c3d4");
+  const s3 = t.steps.find((s) => s.step === "S3")!;
+  assert.ok(s3.text.includes(t.demoLink), "S3 doit porter l'aperçu");
+  for (const s of t.steps) assert.ok(!s.text.includes("undefined"), s.step);
+});
+
+test("igTrame site: la question nomme le métier ET la ville, comme un client les taperait", () => {
+  const s2 = buildTrame(laura, "", "site").steps.find((s) => s.step === "S2")!;
+  assert.match(s2.text, /« esthéticienne Angers »/);
+  // Sans métier ni ville, la question tient debout seule — jamais de « «  » ».
+  const nu = buildTrame({ ...laura, metier: "", profession_ia: null, category: null, bio: null, ville: null }, "", "site")
+    .steps.find((s) => s.step === "S2")!;
+  assert.doesNotMatch(nu.text, /«/);
+  assert.match(nu.text, /cherche votre nom sur Google/);
+});
+
+test("igTrame site: le stade décide de l'étape, dans la trame servie", () => {
+  // `presentation` = S2 envoyé → la maquette est la suite.
+  assert.equal(buildTrame(laura, "", "site").nextStep, "S3");
+  assert.equal(buildTrame({ ...laura, stage: "douleur" }, "", "site").nextStep, "S4");
+  assert.equal(buildTrame({ ...laura, stage: "appel_propose" }, "", "site").nextStep, "S5");
+  assert.equal(buildTrame({ ...laura, stage: "questionnaire_envoye" }, "", "site").nextStep, null);
+  // Même stade, autre trame : autre étape. Les deux partitions coexistent.
+  assert.equal(buildTrame(laura, "", "standard").nextStep, "M5");
+});
+
+test("igTrame site: prospect hors base → S1, et S3 ne montre AUCUN lien mort", () => {
+  const t = buildTrame(null, "https://x.test", "site");
+  assert.equal(t.nextStep, "S1");
+  assert.equal(t.demoLink, "");
+  const s3 = t.steps.find((s) => s.step === "S3")!;
+  assert.doesNotMatch(s3.text, /https?:\/\//);
+});
+
 test("igTrame: metierEff — profession_ia prime, puis category+bio, puis metier", () => {
   // profession_ia précise → utilisée dans l'accroche (« vous étiez <noun> »)
   const withIa = buildTrame({ ...laura, profession_ia: "prothésiste ongulaire" }, "");

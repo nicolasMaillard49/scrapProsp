@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { buildTrame, TRAME_COLUMNS, type TrameProspect } from "@/app/lib/igTrame";
+import { resolveTrame } from "@/app/lib/igTrameChoice";
 import { firstNameOf } from "@/app/lib/instagram";
 import {
   buildReplySystemPrompt,
@@ -25,6 +26,8 @@ interface Body {
   username?: string;
   incoming?: string;
   history?: string;
+  /** Trame déroulée dans le panneau ; à défaut, déduite du journal d'envois. */
+  trame?: string;
 }
 
 /**
@@ -58,10 +61,13 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const prospect = (data as TrameProspect | null) ?? null;
-    // Le lien de démo n'a aucun rôle ici (aucun lien n'est autorisé avant M9),
-    // mais buildTrame reste la seule source de la séquence et du nextStep.
+    // buildTrame reste la seule source de la séquence et du nextStep — et il
+    // faut la MÊME trame que celle affichée dans le panneau, sinon le modèle
+    // ramène la conversation vers une étape qui n'existe pas dans la partition
+    // déroulée avec ce prospect.
     const base = (process.env.NEXT_PUBLIC_DEMO_BASE_URL ?? "").replace(/\/$/, "") || req.nextUrl.origin;
-    const trame = buildTrame(prospect, base);
+    const kind = await resolveTrame(body.trame ?? null, prospect?.id ?? null);
+    const trame = buildTrame(prospect, base, kind);
 
     const ctx = {
       prospect: prospect

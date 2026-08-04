@@ -28,6 +28,54 @@ détecté dans l'app (quota, stade, relance).
 - **Raccourcis** : `Alt+I` insère l'étape à envoyer, `Alt+O` corrige le champ,
   `Alt+N` passe au suivant. Ils fonctionnent même panneau fermé.
 
+## Deux trames — « Standard » et « Site »
+
+Sous la partition, une bascule choisit la méthode déroulée sur ce prospect.
+
+- **Standard** (`M1`-`M9`) : la méthode complète — présentation, connexion,
+  puis la douleur au 7ᵉ message. Aucune ressource en DM.
+- **Site** (`S1`-`S5`) : la variante pour les comptes **sans site web** — c'est
+  toute l'audience, sélectionnée sur `has_website === false` (+30 au score).
+  La question tombe au 2ᵉ message, **sa maquette au 3ᵉ**.
+
+```
+S1  Hello Laura ! J'ai vu que vous étiez esthéticienne, c'est toujours le cas ?
+S2  Parfait ! Une question toute bête : aujourd'hui, quand quelqu'un cherche
+    votre nom sur Google — ou juste « esthéticienne Angers » — il tombe sur quoi ?
+S3  C'est exactement là que ça coince : on passe son temps à chercher des
+    clients, pendant que ceux qui vous cherchent DÉJÀ ne vous trouvent pas.
+    → https://prospects.nmf-agence.com/di/<code>
+S4  Le plus simple c'est qu'on se cale 15-20 min…
+S5  Questionnaire, puis on bloque le créneau.
+```
+
+La règle « aucune ressource avant M9 » n'est pas violée : la maquette **n'est
+pas une ressource** (guide, étude de cas, lien d'agence) — c'est *son* site,
+portant *son* nom, qui ne se comprend qu'en le voyant. C'est l'argument, pas
+un support.
+
+### Ce qui décide de la trame
+
+1. La **bascule du panneau**, si tu l'as touchée pour ce prospect ;
+2. sinon, la trame **déjà engagée** — déduite du dernier `S…`/`M…` réellement
+   parti (`ig_dm_log`).
+
+Le second point n'est pas un détail : le choix du panneau vit dans le
+`storage` de Chrome. Vidé, ou consulté depuis un autre poste, une conversation
+commencée en trame site repartirait en standard au message suivant, et le
+prospect verrait deux méthodes s'entrechoquer. **Ce qui a été envoyé est la
+seule source qui ne ment pas.**
+
+Basculer en cours de conversation est permis (c'est parfois exactement ce
+qu'on veut après une réponse) : l'étape à envoyer est recalculée sur le stade
+atteint, jamais remise à zéro.
+
+Les identifiants sont **distincts** (`S…` et non `M…`) pour une raison :
+c'est ce qui rend les deux trames comparables dans le journal — quelle trame a
+produit quelle réponse. Un identifiant partagé rendrait la mesure impossible.
+Les relances `R1`-`R3` restent communes : elles relancent le silence, pas
+l'étape.
+
 ## A-t-il déjà répondu ?
 
 Sous le métier, une ligne dit l'essentiel avant tout geste :

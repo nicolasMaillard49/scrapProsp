@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   extractEmails, extractPhonesFr, pickContact, hasRealWebsite,
   extractLastPostAt, isActiveSince, prospectScore, detectMetier,
-  instagramDmSequence, firstNameOf, QUESTIONNAIRE_URL, competitorHook, isHorsCible,
+  instagramDmSequence, instagramDmSequenceSite, firstNameOf, QUESTIONNAIRE_URL, competitorHook, isHorsCible,
 } from "./instagram";
 
 test("extractEmails: trouve, déduplique, minuscule", () => {
@@ -204,6 +204,33 @@ test("instagramDmSequence: messages COURTS — un DM long se lit comme un texte 
       `${s.step} fait ${body.length} caractères — au-delà de 220 on quitte le registre du DM (${s.text})`,
     );
   }
+});
+
+test("instagramDmSequenceSite: mêmes règles de tenue que la trame standard", () => {
+  const demo = "https://x.fr/di/abc";
+  const steps = instagramDmSequenceSite({ metier: "estheticienne", ville: "Angers", firstName: "Julie" }, demo);
+  assert.deepEqual(steps.map((s) => s.step), ["S1", "S2", "S3", "S4", "S5", "R1", "R2", "R3"]);
+
+  const tutoie = /(?:^|[^\p{L}])(tu|toi|ton|tes)(?:[^\p{L}]|$)/iu;
+  for (const s of steps) {
+    assert.ok(!tutoie.test(s.text), `${s.step} ne doit pas tutoyer : ${s.text}`);
+    // Les URL sortent du calcul : elles portent le domaine de l'agence sans
+    // être une signature, et leur longueur ne se lit pas comme du texte.
+    const body = s.text.replace(/https?:\/\/\S+/g, "");
+    assert.ok(body.length <= 260, `${s.step} fait ${body.length} caractères — on quitte le registre du DM`);
+    // Aucun prix, aucune signature : les deux trames tiennent la même ligne.
+    assert.ok(!/\d+\s*(€|euros)/i.test(body), `${s.step} ne doit annoncer aucun prix`);
+    assert.ok(!/NMF|Nicolas Maillard/i.test(body), `${s.step} ne doit pas signer`);
+  }
+
+  // Un seul lien avant le questionnaire, et c'est l'aperçu — pas une ressource.
+  const liens = steps.filter((s) => /https?:\/\//.test(s.text)).map((s) => s.step);
+  assert.deepEqual(liens, ["S3", "S5"]);
+  assert.ok(steps.find((s) => s.step === "S3")!.text.includes(demo));
+
+  // La question s'adresse au client du prospect, pas au prospect.
+  assert.match(steps.find((s) => s.step === "S2")!.text, /cherche votre nom sur Google/);
+  assert.match(steps.find((s) => s.step === "S2")!.text, /« esthéticienne Angers »/);
 });
 
 test("competitorHook: appels pour artisans, réservations pour métiers à RDV", () => {

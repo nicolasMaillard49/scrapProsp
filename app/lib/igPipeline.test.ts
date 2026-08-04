@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { warmupCaps, clampToWindow, nextFollowup, stageForStep, nextStepFor, STAGES, VALID_STEPS, MAX_DAILY } from "./igPipeline";
+import {
+  warmupCaps, clampToWindow, nextFollowup, stageForStep, nextStepFor, STAGES, VALID_STEPS, MAX_DAILY,
+  isAccrocheStep, ACCROCHE_STEPS, trameOfStep,
+} from "./igPipeline";
 
 const day = (n: number, base = Date.parse("2026-07-01T12:00:00")) => base + (n - 1) * 24 * 3600 * 1000;
 
@@ -100,4 +103,53 @@ test("nextStepFor: aller-retour cohérent avec stageForStep sur toute la séquen
   }
   // Et le tout premier pas mène bien à l'accroche.
   assert.equal(stageForStep(nextStepFor(null)!), "accroche");
+});
+
+test("trame site: S1→S5 avancent le stade comme M1→M9, sans jamais reculer", () => {
+  // Le même invariant que ci-dessus, appliqué à la seconde partition : c'est
+  // lui qui garantit qu'un prospect ne peut pas boucler sur la même étape.
+  for (const stage of STAGES) {
+    const step = nextStepFor(stage, "site");
+    if (!step) continue;
+    const reached = stageForStep(step);
+    assert.ok(reached, `${step} devrait mener à un stade`);
+    assert.ok(
+      STAGES.indexOf(reached!) > STAGES.indexOf(stage),
+      `depuis « ${stage} », ${step} mène à « ${reached} » — ce n'est pas une avancée`,
+    );
+  }
+  assert.equal(nextStepFor(null, "site"), "S1");
+  assert.equal(stageForStep("S1"), "accroche");
+  assert.equal(stageForStep("S3"), "douleur"); // la maquette EST le point de douleur
+  assert.equal(stageForStep("S5"), "questionnaire_envoye");
+});
+
+test("trame site: la trame arrive à la douleur en 3 messages là où la standard en met 7", () => {
+  // Ce n'est pas de la cosmétique : c'est la raison d'être de cette trame.
+  const compte = (trame: "standard" | "site") => {
+    let stage: string | null = null;
+    let n = 0;
+    while (n < 12) {
+      const step = nextStepFor(stage, trame);
+      if (!step) break;
+      n++;
+      if (stageForStep(step) === "douleur") return n;
+      stage = stageForStep(step) ?? stage;
+    }
+    return null;
+  };
+  assert.equal(compte("site"), 3);
+  assert.equal(compte("standard"), 4); // M1, M2(→M5), M5(→M7), M7 : 4 envois pilotés
+});
+
+test("isAccrocheStep: les deux trames ont une accroche — sinon la site serait invisible aux KPI", () => {
+  assert.ok(isAccrocheStep("M1"));
+  assert.ok(isAccrocheStep("S1"));
+  assert.ok(!isAccrocheStep("S2"));
+  assert.ok(!isAccrocheStep("R1"));
+  assert.deepEqual(ACCROCHE_STEPS.filter(isAccrocheStep), ACCROCHE_STEPS);
+  assert.equal(trameOfStep("S3"), "site");
+  assert.equal(trameOfStep("M3"), "standard");
+  assert.equal(trameOfStep("R1"), null); // les relances n'appartiennent à personne
+  assert.ok(VALID_STEPS.has("S5") && !VALID_STEPS.has("S6"));
 });

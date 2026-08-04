@@ -48,7 +48,15 @@
     .beat.now i { height: 13px; background: var(--send); }
     .beat b { font: 600 8px/1 var(--label); letter-spacing: .04em; color: var(--mute); opacity: .5; }
     .beat.now b { color: var(--send); opacity: 1; }
-    .score-legend { display: flex; justify-content: flex-end; margin-top: 6px; font: 10px/1 var(--data); color: var(--mute); }
+    .score-legend { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font: 10px/1 var(--data); color: var(--mute); }
+
+    /* Bascule de trame : quelle methode on deroule sur ce prospect. Sobre a
+       dessein — le violet ne designe que ce qui PART, et une trame ne part
+       pas : elle decide. L'active se lit au poids et au trait, pas a la teinte. */
+    .trame-switch { display: flex; align-items: center; gap: 1px; }
+    .trame-switch button { appearance: none; border: 0; background: none; cursor: pointer; padding: 2px 5px 3px; color: var(--mute); font: 600 9px/1 var(--label); letter-spacing: .1em; text-transform: uppercase; border-bottom: 1.5px solid transparent; }
+    .trame-switch button:hover { color: var(--ink); }
+    .trame-switch button.on { color: var(--ink); border-bottom-color: var(--ink); }
 
     /* ── Corps ──────────────────────────────────────────────────────────── */
     main { padding: 13px; }
@@ -212,8 +220,12 @@
          confond avec une vraie nouvelle réponse. -->
     <div id="replyState" hidden></div>
     <div class="score" id="rail"></div>
-    <!-- Une seule légende : le stade est déjà dit par le badge de l'en-tête. -->
-    <div class="score-legend"><span id="railRight"></span></div>
+    <!-- Une seule légende : le stade est déjà dit par le badge de l'en-tête.
+         À gauche, la trame déroulée — elle change la partition entière. -->
+    <div class="score-legend">
+      <span class="trame-switch" id="trameSwitch"></span>
+      <span id="railRight"></span>
+    </div>
   </header>
 
   <main>

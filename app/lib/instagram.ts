@@ -598,24 +598,65 @@ export interface IgDmStep {
  * phrases parlées. Les règles de fond ne bougent pas : vouvoiement, aucune
  * ressource avant M9, aucun pitch avant M8.
  */
-export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] {
+/** Nom du métier tel qu'on l'écrit dans une phrase (« vous étiez <noun> »). */
+function nounOf(p: IgDmInput): string | null {
+  // La profession IA (précise) prime sur le métier détecté par regex.
+  return (p.professionIa && p.professionIa.trim().toLowerCase()) || METIER_NOUN[p.metier] || null;
+}
+
+/**
+ * Premier message — commun aux deux trames.
+ *
+ * Il n'y a aucune raison de le faire varier d'une trame à l'autre : c'est le
+ * seul message dont on a mesuré le taux de réponse, et ce qui change entre
+ * « standard » et « site » commence AU DEUXIÈME message.
+ */
+function accrocheOf(p: IgDmInput): string {
   const hello = p.firstName && p.firstName.trim() ? `Hello ${p.firstName.trim()}` : "Hello";
-  // Accroche : la profession IA (précise) prime sur le métier détecté par regex.
-  const noun = (p.professionIa && p.professionIa.trim().toLowerCase()) || METIER_NOUN[p.metier] || null;
+  const noun = nounOf(p);
+  // Un établissement se « tient », un métier se « est » : « vous étiez coiffeur(se) »
+  // sonnait comme un formulaire — un salon ou un resto se formule au lieu.
+  const lieu = p.professionIa ? null : METIER_LIEU[p.metier];
+  return lieu
+    ? `${hello} ! J'ai vu que vous teniez ${lieu}, c'est toujours le cas ?`
+    : noun
+      ? `${hello} ! J'ai vu que vous étiez ${noun}, c'est toujours le cas ?`
+      : `${hello} ! Je suis tombé sur votre compte en scrollant — vous êtes toujours en activité en ce moment ?`;
+}
+
+/**
+ * Relances R1-R3 — communes aux deux trames.
+ * Elles ne parlent jamais du contenu de la séquence : elles relancent le
+ * silence, pas l'étape. Rien à dupliquer d'une trame à l'autre.
+ */
+function relancesOf(p: IgDmInput): IgDmStep[] {
+  const prenom = p.firstName ? p.firstName.trim() : "";
+  return [
+    {
+      step: "R1",
+      title: "Relance — 1 h après un vu (jamais entre 20 h et 8 h)",
+      text: `Vous avez eu le temps de checker mon message${prenom ? ` ${prenom}` : ""} ?`,
+    },
+    {
+      step: "R2",
+      title: "Relance — nouveau vu (attendre 6-8 h)",
+      text: `Toujours avec moi${prenom ? ` ${prenom}` : ""} ?`,
+    },
+    {
+      step: "R3",
+      title: "Relance — nouveau vu (5-8 h) ; ensuite image humour puis mème perso",
+      text: `${prenom || "Alors"} ?? 😄`,
+    },
+  ];
+}
+
+export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] {
   const avatar = BATIMENT.has(p.metier)
     ? "les artisans du bâtiment"
     : "les indépendants et commerces de proximité";
   const pain = painWording(p.metier);
   const bk = p.bookingPlatform;
-
-  // Un établissement se « tient », un métier se « est » : « vous étiez coiffeur(se) »
-  // sonnait comme un formulaire — un salon ou un resto se formule au lieu.
-  const lieu = p.professionIa ? null : METIER_LIEU[p.metier];
-  const accroche = lieu
-    ? `${hello} ! J'ai vu que vous teniez ${lieu}, c'est toujours le cas ?`
-    : noun
-      ? `${hello} ! J'ai vu que vous étiez ${noun}, c'est toujours le cas ?`
-      : `${hello} ! Je suis tombé sur votre compte en scrollant — vous êtes toujours en activité en ce moment ?`;
+  const accroche = accrocheOf(p);
 
   return [
     {
@@ -667,21 +708,92 @@ export function instagramDmSequence(p: IgDmInput, demoLink: string): IgDmStep[] 
         `Top ! Avant que je bloque le créneau, un petit questionnaire pour préparer l'appel — 2 min 👉 ${QUESTIONNAIRE_URL}\n\n` +
         `Dites-moi quand c'est fait.`,
     },
+    ...relancesOf(p),
+  ];
+}
+
+/**
+ * Requête telle qu'un client la taperait : « esthéticienne Angers ».
+ * `null` si on ne sait ni le métier ni la ville — on ne met pas de mots
+ * approximatifs dans la bouche du prospect, la question marche sans.
+ */
+export function searchQueryOf(p: IgDmInput): string | null {
+  const noun = nounOf(p);
+  const ville = (p.ville ?? "").trim();
+  if (!noun && !ville) return null;
+  return [noun, ville].filter(Boolean).join(" ");
+}
+
+/**
+ * Trame SITE (S1…S5) — la variante « il n'a pas de site ».
+ *
+ * POURQUOI une seconde trame plutôt qu'un réglage de la première : toute
+ * l'audience Instagram est sélectionnée sur `has_website === false` (+30 au
+ * score d'opportunité), et la trame standard met SEPT messages à arriver sur
+ * la douleur — sans jamais nommer celle qu'on est venu résoudre. Ici la
+ * question tombe au 2ᵉ message et la maquette au 3ᵉ.
+ *
+ * La règle « aucune ressource avant M9 » de la trame standard ne s'applique
+ * pas ici, et ce n'est pas un oubli : la maquette N'EST PAS une ressource
+ * (guide, étude de cas, lien d'agence) — c'est son propre site, portant son
+ * nom, qui ne se comprend qu'en le voyant. C'est l'argument, pas un support.
+ *
+ * Les étapes portent un identifiant distinct (S…) et non M… : c'est ce qui
+ * rend les deux trames comparables dans `ig_dm_log` (quelle trame a produit
+ * quelle réponse). Un identifiant partagé rendrait la mesure impossible.
+ *
+ * Correspondance stade ↔ étape : cf. `stageForStep` / `nextStepFor` dans
+ * igPipeline. Le stade est une POSITION dans le tunnel, pas un synonyme du
+ * contenu du message — les deux trames occupent les mêmes six positions,
+ * c'est ce qui garde le kanban et les KPI lisibles.
+ */
+export function instagramDmSequenceSite(p: IgDmInput, demoLink: string): IgDmStep[] {
+  const query = searchQueryOf(p);
+  // La question porte d'abord sur SON nom (ce qu'il vérifiera lui-même dans la
+  // minute), puis sur la requête générique — dans cet ordre : le premier lui
+  // parle de lui, le second lui parle de ses clients perdus.
+  const question = query
+    ? `Parfait ! Une question toute bête : aujourd'hui, quand quelqu'un cherche votre nom sur Google — ou juste « ${query} » — il tombe sur quoi ?`
+    : `Parfait ! Une question toute bête : aujourd'hui, quand quelqu'un cherche votre nom sur Google, il tombe sur quoi ?`;
+
+  return [
     {
-      step: "R1",
-      title: "Relance — 1 h après un vu (jamais entre 20 h et 8 h)",
-      text: `Vous avez eu le temps de checker mon message${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
+      step: "S1",
+      title: "Accroche (identique à la trame standard)",
+      text: accrocheOf(p),
     },
     {
-      step: "R2",
-      title: "Relance — nouveau vu (attendre 6-8 h)",
-      text: `Toujours avec moi${p.firstName ? ` ${p.firstName.trim()}` : ""} ?`,
+      step: "S2",
+      title: "La question qui ouvre le sujet (après son oui)",
+      text: question,
     },
     {
-      step: "R3",
-      title: "Relance — nouveau vu (5-8 h) ; ensuite image humour puis mème perso",
-      text: `${p.firstName ? p.firstName.trim() : "Alors"} ?? 😄`,
+      step: "S3",
+      title: "Le retournement + la maquette (le message qui porte la trame)",
+      // Le retournement d'abord, la preuve juste après : montrer la maquette
+      // avant d'avoir nommé le manque en fait une jolie image ; après, elle
+      // devient la réponse à un problème qu'il vient de formuler lui-même.
+      // Le lien est sur sa propre ligne pour qu'il puisse partir en deux
+      // bulles — un lien seul dans sa bulle s'ouvre bien plus qu'un lien
+      // collé en fin de paragraphe.
+      text:
+        `C'est exactement là que ça coince : on passe son temps à chercher des clients, pendant que ceux qui vous cherchent DÉJÀ ne vous trouvent pas.\n\n` +
+        `Du coup je vous ai fait un aperçu de ce que ça pourrait donner, à votre nom — 30 secondes à regarder :\n` +
+        (demoLink || "(aperçu indisponible — prospect hors base)"),
     },
+    {
+      step: "S4",
+      title: "Proposition d'appel (après sa réaction à la maquette)",
+      text: `Content que ça vous parle ! Le plus simple c'est qu'on se cale 15-20 min, je vous montre ce qu'on peut en faire. Vous avez un créneau cette semaine ?`,
+    },
+    {
+      step: "S5",
+      title: "Questionnaire (après son oui, avant de bloquer le créneau)",
+      text:
+        `Top ! Avant que je bloque le créneau, un petit questionnaire pour préparer l'appel — 2 min 👉 ${QUESTIONNAIRE_URL}\n\n` +
+        `Dites-moi quand c'est fait.`,
+    },
+    ...relancesOf(p),
   ];
 }
 

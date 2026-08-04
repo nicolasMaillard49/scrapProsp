@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { sinceParisDays } from "@/app/lib/igKpiWindow";
+import { isAccrocheStep, stageForStep } from "@/app/lib/igPipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -144,12 +145,12 @@ export async function GET(req: NextRequest) {
     const d = day(parisDate(r.sent_at));
     if (r.step.startsWith("R")) d.relances++;
     else d.sent++;
-    if (r.step === "M1") {
+    if (isAccrocheStep(r.step)) {
       d.accroches++;
       if (r.prospect_id) d.cohorte.add(r.prospect_id);
     }
-    if (r.step === "M7") d.pb++;
-    if (r.step === "M8") d.propositions++;
+    if (stageForStep(r.step) === "douleur") d.pb++;
+    if (stageForStep(r.step) === "appel_propose") d.propositions++;
     const h = parisHour(r.sent_at);
     d.hmin = d.hmin === null ? h : Math.min(d.hmin, h);
     d.hmax = d.hmax === null ? h : Math.max(d.hmax, h);

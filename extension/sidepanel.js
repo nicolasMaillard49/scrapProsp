@@ -14,7 +14,34 @@ let state = {
   aiBusy: false,
   retoneBusy: false,
   manual: null,        // pseudo saisi à la main (détection en échec)
+  trame: null,         // trame CHOISIE ici ; null = laisse l'app décider
 };
+
+/**
+ * Trame retenue pour ce pseudo, mémorisée localement.
+ *
+ * Ne sert qu'AVANT le premier message : dès qu'une étape est partie, l'app
+ * déduit la trame du journal d'envois — ce qui a réellement été envoyé est la
+ * seule source qui survit à un autre poste ou à un storage vidé. Ce cache ne
+ * fait que porter le choix jusque-là.
+ */
+const TRAME_MEMORY_MAX = 400;
+
+async function trameChoiceFor(username) {
+  if (!username) return null;
+  const { trameChoice = {} } = await chrome.storage.local.get("trameChoice");
+  return trameChoice[username] ?? null;
+}
+
+async function rememberTrame(username, trame) {
+  if (!username) return;
+  const { trameChoice = {} } = await chrome.storage.local.get("trameChoice");
+  delete trameChoice[username]; // ré-insère en fin : l'ordre des clés est l'ordre d'usage
+  trameChoice[username] = trame;
+  const keys = Object.keys(trameChoice);
+  for (const old of keys.slice(0, Math.max(0, keys.length - TRAME_MEMORY_MAX))) delete trameChoice[old];
+  await chrome.storage.local.set({ trameChoice });
+}
 
 /**
  * Tout message vers la page passe par le service worker : lui seul peut
@@ -56,7 +83,10 @@ const STAGE_PICKS = [
 ];
 
 async function refresh(username, detectedAccount) {
-  const r = await chrome.runtime.sendMessage({ type: "ig:get-trame", username });
+  // Le choix de trame accompagne la requête : c'est l'app qui rend la
+  // partition, pas le panneau. Sans choix explicite, elle déduit du journal.
+  if (state.trame === null) state.trame = await trameChoiceFor(username ?? state.username);
+  const r = await chrome.runtime.sendMessage({ type: "ig:get-trame", username, trame: state.trame });
   if (!r || r.status === 0) { $("error").textContent = r?.data?.error || "Extension non configurée."; return; }
   if (r.status === 401) { $("error").textContent = "401 — EXT_TOKEN invalide (options de l'extension / .env de l'app)."; return; }
   if (r.status !== 200) { $("error").textContent = r.data?.error || `Erreur ${r.status}`; return; }
@@ -114,14 +144,47 @@ function render() {
   // qu'aucun prospect n'est chargé, la trame est générique et rien n'est
   // journalisable — autant pouvoir le débloquer soi-même.
   $("manual").hidden = !!p;
+  renderTrameSwitch();
   renderRail();
   renderAccount();
   renderTrame();
   renderStagePicker();
 }
 
+const TRAME_PICKS = [
+  { trame: "standard", label: "Standard", title: "M1-M9 : la méthode complète — présentation, connexion, puis douleur au 7ᵉ message" },
+  { trame: "site", label: "Site", title: "S1-S5 : « on vous trouve où ? » au 2ᵉ message, sa maquette au 3ᵉ" },
+];
+
 /**
- * La partition : un temps par message de la séquence (M1…M9).
+ * Quelle trame on déroule sur ce prospect.
+ *
+ * C'est le seul réglage du panneau qui change TOUT ce qui suit — d'où sa
+ * place sous la partition, et non dans les options : on le décide en voyant
+ * le prospect, pas la veille.
+ */
+function renderTrameSwitch() {
+  const active = state.data?.trame ?? "standard";
+  $("trameSwitch").innerHTML = TRAME_PICKS.map(
+    (t) => `<button data-trame="${esc(t.trame)}" class="${t.trame === active ? "on" : ""}" title="${esc(t.title)}">${esc(t.label)}</button>`,
+  ).join("");
+
+  for (const b of $("trameSwitch").querySelectorAll("[data-trame]")) {
+    b.addEventListener("click", async () => {
+      const pick = b.dataset.trame;
+      if (pick === active) return;
+      state.trame = pick;
+      await rememberTrame(state.username, pick);
+      // Changer de trame en cours de conversation est permis (c'est parfois
+      // exactement ce qu'on veut après une réponse) : l'étape à envoyer est
+      // recalculée sur le stade atteint, jamais remise à zéro.
+      await refresh(state.username);
+    });
+  }
+}
+
+/**
+ * La partition : un temps par message de la séquence (M1…M9, ou S1…S5).
  *
  * La trame EST une suite ordonnée, donc la numéroter dit quelque chose de
  * vrai — ce n'est pas de la décoration. Les temps joués restent sourds, seul
@@ -129,13 +192,13 @@ function render() {
  * violet ne désigne que ce qui part.
  */
 function renderRail() {
-  const beats = (state.data?.steps ?? []).filter((s) => /^M\d$/.test(s.step));
+  const beats = (state.data?.steps ?? []).filter((s) => /^[MS]\d$/.test(s.step));
   const nextStep = state.data?.nextStep;
   const idx = beats.findIndex((s) => s.step === nextStep);
   $("rail").innerHTML = beats
     .map((s, i) => {
       const cls = idx < 0 ? "done" : i < idx ? "done" : i === idx ? "now" : "";
-      return `<span class="beat ${cls}"><i></i><b>${esc(s.step.replace("M", ""))}</b></span>`;
+      return `<span class="beat ${cls}"><i></i><b>${esc(s.step.slice(1))}</b></span>`;
     })
     .join("");
 
@@ -320,7 +383,7 @@ $("aiGen").addEventListener("click", async () => {
   $("aiGen").textContent = "Génération…";
   $("aiOut").innerHTML = "";
   try {
-    const r = await chrome.runtime.sendMessage({ type: "ig:ai-reply", username: state.username, incoming, history });
+    const r = await chrome.runtime.sendMessage({ type: "ig:ai-reply", username: state.username, incoming, history, trame: state.data?.trame ?? null });
     if (r?.status !== 200) {
       $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`;
       return;
@@ -793,6 +856,10 @@ chrome.runtime.onMessage.addListener((msg) => {
     // « rien détecté » à chaque re-scan de la SPA.
     if (!msg.username && state.manual) return;
     state.manual = null;
+    // Autre prospect, autre choix de trame : `refresh` relira celui qui a été
+    // mémorisé pour ce pseudo. Garder l'ancien ferait dérouler la trame site
+    // sur le prospect suivant sans l'avoir demandé.
+    state.trame = null;
     $("fallback").hidden = true;
     clearTimeout(state.fallbackTimer);
     // Nouvelle conversation : ce qui restait du bloc IA ne la concerne pas.

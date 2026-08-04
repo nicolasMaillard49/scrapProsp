@@ -148,6 +148,38 @@ export function leadState(stage: string | null, replyCount: number, status: stri
   return "en_attente";
 }
 
+/**
+ * Les deux trames DM.
+ *  - `standard` : M1…M9, la méthode complète (présentation, connexion, douleur).
+ *  - `site`     : S1…S5, la variante « il n'a pas de site » — question au 2ᵉ
+ *                 message, maquette au 3ᵉ (cf. `instagramDmSequenceSite`).
+ * Les relances R1-R3 sont communes : elles relancent le silence, pas l'étape.
+ */
+export const TRAMES = ["standard", "site"] as const;
+export type Trame = (typeof TRAMES)[number];
+
+/** Trame à laquelle appartient une étape (les relances n'appartiennent à aucune). */
+export function trameOfStep(step: string): Trame | null {
+  if (/^M\d$/.test(step)) return "standard";
+  if (/^S\d$/.test(step)) return "site";
+  return null;
+}
+
+/**
+ * Premier message d'une trame, quelle qu'elle soit.
+ *
+ * Tout ce qui compte les ACCROCHES (KPI de réponse à froid, sortie de la
+ * sélection du jour) doit passer par ici : tester `step === "M1"` en dur
+ * rendrait la trame site invisible dans les compteurs le jour de sa mise en
+ * service — et invisible, elle serait réputée sans effet.
+ */
+export function isAccrocheStep(step: string): boolean {
+  return step === "M1" || step === "S1";
+}
+
+/** Toutes les premières étapes — pour les filtres SQL (`.in("step", …)`). */
+export const ACCROCHE_STEPS = ["M1", "S1"];
+
 /** Stade atteint quand on marque une étape de la séquence comme envoyée. */
 export function stageForStep(step: string): Stage | null {
   switch (step) {
@@ -166,12 +198,32 @@ export function stageForStep(step: string): Stage | null {
       return "appel_propose";
     case "M9":
       return "questionnaire_envoye";
+
+    // ── Trame site ──────────────────────────────────────────────────────────
+    // Le stade est une POSITION dans le tunnel, pas un résumé du message : la
+    // trame site occupe les mêmes positions que la standard, en sautant
+    // `connexion` (elle ne fait pas de tour de chauffe). C'est ce qui garde le
+    // kanban monotone et les deux trames comparables colonne par colonne.
+    case "S1":
+      return "accroche";
+    case "S2": // la question « on vous trouve où ? » — le message qui installe le sujet
+      return "presentation";
+    case "S3": // le retournement + la maquette
+      return "douleur";
+    case "S4":
+      return "appel_propose";
+    case "S5":
+      return "questionnaire_envoye";
     default:
       return null; // R1-R3 : le stade ne bouge pas
   }
 }
 
-export const VALID_STEPS = new Set(["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "R1", "R2", "R3"]);
+export const VALID_STEPS = new Set([
+  "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9",
+  "S1", "S2", "S3", "S4", "S5",
+  "R1", "R2", "R3",
+]);
 
 /**
  * Prochain message de la séquence à envoyer, d'après le stade atteint —
@@ -183,7 +235,29 @@ export const VALID_STEPS = new Set(["M1", "M2", "M3", "M4", "M5", "M6", "M7", "M
  * fins. Les relances n'en font pas partie : elles sont pilotées par
  * `next_followup_at`, pas par le stade.
  */
-export function nextStepFor(stage: string | null): string | null {
+export function nextStepFor(stage: string | null, trame: Trame = "standard"): string | null {
+  if (trame === "site") {
+    switch (stage) {
+      case null:
+      case "":
+        return "S1";
+      case "accroche":
+      case "receptif":
+        return "S2";
+      case "presentation":
+        return "S3";
+      // `connexion` n'appartient pas à la trame site : elle ne peut y arriver
+      // que posée à la main depuis le panneau. On ne coupe pas sa trame pour
+      // autant — on l'envoie au message suivant dans l'ordre du tunnel.
+      case "connexion":
+      case "douleur":
+        return "S4";
+      case "appel_propose":
+        return "S5";
+      default:
+        return null;
+    }
+  }
   switch (stage) {
     case null:
     case "":
