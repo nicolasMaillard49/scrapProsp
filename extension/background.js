@@ -74,7 +74,12 @@ async function logSend(armed) {
   // ça fausse juste les compteurs et le stade du prospect.
   const { status, json } = await api("/api/instagram/dm", {
     method: "POST",
-    body: JSON.stringify({ prospect_id: armed.prospectId, account_id: armed.accountId, step: armed.step, force: true }),
+    body: JSON.stringify({
+      prospect_id: armed.prospectId, account_id: armed.accountId, step: armed.step, force: true,
+      // La variante d'accroche voyage avec l'envoi : c'est le seul moment où
+      // l'on sait laquelle est réellement partie.
+      variant: armed.variant ?? null,
+    }),
   });
   if (status === 200 && json.ok) {
     // La cadence se mesure sur les envois RÉELLEMENT journalisés : un message
@@ -107,11 +112,58 @@ async function currentTrame() {
   const trame = trameChoice[username] ?? null;
   const { cachedTrame } = await chrome.storage.session.get("cachedTrame");
   if (cachedTrame?.username === username && cachedTrame?.trame === trame) return cachedTrame.payload;
+  // La réserve du préchargement, si elle porte bien ce prospect. Elle a été
+  // constituée SANS choix de trame explicite : on ne s'en sert donc que dans
+  // ce cas-là, sinon on servirait la mauvaise partition.
+  if (!trame) {
+    const ready = await takePrefetched(username);
+    if (ready) {
+      await chrome.storage.session.set({ cachedTrame: { username, trame, payload: ready } });
+      void prefetchNext(); // la réserve est consommée : on refait le plein
+      return ready;
+    }
+  }
   const q = trame ? `&trame=${encodeURIComponent(trame)}` : "";
   const { status, json } = await api(`/api/instagram/trame?username=${encodeURIComponent(username)}${q}`);
   if (status !== 200 || !json?.steps) return null;
   await chrome.storage.session.set({ cachedTrame: { username, trame, payload: json } });
   return json;
+}
+
+/** Au-delà, la réserve porte des compteurs de quota périmés : on la jette. */
+const PREFETCH_TTL_MS = 5 * 60 * 1000;
+
+/** La réserve, si elle porte bien ce prospect ET qu'elle est encore fraîche. */
+async function takePrefetched(username) {
+  const { prefetched } = await chrome.storage.session.get("prefetched");
+  if (!prefetched || prefetched.username !== username) return null;
+  await chrome.storage.session.remove("prefetched");
+  if (Date.now() - (prefetched.at ?? 0) > PREFETCH_TTL_MS) return null;
+  return prefetched.payload;
+}
+
+/**
+ * Préchargement spéculatif du prospect suivant.
+ *
+ * Pendant qu'on écrit à @a, on charge déjà la trame de @b — sa partition, son
+ * fait concurrentiel, sa maquette. Sur une session de 50 DM, ce sont 50 fois
+ * trois secondes d'attente qui disparaissent : ce sont ces trois secondes qui
+ * font ouvrir un autre onglet, et l'autre onglet qui coûte la session.
+ *
+ * Lecture seule, une seule requête, et jamais bloquante : si elle échoue ou
+ * arrive trop tard, le chemin normal reprend exactement comme avant.
+ */
+async function prefetchNext() {
+  try {
+    const { status, json } = await api("/api/instagram/queue");
+    const next = status === 200 ? json.next?.[0]?.username : null;
+    if (!next) return;
+    const { prefetched } = await chrome.storage.session.get("prefetched");
+    if (prefetched?.username === next) return; // déjà en réserve
+    const r = await api(`/api/instagram/trame?username=${encodeURIComponent(next)}`);
+    if (r.status !== 200 || !r.json?.steps) return;
+    await chrome.storage.session.set({ prefetched: { username: next, payload: r.json, at: Date.now() } });
+  } catch { /* le préchargement ne doit jamais faire tomber le service worker */ }
 }
 
 /** Compte émetteur à créditer, d'après la trame et le compte détecté. */
@@ -172,7 +224,10 @@ if (chrome.commands) {
         const r = await sendToTab({ type: "ig:insert", text: step.text });
         if (r?.ok && payload.prospect?.id && accountId) {
           const { current } = await chrome.storage.session.get("current");
-          await setArmed({ prospectId: payload.prospect.id, accountId, step: step.step, username: current?.username ?? null });
+          await setArmed({
+            prospectId: payload.prospect.id, accountId, step: step.step,
+            variant: payload.variantId ?? null, username: current?.username ?? null,
+          });
         }
         broadcast({ type: "ig:shortcut", command, ok: !!r?.ok });
       } else if (command === "fix-spelling") {
@@ -202,6 +257,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       case "ig:prospect":
         await chrome.storage.session.set({ current: { username: msg.username, account: msg.account } });
         await chrome.storage.session.remove("cachedTrame"); // autre prospect, autre trame
+        void prefetchNext(); // on charge le suivant pendant qu'il écrit celui-ci
         broadcast({ type: "ig:prospect-changed", username: msg.username, account: msg.account });
         sendResponse({ ok: true });
         break;
@@ -214,6 +270,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // engagée avec ce prospect. Envoyer « standard » par défaut écraserait
         // cette déduction et ferait repartir une conversation site en standard.
         const q = msg.trame ? `&trame=${encodeURIComponent(msg.trame)}` : "";
+        // Réserve du préchargement : même règle qu'ailleurs, elle ne vaut que
+        // sans choix de trame explicite (elle a été constituée sans).
+        if (!msg.trame && username) {
+          const ready = await takePrefetched(username);
+          if (ready) {
+            void prefetchNext();
+            sendResponse({ status: 200, data: ready, context: current || null });
+            break;
+          }
+        }
         const { status, json } = await api(`/api/instagram/trame?username=${encodeURIComponent(username)}${q}`);
         sendResponse({ status, data: json, context: current || null });
         break;
@@ -231,7 +297,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         // avant l'envoi détecté, l'armement ne doit pas fuiter sur le
         // nouveau prospect affiché (ig:sent le vérifiera).
         const { current } = await chrome.storage.session.get("current");
-        await setArmed({ prospectId: msg.prospectId, accountId: msg.accountId, step: msg.step, username: current?.username ?? null });
+        await setArmed({
+          prospectId: msg.prospectId, accountId: msg.accountId, step: msg.step,
+          variant: msg.variant ?? null, username: current?.username ?? null,
+        });
         sendResponse(r);
         break;
       }
@@ -381,7 +450,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         if (!hit) { sendResponse({ ok: false, reason: "no-match" }); break; }
         const accountId = await currentAccountId(payload);
         if (!accountId) { sendResponse({ ok: false, reason: "no-account" }); break; }
-        const result = await logSend({ prospectId, accountId, step: hit.step });
+        const result = await logSend({ prospectId, accountId, step: hit.step, variant: payload.variantId ?? null });
         await chrome.storage.session.remove("cachedTrame"); // le stade a bougé
         broadcast({ type: "ig:logged", ...result, auto: hit.step });
         sendResponse(result);
@@ -462,6 +531,41 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       case "ig:pace": {
         const { paceStamps = [] } = await chrome.storage.local.get("paceStamps");
         sendResponse(NMFUtil.paceState(paceStamps, Date.now()));
+        break;
+      }
+      // sidepanel : sparring — l'IA joue le prospect. Aucune écriture.
+      case "ig:spar": {
+        const { status, json } = await api("/api/instagram/spar", {
+          method: "POST",
+          body: JSON.stringify({
+            metier: msg.metier ?? "", ville: msg.ville ?? "", step: msg.step ?? null,
+            stepText: msg.stepText ?? null, history: msg.history ?? "", message: msg.message ?? "",
+          }),
+        });
+        sendResponse({ status, data: json });
+        break;
+      }
+      // sidepanel : accroche vivante — M1 réécrit autour de ce que sa page montre.
+      case "ig:hook": {
+        const { status, json } = await api("/api/instagram/hook", {
+          method: "POST",
+          body: JSON.stringify({
+            username: msg.username, bio: msg.bio ?? "", posts: msg.posts ?? [], trame: msg.trame ?? null,
+          }),
+        });
+        sendResponse({ status, data: json });
+        break;
+      }
+      // sidepanel : mode chasse — capture le profil affiché en prospect scoré.
+      case "ig:capture": {
+        const { status, json } = await api("/api/instagram/capture", {
+          method: "POST",
+          body: JSON.stringify({ username: msg.username, ville: msg.ville ?? "" }),
+        });
+        // Le prospect existe désormais : la trame en cache dit encore
+        // « hors base », elle doit être rejouée.
+        if (status === 200) await chrome.storage.session.remove("cachedTrame");
+        sendResponse({ status, data: json });
         break;
       }
       // sidepanel : la journée en chiffres (carte de clôture). Agrégé, aucun

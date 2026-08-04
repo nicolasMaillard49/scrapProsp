@@ -19,6 +19,22 @@ export interface CompetitorLine {
   isSelf: boolean;
 }
 
+/**
+ * La fiche Maps DU PROSPECT, quand le scrape l'a retrouvé.
+ *
+ * Le même scrape qui sert à le classer rapporte sa note, ses avis, son
+ * téléphone et son adresse — la donnée qui manque à sa maquette et qu'aucune
+ * API Instagram ne donnera jamais. Un scrape, deux livrables.
+ */
+export interface SelfListing {
+  rank: number;
+  name: string;
+  rating: number | null;
+  reviews: number | null;
+  phone: string | null;
+  address: string | null;
+}
+
 export interface IgCompetitorReport {
   metier: string;
   ville: string;
@@ -28,6 +44,8 @@ export interface IgCompetitorReport {
   adsCount: number;
   sponsoredCount: number;
   competitors: CompetitorLine[];
+  /** Sa propre fiche Maps, si le scrape l'a retrouvée (sinon null). */
+  self: SelfListing | null;
 }
 
 interface ScraperComp {
@@ -139,6 +157,19 @@ export async function buildCompetitorReport(
     isSelf: selfRank === i + 1,
   }));
 
+  const num = (v: string | undefined) => (v ? Number(String(v).replace(",", ".")) || null : null);
+  const selfRow = selfRank !== null ? competitors[selfRank - 1] : null;
+  const self: SelfListing | null = selfRow
+    ? {
+        rank: selfRank!,
+        name: selfRow.name,
+        rating: num(selfRow.rating),
+        reviews: selfRow.reviews ? parseInt(selfRow.reviews, 10) || null : null,
+        phone: (selfRow.phone ?? "").trim() || null,
+        address: (selfRow.address ?? "").trim() || null,
+      }
+    : null;
+
   return {
     metier,
     ville,
@@ -148,5 +179,6 @@ export async function buildCompetitorReport(
     adsCount: signals.filter((s) => s !== "non").length,
     sponsoredCount: signals.filter((s) => s === "sponso").length,
     competitors: lines,
+    self,
   };
 }

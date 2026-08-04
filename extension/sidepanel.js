@@ -144,12 +144,23 @@ function render() {
   // qu'aucun prospect n'est chargé, la trame est générique et rien n'est
   // journalisable — autant pouvoir le débloquer soi-même.
   $("manual").hidden = !!p;
+  // Le profil est identifié mais absent de la base : c'est le seul cas où
+  // capter a un sens. Sans pseudo, il n'y a rien à capter ; avec prospect,
+  // c'est déjà fait.
+  $("capture").hidden = !!p || !(username || state.manual);
+  renderWarmup();
+  renderFact();
   renderDemo();
   renderTrameSwitch();
   renderRail();
   renderAccount();
   renderTrame();
   renderStagePicker();
+  // L'accroche vivante ne concerne que le premier message : au-delà, la
+  // conversation a déjà commencé et il n'y a plus rien à personnaliser.
+  const first = /^[MS]1$/.test(data.nextStep ?? "");
+  $("hookWrap").hidden = !first;
+  if (!first) $("hookOut").innerHTML = "";
 }
 
 // ── Métronome de chauffe ───────────────────────────────────────────────────
@@ -178,6 +189,101 @@ async function refreshPace() {
   // rebours : on se demande s'il tourne encore.
   clearTimeout(paceTimer);
   paceTimer = setTimeout(refreshPace, 1000);
+}
+
+// ── Réchauffage passif ─────────────────────────────────────────────────────
+// Un DM de relance dans un fil froid tombe dans les demandes. Une vue de story
+// vingt minutes avant le remonte dans SA tête et dans l'algorithme. Le geste le
+// plus rentable de la prospection Instagram n'est pas un message — et aucun
+// outil ne le prescrit.
+//
+// L'extension ne clique JAMAIS sur Instagram : elle dit quoi faire, l'humain le
+// fait. C'est la même règle que « elle n'envoie jamais ».
+
+const WARMUP_GESTES = [
+  "Ouvre son profil et regarde sa story.",
+  "Like son dernier post — un seul, pas trois.",
+];
+
+async function warmupDone(username) {
+  if (!username) return false;
+  const { warmups = {} } = await chrome.storage.local.get("warmups");
+  return warmups[username] === NMFUtil.parisDay(new Date());
+}
+
+async function markWarmup(username) {
+  const { warmups = {} } = await chrome.storage.local.get("warmups");
+  delete warmups[username];
+  warmups[username] = NMFUtil.parisDay(new Date());
+  const keys = Object.keys(warmups);
+  for (const old of keys.slice(0, Math.max(0, keys.length - 400))) delete warmups[old];
+  await chrome.storage.local.set({ warmups });
+}
+
+/** Une relance arrive : il a été contacté, il n'a jamais répondu. */
+function warmupApplies(p) {
+  if (!p || !p.stage || p.stage === "perdu" || p.stage === "call_booke") return false;
+  if ((p.reply_count ?? 0) > 0) return false; // il parle : le fil est déjà chaud
+  if (!p.last_dm_at) return false;
+  const h = (Date.now() - Date.parse(p.last_dm_at)) / 3600000;
+  return h >= 12; // pas le jour même : on ne réchauffe pas ce qu'on vient d'envoyer
+}
+
+async function renderWarmup() {
+  const p = state.data?.prospect;
+  const el = $("warmup");
+  el.hidden = !warmupApplies(p);
+  if (el.hidden) return;
+  const done = await warmupDone(p.username);
+  el.className = done ? "done" : "";
+  el.innerHTML = `<div class="lead">Avant de relancer</div>
+    <p>${esc(WARMUP_GESTES.join(" ")) }</p>
+    ${done ? `<p class="muted" style="margin-top:6px">Fait aujourd'hui ✓</p>`
+           : `<div class="row"><button class="quiet" id="warmupDone">C'est fait</button></div>`}`;
+  if (!done) {
+    $("warmupDone").addEventListener("click", async () => {
+      await markWarmup(p.username);
+      renderWarmup();
+    });
+  }
+}
+
+/**
+ * Ce qu'il ne sait pas sur lui-même.
+ *
+ * L'app sait classer le prospect sur Google Maps et voir qui achète des Ads
+ * sur sa requête. Cette information vivait dans le dashboard web — c'est-à-dire
+ * NULLE PART au moment où on écrit le message. Sa trame vend un service ;
+ * cette ligne-là vend un problème qu'il ignore.
+ *
+ * Au-delà de 90 jours le fait est grisé : un classement Google de six mois
+ * n'est plus un fait, c'est un souvenir — et se faire corriger par le prospect
+ * sur son propre métier coûte plus cher que se taire.
+ */
+const FACT_STALE_DAYS = 90;
+
+function renderFact() {
+  const f = state.data?.fact;
+  const el = $("fact");
+  el.hidden = !f;
+  if (!f) return;
+  const days = Math.floor((Date.now() - Date.parse(f.checkedAt)) / 86400000);
+  const stale = !(days >= 0) || days > FACT_STALE_DAYS;
+  el.className = stale ? "stale" : "";
+  el.innerHTML = `<p>${esc(f.text)}</p>
+    <div class="meta">
+      <button class="quiet" id="factCopy">Copier</button>
+      <span class="age">${stale ? `relevé il y a ${esc(days)} j — à revérifier` : `relevé ${esc(NMFUtil.sinceLabel(f.checkedAt))}`}</span>
+    </div>`;
+  $("factCopy").addEventListener("click", async (e) => {
+    try {
+      await navigator.clipboard.writeText(f.text);
+      e.target.textContent = "Copié ✓";
+      setTimeout(() => { e.target.textContent = "Copier"; }, 1200);
+    } catch {
+      $("error").textContent = "Copie refusée — clique dans le panneau puis réessaie.";
+    }
+  });
 }
 
 /**
@@ -355,6 +461,85 @@ function bindStepButtons() {
   }
 }
 
+// ── Accroche vivante ───────────────────────────────────────────────────────
+// La trame envoie le même M1 à tout le monde. Or le taux de réponse à froid se
+// joue entièrement sur la première ligne : « vu votre réalisation de la semaine
+// dernière » n'est pas de la politesse, c'est la preuve qu'un humain a regardé.
+//
+// La variante reste assez proche de l'accroche standard pour que `matchStep` la
+// rattache à l'étape — donc elle est journalisée comme une accroche normale, et
+// ni le stade ni le quota ne décrochent.
+
+async function runHook() {
+  const btn = $("hook");
+  if (btn.disabled) return;
+  const step = state.data?.nextStep;
+  if (!/^[MS]1$/.test(step ?? "")) {
+    $("error").textContent = "L'accroche vivante ne vaut que pour le premier message.";
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Lecture…";
+  try {
+    // On lit la page AU MOMENT du clic : c'est ce qui est à l'écran qui compte.
+    const snap = await toTab({ type: "ig:profile" });
+    if (!snap || snap.reason) { $("error").textContent = tabError(snap); return; }
+    if (!snap.bio && !(snap.posts ?? []).length) {
+      $("error").textContent = "Rien à lire ici — ouvre son PROFIL (pas la conversation).";
+      return;
+    }
+    btn.textContent = "Rédaction…";
+    const r = await chrome.runtime.sendMessage({
+      type: "ig:hook",
+      username: state.username,
+      bio: snap.bio,
+      posts: snap.posts,
+      trame: state.data?.trame ?? null,
+    });
+    if (r?.status !== 200) { $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`; return; }
+    $("error").textContent = "";
+    showHooks(r.data.variants ?? [], r.data.step);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Accroche vivante";
+  }
+}
+
+function showHooks(list, step) {
+  if (!list.length) { $("error").textContent = "Aucune variante exploitable — l'accroche standard reste la bonne."; return; }
+  $("hookOut").innerHTML = list
+    .map((v, i) => `<div class="card">
+        <div class="tag">${esc(v.label)}</div>
+        <p>${esc(v.text)}</p>
+        <div class="row">
+          <button data-hk-copy="${i}">Copier</button>
+          <button class="primary" data-hk-insert="${i}">Insérer</button>
+        </div>
+      </div>`)
+    .join("");
+
+  for (const b of $("hookOut").querySelectorAll("[data-hk-copy]")) {
+    b.addEventListener("click", () => {
+      navigator.clipboard.writeText(list[Number(b.dataset.hkCopy)].text);
+      b.textContent = "Copié ✓"; setTimeout(() => (b.textContent = "Copier"), 1200);
+    });
+  }
+  for (const b of $("hookOut").querySelectorAll("[data-hk-insert]")) {
+    b.addEventListener("click", async () => {
+      // Le texte n'est PLUS celui de l'étape : on désarme, exactement comme
+      // pour une reformulation. C'est `matchStep` qui rattachera l'envoi à
+      // l'accroche — et s'il n'y arrive pas, mieux vaut ne rien journaliser
+      // que de journaliser la mauvaise étape.
+      const res = await insertRaw(list[Number(b.dataset.hkInsert)].text);
+      $("error").textContent = res?.ok
+        ? `Inséré — ${esc(step ?? "accroche")} sera reconnue à l'envoi.`
+        : tabError(res);
+    });
+  }
+}
+
+$("hook").addEventListener("click", runHook);
+
 /**
  * Insertion NON journalisable (réponse IA, ou trame sans émetteur connu).
  * Désarme d'abord : un armement laissé par une insertion précédente ferait
@@ -383,7 +568,10 @@ async function insert(step) {
       : "Inséré SANS journalisation (prospect hors base).";
     return;
   }
-  const r = await chrome.runtime.sendMessage({ type: "ig:arm", prospectId: p.id, accountId, step, text: s.text });
+  const r = await chrome.runtime.sendMessage({
+    type: "ig:arm", prospectId: p.id, accountId, step, text: s.text,
+    variant: data.variantId ?? null,
+  });
   if (!r?.ok) { $("error").textContent = tabError(r); return; }
   $("error").textContent = "";
   // La bulle part vers la droite : le geste à l'écran raconte ce qui vient de
@@ -391,7 +579,7 @@ async function insert(step) {
   // animations.
   const bubble = $("heroBubble");
   if (bubble && step === data.nextStep) bubble.classList.add("sent");
-  state.lastArm = { prospectId: p.id, accountId, step };
+  state.lastArm = { prospectId: p.id, accountId, step, variant: data.variantId ?? null };
   // Filet § 7 : si aucun ig:logged sous 30 s après l'insertion, bouton manuel.
   // Délai généreux : un délai court faisait apparaître le bouton « Envoyé »
   // pendant la simple relecture du message, avant même qu'il soit parti,
@@ -802,6 +990,70 @@ function showStage(v) {
   });
 }
 
+// ── Sparring ───────────────────────────────────────────────────────────────
+// L'outil aide à envoyer ; il ne rend pas meilleur. C'est le seul adversaire
+// qu'on peut affronter cinquante fois par jour sans brûler un vrai prospect.
+// Rien de ce qui se passe ici n'est journalisé — s'entraîner ne doit jamais
+// faire mentir les compteurs.
+
+let sparThread = [];   // { from: "moi" | "lui", text }
+let sparScores = [];
+
+function renderSpar() {
+  $("sparOut").innerHTML = sparThread
+    .map((l) => `<div class="spar-line ${l.from === "moi" ? "me" : "him"}">${esc(l.text)}</div>` +
+      (l.note ? `<div class="spar-note"><b>${esc(l.score)}/10</b> — ${esc(l.note)}</div>` : ""))
+    .join("");
+  $("sparScore").textContent = sparScores.length
+    ? `moyenne ${(sparScores.reduce((a, b) => a + b, 0) / sparScores.length).toFixed(1)}/10 sur ${sparScores.length}`
+    : "";
+  $("sparOut").scrollTop = $("sparOut").scrollHeight;
+}
+
+$("sparReset").addEventListener("click", () => {
+  sparThread = [];
+  sparScores = [];
+  renderSpar();
+});
+
+$("sparSend").addEventListener("click", async () => {
+  const btn = $("sparSend");
+  const message = $("sparText").value.trim();
+  if (!message || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    const p = state.data?.prospect;
+    const r = await chrome.runtime.sendMessage({
+      type: "ig:spar",
+      // On s'entraîne sur le prospect à l'écran quand il y en a un : le métier
+      // change complètement les objections qu'on va se prendre.
+      metier: p?.metier ?? "",
+      ville: p?.ville ?? "",
+      step: state.data?.nextStep ?? null,
+      stepText: state.data?.steps?.find((s) => s.step === state.data.nextStep)?.text ?? null,
+      history: sparThread.map((l) => `${l.from}: ${l.text}`).join("\n"),
+      message,
+    });
+    if (r?.status !== 200) { $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`; return; }
+    $("error").textContent = "";
+    const t = r.data.turn;
+    sparThread.push({ from: "moi", text: message, score: t.score, note: t.note });
+    sparThread.push({ from: "lui", text: t.reply });
+    sparScores.push(t.score);
+    $("sparText").value = "";
+    renderSpar();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Envoyer";
+  }
+});
+
+$("sparText").addEventListener("keydown", (e) => {
+  // Entrée envoie, Maj+Entrée saute une ligne — comme dans un vrai DM.
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("sparSend").click(); }
+});
+
 // ── Mes liens ──────────────────────────────────────────────────────────────
 // Le geste par défaut est COPIER, pas ouvrir : ces liens finissent dans un DM
 // qu'on écrit à la main. Rien n'est inséré d'office dans le champ — la trame
@@ -851,6 +1103,7 @@ async function loadQueue() {
   $("queueInfo").textContent = remaining ? `${remaining} sur ${total} à contacter` : "file du jour terminée ✓";
   $("nextProspect").disabled = !next?.length;
   renderCard(remaining);
+  renderWatching(r.data.watching);
   return next?.[0] ?? null;
 }
 
@@ -881,6 +1134,32 @@ async function renderCard(remaining) {
         ? `<b>${esc(d.streak)} jours d'affilée</b>${d.record > d.streak ? ` — record ${esc(d.record)}` : " — c'est ton record"}`
         : "Premier jour de la série."
     }</div>`;
+}
+
+/**
+ * « Il regarde sa maquette, maintenant. »
+ *
+ * Le radar existant liste les conversations qui attendent une réponse. Celui-ci
+ * passe AVANT : un prospect sur sa propre page, à cet instant, est la meilleure
+ * raison d'écrire de toute la journée. Un clic ouvre son profil.
+ */
+function renderWatching(rows) {
+  const el = $("watching");
+  const list = Array.isArray(rows) ? rows : [];
+  el.hidden = !list.length;
+  if (!list.length) return;
+  el.innerHTML = list
+    .map((w) => `<button class="watch" data-watch="${esc(w.username)}">
+        <b>@${esc(w.username)}</b> regarde sa maquette
+        <span>${esc(NMFUtil.sinceLabel(w.at))}${w.seconds >= 20 ? ` · ${esc(Math.round(w.seconds))} s dessus` : ""}</span>
+      </button>`)
+    .join("");
+  for (const b of el.querySelectorAll("[data-watch]")) {
+    b.addEventListener("click", async () => {
+      const r = await toTab({ type: "ig:navigate", url: `https://www.instagram.com/${b.dataset.watch}/` });
+      if (!r?.ok) $("error").textContent = tabError(r);
+    });
+  }
 }
 
 $("nextProspect").addEventListener("click", async () => {
@@ -949,6 +1228,39 @@ $("radarToggle").addEventListener("click", () => {
     });
   }
 });
+
+// ── Mode chasse ────────────────────────────────────────────────────────────
+// Le hasard est le meilleur scraper de la journée : un commentaire, une
+// suggestion, un abonné d'un concurrent. Jusqu'ici tout ça se perdait sur la
+// phrase « hors base, rien ne sera journalisé ».
+
+$("captureRun").addEventListener("click", async () => {
+  const btn = $("captureRun");
+  const username = state.username || state.manual;
+  if (!username || btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = "Capture…";
+  try {
+    const r = await chrome.runtime.sendMessage({
+      type: "ig:capture", username, ville: $("captureVille").value.trim(),
+    });
+    if (r?.status !== 200) {
+      $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`;
+      return;
+    }
+    $("error").textContent = r.data.created
+      ? `@${username} capté et scoré — la trame est journalisable.`
+      : `@${username} était déjà en base.`;
+    $("captureVille").value = "";
+    await refresh(username);
+    loadQueue();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Capter ce profil";
+  }
+});
+
+$("captureVille").addEventListener("keydown", (e) => { if (e.key === "Enter") $("captureRun").click(); });
 
 async function loadManual() {
   const u = $("manualUser").value.replace(/^@/, "").trim().toLowerCase();

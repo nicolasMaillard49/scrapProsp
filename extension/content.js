@@ -208,6 +208,9 @@
           username: msg.username || NMFDetect.currentUsername(location, document),
         }),
       });
+    } else if (msg?.type === "ig:profile") {
+      // Matière de l'accroche vivante : uniquement du texte déjà à l'écran.
+      sendResponse(NMFDetect.profileSnapshot(document));
     } else if (msg?.type === "ig:sas") {
       setSas(msg.on === true);
       sendResponse({ ok: true, on: msg.on === true });

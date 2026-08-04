@@ -1,4 +1,5 @@
 import { demoMetadata, StaticDemoView } from "@/app/lib/demo";
+import IgDemoTracker from "@/app/components/IgDemoTracker";
 import { getInstagramProspectByCode } from "@/app/lib/instagramDemo";
 import type { Metadata } from "next";
 
@@ -22,5 +23,14 @@ export default async function InstagramDemoPage({
   const { code } = await params;
   const { style } = await searchParams;
   const prospect = await getInstagramProspectByCode(code);
-  return <StaticDemoView prospect={prospect} style={style} />;
+  return (
+    <>
+      <StaticDemoView prospect={prospect} style={style} />
+      {/* Traceur invisible : « il regarde sa maquette MAINTENANT » est le
+          signal le plus fort du tunnel, et c'etait le seul qu'on ne voyait
+          pas. Il n'ajoute rien a l'ecran — une maquette envoyee en DM ne doit
+          pas ressembler a une page de vente. */}
+      {prospect && <IgDemoTracker prospectId={prospect.id} />}
+    </>
+  );
 }

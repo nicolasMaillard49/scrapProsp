@@ -26,6 +26,13 @@ const EXT_PATHS = new Set([
   // Carte de clôture : chiffres AGRÉGÉS du jour, aucun pseudo. C'est ce qui
   // la rend ouvrable ici, là où /kpi/day (nominatif) reste fermé.
   "/api/instagram/session",
+  // Mode chasse : capture d'un profil croisé au hasard. Écrit, mais n'écrit
+  // QUE des prospects (jamais un envoi, jamais un stade) et est idempotent.
+  "/api/instagram/capture",
+  // Accroche vivante : lecture seule, n'ecrit rien, ne journalise rien.
+  "/api/instagram/hook",
+  // Sparring : n'ecrit rien, ne journalise rien, ne touche aucun compteur.
+  "/api/instagram/spar",
 ]);
 
 export function isExtRequestAllowed(

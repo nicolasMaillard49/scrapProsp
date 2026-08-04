@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { sendTelegram } from "@/app/lib/notify";
 import { warmupCaps, stageForStep, nextFollowup, VALID_STEPS, isAccrocheStep, type AccountStatus } from "@/app/lib/igPipeline";
+import { creditSent } from "@/app/lib/igVariants";
 import { parisDayStart } from "@/app/lib/igCockpit";
 import { markSelectionDone } from "@/app/lib/igSelection";
 
@@ -11,6 +12,8 @@ interface Body {
   prospect_id?: string;
   account_id?: string;
   step?: string;
+  /** Variante d'accroche réellement envoyée (bandit, cf. igVariants). */
+  variant?: string;
   /**
    * Journalisation d'un message DÉJÀ parti de la main de Nicolas (extension
    * Chrome). Le plafond ne peut alors plus servir de refus : le DM existe,
@@ -116,7 +119,16 @@ export async function POST(req: NextRequest) {
 
   // L'accroche vide la ligne correspondante de la sélection du jour : la liste
   // se solde toute seule au fil des envois, sans clic supplémentaire.
-  if (isAccrocheStep(step)) await markSelectionDone(prospect_id, now);
+  if (isAccrocheStep(step)) {
+    await markSelectionDone(prospect_id, now);
+    // Quelle formulation est partie : sans cette trace, une réponse arrivée
+    // trois jours plus tard ne peut être créditée à aucune variante.
+    const variant = (body.variant ?? "").trim();
+    if (variant) {
+      await supabase.from("instagram_prospects").update({ accroche_variant: variant }).eq("id", prospect_id);
+      await creditSent(variant);
+    }
+  }
 
   // Alertes Telegram au franchissement des seuils (80 % puis 100 % du plafond jour).
   const newDay = day + 1;

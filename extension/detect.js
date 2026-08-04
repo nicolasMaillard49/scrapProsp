@@ -511,8 +511,55 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     return () => { done = true; win.clearInterval(id); };
   }
 
+  /* ────────────────────────────────────────────────────────────
+   * Ce que la page du profil raconte — matiere de l'accroche vivante.
+   *
+   * La trame envoie le meme M1 a tout le monde. Or le taux de reponse a froid
+   * se joue entierement sur la premiere ligne : « vu votre realisation de la
+   * semaine derniere » n'est pas de la politesse, c'est la preuve qu'un humain
+   * a regarde. A la main c'est tenable sur 5 prospects par jour ; sur 50 il
+   * faut lire la page.
+   *
+   * On ne lit QUE du texte deja affiche a l'ecran : la bio, et les
+   * descriptions alternatives des vignettes (qu'Instagram remplit lui-meme).
+   * Aucune requete, aucune API privee, aucun scroll provoque.
+   * ──────────────────────────────────────────────────────────── */
+
+  /** Alt d'Instagram : « Photo par X le 3 juin 2026. Peut contenir : … ». */
+  const ALT_PREFIX = /^(photo|image|vidéo|video|reel)[^.]*\.\s*/i;
+  const ALT_NOISE = /^(photo de profil|profile picture|.*'s profile picture)/i;
+
+  function profileSnapshot(doc = document, opts = {}) {
+    const d = doc || document;
+    const main = d.querySelector("main") || d.body;
+    if (!main) return { bio: "", posts: [] };
+
+    // La bio vit dans l'en-tete du profil, sous le nom. On prend le plus long
+    // bloc de texte de la section d'en-tete : c'est elle, dans toutes les
+    // variantes de mise en page qu'Instagram a fait defiler.
+    const header = main.querySelector("header") || main;
+    let bio = "";
+    for (const el of header.querySelectorAll("span, h1, div")) {
+      if (el.children.length) continue; // feuilles seulement : pas de doublon parent/enfant
+      const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (t.length > bio.length && t.length <= 400 && !/^\d/.test(t)) bio = t;
+    }
+
+    const posts = [];
+    for (const img of main.querySelectorAll("img[alt]")) {
+      const alt = (img.getAttribute("alt") || "").replace(/\s+/g, " ").trim();
+      if (!alt || ALT_NOISE.test(alt)) continue;
+      const t = alt.replace(ALT_PREFIX, "").trim();
+      if (t.length < 12 || posts.includes(t)) continue;
+      posts.push(t.slice(0, 240));
+      if (posts.length >= (opts.max ?? 4)) break;
+    }
+    return { bio: bio.slice(0, 400), posts };
+  }
+
   return {
     currentUsername, composerNode, loggedInAccount, watchSend,
+    profileSnapshot,
     usernameFromHref, lastIncomingText, conversationThread, insertIntoComposer,
     messageScroller,
     inboxWaiting, openInboxRow,

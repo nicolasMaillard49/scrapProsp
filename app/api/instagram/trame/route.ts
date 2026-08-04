@@ -3,6 +3,9 @@ import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { buildTrame, TRAME_COLUMNS, type TrameProspect } from "@/app/lib/igTrame";
 import { getAccountsWithCounters } from "@/app/lib/igCockpit";
 import { resolveTrame } from "@/app/lib/igTrameChoice";
+import { getMapsFacts } from "@/app/lib/igMaps";
+import { activeVariants, chooseVariant } from "@/app/lib/igVariants";
+import { nextStepFor } from "@/app/lib/igPipeline";
 
 export const dynamic = "force-dynamic";
 
@@ -38,9 +41,25 @@ export async function GET(req: NextRequest) {
     const base = (process.env.NEXT_PUBLIC_DEMO_BASE_URL ?? "").replace(/\/$/, "") || req.nextUrl.origin;
     const prospect = (prospectRes.data as TrameProspect | null) ?? null;
 
-    const trame = await resolveTrame(req.nextUrl.searchParams.get("trame"), prospect?.id ?? null);
+    // La trame déroulée et le fait concurrentiel se cherchent en parallèle :
+    // ni l'un ni l'autre n'a besoin de l'autre, et le panneau les attend
+    // ensemble. `getMapsFacts` renvoie null si la migration 024 n'est pas
+    // jouée — le panneau n'affiche alors simplement pas le bloc.
+    const [trame, facts] = await Promise.all([
+      resolveTrame(req.nextUrl.searchParams.get("trame"), prospect?.id ?? null),
+      prospect ? getMapsFacts(prospect.id) : Promise.resolve(null),
+    ]);
 
-    const payload = buildTrame(prospect, base, trame);
+    // Le tirage n'a lieu QUE si l'accroche est l'étape à envoyer : au-delà, la
+    // conversation est commencée et changer sa première ligne n'a plus de sens.
+    // Un prospect déjà accroché garde la variante qui lui a été envoyée.
+    const step = nextStepFor(prospect?.stage ?? null, trame);
+    const variant =
+      prospect && step && /^[MS]1$/.test(step)
+        ? chooseVariant(await activeVariants(step))
+        : null;
+
+    const payload = buildTrame(prospect, base, trame, facts, variant);
     return NextResponse.json({
       ...payload,
       accounts: accounts.map((a) => ({

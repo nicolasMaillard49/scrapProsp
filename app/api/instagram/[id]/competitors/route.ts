@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { buildCompetitorReport } from "@/app/lib/igCompetitor";
+import { saveMapsFacts } from "@/app/lib/igMaps";
 
 export const dynamic = "force-dynamic";
 // Le scrape Maps + les checks de tag peuvent prendre plusieurs dizaines de secondes.
@@ -35,6 +36,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       { metier, ville, fullName: p.full_name, username: p.username },
       { full },
     );
+    // Un scrape, deux livrables : le rapport qu'on vient de demander ET la
+    // fiche du prospect, qui remplit sa maquette et arme la phrase du panneau.
+    // Écrit après coup, sans await bloquant l'utile : un échec d'écriture ne
+    // doit pas transformer un rapport réussi en erreur à l'écran.
+    void saveMapsFacts(id, report);
     return NextResponse.json(report);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });

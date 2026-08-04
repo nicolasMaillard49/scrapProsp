@@ -56,6 +56,9 @@ export function middleware(req: NextRequest) {
     // — consommé par l'Apps Script du Google Sheet de tracking.
     pathname === "/api/instagram/kpi" ||
     pathname === "/api/demo/track" ||
+    // Jumeau du precedent pour les maquettes Instagram (/di) : appele depuis
+    // le navigateur DU PROSPECT, donc forcement ouvert.
+    pathname === "/api/instagram/demo-view" ||
     pathname === "/api/stripe/webhook" ||
     pathname.startsWith("/_next/")
   ) {

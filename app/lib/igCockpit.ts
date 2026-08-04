@@ -4,6 +4,7 @@
 import { supabase } from "./supabase";
 import { sendTelegram } from "./notify";
 import { warmupCaps, isAccrocheStep, ACCROCHE_STEPS, type AccountStatus, type Caps, STAGE_LABEL, type Stage } from "./igPipeline";
+import { activeVariants, verdict, rate } from "./igVariants";
 
 export interface AccountRow {
   id: string;
@@ -284,6 +285,19 @@ export async function sendCockpitDigest(now = new Date(), selection?: DigestSele
     .filter(([, n]) => n > 0)
     .map(([s, n]) => `${n} ${STAGE_LABEL[s] ?? s}`);
   if (funnelParts.length) lines.push(`📈 ${funnelParts.join(" · ")}`);
+
+  // Le verdict du bandit, quand il y en a un. Il ne parle que si deux variantes
+  // sont matures ET nettement écartées : annoncer un gagnant sur du bruit
+  // ferait remplacer une accroche qui marche.
+  const pct = (x: number) => `${Math.round(x * 100)} %`;
+  for (const step of ["M1", "S1"]) {
+    const v = verdict(await activeVariants(step));
+    if (!v) continue;
+    lines.push(
+      `🧪 <b>${step} — « ${v.winner.label} » gagne</b> : ${pct(rate(v.winner))} de réponse ` +
+        `(${v.winner.replied}/${v.winner.sent}) contre ${pct(rate(v.runnerUp))} pour « ${v.runnerUp.label} ».`,
+    );
+  }
 
   const text = lines.join("\n");
   await sendTelegram(text);

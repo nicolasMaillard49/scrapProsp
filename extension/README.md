@@ -28,6 +28,131 @@ détecté dans l'app (quota, stade, relance).
 - **Raccourcis** : `Alt+I` insère l'étape à envoyer, `Alt+O` corrige le champ,
   `Alt+N` passe au suivant. Ils fonctionnent même panneau fermé.
 
+## ⚠️ Migrations à jouer
+
+Trois migrations SQL accompagnent ces fonctionnalités. **Tout marche sans
+elles** — chaque accès retombe silencieusement sur « pas de données » — mais
+les fonctionnalités concernées restent muettes tant qu'elles ne sont pas
+jouées dans Supabase :
+
+| Migration | Débloque |
+|---|---|
+| `024-ig-maps-facts` | la fiche Google Maps du prospect : le bloc « ce qu'il ne sait pas » et les vraies note/avis/téléphone dans sa maquette |
+| `025-ig-demo-views` | « il regarde sa maquette maintenant » (bandeau + notification Telegram) |
+| `026-ig-trame-variants` | la trame qui mute (variantes d'accroche en concurrence) |
+
+## Ce qu'il ne sait pas
+
+Sous l'en-tête : `« esthéticienne Angers » : vous êtes 14e sur 20, et 3
+concurrents paient des Google Ads dessus.` Prêt à coller.
+
+L'app savait déjà classer un prospect sur Maps et voir qui achète des Ads —
+mais ça vivait dans le dashboard web, c'est-à-dire **nulle part au moment où
+on écrit**. Le même scrape sert désormais deux fois : le fait dans le panneau,
+et les vraies données dans la maquette. Il est alimenté en lançant un rapport
+concurrentiel sur le prospect (`/api/instagram/[id]/competitors`).
+
+Au-delà de 90 jours le fait est grisé : un classement Google de six mois n'est
+plus un fait, c'est un souvenir — et se faire corriger par le prospect sur son
+propre métier coûte plus cher que se taire.
+
+## Il regarde sa maquette, maintenant
+
+Bandeau en haut du panneau + notification Telegram. Un clic ouvre son profil.
+
+C'est le signal le plus fort du tunnel et c'était le seul que le système ne
+voyait pas : on envoyait un aperçu, on ne savait jamais s'il avait été
+regardé. Fenêtre de 30 minutes — au-delà ce n'est plus qu'une statistique.
+
+Le temps passé ne compte que si l'onglet est **visible** : un onglet laissé
+ouvert en arrière-plan n'est pas quelqu'un qui regarde.
+
+## L'accroche vivante
+
+Bouton sous la bulle, **uniquement sur le premier message**. Relit son profil
+(bio + descriptions des dernières publications, telles qu'affichées) et
+réécrit l'accroche autour d'**une** observation réelle.
+
+Le taux de réponse à froid se joue entièrement sur la première ligne. À la
+main, c'est tenable sur 5 prospects par jour ; sur 50, il faut lire la page.
+
+La variante reste assez proche de l'accroche standard pour que `matchStep` la
+rattache à l'étape — donc elle est journalisée comme une accroche normale.
+Le prompt refuse les compliments creux, deux observations, les liens, les prix
+et tout ce qui dépasse 220 caractères : une variante hors-clous est **écartée**
+plutôt que proposée.
+
+## Le mode chasse
+
+Un profil hors base affichait « rien ne sera journalisé » — un cul-de-sac.
+C'est maintenant un bouton : **Capter ce profil** l'importe, le score comme
+n'importe quel prospect découvert par hashtag, et la trame devient
+journalisable.
+
+Le hasard est le meilleur scraper de la journée (un commentaire, une
+suggestion, un abonné d'un concurrent) et tout ça se perdait. Idempotent : un
+profil déjà connu est renvoyé tel quel, **sans rien réécrire** — réimporter
+écraserait un métier corrigé à la main pour redonner ce que la source dit
+aujourd'hui.
+
+## Le réchauffage passif
+
+Quand une relance approche (contacté, jamais répondu, dernier DM il y a plus
+de 12 h), le panneau prescrit un **geste**, pas un message : voir sa story,
+liker son dernier post.
+
+Un DM de relance dans un fil froid tombe dans les demandes ; une vue de story
+vingt minutes avant le remonte dans sa tête et dans l'algorithme. **L'extension
+ne clique jamais sur Instagram** — elle dit quoi faire, tu le fais. Même règle
+que « elle n'envoie jamais ».
+
+## Le préchargement
+
+Pendant que tu écris à @a, la trame de @b est déjà chargée. `Alt+N` ouvre le
+suivant et tout est là.
+
+La réserve est jetée au bout de 5 minutes : au-delà elle porte des compteurs
+de quota périmés. Elle n'est utilisée que sans choix de trame explicite —
+elle a été constituée sans, elle servirait sinon la mauvaise partition.
+
+## La trame qui mute
+
+Des variantes d'accroche mises en concurrence (`ig_trame_variants`), tirées
+par un **bandit epsilon-greedy** : la plupart du temps le champion, une fois
+sur cinq une autre. Le verdict tombe dans le digest quotidien.
+
+Pourquoi pas un A/B 50/50 : un A/B fait payer la moitié des accroches au
+perdant pendant toute la durée du test. Ici l'exploration est bornée à 20 %.
+
+Trois garde-fous, parce qu'un faux verdict ferait remplacer une accroche qui
+marche :
+- toute variante sous **30 envois** passe en priorité — sans données, la
+  « meilleure » n'est qu'un accident de petits nombres ;
+- le verdict exige **deux variantes matures** et **5 points d'écart** ;
+- seule la **première** réponse d'un prospect crédite sa variante : le
+  compteur mesure « combien de prospects ont répondu », pas « combien de
+  messages ont été échangés » — sinon une conversation bavarde ferait gagner
+  sa variante toute seule. Un autorépondeur ne crédite rien.
+
+La variante remplace le **texte** de l'accroche, jamais son identifiant : c'est
+toujours `M1`/`S1` qui part, donc stade, dedup et KPI ne bougent pas.
+
+Pour la mettre en route, il suffit d'insérer des lignes dans
+`ig_trame_variants` (`step`, `label`, `text`). Aucune ligne = la trame écrite,
+inchangée.
+
+## Le sparring
+
+Bloc repliable en bas du panneau. L'IA joue le prospect — méfiant, expéditif —
+et note chaque message sur 10 avec une phrase d'analyse.
+
+Ses objections ne sortent pas d'un manuel : ce sont les **refus réellement
+reçus**, relus depuis `ig_replies`. C'est le seul adversaire qu'on peut
+affronter cinquante fois par jour sans brûler un vrai prospect.
+
+Aucune écriture : ni prospect, ni envoi, ni stade. S'entraîner ne doit jamais
+faire mentir les compteurs.
+
 ## Sa maquette
 
 Sous l'en-tête, une ligne porte l'aperçu sur-mesure du prospect

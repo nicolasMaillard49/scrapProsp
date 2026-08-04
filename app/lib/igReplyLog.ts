@@ -6,6 +6,7 @@
 
 import { supabase } from "./supabase";
 import { REPLY_KINDS, type ReplyKind } from "./igPipeline";
+import { creditReplied } from "./igVariants";
 
 export interface LogReplyInput {
   prospect_id: string;
@@ -102,6 +103,14 @@ export async function logReply(input: LogReplyInput): Promise<LogReplyResult> {
     const { data } = await supabase.from("instagram_prospects").select(cols).eq("id", prospectId).single();
     updated = data;
   }
+
+  // Bandit : la PREMIÈRE réponse d'un prospect crédite la variante d'accroche
+  // qui lui a été envoyée. Seulement la première — le compteur mesure « combien
+  // de prospects ont répondu », pas « combien de messages ont été échangés »,
+  // sinon une conversation bavarde ferait gagner sa variante toute seule.
+  // Un autorépondeur n'est pas une réponse humaine : il ne crédite rien.
+  const replyCount = (updated as { reply_count?: number } | null)?.reply_count ?? 0;
+  if (kind !== "autorepondeur" && replyCount <= 1) void creditReplied(prospectId);
 
   return { ok: true, reply, prospect: updated };
 }

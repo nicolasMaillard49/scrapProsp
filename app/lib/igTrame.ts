@@ -6,6 +6,7 @@
 
 import { instagramDmSequence, instagramDmSequenceSite, detectMetier, firstNameOf } from "./instagram";
 import { nextStepFor, type Trame } from "./igPipeline";
+import { mapsHeadline, type MapsFacts } from "./igMaps";
 import { shortCode } from "./links";
 
 export interface TrameProspect {
@@ -36,6 +37,18 @@ export interface TrameStep {
   text: string;
 }
 
+/** Ce que le prospect ignore sur sa propre visibilité — cf. igMaps. */
+export interface TrameFact {
+  /** La phrase, prête à coller. */
+  text: string;
+  /** Classement sur « métier ville » ; null = absent des résultats. */
+  rank: number | null;
+  /** Concurrents qui paient des Google Ads sur la requête. */
+  adsCount: number | null;
+  /** Date du scrape — un fait de six mois ne se colle pas les yeux fermés. */
+  checkedAt: string;
+}
+
 export interface TramePayload {
   prospect: TrameProspect | null;
   steps: TrameStep[];
@@ -44,6 +57,18 @@ export interface TramePayload {
   trame: Trame;
   /** Aperçu sur-mesure du prospect (/di/<code>), vide si prospect hors base. */
   demoLink: string;
+  /**
+   * Le fait qu'il ne connaît pas sur lui-même, quand un rapport concurrentiel
+   * a tourné. `null` sinon — on n'invente jamais un classement.
+   */
+  fact: TrameFact | null;
+  /**
+   * Variante d'accroche tirée pour ce prospect (bandit, cf. igVariants).
+   * `null` = la trame écrite. Le panneau la renvoie à la journalisation :
+   * sans elle, une réponse arrivée trois jours plus tard ne pourrait être
+   * créditée à aucune formulation.
+   */
+  variantId: string | null;
 }
 
 /** Colonnes à sélectionner dans instagram_prospects pour ce payload. */
@@ -54,6 +79,8 @@ export function buildTrame(
   prospect: TrameProspect | null,
   origin: string,
   trame: Trame = "standard",
+  facts: MapsFacts | null = null,
+  variant: { id: string; text: string } | null = null,
 ): TramePayload {
   const sequence = trame === "site" ? instagramDmSequenceSite : instagramDmSequence;
   if (!prospect) {
@@ -66,6 +93,8 @@ export function buildTrame(
       nextStep: trame === "site" ? "S1" : "M1",
       trame,
       demoLink: "",
+      fact: null,
+      variantId: null,
     };
   }
   // Même cascade que PipelineCard (app/instagram/page.tsx) : la profession IA
@@ -76,20 +105,37 @@ export function buildTrame(
     prospect.metier ||
     "";
   const link = origin ? `${origin.replace(/\/$/, "")}/di/${shortCode(prospect.id)}` : "";
+  const steps = sequence(
+    {
+      metier: metierEff,
+      ville: prospect.ville ?? "",
+      bookingPlatform: prospect.booking_platform,
+      firstName: firstNameOf(prospect.full_name),
+      professionIa: prospect.profession_ia,
+    },
+    link,
+  );
+
+  // La variante remplace le TEXTE de l'accroche, jamais son identifiant : c'est
+  // toujours M1 (ou S1) qui part, donc le stade, la dedup et les KPI ne bougent
+  // pas d'un pouce. Une variante qui changerait l'étape casserait tout le reste.
+  const accroche = steps.find((s) => /^[MS]1$/.test(s.step));
+  if (variant && accroche) accroche.text = variant.text;
+
   return {
     prospect,
-    steps: sequence(
-      {
-        metier: metierEff,
-        ville: prospect.ville ?? "",
-        bookingPlatform: prospect.booking_platform,
-        firstName: firstNameOf(prospect.full_name),
-        professionIa: prospect.profession_ia,
-      },
-      link,
-    ),
+    steps,
     nextStep: nextStepFor(prospect.stage, trame),
     trame,
     demoLink: link,
+    fact: facts
+      ? {
+          text: mapsHeadline(facts, metierEff, prospect.ville ?? ""),
+          rank: facts.rank,
+          adsCount: facts.adsCount,
+          checkedAt: facts.checkedAt,
+        }
+      : null,
+    variantId: variant?.id ?? null,
   };
 }

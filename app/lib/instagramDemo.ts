@@ -1,15 +1,24 @@
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import type { TemplateProps } from "@/app/maquette/templates/data";
+import { MAPS_COLUMNS, toFacts } from "@/app/lib/igMaps";
 
 /** Colonnes nécessaires au rendu d'un aperçu Instagram. */
-const SELECT = "username, full_name, metier, ville, phone";
+const BASE_SELECT = "id, username, full_name, metier, ville, phone";
+/** Avec la fiche Maps — refusé tant que la migration 024 n'est pas jouée. */
+const SELECT = `${BASE_SELECT}, ${MAPS_COLUMNS}`;
 
 interface IgRow {
+  id: string;
   username: string;
   full_name: string | null;
   metier: string | null;
   ville: string | null;
   phone: string | null;
+  maps_rating?: number | null;
+  maps_reviews?: number | null;
+  maps_phone?: string | null;
+  maps_address?: string | null;
+  maps_checked_at?: string | null;
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -57,20 +66,28 @@ function placeholders(username: string): { phone: string; rating: number; review
   };
 }
 
-/** Mappe une ligne instagram_prospects vers les props attendues par les templates. */
+/**
+ * Mappe une ligne instagram_prospects vers les props attendues par les
+ * templates. Le RÉEL prime partout où il existe : dès qu'un rapport
+ * concurrentiel a tourné sur ce prospect (migration 024), sa vraie note, ses
+ * vrais avis et son vrai téléphone remplacent le remplissage — une maquette
+ * qui affiche ses 127 avis à lui n'a plus rien à voir avec une maquette.
+ */
 function toTemplateProps(row: IgRow): TemplateProps {
   const faux = placeholders(row.username);
+  const maps = toFacts(row);
   return {
     name: (row.full_name && row.full_name.trim()) || `@${row.username}`,
     metier: row.metier ?? "",
     ville: row.ville ?? "",
-    phone: (row.phone ?? "").trim() || faux.phone,
-    rating: faux.rating,
-    reviews: faux.reviews,
-    // Volontairement pas de rue inventée : une adresse précise et fausse sur
-    // le nom d'un vrai commerce peut envoyer quelqu'un sonner à la mauvaise
-    // porte. « Centre-ville » remplit la mise en page sans rien affirmer.
-    address: row.ville ? `Centre-ville, ${row.ville}` : "Centre-ville",
+    phone: maps?.phone || (row.phone ?? "").trim() || faux.phone,
+    rating: maps?.rating ?? faux.rating,
+    reviews: maps?.reviews ?? faux.reviews,
+    // À défaut d'adresse réelle, volontairement pas de rue inventée : une
+    // adresse précise et fausse sur le nom d'un vrai commerce peut envoyer
+    // quelqu'un sonner à la mauvaise porte. « Centre-ville » remplit la mise
+    // en page sans rien affirmer.
+    address: maps?.address || (row.ville ? `Centre-ville, ${row.ville}` : "Centre-ville"),
   };
 }
 
@@ -78,16 +95,29 @@ function toTemplateProps(row: IgRow): TemplateProps {
  * Récupère un prospect Instagram par préfixe d'UUID (route courte /di/[code]).
  * Même technique de bornage uuid que getProspectByCode (cf. lib/demo).
  */
-export async function getInstagramProspectByCode(code: string): Promise<TemplateProps | null> {
+/** Les props du template + l'identifiant, nécessaire au traceur de vues. */
+export interface IgDemoProspect extends TemplateProps {
+  id: string;
+}
+
+export async function getInstagramProspectByCode(code: string): Promise<IgDemoProspect | null> {
   if (!supabaseConfigured) return null;
   const c = code.toLowerCase();
   if (!/^[0-9a-f]{1,8}$/.test(c)) return null;
   const lo = `${c.padEnd(8, "0")}-0000-0000-0000-000000000000`;
   const next = Number.parseInt(c.padEnd(8, "0"), 16) + 1;
   const hiPrefix = next > 0xffffffff ? null : next.toString(16).padStart(8, "0");
-  let query = supabase.from("instagram_prospects").select(SELECT).gte("id", lo);
-  if (hiPrefix) query = query.lt("id", `${hiPrefix}-0000-0000-0000-000000000000`);
-  const { data } = await query.limit(1);
+  const hi = hiPrefix ? `${hiPrefix}-0000-0000-0000-000000000000` : null;
+  const fetchWith = async (cols: string) => {
+    let q = supabase.from("instagram_prospects").select(cols).gte("id", lo);
+    if (hi) q = q.lt("id", hi);
+    return q.limit(1);
+  };
+  // La fiche Maps d'abord ; si les colonnes n'existent pas encore (migration
+  // 024 pas jouée), on retombe sur les colonnes de base. Déployer avant la
+  // migration ne doit pas casser les aperçus — ça les laisse en factice.
+  let { data, error } = await fetchWith(SELECT);
+  if (error) ({ data } = await fetchWith(BASE_SELECT));
   const row = data?.[0] as IgRow | undefined;
-  return row ? toTemplateProps(row) : null;
+  return row ? { ...toTemplateProps(row), id: row.id } : null;
 }
