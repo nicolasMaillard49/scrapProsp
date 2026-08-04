@@ -56,6 +56,25 @@ Au-delà de 90 jours le fait est grisé : un classement Google de six mois n'est
 plus un fait, c'est un souvenir — et se faire corriger par le prospect sur son
 propre métier coûte plus cher que se taire.
 
+### La comparaison
+
+Sous le fait, le bouton **« Le comparer à ses concurrents »** lance le scrape
+et affiche le classement : rang, nom, note, avis, et qui paie des Ads. Sa
+ligne à lui est la seule en gras — on cherche où il tombe, pas qui sont les
+autres. Absent des résultats, c'est écrit noir sur blanc : c'est justement le
+fait à lui dire.
+
+Le fait ci-dessus **affirme**, cette liste **montre**. Sans elle, on colle une
+phrase indéfendable si le prospect répond « ah bon, et qui est devant ? ».
+
+Le scrape prend **1 à 2 minutes** : il n'est jamais lancé tout seul, et le
+panneau annonce l'attente. Un relevé déjà en base n'est pas refait — le bouton
+devient « Refaire le relevé ». La liste, elle, n'est pas stockée : seul le fait
+l'est, donc la revoir demande un nouveau relevé.
+
+Il faut **métier + ville** sur le prospect : sans eux il n'y a pas de requête à
+taper. Le panneau dit lequel manque.
+
 ## Il regarde sa maquette, maintenant
 
 Bandeau en haut du panneau + notification Telegram. Un clic ouvre son profil.

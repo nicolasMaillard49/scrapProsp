@@ -33,6 +33,10 @@ const EXT_PATHS = new Set([
   "/api/instagram/hook",
   // Sparring : n'ecrit rien, ne journalise rien, ne touche aucun compteur.
   "/api/instagram/spar",
+  // Rapport concurrentiel PAR PSEUDO. La route /[id]/competitors ne peut pas
+  // figurer ici : cette liste compare des chemins exacts, et c'est ce qui
+  // l'empeche d'ouvrir l'export nominatif au meme secret statique.
+  "/api/instagram/competitors",
 ]);
 
 export function isExtRequestAllowed(

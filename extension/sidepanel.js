@@ -150,6 +150,7 @@ function render() {
   $("capture").hidden = !!p || !(username || state.manual);
   renderWarmup();
   renderFact();
+  renderCompare();
   renderDemo();
   renderTrameSwitch();
   renderRail();
@@ -284,6 +285,103 @@ function renderFact() {
       $("error").textContent = "Copie refusée — clique dans le panneau puis réessaie.";
     }
   });
+}
+
+// ── La comparaison ─────────────────────────────────────────────────────────
+// Le fait ci-dessus AFFIRME (« vous êtes 14e ») ; ce bloc MONTRE. Sans lui, on
+// colle une phrase qu'on ne peut pas défendre si le prospect répond « ah bon,
+// et qui est devant alors ? ».
+//
+// Le scrape Maps prend une à deux minutes : il n'est jamais lancé tout seul.
+// C'est un geste, et le panneau le dit.
+
+let compareRun = false;
+
+const ADS_LABEL = { sponso: "Ads", tag: "Ads", non: "" };
+
+function renderCompare() {
+  const p = state.data?.prospect;
+  const el = $("compare");
+  if (!p) { el.innerHTML = ""; return; }
+  // Déjà relevé : le bouton propose de REFAIRE, pas de faire. Sinon on
+  // relance un scrape d'une minute sans le vouloir.
+  const known = !!state.data?.fact;
+  el.innerHTML = `<div class="run">
+      <button class="quiet" id="compareRun" title="Classe ce prospect sur « métier ville » dans Google Maps et regarde qui paie des Ads (1-2 min)">
+        ${known ? "Refaire le relevé" : "Le comparer à ses concurrents"}
+      </button>
+      <span class="muted" id="compareState"></span>
+    </div>
+    <div id="compareOut"></div>`;
+  $("compareRun").addEventListener("click", () => runCompare(known));
+  // Un relevé déjà en base n'affiche pas la liste : elle n'est pas stockée,
+  // seul le fait l'est. Le dire évite de croire que le bouton n'a rien fait.
+  $("compareOut").innerHTML = "";
+}
+
+async function runCompare(again) {
+  if (compareRun) return;
+  const p = state.data?.prospect;
+  if (!p) return;
+  if (!p.metier || !p.ville) {
+    $("error").textContent = `Il manque ${!p.metier && !p.ville ? "le métier et la ville" : !p.metier ? "le métier" : "la ville"} sur ce prospect — impossible de le classer.`;
+    return;
+  }
+  compareRun = true;
+  $("compareRun").disabled = true;
+  // Le scrape est long : un bouton qui ne dit rien pendant 90 s se lit comme
+  // un bouton cassé, et on reclique.
+  $("compareState").textContent = "scrape Google Maps… (1-2 min)";
+  try {
+    const r = await chrome.runtime.sendMessage({
+      type: "ig:competitors", username: state.username, refresh: again === true,
+    });
+    if (r?.status !== 200) {
+      $("error").textContent = r?.data?.error || `Erreur ${r?.status ?? 0}`;
+      return;
+    }
+    $("error").textContent = "";
+    // Le fait a bougé en base : on relit la trame pour que le bloc du dessus
+    // se mette à jour tout seul. `render()` reconstruit #compareOut, donc la
+    // liste s'affiche APRÈS, sinon elle serait effacée en même temps.
+    await refresh(state.username);
+    showCompare(r.data);
+  } finally {
+    compareRun = false;
+    const b = $("compareRun");
+    if (b) b.disabled = false;
+    const st = $("compareState");
+    if (st) st.textContent = "";
+  }
+}
+
+function showCompare(d) {
+  const out = $("compareOut");
+  if (!out) return;
+  if (!d.competitors) {
+    // Relevé servi depuis la base : le fait est déjà affiché au-dessus, la
+    // liste, elle, n'est pas stockée. On le dit plutôt que de laisser vide.
+    out.innerHTML = `<p class="muted" style="margin:8px 0 0">Relevé déjà en base — « Refaire le relevé » pour revoir la liste des concurrents.</p>`;
+    return;
+  }
+  if (!d.competitors.length) {
+    out.innerHTML = `<p class="muted" style="margin:8px 0 0">Aucun concurrent trouvé sur « ${esc(d.metier)} ${esc(d.ville)} » — requête trop étroite ou scraper à sec.</p>`;
+    return;
+  }
+  const rows = d.competitors
+    .map((c) => `<tr class="${c.isSelf ? "self" : ""}">
+        <td class="r">${esc(c.rank)}</td>
+        <td class="n">${esc(c.name)}</td>
+        <td class="s">${c.rating != null ? `${esc(c.rating)}★${c.reviews != null ? ` (${esc(c.reviews)})` : ""}` : "—"}</td>
+        <td class="a">${ADS_LABEL[c.ads] ? `<span class="ads">${esc(ADS_LABEL[c.ads])}</span>` : ""}</td>
+      </tr>`)
+    .join("");
+  // Absent du classement : c'est LE fait à lui dire, il mérite d'être écrit
+  // plutôt que déduit d'une ligne manquante dans un tableau.
+  const absent = d.facts?.rank == null
+    ? `<p class="muted" style="margin:8px 0 0">Il n'apparaît nulle part dans ces résultats.</p>`
+    : "";
+  out.innerHTML = `<table class="comp-table">${rows}</table>${absent}`;
 }
 
 /**

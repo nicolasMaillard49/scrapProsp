@@ -200,6 +200,22 @@
     #fact.stale { border-left-color: var(--rule); }
     #fact.stale p { color: var(--mute); }
 
+    /* La comparaison. Un tableau, pas des cartes : on lit des rangs. */
+    #compare { margin-top: 8px; }
+    #compare .run { display: flex; align-items: center; gap: 8px; }
+    .comp-table { width: 100%; border-collapse: collapse; margin-top: 8px; font: 11.5px/1.3 var(--body); }
+    .comp-table td { padding: 5px 4px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+    .comp-table td.r { width: 22px; font: 600 11px var(--data); color: var(--mute); text-align: right; }
+    .comp-table td.n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 1px; }
+    .comp-table td.s { width: 62px; text-align: right; font-family: var(--data); font-size: 10.5px; color: var(--mute); white-space: nowrap; }
+    .comp-table td.a { width: 30px; text-align: center; font-size: 10px; }
+    /* Lui : le seul en gras. On cherche ou il tombe, pas qui sont les autres. */
+    .comp-table tr.self td { background: var(--surface); font-weight: 600; }
+    .comp-table tr.self td.n::after { content: " ← lui"; color: var(--mute); font-weight: 400; }
+    /* Un concurrent qui paie : hachures, pas une teinte — le violet ne
+       designe que ce qui part. */
+    .ads { display: inline-block; padding: 1px 4px; border: 1px solid var(--ink); border-radius: 2px; font: 600 8.5px var(--label); letter-spacing: .06em; }
+
     /* Rechauffage : une consigne, pas une action de l'outil — l'outil ne
        clique jamais sur Instagram. Encre et trait, aucune teinte. */
     #warmup { margin-top: 12px; border: 1px dashed var(--rule); border-radius: 3px; padding: 9px 11px; }
@@ -345,6 +361,9 @@
          concurrents qui paient des Ads dessus. L'arme etait dans le dashboard,
          donc nulle part au moment ou on ecrit. -->
     <div id="fact" hidden></div>
+    <!-- La comparaison : qui est devant lui, qui paie des Ads. C'est la
+         matiere du fait ci-dessus — sans elle on affirme sans montrer. -->
+    <div id="compare"></div>
 
     <!-- Rechauffage passif : le geste qui vaut plus qu'un message de relance. -->
     <div id="warmup" hidden></div>

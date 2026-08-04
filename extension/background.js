@@ -533,6 +533,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse(NMFUtil.paceState(paceStamps, Date.now()));
         break;
       }
+      // sidepanel : rapport concurrentiel. Long (scrape Maps) — le panneau
+      // affiche un état d'attente explicite pendant ce temps.
+      case "ig:competitors": {
+        const { status, json } = await api("/api/instagram/competitors", {
+          method: "POST",
+          body: JSON.stringify({ username: msg.username, refresh: msg.refresh === true }),
+        });
+        // Le fait vient d'être écrit sur le prospect : la trame en cache
+        // porte encore l'ancien (ou aucun).
+        if (status === 200) await chrome.storage.session.remove("cachedTrame");
+        sendResponse({ status, data: json });
+        break;
+      }
       // sidepanel : sparring — l'IA joue le prospect. Aucune écriture.
       case "ig:spar": {
         const { status, json } = await api("/api/instagram/spar", {
