@@ -1,15 +1,25 @@
-// Kits de contenu par niche pour le template éditorial "Salon" (SalonTemplate).
-// Permet de servir un aperçu cohérent aux prospects Instagram de niches variées
-// (coiffure, restauration, beauté…) avec le même layout, en changeant images,
-// prestations, témoignages, couleur d'accent et libellés.
+// Kits de CONTENU par niche (prestations, images, avis, libellés, offre).
+//
+// La direction artistique, elle, n'est PAS ici : chaque métier a désormais son
+// propre composant de maquette (app/maquette/templates/niches/). Un coiffeur et
+// une esthéticienne ne doivent pas recevoir la même page repeinte — ils ne
+// vendent pas la même chose et ne se regardent pas dans le même miroir.
+//
+// Ce fichier reste la source unique du contenu : un kit décrit ce que le métier
+// vend, ce qu'on lui montre en photo, ce que ses clients disent de lui, et
+// surtout QUELLE OFFRE NMF la maquette met en avant (cf. `offer`).
+//
 // Images : IDs Unsplash vérifiés (HTTP 200). {ville}/{name} = placeholders.
 
 export interface NicheService {
   name: string;
   desc: string;
+  /** En euros. 0 = affiché « Offert » (consultation, devis). */
   price: number;
   cat: string;
-  duration?: number; // min — omis pour les niches où ça n'a pas de sens (resto)
+  duration?: number; // min — omis pour les niches sans créneau (resto, fleuriste)
+  /** Prix à partir de (affiche « dès 250 € »). */
+  from?: boolean;
 }
 export interface NicheTestimonial {
   author: string;
@@ -17,6 +27,20 @@ export interface NicheTestimonial {
   comment: string;
   date: string;
 }
+
+/**
+ * L'offre NMF mise en avant en bas de maquette.
+ *
+ *  - `booking` → la maquette montre un module de réservation en ligne. C'est le
+ *    Site Réservation du vault (500 € HT) : agenda, créneaux, rappels.
+ *  - `vitrine` → pas de réservation, la maquette vend la présence et l'appel.
+ *    C'est le Site Vitrine (300 € HT).
+ *
+ * Le prix affiché DOIT suivre ce que la maquette montre réellement : promettre
+ * 300 € sous un module de réservation, c'est vendre à perte dès l'appel.
+ */
+export type OfferKind = "booking" | "vitrine";
+
 export interface NicheKit {
   accent: string;
   accentDark: string;
@@ -28,6 +52,10 @@ export interface NicheKit {
   /** Paragraphe à-propos (1ère lettre = drop-cap). Placeholders {ville} / {name}. */
   aboutText: string;
   ticker: string[];
+  /** Ce que la maquette vend en bas de page. */
+  offer: OfferKind;
+  /** Nom du module de réservation dans la langue du métier ("l'agenda", "le carnet"). */
+  bookingWord: string;
   labels: {
     catalogue: string; // titre prestations (ligne 1)
     catalogueSub: string; // titre prestations (ligne 2, italique)
@@ -55,8 +83,8 @@ const DEFAULT_LABELS: NicheKit["labels"] = {
 };
 
 const COIFFURE: NicheKit = {
-  accent: "#C34A2C",
-  accentDark: "#A53C22",
+  accent: "#7A4257",
+  accentDark: "#5C2F3F",
   hero: u("1560066984-138dadb4c035", 1000),
   about: u("1562322140-8baeececf3df", 1000),
   gallery: [
@@ -83,12 +111,143 @@ const COIFFURE: NicheKit = {
   aboutText:
     "Au cœur de {ville}, {name} cultive l'art de la coiffure depuis des années. Coupes sur-mesure, colorations soignées et soins d'exception, dans un écrin chaleureux où chaque visite devient un moment pour soi.",
   ticker: ["Sur rendez-vous", "Coloriste expert", "Produits premium", "Coupe & couleur"],
+  offer: "booking",
+  bookingWord: "l'agenda",
   labels: DEFAULT_LABELS,
 };
 
+const BARBIER: NicheKit = {
+  accent: "#C08A3E",
+  accentDark: "#9A6B28",
+  hero: u("1585747860715-2ba37e788b70", 1000),
+  about: u("1622287162716-f311baa1a2b8", 1000),
+  gallery: [
+    u("1503951914875-452162b0f3f1", 700),
+    u("1605497788044-5a32c7078486", 700),
+    u("1596728325488-58c87691e9af", 700),
+    u("1516975080664-ed2fc6a32937", 700),
+    u("1493256338651-d82f7acb2b38", 700),
+    u("1599351431202-1e0f0137899a", 700),
+  ],
+  services: [
+    { name: "Coupe classique", desc: "Ciseaux ou tondeuse, contours à la lame, coiffage.", duration: 30, price: 25, cat: "Coupe" },
+    { name: "Coupe + barbe", desc: "Le combo maison : coupe complète et barbe retravaillée.", duration: 45, price: 38, cat: "Coupe" },
+    { name: "Rasage traditionnel", desc: "Serviette chaude, blaireau, coupe-chou, baume apaisant.", duration: 30, price: 24, cat: "Barbe" },
+    { name: "Taille de barbe", desc: "Mise en forme, dégradé des joues, huile de finition.", duration: 20, price: 18, cat: "Barbe" },
+    { name: "Coupe enfant", desc: "Moins de 12 ans, on prend le temps qu'il faut.", duration: 25, price: 17, cat: "Coupe" },
+    { name: "Forfait père & fils", desc: "Deux coupes à la suite, un seul créneau à bloquer.", duration: 55, price: 38, cat: "Forfait" },
+  ],
+  testimonials: [
+    { author: "Kevin D.", rating: 5, comment: "Le dégradé est net, la barbe impeccable. Enfin un barbier qui écoute.", date: "mars 2024" },
+    { author: "Sofiane B.", rating: 5, comment: "Rasage à l'ancienne, serviette chaude, on ressort neuf. Rien à dire.", date: "février 2024" },
+    { author: "Antoine L.", rating: 5, comment: "Je réserve en ligne le matin pour le soir, jamais d'attente. Parfait.", date: "janvier 2024" },
+  ],
+  aboutText:
+    "À {ville}, {name} tient la boutique comme on tient une lame : droit. Coupe précise, barbe travaillée, serviette chaude et conversation si vous voulez — le fauteuil est à vous le temps qu'il faut.",
+  ticker: ["Coupe & barbe", "Rasage à l'ancienne", "Sans attente", "Réservation en ligne"],
+  offer: "booking",
+  bookingWord: "le carnet",
+  labels: {
+    ...DEFAULT_LABELS,
+    catalogue: "La carte",
+    catalogueSub: "du barbier",
+    catalogueNote: "Tarifs fermes, durées réelles. Réservez votre fauteuil en ligne.",
+    gallery: "Le travail",
+    gallerySub: "au fauteuil",
+    cta: "Réserver un fauteuil",
+    ctaFinal: "passer",
+  },
+};
+
+const ESTHETIQUE: NicheKit = {
+  accent: "#7E9478",
+  accentDark: "#5D7157",
+  hero: u("1570172619644-dfd03ed5d881", 1000),
+  about: u("1512290923902-8a9f81dc236c", 1000),
+  gallery: [
+    u("1556228720-195a672e8a03", 700),
+    u("1522337660859-02fbefca4702", 700),
+    u("1604654894610-df63bc536371", 700),
+    u("1519014816548-bf5fe059798b", 700),
+    u("1571781926291-c477ebfd024b", 700),
+    u("1481833761820-0509d3217039", 700),
+  ],
+  services: [
+    { name: "Soin du visage", desc: "Nettoyage, gommage et masque adaptés à votre peau.", duration: 60, price: 55, cat: "Visage" },
+    { name: "Épilation", desc: "À la cire tiède, zones au choix, en douceur.", duration: 30, price: 25, cat: "Épilation" },
+    { name: "Manucure", desc: "Pose vernis ou semi-permanent, ongles soignés.", duration: 45, price: 35, cat: "Ongles" },
+    { name: "Pose de cils", desc: "Extensions cil à cil ou volume russe, regard intense.", duration: 90, price: 75, cat: "Regard" },
+    { name: "Modelage corps", desc: "Massage relaxant aux huiles, détente garantie.", duration: 60, price: 60, cat: "Bien-être" },
+    { name: "Forfait beauté", desc: "Visage + mains + pieds, un moment cocooning complet.", duration: 120, price: 110, cat: "Forfait" },
+  ],
+  testimonials: [
+    { author: "Léa M.", rating: 5, comment: "Un vrai moment de détente, peau sublimée et conseils précieux.", date: "mars 2024" },
+    { author: "Nadia K.", rating: 5, comment: "Mains de fée et institut très propre. Je recommande à 100%.", date: "février 2024" },
+    { author: "Chloé P.", rating: 4, comment: "Super accueil, résultat impeccable sur la pose de cils.", date: "janvier 2024" },
+  ],
+  aboutText:
+    "Au cœur de {ville}, {name} prend soin de vous dans un cocon dédié à la beauté et au bien-être. Des soins sur-mesure, des produits choisis avec soin, et l'envie de vous faire rayonner.",
+  ticker: ["Sur rendez-vous", "Soins sur-mesure", "Produits choisis", "Cabine privée"],
+  offer: "booking",
+  bookingWord: "la cabine",
+  labels: {
+    ...DEFAULT_LABELS,
+    catalogue: "Les soins",
+    catalogueSub: "à la carte",
+    catalogueNote: "Durées réelles en cabine. Réservez votre créneau en ligne, à toute heure.",
+    gallery: "Notre",
+    gallerySub: "univers",
+    cta: "Réserver un soin",
+    ctaFinal: "prendre",
+  },
+};
+
+const ONGLERIE: NicheKit = {
+  accent: "#E8467C",
+  accentDark: "#B92F60",
+  hero: u("1604654894610-df63bc536371", 1000),
+  about: u("1610992015732-2449b76344bc", 1000),
+  gallery: [
+    u("1632345031435-8727f6897d53", 700),
+    u("1519014816548-bf5fe059798b", 700),
+    u("1571781926291-c477ebfd024b", 700),
+    u("1556228720-195a672e8a03", 700),
+    u("1522337660859-02fbefca4702", 700),
+    u("1481833761820-0509d3217039", 700),
+  ],
+  services: [
+    { name: "Semi-permanent", desc: "Pose couleur tenue 3 semaines, finition brillante.", duration: 60, price: 35, cat: "Pose" },
+    { name: "Gel / Résine", desc: "Rallongement au chablon, forme et longueur au choix.", duration: 90, price: 55, cat: "Pose" },
+    { name: "Remplissage", desc: "Retouche des repousses, on repart comme au premier jour.", duration: 75, price: 45, cat: "Entretien" },
+    { name: "Nail art", desc: "French, chrome, strass ou dessin — tarif par ongle.", duration: 15, price: 5, cat: "Déco" },
+    { name: "Beauté des mains", desc: "Gommage, cuticules, massage et vernis.", duration: 45, price: 30, cat: "Soin" },
+    { name: "Dépose + soin", desc: "Dépose douce, ongles remis en forme et nourris.", duration: 30, price: 20, cat: "Soin" },
+  ],
+  testimonials: [
+    { author: "Inès B.", rating: 5, comment: "Mes ongles tiennent 4 semaines sans bouger. Le nail art est dingue.", date: "mars 2024" },
+    { author: "Sarah G.", rating: 5, comment: "Je réserve depuis mon téléphone le soir, créneau confirmé direct. Trop pratique.", date: "février 2024" },
+    { author: "Maëva C.", rating: 5, comment: "Toujours de nouvelles idées et un résultat impeccable. Ma pause à moi.", date: "janvier 2024" },
+  ],
+  aboutText:
+    "À {ville}, {name} fait des ongles un terrain de jeu. Pose nette, tenue longue, couleurs qu'on ne voit pas partout — et le temps de choisir ce qui vous ressemble vraiment.",
+  ticker: ["Pose longue tenue", "Nail art sur-mesure", "Réservation en ligne", "Hygiène stricte"],
+  offer: "booking",
+  bookingWord: "le créneau",
+  labels: {
+    ...DEFAULT_LABELS,
+    catalogue: "La carte",
+    catalogueSub: "des poses",
+    catalogueNote: "Tarifs par prestation. Le nail art est facturé à l'ongle.",
+    gallery: "Les",
+    gallerySub: "réalisations",
+    cta: "Réserver ma pose",
+    ctaFinal: "réserver",
+  },
+};
+
 const RESTAURANT: NicheKit = {
-  accent: "#B23A2E",
-  accentDark: "#8E2C22",
+  accent: "#D98E2B",
+  accentDark: "#A96A17",
   hero: u("1517248135467-4c7edcad34c4", 1000),
   about: u("1414235077428-338989a2e8c0", 1000),
   gallery: [
@@ -114,7 +273,9 @@ const RESTAURANT: NicheKit = {
   ],
   aboutText:
     "Au cœur de {ville}, {name} fait rimer cuisine de saison et accueil chaleureux. Des produits frais, une carte qui évolue au fil du marché, et l'envie de vous régaler à chaque service.",
-  ticker: ["Cuisine maison", "Produits frais", "Sur réservation", "Carte de saison"],
+  ticker: ["Cuisine maison", "Produits frais", "Table réservable en ligne", "Carte de saison"],
+  offer: "booking",
+  bookingWord: "le plan de salle",
   labels: {
     ...DEFAULT_LABELS,
     catalogue: "La carte",
@@ -128,57 +289,149 @@ const RESTAURANT: NicheKit = {
   },
 };
 
-const ESTHETIQUE: NicheKit = {
-  accent: "#B0708A",
-  accentDark: "#915A70",
-  hero: u("1570172619644-dfd03ed5d881", 1000),
-  about: u("1512290923902-8a9f81dc236c", 1000),
+const FLEURISTE: NicheKit = {
+  accent: "#4B6B4F",
+  accentDark: "#33503A",
+  hero: u("1487070183336-b863922373d4", 1000),
+  about: u("1490750967868-88aa4486c946", 1000),
   gallery: [
-    u("1556228720-195a672e8a03", 700),
-    u("1522337660859-02fbefca4702", 700),
-    u("1604654894610-df63bc536371", 700),
-    u("1519014816548-bf5fe059798b", 700),
-    u("1571781926291-c477ebfd024b", 700),
-    u("1481833761820-0509d3217039", 700),
+    u("1465146344425-f00d5f5c8f07", 700),
+    u("1508610048659-a06b669e3321", 700),
+    u("1526047932273-341f2a7631f9", 700),
+    u("1522542550221-31fd19575a2d", 700),
+    u("1533616688419-b7a585564566", 700),
+    u("1563241527-3004b7be0ffd", 700),
   ],
   services: [
-    { name: "Soin du visage", desc: "Nettoyage, gommage et masque adaptés à ta peau.", duration: 60, price: 55, cat: "Visage" },
-    { name: "Épilation", desc: "À la cire tiède, zones au choix, en douceur.", duration: 30, price: 25, cat: "Épilation" },
-    { name: "Manucure", desc: "Pose vernis ou semi-permanent, ongles soignés.", duration: 45, price: 35, cat: "Ongles" },
-    { name: "Pose de cils", desc: "Extensions cil à cil ou volume russe, regard intense.", duration: 90, price: 75, cat: "Regard" },
-    { name: "Modelage corps", desc: "Massage relaxant aux huiles, détente garantie.", duration: 60, price: 60, cat: "Bien-être" },
-    { name: "Forfait beauté", desc: "Visage + mains + pieds, un moment cocooning complet.", duration: 120, price: 110, cat: "Forfait" },
+    { name: "Bouquet du fleuriste", desc: "Carte blanche selon l'arrivage du matin.", price: 25, from: true, cat: "Bouquet" },
+    { name: "Composition de saison", desc: "En coupe ou en vase, montée à la main.", price: 35, from: true, cat: "Composition" },
+    { name: "Plante d'intérieur", desc: "Choisie avec vous selon la lumière de la pièce.", price: 20, from: true, cat: "Plante" },
+    { name: "Abonnement bureau", desc: "Un bouquet frais livré chaque semaine.", price: 45, cat: "Abonnement" },
+    { name: "Deuil & cérémonie", desc: "Coussin, raquette ou gerbe, livrés à l'heure dite.", price: 90, from: true, cat: "Cérémonie" },
+    { name: "Mariage", desc: "Bouquet de mariée, boutonnières et décor de table.", price: 250, from: true, cat: "Événement" },
   ],
   testimonials: [
-    { author: "Léa M.", rating: 5, comment: "Un vrai moment de détente, peau sublimée et conseils précieux.", date: "mars 2024" },
-    { author: "Nadia K.", rating: 5, comment: "Mains de fée et institut très propre. Je recommande à 100%.", date: "février 2024" },
-    { author: "Chloé P.", rating: 4, comment: "Super accueil, résultat impeccable sur la pose de cils.", date: "janvier 2024" },
+    { author: "Hélène F.", rating: 5, comment: "Un bouquet monté devant moi, tenu presque deux semaines. Du vrai métier.", date: "mars 2024" },
+    { author: "Julien P.", rating: 5, comment: "Commande passée le matin, livrée l'après-midi pour un anniversaire. Sauvé.", date: "février 2024" },
+    { author: "Martine D.", rating: 5, comment: "Pour une cérémonie difficile, beaucoup de tact et des fleurs magnifiques.", date: "janvier 2024" },
   ],
   aboutText:
-    "Au cœur de {ville}, {name} prend soin de vous dans un cocon dédié à la beauté et au bien-être. Des soins sur-mesure, des produits choisis avec soin, et l'envie de vous faire rayonner.",
-  ticker: ["Sur rendez-vous", "Soins sur-mesure", "Produits choisis", "Détente & beauté"],
+    "À {ville}, {name} ouvre avant tout le monde pour choisir les fleurs une par une. Bouquets montés à la main, plantes conseillées selon votre lumière, et le respect des saisons plutôt que le catalogue.",
+  ticker: ["Arrivage quotidien", "Bouquets montés main", "Livraison locale", "Fleurs de saison"],
+  offer: "vitrine",
+  bookingWord: "la boutique",
   labels: {
     ...DEFAULT_LABELS,
-    catalogue: "Les soins",
-    catalogueSub: "à la carte",
-    gallery: "Notre",
-    gallerySub: "univers",
+    catalogue: "L'atelier",
+    catalogueSub: "et ses prix",
+    catalogueNote: "Prix de départ indicatifs — chaque pièce est montée à la demande.",
+    gallery: "Les",
+    gallerySub: "compositions",
+    cta: "Appeler la boutique",
+    ctaFinal: "commander",
+    serviceUnit: "",
   },
 };
 
-export const NICHE_KITS: Record<string, NicheKit> = {
-  coiffeur: COIFFURE,
-  restaurant: RESTAURANT,
-  estheticienne: ESTHETIQUE,
-  default: COIFFURE,
+const TATOUEUR: NicheKit = {
+  accent: "#C1272D",
+  accentDark: "#941C21",
+  hero: u("1611501275019-9b5cda994e8d", 1000),
+  about: u("1565058379802-bbe93b2f703a", 1000),
+  gallery: [
+    u("1562962230-16e4623d36e6", 700),
+    u("1568515387631-8b650bbcdb90", 700),
+    u("1543059080-f9b1272213d5", 700),
+    u("1598371839696-5c5bb00bdc28", 700),
+    u("1581299894007-aaa50297cf16", 700),
+    u("1604881991720-f91add269bed", 700),
+  ],
+  services: [
+    { name: "Consultation projet", desc: "On parle placement, taille et style. Sans engagement.", duration: 30, price: 0, cat: "Projet" },
+    { name: "Flash", desc: "Un dessin du flash sheet, posé dans la journée.", duration: 60, price: 80, from: true, cat: "Flash" },
+    { name: "Pièce moyenne", desc: "Avant-bras, mollet, épaule — dessin sur-mesure.", duration: 180, price: 250, from: true, cat: "Custom" },
+    { name: "Grande pièce", desc: "Manchette ou dos, au forfait séance.", duration: 300, price: 450, from: true, cat: "Custom" },
+    { name: "Cover-up", desc: "Recouvrement d'un ancien tatouage, étudié au cas par cas.", duration: 240, price: 300, from: true, cat: "Custom" },
+    { name: "Retouche", desc: "Reprise de contours ou de noirs, offerte sous 3 mois.", duration: 45, price: 50, cat: "Suivi" },
+  ],
+  testimonials: [
+    { author: "Rémi V.", rating: 5, comment: "Le dessin proposé était mieux que ce que j'avais en tête. Trait net, cicatrisation nickel.", date: "mars 2024" },
+    { author: "Océane M.", rating: 5, comment: "Studio impeccable, matériel sous blister, zéro question sans réponse.", date: "février 2024" },
+    { author: "Bilal A.", rating: 5, comment: "Cover-up d'un vieux tatouage raté : on ne voit plus rien. Chapeau.", date: "janvier 2024" },
+  ],
+  aboutText:
+    "À {ville}, {name} dessine avant de piquer. Chaque projet passe par une consultation, un dessin sur-mesure et un studio tenu au cordeau — matériel à usage unique, encres tracées, cicatrisation suivie.",
+  ticker: ["Projet sur-mesure", "Studio déclaré ARS", "Matériel à usage unique", "Sur rendez-vous"],
+  offer: "booking",
+  bookingWord: "la séance",
+  labels: {
+    ...DEFAULT_LABELS,
+    catalogue: "Les",
+    catalogueSub: "tarifs",
+    catalogueNote: "Un devis ferme est donné après la consultation. Acompte à la réservation.",
+    gallery: "Le",
+    gallerySub: "book",
+    cta: "Demander un projet",
+    ctaFinal: "lancer",
+    serviceUnit: "Séance",
+  },
 };
+
+/** Clés de niche — une par direction artistique. */
+export type NicheKey =
+  | "coiffure"
+  | "barbier"
+  | "esthetique"
+  | "onglerie"
+  | "restaurant"
+  | "fleuriste"
+  | "tatoueur";
+
+export const NICHE_KITS: Record<NicheKey, NicheKit> = {
+  coiffure: COIFFURE,
+  barbier: BARBIER,
+  esthetique: ESTHETIQUE,
+  onglerie: ONGLERIE,
+  restaurant: RESTAURANT,
+  fleuriste: FLEURISTE,
+  tatoueur: TATOUEUR,
+};
+
+/**
+ * Reconnaissance du métier → niche. L'ordre COMPTE : « barbier » doit être
+ * testé avant « coiffeur » (un barbier est un coiffeur, l'inverse est faux), et
+ * « onglerie » avant « esthétique » (une prothésiste ongulaire n'est pas une
+ * esthéticienne, mais les libellés scrapés mélangent souvent les deux).
+ */
+const MATCHERS: Array<[RegExp, NicheKey]> = [
+  [/(barbi|barber|barbe)/, "barbier"],
+  [/(ongl|nail|manucur|podolog|capillair(?=.*ongl))/, "onglerie"],
+  [/(tatou|tattoo|piercing|ink\b)/, "tatoueur"],
+  [/(fleur|flori|floral|bouquet)/, "fleuriste"],
+  [/(restau|resto|traiteur|pizz|brasserie|bistrot|burger|sushi|cuisine)/, "restaurant"],
+  [/(coiff|hair|coloris|salon de coiffure)/, "coiffure"],
+  [/(esth|institut|beaut|spa|cils|epilation|épilation|massage|onglerie)/, "esthetique"],
+];
+
+/**
+ * Niche du métier, ou `null` si le métier n'en est pas une.
+ *
+ * Le null est essentiel : c'est lui qui empêche d'envoyer une page de salon de
+ * coiffure à un serrurier au motif qu'il faut bien choisir quelque chose.
+ */
+export function matchNiche(metier?: string | null): NicheKey | null {
+  const m = (metier ?? "").toLowerCase().trim();
+  if (!m) return null;
+  for (const [re, key] of MATCHERS) if (re.test(m)) return key;
+  return (NICHE_KITS as Record<string, NicheKit>)[m] ? (m as NicheKey) : null;
+}
+
+/** Niche du métier (alias inclus), sinon la coiffure — la niche la plus servie. */
+export function nicheForMetier(metier?: string | null): NicheKey {
+  return matchNiche(metier) ?? "coiffure";
+}
 
 /** Renvoie le kit du métier (alias inclus), sinon le kit par défaut (coiffure). */
 export function kitForMetier(metier?: string | null): NicheKit {
-  const m = (metier ?? "").toLowerCase().trim();
-  if (!m) return NICHE_KITS.default;
-  if (/(coiff|barbi|barber|hair|coloris)/.test(m)) return COIFFURE;
-  if (/(restau|resto|traiteur|pizz|brasserie|bistrot)/.test(m)) return RESTAURANT;
-  if (/(esth|institut|beaut|ongl|nail|spa|cils)/.test(m)) return ESTHETIQUE;
-  return NICHE_KITS[m] ?? NICHE_KITS.default;
+  return NICHE_KITS[nicheForMetier(metier)];
 }

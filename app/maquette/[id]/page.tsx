@@ -3,28 +3,13 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import html2canvas from "html2canvas";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import ProTemplate from "../templates/ProTemplate";
-import CorporateTemplate from "../templates/CorporateTemplate";
-import MinimalTemplate from "../templates/MinimalTemplate";
-import ElectricTemplate from "../templates/ElectricTemplate";
-import ForestTemplate from "../templates/ForestTemplate";
-import LuxeTemplate from "../templates/LuxeTemplate";
-import TerraTemplate from "../templates/TerraTemplate";
-import SalonTemplate from "../templates/SalonTemplate";
+import {
+  TEMPLATES,
+  TEMPLATE_LABELS,
+  templateForMetier,
+  type TemplateKey,
+} from "@/app/lib/demoTemplate";
 import type { TemplateProps } from "../templates/data";
-
-const TEMPLATES = {
-  pro: { label: "Pro", component: ProTemplate },
-  corporate: { label: "Corporate", component: CorporateTemplate },
-  minimal: { label: "Minimal", component: MinimalTemplate },
-  electric: { label: "Electric", component: ElectricTemplate },
-  forest: { label: "Forest", component: ForestTemplate },
-  luxe: { label: "Luxe", component: LuxeTemplate },
-  terra: { label: "Terra", component: TerraTemplate },
-  salon: { label: "Salon", component: SalonTemplate },
-} as const;
-
-type TemplateKey = keyof typeof TEMPLATES;
 
 export default function MaquettePage({ params }: { params: Promise<{ id: string }> }) {
   const [prospectId, setProspectId] = useState<string | null>(null);
@@ -53,7 +38,13 @@ export default function MaquettePage({ params }: { params: Promise<{ id: string 
       .eq("id", prospectId)
       .single()
       .then(({ data }) => {
-        if (data) setProspect(data as TemplateProps);
+        if (data) {
+          const p = data as TemplateProps;
+          setProspect(p);
+          // La maquette s'ouvre déjà sur celle du métier : sans ça, un coiffeur
+          // s'affiche d'abord en template plombier le temps qu'on clique.
+          setTemplate(templateForMetier(p.metier));
+        }
         setLoading(false);
       });
   }, [prospectId]);
@@ -106,7 +97,7 @@ export default function MaquettePage({ params }: { params: Promise<{ id: string 
     );
   }
 
-  const TemplateComponent = TEMPLATES[template].component;
+  const TemplateComponent = TEMPLATES[template];
 
   return (
     <>
@@ -150,7 +141,7 @@ export default function MaquettePage({ params }: { params: Promise<{ id: string 
                   transition: "all 0.15s",
                 }}
               >
-                {TEMPLATES[k].label}
+                {TEMPLATE_LABELS[k]}
               </button>
             ))}
           </div>

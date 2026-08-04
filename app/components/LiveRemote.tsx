@@ -4,23 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Eye, Radio, Sparkles } from "lucide-react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase, supabaseConfigured } from "../lib/supabase";
-import { TEMPLATES, type TemplateKey } from "../lib/demoTemplate";
+import { TEMPLATES, TEMPLATE_LABELS, type TemplateKey } from "../lib/demoTemplate";
 import type { RemoteCommand } from "./DemoLive";
 
 interface Props {
   prospectId: string;
 }
-
-const TEMPLATE_LABELS: Record<TemplateKey, string> = {
-  pro: "Pro",
-  corporate: "Corporate",
-  minimal: "Minimal",
-  electric: "Electric",
-  forest: "Forest",
-  luxe: "Luxe",
-  terra: "Terra",
-  salon: "Salon",
-};
 
 const SECTIONS = [
   { id: "services", label: "Services" },

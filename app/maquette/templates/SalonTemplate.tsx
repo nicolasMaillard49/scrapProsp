@@ -1,6 +1,7 @@
 import type { TemplateProps } from "./data";
 import { metierLabel } from "./data";
 import { kitForMetier } from "./nicheKits";
+import { NmfCredit, OfferBlock, type OfferTheme } from "./niches/shared";
 
 /* ──────────────────────────────────────────────────────────────
  * Salon — template éditorial "Atelier" (paper / ink + accent niche).
@@ -67,6 +68,21 @@ export default function SalonTemplate({
   const DAYS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
   const HOURS = ["09:00 – 19:00", "09:00 – 19:00", "09:00 – 19:00", "09:00 – 20:00", "09:00 – 18:00", "Fermé", "Fermé"];
   const OPEN = [false, true, true, true, true, false, false];
+
+  const offerTheme: OfferTheme = {
+    bg: C.canvas,
+    panel: C.paper,
+    ink: C.ink,
+    inkSoft: C.inkSoft,
+    accent: accentDark,
+    onAccent: C.canvas,
+    radius: 0,
+    border: `2px solid ${C.ink}`,
+    shadow: SHADOW,
+    display: "'Fraunces', Georgia, serif",
+    meta: "'Space Mono', monospace",
+    metaSpacing: "0.22em",
+  };
 
   const aboutFull = kit.aboutText.replaceAll("{ville}", cityLabel).replaceAll("{name}", name);
   const aboutDrop = aboutFull.charAt(0);
@@ -393,38 +409,8 @@ export default function SalonTemplate({
         </div>
       </section>
 
-      {/* Pourquoi un site (démos publiques) */}
-      {nmfCredit && (
-        <section className="sec-pad" style={{ background: C.canvas, borderBottom: `2px solid ${C.ink}`, padding: "96px 24px" }}>
-          <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-            <div style={{ textAlign: "center", marginBottom: 56 }}>
-              <div style={{ ...labelMeta, marginBottom: 16 }}>Pourquoi un site est important</div>
-              <h2 className="fr h2" style={{ fontSize: 48, lineHeight: 1.05, margin: 0, fontWeight: 500 }}>
-                Un commerce qu&apos;on trouve,<br />des clients qui reviennent.
-              </h2>
-            </div>
-            <div className="sgrid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 24, marginBottom: 48 }}>
-              {[
-                { num: "24/7", label: "visible et joignable, même fermé" },
-                { num: "+30%", label: "de nouveaux clients via Google en moyenne" },
-                { num: "−50%", label: "de rendez-vous oubliés grâce aux rappels" },
-              ].map((s) => (
-                <div key={s.label} style={{ background: C.paper, border: `2px solid ${C.ink}`, padding: "36px 28px", textAlign: "center", boxShadow: SHADOW }}>
-                  <div className="fr" style={{ fontSize: 52, fontWeight: 500, color: accent, lineHeight: 1, marginBottom: 12 }}>{s.num}</div>
-                  <div style={{ color: C.inkSoft, fontSize: 15, lineHeight: 1.6 }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", justifyContent: "center" }}>
-              <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 8, background: C.paper, border: `2px solid ${C.ink}`, padding: "32px 48px", textAlign: "center", boxShadow: SHADOW }}>
-                <span style={{ ...labelMeta, color: accentDark }}>Votre site clé en main</span>
-                <div className="fr" style={{ fontSize: 46, fontWeight: 500, lineHeight: 1.1 }}>à partir de 299€</div>
-                <div style={{ color: C.inkSoft, fontSize: 15, lineHeight: 1.6 }}>puis 29€/mois — hébergement, maintenance &amp; mises à jour inclus</div>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
+      {/* Offre NMF — le prix suit ce que la niche montre (réservation ou non). */}
+      {nmfCredit && <OfferBlock theme={offerTheme} kit={kit} label={label} ville={cityLabel} />}
 
       {/* Footer */}
       <footer style={{ background: C.ink, color: "rgba(251,248,241,0.7)", padding: "40px 24px" }}>
@@ -437,17 +423,7 @@ export default function SalonTemplate({
       </footer>
 
       {/* Crédit NMF (démos publiques) */}
-      {nmfCredit && (
-        <div style={{ background: "#000", padding: "14px 24px", textAlign: "center", fontFamily: "'Space Mono', monospace", fontSize: 12, color: "rgba(255,255,255,0.55)", lineHeight: 1.7 }}>
-          Démo créée par{" "}
-          <a href="https://www.nmf-agence.com/" target="_blank" rel="noopener noreferrer" style={{ color: "#E8916F", textDecoration: "none", fontWeight: 700 }}>NMF Agence</a>
-          {process.env.NEXT_PUBLIC_NMF_PHONE ? (
-            <> {" · "}<a href={`tel:${process.env.NEXT_PUBLIC_NMF_PHONE.replace(/\s/g, "")}`} style={{ color: "#E8916F", textDecoration: "none", fontWeight: 700 }}>{process.env.NEXT_PUBLIC_NMF_PHONE}</a></>
-          ) : ""}
-          <br />
-          <span style={{ color: "rgba(255,255,255,0.4)" }}>Aperçu gratuit et sans engagement — entièrement personnalisable à votre demande.</span>
-        </div>
-      )}
+      {nmfCredit && <NmfCredit />}
     </div>
   );
 }

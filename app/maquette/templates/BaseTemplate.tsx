@@ -629,9 +629,12 @@ export default function BaseTemplate({
                 padding: "32px 48px",
                 textAlign: "center",
               }}>
-                <span style={{ ...monoStyle, color: C.accent }}>Votre site clé en main</span>
+                {/* Vitrine : pas de module de réservation sur les maquettes
+                    artisan, donc le tarif Site Vitrine du catalogue (300 € HT).
+                    Les niches à réservation affichent 500 € — cf. OfferBlock. */}
+                <span style={{ ...monoStyle, color: C.accent }}>Votre site vitrine clé en main</span>
                 <div style={{ fontSize: 46, fontWeight: 900, color: C.text, lineHeight: 1.1 }}>
-                  à partir de 299€
+                  à partir de 300€ HT
                 </div>
                 <div style={{ color: C.muted, fontSize: 15, lineHeight: 1.6 }}>
                   puis 29€/mois — hébergement, maintenance &amp; mises à jour incluses
