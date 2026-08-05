@@ -62,36 +62,54 @@ async function setArmed(armed) {
   await chrome.storage.session.set({ armed });
 }
 
+// Envois en cours d'inscription, dans CE service worker. `sentKeys` (storage)
+// ne suffit pas à lui seul : il est lu avant l'appel réseau et écrit après, si
+// bien que deux détections du même message — « Insérer » puis le champ qui se
+// vide, à la milliseconde près — franchissaient toutes les deux la porte et
+// journalisaient deux fois. Ce Set-là est consulté et rempli de façon
+// SYNCHRONE : rien ne peut s'intercaler entre le test et la réservation.
+const enCours = new Set();
+
 /** Journalise un envoi, idempotent par (prospect, step, jour Paris). */
 async function logSend(armed) {
-  const { sentKeys = [] } = await chrome.storage.local.get("sentKeys");
   const key = NMFUtil.dedupeKey(armed.prospectId, armed.step, new Date());
-  if (!NMFUtil.shouldLog(sentKeys, key)) {
-    return { ok: true, deduped: true }; // double détection : déjà compté
-  }
-  // force: le message est DÉJÀ parti de la main de Nicolas. Le plafond ne peut
-  // plus servir de refus ici — refuser d'inscrire un DM réel ne l'annule pas,
-  // ça fausse juste les compteurs et le stade du prospect.
-  const { status, json } = await api("/api/instagram/dm", {
-    method: "POST",
-    body: JSON.stringify({
-      prospect_id: armed.prospectId, account_id: armed.accountId, step: armed.step, force: true,
-      // La variante d'accroche voyage avec l'envoi : c'est le seul moment où
-      // l'on sait laquelle est réellement partie.
-      variant: armed.variant ?? null,
-    }),
-  });
-  if (status === 200 && json.ok) {
-    // La cadence se mesure sur les envois RÉELLEMENT journalisés : un message
-    // dédupliqué ou refusé n'est pas parti, il ne doit pas serrer le frein.
-    const { paceStamps = [] } = await chrome.storage.local.get("paceStamps");
-    await chrome.storage.local.set({
-      sentKeys: NMFUtil.prune([...sentKeys, key]),
-      paceStamps: NMFUtil.pushSend(paceStamps, Date.now()),
+  if (enCours.has(key)) return { ok: true, deduped: true }; // même message, détecté deux fois
+  enCours.add(key);
+  try {
+    const { sentKeys = [] } = await chrome.storage.local.get("sentKeys");
+    if (!NMFUtil.shouldLog(sentKeys, key)) {
+      return { ok: true, deduped: true }; // déjà compté (session précédente comprise)
+    }
+    // force: le message est DÉJÀ parti de la main de Nicolas. Le plafond ne peut
+    // plus servir de refus ici — refuser d'inscrire un DM réel ne l'annule pas,
+    // ça fausse juste les compteurs et le stade du prospect.
+    const { status, json } = await api("/api/instagram/dm", {
+      method: "POST",
+      body: JSON.stringify({
+        prospect_id: armed.prospectId, account_id: armed.accountId, step: armed.step, force: true,
+        // La variante d'accroche voyage avec l'envoi : c'est le seul moment où
+        // l'on sait laquelle est réellement partie.
+        variant: armed.variant ?? null,
+      }),
     });
-    return { ok: true, counters: json.counters };
+    if (status === 200 && json.ok) {
+      // L'app peut répondre « déjà journalisé » (contrainte d'unicité) : le
+      // message est bien parti, mais il ne compte pas une deuxième fois dans la
+      // cadence. On retient quand même la clé — inutile de la reposter.
+      const { paceStamps = [] } = await chrome.storage.local.get("paceStamps");
+      await chrome.storage.local.set({
+        sentKeys: NMFUtil.prune([...sentKeys, key]),
+        ...(json.deduped ? {} : { paceStamps: NMFUtil.pushSend(paceStamps, Date.now()) }),
+      });
+      return json.deduped ? { ok: true, deduped: true } : { ok: true, counters: json.counters };
+    }
+    return { ok: false, error: json.error || `Erreur ${status}` };
+  } finally {
+    // Libéré quoi qu'il arrive : un échec réseau ne doit pas condamner le
+    // prospect pour la journée — le filet manuel « Envoyé » doit pouvoir
+    // rattraper le coup.
+    enCours.delete(key);
   }
-  return { ok: false, error: json.error || `Erreur ${status}` };
 }
 
 const broadcast = (msg) => chrome.runtime.sendMessage(msg).catch(() => {});

@@ -14,7 +14,11 @@ import { STAGE_LABEL, type Stage } from "@/app/lib/igPipeline";
 
 interface DayRow {
   date: string;
+  /** Accroches M1/S1 — depuis le 05/08/2026 l'API n'y met plus les M2-M9. */
   sent: number;
+  /** M2-M9 / S2-S5 : la suite de conversation, servie à part par l'API. */
+  suite: number;
+  sentAll: number;
   relances: number;
   heures: string;
   pb: number;
@@ -136,7 +140,7 @@ const pct = (num: number, den: number) => (den > 0 ? `${Math.round((num / den) *
 const parisDay = (d: Date) => d.toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
 
 const EMPTY = (date: string): DayRow => ({
-  date, sent: 0, relances: 0, heures: "", pb: 0, propositions: 0, bookes: 0,
+  date, sent: 0, suite: 0, sentAll: 0, relances: 0, heures: "", pb: 0, propositions: 0, bookes: 0,
   accroches: 0, reponses: 0, reponses_froid: 0, refus: 0, positives: 0, autorepondeurs: 0, cohorte_reponses: 0,
 });
 
@@ -403,7 +407,7 @@ export default function InstagramKpiPage() {
   const tot = useMemo(() => {
     const t = { suite: 0, accroches: 0, relances: 0, reponses: 0, froid: 0, refus: 0, positives: 0, cohorte: 0, pb: 0, propositions: 0, bookes: 0 };
     for (const r of series) {
-      t.suite += r.sent - r.accroches;
+      t.suite += r.suite;
       t.accroches += r.accroches;
       t.relances += r.relances;
       t.reponses += r.reponses;
@@ -421,7 +425,9 @@ export default function InstagramKpiPage() {
   // Le graphe garde tous les jours (l'axe du temps doit rester continu) ; le
   // tableau ne montre que les jours travaillés — 18 lignes de « — » ne disent rien.
   const activeDays = useMemo(
-    () => [...series].reverse().filter((r) => r.sent + r.relances > 0),
+    // `sentAll` et pas `sent` : une journée sans accroche mais passée à répondre
+    // dans des conversations ouvertes reste une journée travaillée.
+    () => [...series].reverse().filter((r) => r.sentAll + r.relances > 0),
     [series],
   );
 
@@ -744,7 +750,7 @@ export default function InstagramKpiPage() {
                         {longDate(r.date)}
                       </td>
                       <td className="px-3 py-2.5 text-right font-mono-num tabular-nums">{r.accroches || "—"}</td>
-                      <td className="px-3 py-2.5 text-right font-mono-num tabular-nums">{r.sent - r.accroches || "—"}</td>
+                      <td className="px-3 py-2.5 text-right font-mono-num tabular-nums">{r.suite || "—"}</td>
                       <td className="px-3 py-2.5 text-right font-mono-num tabular-nums">{r.relances || "—"}</td>
                       <td className={`px-3 py-2.5 text-right font-mono-num tabular-nums ${r.reponses_froid ? "text-[#0d9488] font-semibold" : ""}`}>
                         {r.reponses_froid || "—"}

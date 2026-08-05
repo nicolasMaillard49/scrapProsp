@@ -4,6 +4,7 @@ import { sendTelegram } from "@/app/lib/notify";
 import { warmupCaps, stageForStep, nextFollowup, VALID_STEPS, isAccrocheStep, type AccountStatus } from "@/app/lib/igPipeline";
 import { creditSent } from "@/app/lib/igVariants";
 import { parisDayStart } from "@/app/lib/igCockpit";
+import { parisDayKey } from "@/app/lib/igDmLog";
 import { markSelectionDone } from "@/app/lib/igSelection";
 
 export const dynamic = "force-dynamic";
@@ -88,11 +89,30 @@ export async function POST(req: NextRequest) {
     .single();
   if (prosErr || !prospect) return NextResponse.json({ error: "prospect introuvable" }, { status: 404 });
 
-  // Journalise l'envoi.
+  // Journalise l'envoi — UNE SEULE FOIS par (prospect, étape, jour Paris).
+  //
+  // Trois chemins mènent ici pour un même message : la détection d'envoi après
+  // « Insérer », l'auto-détection du champ vidé, et le bouton « Envoyé » du
+  // panneau. Ils peuvent se déclencher ensemble, à la milliseconde près. Le
+  // garde-fou de l'extension ne suffit pas — il lit son cache AVANT l'appel
+  // réseau et l'écrit APRÈS, donc deux détections simultanées le franchissent
+  // toutes les deux. Et une vérification « la ligne existe-t-elle ? » ici ne
+  // suffirait pas davantage : deux requêtes concurrentes liraient « non » en
+  // même temps. Seule la contrainte d'unicité tranche (migration 027).
+  //
+  // Un doublon n'est pas une erreur à remonter : le message EST parti, il est
+  // déjà journalisé. On sort en succès sans rien réavancer — refaire le patch
+  // de stade repousserait la relance, et recréditer la variante fausserait le
+  // bandit.
   const { error: logErr } = await supabase
     .from("ig_dm_log")
-    .insert({ prospect_id, account_id, step, sent_at: now.toISOString() });
-  if (logErr) return NextResponse.json({ error: logErr.message }, { status: 500 });
+    .insert({ prospect_id, account_id, step, sent_at: now.toISOString(), sent_day: parisDayKey(now) });
+  if (logErr) {
+    if (logErr.code === "23505") {
+      return NextResponse.json({ ok: true, deduped: true, prospect, counters: { day, caps, overCap } });
+    }
+    return NextResponse.json({ error: logErr.message }, { status: 500 });
+  }
 
   // Avance le prospect.
   const isRelance = step.startsWith("R");

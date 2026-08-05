@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { parisDayStart } from "@/app/lib/igCockpit";
 import { isAccrocheStep, stageForStep } from "@/app/lib/igPipeline";
+import { countEnvois } from "@/app/lib/igDmLog";
 
 export const dynamic = "force-dynamic";
 
@@ -34,16 +35,21 @@ async function handle(req: NextRequest) {
   ]);
   if (e1 || e2) return NextResponse.json({ error: (e1 ?? e2)!.message }, { status: 500 });
 
-  let sent = 0;
-  let relances = 0;
+  const rows = (logs ?? []) as { step: string; prospect_id: string }[];
+
+  // « Messages envoyés » = les ACCROCHES (M1 / S1). Les M2-M9 sont la suite
+  // d'une conversation déjà engagée — le plus souvent une réponse à ce que le
+  // prospect vient d'écrire. Les compter ici gonflait le bilan (75 annoncés
+  // pour 50 prises de contact) et le mettait en désaccord avec la page
+  // /instagram/kpi, qui compte les M1 depuis toujours.
+  const { accroches, suites, relances } = countEnvois(rows);
+
   let pb = 0;
   let propositions = 0;
   let questionnaires = 0;
   // Une étape ≥2 (M ou S) n'est envoyée qu'après une réponse du prospect → proxy « conversations actives ».
   const repondants = new Set<string>();
-  for (const r of (logs ?? []) as { step: string; prospect_id: string }[]) {
-    if (r.step.startsWith("R")) relances++;
-    else sent++;
+  for (const r of rows) {
     if (!isAccrocheStep(r.step) && /^[MS]\d$/.test(r.step)) repondants.add(r.prospect_id);
     if (stageForStep(r.step) === "douleur") pb++;
     if (stageForStep(r.step) === "appel_propose") propositions++;
@@ -53,7 +59,8 @@ async function handle(req: NextRequest) {
   const dateFr = now.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris" });
   const message = [
     `:bar_chart: *Bilan prospection IG du ${dateFr}*`,
-    `:email: Messages envoyés : ${sent}`,
+    `:email: Messages envoyés : ${accroches}`,
+    `:speech_balloon: Suites de conversation : ${suites}`,
     `:repeat: Relances : ${relances}`,
     `:speech_balloon: Réponses (conversations actives) : ${repondants.size}`,
     `:dart: Problématique identifiée : ${pb}`,

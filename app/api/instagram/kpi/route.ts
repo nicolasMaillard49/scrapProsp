@@ -2,13 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { sinceParisDays } from "@/app/lib/igKpiWindow";
 import { isAccrocheStep, stageForStep } from "@/app/lib/igPipeline";
+import { envoisParJour, kpiEnvoiFields, parisDayKey } from "@/app/lib/igDmLog";
 
 export const dynamic = "force-dynamic";
 
 /** Jour civil Europe/Paris (YYYY-MM-DD) d'un timestamp ISO. */
-function parisDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" });
-}
+const parisDate = parisDayKey;
 
 /** Heure (0-23, Europe/Paris) d'un timestamp ISO. */
 function parisHour(iso: string): number {
@@ -18,8 +17,8 @@ function parisHour(iso: string): number {
 }
 
 interface DayKpi {
-  sent: number; // messages M1-M9
-  accroches: number; // M1 uniquement
+  accroches: number; // M1/S1 — les prises de contact, seul « messages envoyés »
+  suites: number; // M2-M9 / S2-S5 — la conversation déjà engagée
   relances: number; // R1-R3
   cohorte: Set<string>; // prospects accrochés (M1) ce jour-là
   repondants: Set<string>; // prospects ayant répondu ce jour-là (à n'importe quel stade)
@@ -50,9 +49,19 @@ function strongest(kinds: Set<string>): "positive" | "refus" | "neutre" {
 /**
  * GET /api/instagram/kpi?days=N — agrégats JOURNALIERS de la prospection IG.
  * Deux consommateurs : l'Apps Script du Google Sheet de tracking (days=3) et la
- * page /instagram/kpi (historique). Les champs ajoutés sont additifs : l'ordre et
- * les clés historiques (date, sent, relances, heures, pb, propositions, bookes)
- * ne bougent pas, l'Apps Script continue de tourner tel quel.
+ * page /instagram/kpi (historique). Les clés et leur ordre (date, sent, relances,
+ * heures, pb, propositions, bookes) ne bougent pas — l'Apps Script tourne tel quel.
+ *
+ * `sent` A CHANGÉ DE SENS le 05/08/2026, et c'était le seul remède.
+ * Il valait « tous les messages de séquence » (M1-M9 + S1-S5) ; il vaut désormais
+ * les ACCROCHES seules (M1/S1), comme la page /instagram/kpi et le bilan Slack
+ * depuis toujours. Le Sheet affichait 60 messages là où la page en montrait 49 :
+ * même jour, deux vérités, et c'est le chiffre le plus flatteur qui servait de
+ * dénominateur au taux de réponse. On ne pouvait pas corriger en ajoutant une
+ * clé : l'Apps Script vit dans Google Sheets, il lit `sent` et lui seul, on ne
+ * peut pas le redéployer d'ici. Corriger la VALEUR derrière le nom qu'il lit
+ * était donc le seul chemin. Rien n'est perdu : la suite de conversation part
+ * dans `suite`, et l'ancien total dans `sentAll`.
  *
  * RÉPONSES — deux sources, dans cet ordre :
  *  1. `ig_replies` (migration 018) : le journal des réponses ENTRANTES saisi depuis
@@ -133,7 +142,7 @@ export async function GET(req: NextRequest) {
   const day = (d: string): DayKpi => {
     if (!map.has(d)) {
       map.set(d, {
-        sent: 0, accroches: 0, relances: 0,
+        accroches: 0, suites: 0, relances: 0,
         cohorte: new Set(), repondants: new Set(), froid: new Set(), positives: new Set(), refus: new Set(), autorepondeurs: new Set(),
         pb: 0, propositions: 0, bookes: 0, hmin: null, hmax: null,
       });
@@ -141,14 +150,21 @@ export async function GET(req: NextRequest) {
     return map.get(d)!;
   };
 
-  for (const r of (logs ?? []) as { prospect_id: string | null; step: string; sent_at: string }[]) {
+  const logRows = (logs ?? []) as { prospect_id: string | null; step: string; sent_at: string }[];
+
+  // La ventilation accroches / suites / relances vient d'une fonction pure
+  // partagée avec le bilan Slack : deux comptages maison, c'étaient deux
+  // définitions de « message envoyé » qui divergeaient en silence.
+  for (const [d, c] of envoisParJour(logRows)) {
+    const k = day(d);
+    k.accroches = c.accroches;
+    k.suites = c.suites;
+    k.relances = c.relances;
+  }
+
+  for (const r of logRows) {
     const d = day(parisDate(r.sent_at));
-    if (r.step.startsWith("R")) d.relances++;
-    else d.sent++;
-    if (isAccrocheStep(r.step)) {
-      d.accroches++;
-      if (r.prospect_id) d.cohorte.add(r.prospect_id);
-    }
+    if (isAccrocheStep(r.step) && r.prospect_id) d.cohorte.add(r.prospect_id);
     if (stageForStep(r.step) === "douleur") d.pb++;
     if (stageForStep(r.step) === "appel_propose") d.propositions++;
     const h = parisHour(r.sent_at);
@@ -197,25 +213,30 @@ export async function GET(req: NextRequest) {
 
   const out = [...map.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, v]) => ({
-      date,
-      sent: v.sent,
-      relances: v.relances,
-      heures: v.hmin === null ? "" : v.hmin === v.hmax ? `${v.hmin}h` : `${v.hmin}h-${v.hmax}h`,
-      pb: v.pb,
-      propositions: v.propositions,
-      bookes: v.bookes,
-      // ── Champs additifs (page /instagram/kpi + colonnes E/F/G du Sheet) ──
-      accroches: v.accroches,
-      reponses: v.repondants.size, // colonne E
-      reponses_froid: v.froid.size, // réponses à l'accroche M1 (1re réponse du prospect)
-      refus: v.refus.size, // colonne F
-      positives: v.positives.size, // colonne G
-      autorepondeurs: v.autorepondeurs.size, // exclus de `reponses`
-      // Cohorte : parmi les prospects accrochés CE jour-là, combien ont fini par répondre.
-      // C'est le seul taux de réponse honnête (une réponse arrive souvent J+1/J+3).
-      cohorte_reponses: [...v.cohorte].filter((id) => logged.has(id) || firstM2.has(id)).length,
-    }));
+    .map(([date, v]) => {
+      const envois = kpiEnvoiFields({ ...v, total: v.accroches + v.suites + v.relances });
+      return {
+        date,
+        sent: envois.sent, // = accroches. Colonne « messages envoyés » du Sheet.
+        relances: envois.relances,
+        heures: v.hmin === null ? "" : v.hmin === v.hmax ? `${v.hmin}h` : `${v.hmin}h-${v.hmax}h`,
+        pb: v.pb,
+        propositions: v.propositions,
+        bookes: v.bookes,
+        // ── Champs additifs (page /instagram/kpi + colonnes E/F/G du Sheet) ──
+        accroches: envois.accroches,
+        suite: envois.suite, // M2-M9 / S2-S5, sortis de `sent` le 05/08/2026
+        sentAll: envois.sentAll, // accroches + suite = ancienne valeur de `sent`
+        reponses: v.repondants.size, // colonne E
+        reponses_froid: v.froid.size, // réponses à l'accroche M1 (1re réponse du prospect)
+        refus: v.refus.size, // colonne F
+        positives: v.positives.size, // colonne G
+        autorepondeurs: v.autorepondeurs.size, // exclus de `reponses`
+        // Cohorte : parmi les prospects accrochés CE jour-là, combien ont fini par répondre.
+        // C'est le seul taux de réponse honnête (une réponse arrive souvent J+1/J+3).
+        cohorte_reponses: [...v.cohorte].filter((id) => logged.has(id) || firstM2.has(id)).length,
+      };
+    });
 
   return NextResponse.json({
     days: out,
