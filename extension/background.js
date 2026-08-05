@@ -464,13 +464,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         const payload = await currentTrame();
         const prospectId = payload?.prospect?.id;
         if (!prospectId) { sendResponse({ ok: false, reason: "no-prospect" }); break; }
-        const hit = NMFUtil.matchStep(msg.text ?? "", payload.steps ?? []);
-        if (!hit) { sendResponse({ ok: false, reason: "no-match" }); break; }
+        const texte = msg.text ?? "";
+        const hit = NMFUtil.matchStep(texte, payload.steps ?? []);
+        // Repli sur l'étape ATTENDUE quand le message ne ressemble à aucune
+        // étape. C'est le cas ordinaire, pas l'exception : répondre à « c'est à
+        // dire ? » s'écrit à la main. Exiger la ressemblance revenait à ne rien
+        // journaliser dès que la conversation démarrait vraiment — 584 accroches
+        // pour 38 suites inscrites, alors que 56 prospects avaient répondu.
+        //
+        // Le repli n'invente pas l'étape : `nextStep` est celle que le stade du
+        // prospect appelle, donc celle que Nicolas est en train d'envoyer. Et
+        // l'unicité en base (migration 027) absorbe le fil découpé en trois
+        // bulles — trois détections, une seule ligne.
+        const libre = !hit && NMFUtil.estMessageLibre(texte);
+        const step = hit?.step ?? (libre ? payload.nextStep : null);
+        if (!step) { sendResponse({ ok: false, reason: hit ? "no-step" : "no-match" }); break; }
         const accountId = await currentAccountId(payload);
         if (!accountId) { sendResponse({ ok: false, reason: "no-account" }); break; }
-        const result = await logSend({ prospectId, accountId, step: hit.step, variant: payload.variantId ?? null });
+        // La variante n'accompagne QUE l'accroche réellement tirée du script :
+        // un message libre ne doit pas créditer un bras du bandit.
+        const result = await logSend({ prospectId, accountId, step, variant: hit ? payload.variantId ?? null : null });
         await chrome.storage.session.remove("cachedTrame"); // le stade a bougé
-        broadcast({ type: "ig:logged", ...result, auto: hit.step });
+        broadcast({ type: "ig:logged", ...result, auto: step, libre });
         sendResponse(result);
         break;
       }

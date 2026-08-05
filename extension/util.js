@@ -136,6 +136,35 @@ const NMFUtil = (() => {
     return { step: best.step, score: best.score };
   }
 
+  /**
+   * Ce message sortant mérite-t-il d'être journalisé à l'étape ATTENDUE, faute
+   * de ressembler à une étape de la trame ?
+   *
+   * `matchStep` ne reconnaît qu'un message copié de la trame. Or dès qu'un
+   * prospect pose une question — « c'est à dire ? » —, la réponse s'écrit à la
+   * main et ne ressemble à rien du script. Elle n'était donc jamais inscrite :
+   * mesuré le 05/08 sur 30 jours, 584 accroches pour 38 suites journalisées,
+   * alors que 56 prospects avaient répondu. Le prospect passait pour abandonné,
+   * la relance continuait de tourner, et certains ont fini « perdu » après avoir
+   * écrit « oui bien sûr ».
+   *
+   * On ne journalise pas n'importe quoi pour autant : un « ok », un merci ou un
+   * emoji ne sont pas l'étape suivante de la trame. Il faut une vraie phrase.
+   */
+  function estMessageLibre(sent, opts = {}) {
+    const min = opts.min ?? 25;
+    const texte = String(sent || "").trim();
+    if (texte.length < min) return false;
+    // Retire emojis et ponctuation : « 👍👍👍 super merci !!! » n'est pas un M2.
+    const lettres = texte.replace(/[^\p{L}\p{N}]/gu, "");
+    if (lettres.length < min) return false;
+    // Un acquittement poli reste un acquittement, même allongé.
+    const politesse =
+      /^(ok|d'?accord|super|parfait|merci|nickel|top|ça marche|ca marche|bien reçu|bien recu|à bientôt|a bientot|bonne journée|bonne journee|bonne soirée|bonne soiree|avec plaisir|de rien|👍|🙏)[\s!.,;:)👍🙏😊🙂]*$/iu;
+    if (politesse.test(texte)) return false;
+    return true;
+  }
+
   /** Clé d'idempotence d'une réponse qualifiée : une par prospect et par jour. */
   function replyKey(username, now) {
     return `reply:${String(username || "?").toLowerCase()}:${parisDay(now)}`;
@@ -327,7 +356,7 @@ const NMFUtil = (() => {
   }
 
   return {
-    dedupeKey, shouldLog, prune, pickAccountId, formatThread, splitThread,
+    dedupeKey, shouldLog, prune, estMessageLibre, pickAccountId, formatThread, splitThread,
     parisDay, replyKey, similarity, matchStep, incomingReply, incomingKey,
     DEFAULT_LINKS, parseLinks, serializeLinks, sinceLabel, replyState,
     pushSend, paceState, PACE_MIN_S,

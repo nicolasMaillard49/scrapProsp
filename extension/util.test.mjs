@@ -332,3 +332,37 @@ test("paceState: une horloge qui recule ne fabrique pas une attente absurde", ()
   const s = NMFUtil.paceState([t0 + 3600_000], t0);
   assert.equal(s.wait, 0);
 });
+
+// ── Repli sur l'étape attendue quand le message est écrit à la main ──────────
+// Le 05/08 : 584 accroches journalisées pour 38 suites, alors que 56 prospects
+// avaient répondu. Cause — `matchStep` ne reconnaît qu'un message copié de la
+// trame, et une réponse à « c'est à dire ? » ne ressemble à rien du script.
+
+test("estMessageLibre: une vraie reponse ecrite a la main compte", () => {
+  assert.equal(
+    NMFUtil.estMessageLibre(
+      "Je vous ai fait un aperçu de site, je peux vous l'envoyer si vous voulez jeter un œil",
+    ),
+    true,
+  );
+  assert.equal(
+    NMFUtil.estMessageLibre("Oui bien sûr, je vous explique : je crée des sites pour les artisans"),
+    true,
+  );
+});
+
+test("estMessageLibre: un acquittement n'est pas une etape de trame", () => {
+  for (const t of ["ok", "Merci !", "👍", "👍👍👍", "Parfait, merci beaucoup !!", "Super, bonne journée !", ""]) {
+    assert.equal(NMFUtil.estMessageLibre(t), false, `"${t}" ne doit pas etre journalise`);
+  }
+});
+
+test("estMessageLibre: un mur d'emojis ne compte pas malgre sa longueur", () => {
+  assert.equal(NMFUtil.estMessageLibre("🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏🙏"), false);
+});
+
+test("estMessageLibre: un message de trame reste reconnu par matchStep d'abord", () => {
+  // Le repli ne doit jamais court-circuiter matchStep : on verifie que le texte
+  // d'une etape est bien apparie, donc que `libre` ne sera pas consulte.
+  assert.equal(NMFUtil.matchStep(STEPS[1].text, STEPS).step, "M2");
+});
