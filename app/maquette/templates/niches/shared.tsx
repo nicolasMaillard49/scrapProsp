@@ -1,4 +1,18 @@
-import type { NicheKit } from "../nicheKits";
+import type { OfferKind } from "../nicheKits";
+
+/**
+ * Ce dont le bloc d'offre a besoin, et rien de plus.
+ *
+ * Volontairement structurel : `NicheKit` comme `ArtisanKit` le satisfont sans
+ * rien déclarer. C'est ce qui permet à une maquette de plombier et à une
+ * maquette de coiffeur de partager le même bloc de prix sans partager leur
+ * modèle de contenu, qui n'a aucune raison d'être le même.
+ */
+export interface OfferKit {
+  offer: OfferKind;
+  /** Nom du module de réservation dans la langue du métier. */
+  bookingWord: string;
+}
 
 /* ──────────────────────────────────────────────────────────────
  * Pièces communes aux maquettes de niche.
@@ -154,7 +168,7 @@ export function DemoBanner({ theme }: { theme: OfferTheme }) {
 
 interface OfferProps {
   theme: OfferTheme;
-  kit: NicheKit;
+  kit: OfferKit;
   /** Libellé métier ("Coiffeur") — sert à formuler la recherche Google. */
   label: string;
   ville: string;

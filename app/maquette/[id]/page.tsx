@@ -14,7 +14,7 @@ import type { TemplateProps } from "../templates/data";
 export default function MaquettePage({ params }: { params: Promise<{ id: string }> }) {
   const [prospectId, setProspectId] = useState<string | null>(null);
   const [prospect, setProspect] = useState<TemplateProps | null>(null);
-  const [template, setTemplate] = useState<TemplateKey>("pro");
+  const [template, setTemplate] = useState<TemplateKey>("plombier");
   const [loading, setLoading] = useState(true);
   const [capturing, setCapturing] = useState(false);
   const [toolbarHidden, setToolbarHidden] = useState(false);
