@@ -23,7 +23,9 @@ const ITEMS = [
     external: true,
     icon: Sheet,
     label: "Google Sheet de tracking",
-    desc: "Le tableau partagé, avec les colonnes remplies à la main",
+    // Réponses / refus / positives ne sont plus saisies à la main : l'Apps Script
+    // les remplit depuis le 05/08/2026, comme le reste des colonnes.
+    desc: "Le tableau partagé, rempli tout seul toutes les 5 minutes",
   },
   {
     href: "/instagram/stats",

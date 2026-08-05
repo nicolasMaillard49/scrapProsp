@@ -1127,6 +1127,15 @@ export default function InstagramPage() {
             Prospection Instagram
           </h1>
           <span className="flex-1" />
+          {/* Planche de contact des maquettes : on y va AVANT de prendre contact,
+              pour savoir ce que le métier du prospect va recevoir. */}
+          <Link
+            href="/maquette/galerie"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--color-border)] text-[var(--color-text-secondary)] no-underline hover:bg-[var(--color-surface-2)] hover:text-[var(--color-text-primary)] transition-colors"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Maquettes</span>
+          </Link>
           <PerformanceMenu />
           {loadError ? (
             <span
