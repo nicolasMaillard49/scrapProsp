@@ -26,6 +26,12 @@ export interface TrameProspect {
   reply_count: number | null;
   next_followup_at: string | null;
   score_tier: string | null;
+  /**
+   * A-t-il un site ? `false`/`null` = non (même règle que `estSansSite`). C'est
+   * ce qui arme la trame par défaut, et le panneau l'affiche pour qu'on sache
+   * à qui on parle sans ouvrir sa bio.
+   */
+  has_website: boolean | null;
   /** Journal des réponses ENTRANTES (migration 018) — alimente l'état du panneau. */
   first_reply_at: string | null;
   last_reply_at: string | null;
@@ -74,7 +80,7 @@ export interface TramePayload {
 
 /** Colonnes à sélectionner dans instagram_prospects pour ce payload. */
 export const TRAME_COLUMNS =
-  "id,username,full_name,bio,category,metier,ville,booking_platform,profession_ia,stage,status,followers,reply_count,next_followup_at,score_tier,first_reply_at,last_reply_at,last_dm_at";
+  "id,username,full_name,bio,category,metier,ville,booking_platform,profession_ia,stage,status,followers,reply_count,next_followup_at,score_tier,has_website,first_reply_at,last_reply_at,last_dm_at";
 
 export function buildTrame(
   prospect: TrameProspect | null,

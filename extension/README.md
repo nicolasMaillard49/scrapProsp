@@ -22,6 +22,15 @@ détecté dans l'app (quota, stade, relance).
 - **Prospect suivant** (`Alt+N`) ouvre le profil du prochain prospect de la
   sélection du jour (`GET /api/instagram/queue`, lecture seule). Plus besoin
   de chercher qui contacter.
+- **Sans site** (bascule, à côté de « Suivant ») : le bouton ne sert plus que
+  des profils **sans site**. Le plancher `no_site_min` compose déjà la journée,
+  mais pas toujours à 100 % — reports de la veille, plancher baissé, vivier à
+  sec — et la bascule laisse enchaîner les sans-site d'abord sans ouvrir le
+  cockpit. Elle **filtre** la journée, elle ne la dépasse jamais : servir un
+  profil hors sélection afficherait quelqu'un à qui `/api/instagram/dm`
+  refuserait ensuite d'écrire (plafond de chauffe). Mémorisée dans le `storage`
+  — une session de 50 DM ne redemande pas le réglage à chaque ouverture. Le
+  compteur dit la part concernée : « 37 sur 49 à contacter · 31 sans site ».
 - **Radar** : les conversations où le prospect a parlé en dernier — donc
   celles qui attendent une réponse. Instagram n'offre aucune vue de ce genre.
   Le compte s'affiche en badge sur l'icône ; un clic ouvre la conversation.
@@ -261,13 +270,28 @@ un support.
 
 1. La **bascule du panneau**, si tu l'as touchée pour ce prospect ;
 2. sinon, la trame **déjà engagée** — déduite du dernier `S…`/`M…` réellement
-   parti (`ig_dm_log`).
+   parti (`ig_dm_log`) ;
+3. sinon — donc sur un prospect jamais accroché — **ce qu'il a** : pas de site
+   (`has_website` faux **ou inconnu**) → trame **Site** ; site avéré → trame
+   **Standard**.
 
 Le second point n'est pas un détail : le choix du panneau vit dans le
 `storage` de Chrome. Vidé, ou consulté depuis un autre poste, une conversation
 commencée en trame site repartirait en standard au message suivant, et le
 prospect verrait deux méthodes s'entrechoquer. **Ce qui a été envoyé est la
 seule source qui ne ment pas.**
+
+Le troisième (07/08/2026) répare une friction née du plancher « sans site » de
+la sélection du jour : quand la journée entière est composée de comptes sans
+site, il fallait basculer la trame à la main **sur chacun des 50 profils**. Le
+défaut suit désormais la cible. L'inconnu compte comme sans site — même règle
+que `estSansSite` dans `igSelection`, qui compose la journée ; si les deux
+divergeaient, la sélection servirait des prospects que le panneau ouvrirait
+dans l'autre trame.
+
+Le badge **sans site / a un site**, à droite du pseudo dans l'en-tête, dit ce
+qui a été décidé — et pourquoi, au survol. C'est la seule information du
+panneau qu'on ne peut pas lire sur la page Instagram elle-même.
 
 Basculer en cours de conversation est permis (c'est parfois exactement ce
 qu'on veut après une réponse) : l'étape à envoyer est recalculée sur le stade

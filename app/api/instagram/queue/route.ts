@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
-import { ensureDailySelection } from "@/app/lib/igSelection";
+import { ensureDailySelection, estSansSite, type Selectable } from "@/app/lib/igSelection";
 
 export const dynamic = "force-dynamic";
 
@@ -48,22 +48,44 @@ async function watching(): Promise<Array<{ username: string; at: string; seconds
   return out;
 }
 
-export async function GET() {
+/**
+ * `?noSite=1` — « Suivant » ne sert que des profils SANS SITE.
+ *
+ * Le plancher de la sélection (`no_site_min`) compose déjà la journée, mais il
+ * n'est pas toujours à 100 % : reports de la veille, plancher baissé, vivier à
+ * sec. Le filtre laisse enchaîner les sans-site d'abord sans avoir à ouvrir le
+ * cockpit — c'est le même geste que la case « sans site » du pipeline, à
+ * l'endroit où on travaille vraiment.
+ *
+ * Il ne fait que FILTRER la journée : il ne va jamais chercher hors sélection,
+ * sinon on afficherait des profils que `/api/instagram/dm` refuserait ensuite
+ * d'envoyer (plafond de chauffe).
+ */
+export async function GET(req: NextRequest) {
   if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
   try {
+    const noSiteOnly = req.nextUrl.searchParams.get("noSite") === "1";
     const sel = await ensureDailySelection();
     const open = sel.rows.filter((r) => !r.done_at && !r.skipped_at);
+    const openNoSite = open.filter((r) => estSansSite(r.prospect as unknown as Selectable));
+    const file = noSiteOnly ? openNoSite : open;
+
     return NextResponse.json({
+      // Les compteurs restent ceux de la JOURNÉE, filtre ou pas : « 12 sur 37 »
+      // doit vouloir dire la même chose des deux côtés de la bascule.
       remaining: open.length,
       total: sel.rows.length,
+      /** Part sans site encore à contacter — affichée même filtre éteint. */
+      remainingNoSite: openNoSite.length,
       watching: await watching(),
-      next: open.slice(0, 5).map((r) => {
+      next: file.slice(0, 5).map((r) => {
         const p = r.prospect as Record<string, unknown>;
         return {
           username: String(p.username ?? ""),
           fullName: (p.full_name as string | null) ?? null,
           metier: (p.metier as string | null) ?? null,
           ville: (p.ville as string | null) ?? null,
+          hasWebsite: (p.has_website as boolean | null) ?? null,
         };
       }),
     });

@@ -15,6 +15,7 @@ let state = {
   retoneBusy: false,
   manual: null,        // pseudo saisi à la main (détection en échec)
   trame: null,         // trame CHOISIE ici ; null = laisse l'app décider
+  queueNoSite: false,  // « Suivant » ne sert que des profils sans site
 };
 
 /**
@@ -123,6 +124,23 @@ function render() {
   const stage = $("stage");
   stage.hidden = !p;
   if (p) stage.textContent = STAGE_LABEL[p.stage] ?? "jamais contacté";
+
+  // A-t-il un site ? C'est ce qu'on vend, donc la question qui decide de la
+  // trame armee — et la seule qu'on ne peut pas lire sur la page Instagram.
+  // `null` = inconnu, compte comme sans site : meme regle que la selection du
+  // jour (`estSansSite`). Sans ca, les deux se contrediraient a l'ecran.
+  const flag = $("siteFlag");
+  flag.hidden = !p;
+  if (p) {
+    const sansSite = p.has_website !== true;
+    flag.className = sansSite ? "no" : "yes";
+    flag.textContent = sansSite ? "sans site" : "a un site";
+    flag.title = sansSite
+      ? p.has_website === null
+        ? "Aucun site connu (non renseigné) — traité comme sans site : trame Site par défaut."
+        : "Pas de site — la cible : trame Site par défaut."
+      : "Il a déjà un site — trame Standard par défaut.";
+  }
 
   $("sub").textContent = p
     ? [p.metier || "métier ?", p.ville, p.followers ? `${p.followers} abonnés` : null].filter(Boolean).join(" · ")
@@ -1194,12 +1212,51 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // ── File du jour : le panneau pilote, Instagram n'est plus que l'écran ─────
 
+/**
+ * Le filtre « sans site » de la file.
+ *
+ * Le plancher de la selection compose deja la journee, mais il n'est pas
+ * toujours a 100 % : reports de la veille, plancher baisse, vivier a sec. La
+ * bascule laisse enchainer les sans-site D'ABORD sans ouvrir le cockpit.
+ *
+ * Elle FILTRE la journee, elle ne la depasse pas : servir un profil hors
+ * selection afficherait quelqu'un a qui /api/instagram/dm refuserait ensuite
+ * d'ecrire (plafond de chauffe).
+ *
+ * Memorise dans le storage : une session de 50 DM ne doit pas redemander le
+ * meme reglage a chaque ouverture du panneau.
+ */
+function paintQueueFilter() {
+  const b = $("queueNoSite");
+  b.classList.toggle("on", state.queueNoSite === true);
+  b.textContent = state.queueNoSite ? "Sans site ✓" : "Sans site";
+}
+
+async function loadQueueFilter() {
+  const { queueNoSite } = await chrome.storage.local.get("queueNoSite");
+  state.queueNoSite = queueNoSite === true;
+  paintQueueFilter();
+}
+
 async function loadQueue() {
-  const r = await chrome.runtime.sendMessage({ type: "ig:queue" }).catch(() => null);
+  const r = await chrome.runtime
+    .sendMessage({ type: "ig:queue", noSite: state.queueNoSite === true })
+    .catch(() => null);
   if (r?.status !== 200) { $("queueInfo").textContent = ""; $("card").hidden = true; return null; }
-  const { remaining, total, next } = r.data;
-  $("queueInfo").textContent = remaining ? `${remaining} sur ${total} à contacter` : "file du jour terminée ✓";
-  $("nextProspect").disabled = !next?.length;
+  const { remaining, total, remainingNoSite, next } = r.data;
+  // Les compteurs restent ceux de la JOURNEE, filtre ou pas : « 12 sur 37 »
+  // doit vouloir dire la meme chose des deux cotes de la bascule. La part sans
+  // site s'ajoute a cote, c'est elle qui dit ce que « Suivant » peut encore
+  // servir quand le filtre est arme.
+  const part = typeof remainingNoSite === "number" && remaining ? ` · ${remainingNoSite} sans site` : "";
+  $("queueInfo").textContent = remaining ? `${remaining} sur ${total} à contacter${part}` : "file du jour terminée ✓";
+  // Filtre arme et plus aucun sans-site ouvert : le bouton se desarme et le dit,
+  // au lieu de renvoyer « Plus personne dans la file » alors qu'il en reste.
+  const vide = !next?.length;
+  $("nextProspect").disabled = vide;
+  if (vide && remaining && state.queueNoSite) {
+    $("queueInfo").textContent = `${remaining} à contacter, aucun sans site — décoche le filtre`;
+  }
   renderCard(remaining);
   renderWatching(r.data.watching);
   return next?.[0] ?? null;
@@ -1260,11 +1317,24 @@ function renderWatching(rows) {
   }
 }
 
+$("queueNoSite").addEventListener("click", async () => {
+  state.queueNoSite = state.queueNoSite !== true;
+  await chrome.storage.local.set({ queueNoSite: state.queueNoSite });
+  paintQueueFilter();
+  await loadQueue();
+});
+
 $("nextProspect").addEventListener("click", async () => {
   const btn = $("nextProspect");
   btn.disabled = true;
   const next = await loadQueue();
-  if (!next?.username) { $("error").textContent = "Plus personne dans la file du jour."; btn.disabled = false; return; }
+  if (!next?.username) {
+    $("error").textContent = state.queueNoSite
+      ? "Plus aucun profil SANS SITE dans la file du jour — décoche le filtre pour les autres."
+      : "Plus personne dans la file du jour.";
+    btn.disabled = false;
+    return;
+  }
   // Ouvre son PROFIL : c'est de là qu'on engage un premier contact, et aucun
   // identifiant de conversation n'existe encore pour un prospect jamais écrit.
   const r = await toTab({ type: "ig:navigate", url: `https://www.instagram.com/${next.username}/` });
@@ -1440,6 +1510,9 @@ chrome.runtime.onMessage.addListener((msg) => {
 (async () => {
   const r = await toTab({ type: "ig:rescan" });
   if (r?.reason && r.reason !== "not-instagram") $("error").textContent = tabError(r);
+  // AVANT loadQueue : sinon la premiere file part sans le filtre memorise, et
+  // « Suivant » ouvrirait un profil avec site alors que la bascule est armee.
+  await loadQueueFilter();
   refresh(null);
   loadQueue();
   loadRadar();

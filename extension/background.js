@@ -623,7 +623,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }
       // sidepanel : file de prospection du jour (lecture seule).
       case "ig:queue": {
-        const { status, json } = await api("/api/instagram/queue");
+        // `noSite` : la bascule du panneau. Elle ne fait que filtrer la journee
+        // deja composee — jamais chercher hors selection.
+        const { status, json } = await api(`/api/instagram/queue${msg.noSite ? "?noSite=1" : ""}`);
         sendResponse({ status, data: json });
         break;
       }

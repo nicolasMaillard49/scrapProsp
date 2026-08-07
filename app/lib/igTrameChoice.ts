@@ -39,16 +39,43 @@ export async function engagedTrame(prospectId: string): Promise<Trame | null> {
 }
 
 /**
+ * Trame d'un prospect JAMAIS accroché, déduite de ce qu'il a ou n'a pas.
+ *
+ * La trame site s'ouvre sur « quand quelqu'un vous cherche sur Google, il
+ * tombe sur quoi ? » et pose sa maquette au 3ᵉ message : elle n'a de sens que
+ * face à quelqu'un qui n'a pas de site. Face à quelqu'un qui en a un, c'est la
+ * trame standard qui travaille.
+ *
+ * `has_website` inconnu compte comme sans site — même règle que `estSansSite`
+ * dans `igSelection`, qui compose la journée. Si les deux divergeaient, la
+ * sélection servirait des prospects que le panneau ouvrirait dans l'autre
+ * trame. La règle n'est pas importée depuis `igSelection` : ce module embarque
+ * les 450 Ko de `communes-fr.json`, qu'aucune des routes appelantes n'a à
+ * traîner pour un test d'une ligne.
+ */
+async function trameParDefaut(prospectId: string): Promise<Trame> {
+  const { data, error } = await supabase
+    .from("instagram_prospects")
+    .select("has_website")
+    .eq("id", prospectId)
+    .maybeSingle();
+  // Lecture impossible : on ne devine pas, on reste sur la méthode complète.
+  if (error || !data) return "standard";
+  return data.has_website === true ? "standard" : "site";
+}
+
+/**
  * Trame à servir : demande explicite (bascule du panneau) > trame déjà
- * engagée > standard.
+ * engagée > ce que le prospect a (site ou pas).
  *
  * L'explicite prime pour que la bascule ait un effet immédiat, y compris en
  * cours de conversation — c'est parfois exactement ce qu'on veut après une
- * réponse qui change la donne.
+ * réponse qui change la donne. L'engagé passe avant le déduit pour la raison
+ * dite plus haut : ce qui est parti ne se renie pas.
  */
 export async function resolveTrame(asked: string | null, prospectId: string | null): Promise<Trame> {
   const wanted = (asked ?? "").trim().toLowerCase();
   if ((TRAMES as readonly string[]).includes(wanted)) return wanted as Trame;
   if (!prospectId) return "standard";
-  return (await engagedTrame(prospectId)) ?? "standard";
+  return (await engagedTrame(prospectId)) ?? (await trameParDefaut(prospectId));
 }

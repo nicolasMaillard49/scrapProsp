@@ -37,6 +37,11 @@
     .who { display: flex; align-items: baseline; gap: 6px; }
     h1 { margin: 0; font: 600 14px/1.2 var(--body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #stage { font: 600 9.5px/1 var(--label); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); white-space: nowrap; }
+    /* Le sans-site est la cible : il se voit. Celui qui a deja un site se dit
+       aussi, mais en sourdine — c'est une reserve, pas une bonne nouvelle. */
+    #siteFlag { margin-left: auto; padding: 2px 5px 3px; border-radius: 3px; font: 600 8.5px/1 var(--label); letter-spacing: .09em; text-transform: uppercase; white-space: nowrap; }
+    #siteFlag.no { background: color-mix(in srgb, var(--send) 12%, transparent); color: var(--send); }
+    #siteFlag.yes { border: 1px solid var(--rule); color: var(--mute); }
     #sub { margin-top: 3px; font: 11px/1.4 var(--body); color: var(--mute); }
 
     /* La partition : neuf temps. Les temps joués sont pleins mais sourds,
@@ -292,6 +297,9 @@
     <div class="who">
       <h1 id="title">Trame DM</h1>
       <span id="stage" hidden></span>
+      <!-- A-t-il un site ? C'est ce qu'on vend : la reponse decide de la trame
+           armee plus bas, et se lit donc a cote du pseudo, pas dans la bio. -->
+      <span id="siteFlag" hidden></span>
     </div>
     <div id="sub">Ouvre une conversation Instagram…</div>
     <!-- A-t-il déjà répondu ? Sans ça, une conversation qu'on poursuit se
@@ -309,6 +317,9 @@
   <main>
     <div class="strip">
       <button id="nextProspect">Suivant<kbd>Alt+N</kbd></button>
+      <!-- « Suivant » ne sert que des profils sans site. Filtre la journee deja
+           composee, ne va jamais chercher au-dela du plafond de chauffe. -->
+      <button id="queueNoSite" class="quiet" title="« Suivant » ne sert que des profils sans site — c'est ce qu'on vend">Sans site</button>
       <span id="queueInfo"></span>
       <!-- Le sas : masque le feed et les stories tant que la session dure.
            A droite de la file, parce qu'il encadre la session entiere. -->
