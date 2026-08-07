@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { daySlots, countRealFollowups, isSelectable, roundRobinByMetier, metierOf, parisDayKey, MAX_FOLLOWERS, MAX_PER_METIER } from "./igSelection";
+import { daySlots, countRealFollowups, isSelectable, roundRobinByMetier, metierOf, parisDayKey, partSansSite, estSansSite, MAX_FOLLOWERS, MAX_PER_METIER } from "./igSelection";
 
 const base = {
   id: "x",
@@ -131,6 +131,63 @@ test("metierOf: la profession IA prime sur la catégorie puis sur le métier sto
   assert.equal(metierOf({ id: "1", username: "u", category: "Hair Salon", metier: "plombier" }), "coiffeur");
   assert.equal(metierOf({ id: "1", username: "u", metier: "macon" }), "macon");
   assert.equal(metierOf({ id: "1", username: "u" }), "");
+});
+
+test("estSansSite: l'inconnu compte comme sans site, seul un site AVÉRÉ exclut", () => {
+  assert.ok(estSansSite({ id: "1", username: "u", has_website: false }));
+  assert.ok(estSansSite({ id: "1", username: "u", has_website: null }));
+  assert.ok(estSansSite({ id: "1", username: "u" }));
+  assert.ok(!estSansSite({ id: "1", username: "u", has_website: true }));
+});
+
+test("partSansSite: le plancher réserve ses créneaux, le reste est libre", () => {
+  // Le cas demandé : 49 sans site sur 50, journée vide.
+  assert.deepEqual(partSansSite(50, 49, 0, 0), { sansSite: 49, libre: 1 });
+  // Plancher au maximum : toute la journée est réservée.
+  assert.deepEqual(partSansSite(50, 50, 0, 0), { sansSite: 50, libre: 0 });
+  // Plancher à zéro = comportement d'avant, aucune part réservée.
+  assert.deepEqual(partSansSite(50, 0, 0, 0), { sansSite: 0, libre: 50 });
+});
+
+test("partSansSite: le plancher s'écrête au nombre de créneaux du jour", () => {
+  // Chauffe J2 : 10 créneaux. Un plancher de 50 en vaut 10, pas 50.
+  assert.deepEqual(partSansSite(10, 50, 0, 0), { sansSite: 10, libre: 0 });
+  // Compte en pause : rien à poser, et surtout rien de négatif.
+  assert.deepEqual(partSansSite(0, 49, 0, 0), { sansSite: 0, libre: 0 });
+});
+
+test("partSansSite: les reports d'hier décomptent la part qu'ils occupent", () => {
+  // 12 sans site déjà posés : il n'en manque que 37 pour tenir le plancher.
+  assert.deepEqual(partSansSite(50, 49, 12, 0), { sansSite: 37, libre: 1 });
+  // Plancher déjà tenu : tout ce qui reste est libre.
+  assert.deepEqual(partSansSite(50, 49, 49, 0), { sansSite: 0, libre: 1 });
+  // Plancher dépassé (la veille était généreuse) : jamais de valeur négative.
+  assert.deepEqual(partSansSite(50, 20, 30, 0), { sansSite: 0, libre: 20 });
+});
+
+test("partSansSite: un report AVEC site occupe un créneau qu'on ne peut pas reprendre", () => {
+  // 10 « avec site » reportés d'hier, plancher 49 sur 50 : la part libre (1)
+  // est mangée, les 9 autres empiètent sur la réserve. Le plancher devient
+  // inatteignable AUJOURD'HUI — c'est un fait, pas un plantage.
+  assert.deepEqual(partSansSite(50, 49, 0, 10), { sansSite: 40, libre: 0 });
+  // Journée déjà pleine : plus rien à poser, dans aucune part.
+  assert.deepEqual(partSansSite(50, 49, 20, 30), { sansSite: 0, libre: 0 });
+  // Sur-remplie (le plafond a baissé, des relances sont tombées) : pas de négatif.
+  assert.deepEqual(partSansSite(10, 49, 8, 9), { sansSite: 0, libre: 0 });
+});
+
+test("partSansSite: les deux parts remplissent exactement les créneaux restants", () => {
+  for (const slots of [0, 7, 50]) {
+    for (const min of [0, 5, 49, 50, 100]) {
+      for (const sans of [0, 3, 40]) {
+        for (const avec of [0, 3, 40]) {
+          const p = partSansSite(slots, min, sans, avec);
+          assert.ok(p.sansSite >= 0 && p.libre >= 0, `négatif pour ${slots}/${min}/${sans}/${avec}`);
+          assert.equal(p.sansSite + p.libre, Math.max(0, slots - sans - avec));
+        }
+      }
+    }
+  }
 });
 
 test("parisDayKey: jour civil français, pas UTC", () => {

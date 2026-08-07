@@ -6,7 +6,7 @@
 //    avec filtres statut (contacté ou pas…), métier, priorité (score), verdict IA, sans site.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, ChevronLeft, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical, Target, Sparkles } from "lucide-react";
+import { Search, Copy, Check, ExternalLink, Send, Eye, Loader2, ArrowLeft, Gauge, Bell, Plus, PhoneCall, XCircle, ChevronRight, ChevronLeft, Hash, AlertTriangle, Shuffle, RotateCw, Zap, Trash2, Users, LayoutGrid, List as ListIcon, Clock, StickyNote, MessageSquareReply, GripVertical, Target, Sparkles, Globe } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -134,6 +134,12 @@ interface DailySelection {
   stockLeft: number;
   /** Plafond par métier du jour (absent des réponses d'avant le 04/08). */
   maxPerMetier?: number;
+  /** Plancher « sans site » du compte, écrêté aux créneaux (absent avant le 07/08). */
+  noSiteMin?: number;
+  /** Lignes sans site réellement dans la journée. */
+  noSite?: number;
+  /** Réserve qualifiée SANS SITE — ce qui alimente le plancher. */
+  stockLeftNoSite?: number;
 }
 
 /** Cible quotidienne de réponses reçues — 2ᵉ objectif (qualité) à côté des M1 (volume). */
@@ -453,6 +459,32 @@ export default function InstagramPage() {
       if (res.ok) {
         setSelection(json.selection as DailySelection);
         notify("Contact annulé : le DM est retiré des stats et le prospect sort du circuit.");
+      } else notify(json.error ?? `Erreur ${res.status}`, "err");
+    },
+    [activeAccount, notify],
+  );
+
+  /**
+   * Plancher « sans site » de la journée. Écrit sur le compte (donc en base) :
+   * le cron du matin compose la sélection avant qu'on ouvre l'écran, un réglage
+   * gardé dans le navigateur lui serait invisible.
+   */
+  const setNoSiteQuota = useCallback(
+    async (n: number) => {
+      const res = await fetch("/api/instagram/selection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "quota", no_site_min: n, account_id: activeAccount || undefined }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setSelection(json.selection as DailySelection);
+        const sel = json.selection as DailySelection;
+        notify(
+          sel.noSite !== undefined && (sel.noSiteMin ?? 0) > sel.noSite
+            ? `Plancher à ${json.noSiteMin} — la journée n'en a que ${sel.noSite}, il faut aller en chercher.`
+            : `Plancher « sans site » réglé sur ${json.noSiteMin}.`,
+        );
       } else notify(json.error ?? `Erreur ${res.status}`, "err");
     },
     [activeAccount, notify],
@@ -1699,6 +1731,7 @@ export default function InstagramPage() {
               onReload={loadSelection}
               onSkip={skipFromSelection}
               onCancel={cancelFromSelection}
+              onSetNoSiteMin={setNoSiteQuota}
               cardProps={{
                 origin,
                 activeAccount,
@@ -2680,6 +2713,69 @@ function TrameDM({
 }
 
 /**
+ * Plancher « SANS SITE » de la journée.
+ *
+ * Ce qu'on vend EST un site : un prospect qui n'en a pas est la cible naturelle,
+ * un prospect qui en a un est un prospect à convaincre de changer. Le score le
+ * savait déjà (+30) mais la sélection ne regardait pas la colonne, et les
+ * journées se remplissaient au mérite, sites compris.
+ *
+ * À gauche ce que la journée contient VRAIMENT, à droite ce qu'on exige. Le
+ * champ réaffiche la valeur stockée et jamais la valeur écrêtée aux créneaux :
+ * sur un compte en chauffe (50 demandés, 10 créneaux), réafficher 10 le
+ * réécrirait à 10 au prochain réglage, et le 50 serait perdu pour le jour où les
+ * créneaux existeront.
+ */
+function QuotaSansSite({ selection, onSet }: { selection: DailySelection; onSet: (n: number) => void }) {
+  const cible = selection.noSiteMin;
+  const [saisie, setSaisie] = useState(String(cible ?? ""));
+  useEffect(() => setSaisie(String(cible ?? "")), [cible]);
+
+  // Réponse d'une API d'avant le 07/08 : pas de réglage à montrer.
+  if (cible === undefined || selection.noSite === undefined) return null;
+
+  const valider = () => {
+    const n = Number(saisie);
+    if (!Number.isFinite(n)) return setSaisie(String(cible));
+    const borne = Math.max(0, Math.min(100, Math.round(n)));
+    if (borne === cible) return setSaisie(String(cible));
+    onSet(borne);
+  };
+
+  const atteint = selection.noSite >= Math.min(cible, selection.slots);
+
+  return (
+    <label className="inline-flex items-center gap-1.5 whitespace-nowrap" title="Nombre minimum de profils sans site dans la journée. Les créneaux qu'il ne peut pas remplir restent vides : c'est ce manque qui relance la chasse.">
+      <Globe className="w-3.5 h-3.5 opacity-60" />
+      <span>sans site</span>
+      <span className={`font-mono-num font-semibold ${atteint ? "text-[var(--color-text-secondary)]" : "text-amber-600 dark:text-amber-400"}`}>
+        {selection.noSite}
+      </span>
+      <span>/</span>
+      <input
+        type="number"
+        min={0}
+        max={100}
+        inputMode="numeric"
+        value={saisie}
+        onChange={(e) => setSaisie(e.target.value)}
+        onBlur={valider}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") setSaisie(String(cible));
+        }}
+        aria-label="Minimum de profils sans site dans la journée"
+        className="w-12 px-1.5 py-0.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] text-[var(--color-text-primary)] font-mono-num text-center text-[11px] focus:outline-none focus:border-[var(--color-accent)]"
+      />
+      {/* Le plancher dépasse ce que la chauffe autorise : il ne vaut que ce que
+          la journée peut contenir, autant l'écrire plutôt que laisser croire à
+          un réglage qui ne s'applique pas. */}
+      {cible > selection.slots && <span className="text-[10px] opacity-70">(max {selection.slots} aujourd&apos;hui)</span>}
+    </label>
+  );
+}
+
+/**
  * VUE « SÉLECTION DU JOUR » — la liste FERMÉE des comptes à démarcher aujourd'hui.
  * Elle remplace le tri manuel : le serveur a déjà choisi (qualifiés IA, mixés par
  * métier, plafond de chauffe respecté), reporté les non-traités de la veille, et
@@ -2696,6 +2792,7 @@ function SelectionView({
   onReload,
   onSkip,
   onCancel,
+  onSetNoSiteMin,
   cardProps,
 }: {
   selection: DailySelection | null;
@@ -2709,6 +2806,8 @@ function SelectionView({
   onSkip: (id: string) => void;
   /** Annule une accroche deja envoyee (purge le DM des KPI). */
   onCancel: (id: string) => void;
+  /** Règle le plancher « sans site » du compte et recompose la journée. */
+  onSetNoSiteMin: (n: number) => void;
   cardProps: PipelineCardHandlers;
 }) {
   if (loading && !selection) {
@@ -2741,6 +2840,14 @@ function SelectionView({
   const total = selection.rows.filter((r) => !r.skipped_at).length;
   const pct = total ? Math.round((faits / total) * 100) : 0;
 
+  // Le plancher est-il la CAUSE des créneaux vides ? Seulement si la journée ne
+  // l'atteint pas ET que la réserve sans site est à sec. S'il reste des sans-site
+  // en réserve, le vrai frein est ailleurs (plafond par métier) et le dire à tort
+  // enverrait chasser au mauvais endroit.
+  const plancher = Math.min(selection.noSiteMin ?? 0, selection.slots);
+  const manqueSansSite =
+    selection.noSite !== undefined && plancher > selection.noSite && (selection.stockLeftNoSite ?? 0) === 0;
+
   return (
     <div className="space-y-3">
       {/* Bandeau d'avancement */}
@@ -2766,15 +2873,27 @@ function SelectionView({
           <div className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-500" style={{ width: `${pct}%` }} />
         </div>
 
-        <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">
-          {selection.carried > 0 && (
-            <>
-              <span className="text-amber-700 dark:text-amber-400 font-medium">{selection.carried} reporté{selection.carried > 1 ? "s" : ""} d&apos;hier</span>
-              {" · "}
-            </>
-          )}
-          {selection.stockLeft} qualifié{selection.stockLeft > 1 ? "s" : ""} en réserve · plafond du jour {selection.slots}
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-[var(--color-text-muted)]">
+          <p>
+            {selection.carried > 0 && (
+              <>
+                <span className="text-amber-700 dark:text-amber-400 font-medium">{selection.carried} reporté{selection.carried > 1 ? "s" : ""} d&apos;hier</span>
+                {" · "}
+              </>
+            )}
+            {selection.stockLeft} qualifié{selection.stockLeft > 1 ? "s" : ""} en réserve
+            {/* La réserve totale ne dit plus tout : c'est la part SANS SITE qui
+                alimente le plancher, et elle seule explique des créneaux vides
+                pendant que le compteur global affiche encore des centaines. */}
+            {selection.stockLeftNoSite !== undefined && (
+              <> <span className="font-mono-num">({selection.stockLeftNoSite} sans site)</span></>
+            )}
+            {" · plafond du jour "}
+            {selection.slots}
+          </p>
+          <span className="flex-1" />
+          <QuotaSansSite selection={selection} onSet={onSetNoSiteMin} />
+        </div>
 
         {/* Stock épuisé : on repart en chasse (scan hashtag + qualification IA). */}
         {selection.shortfall > 0 && (
@@ -2782,13 +2901,17 @@ function SelectionView({
             <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
             <span className="text-xs text-amber-800 dark:text-amber-300 flex-1 min-w-40">
               {selection.shortfall} créneau{selection.shortfall > 1 ? "x" : ""} non pourvu{selection.shortfall > 1 ? "s" : ""}
-              {/* Deux causes très différentes : ne plus RIEN avoir en réserve, ou
-                  n'avoir que du déjà-vu. Dans le second cas le stock est plein et
-                  c'est le plafond par métier qui refuse de faire une journée
-                  mono-métier — dire « plus assez de comptes » serait faux. */}
-              {selection.stockLeft > 0
-                ? ` — plafond de ${selection.maxPerMetier ?? 5} par métier atteint. Les ${selection.stockLeft} qualifiés restants sont des métiers déjà servis aujourd'hui : on va en chercher d'autres.`
-                : " — plus assez de comptes qualifiés en stock."}
+              {/* Trois causes très différentes, de la plus spécifique à la plus
+                  générale. La réserve peut être pleine et les créneaux vides
+                  quand même : soit il ne reste que des métiers déjà servis
+                  (plafond), soit il ne reste que des profils AVEC site alors que
+                  le plancher en exige sans. Dire « plus assez de comptes » dans
+                  ces cas-là serait faux, et enverrait chasser au mauvais endroit. */}
+              {manqueSansSite
+                ? ` — ${selection.noSiteMin} sans site demandés, la journée n'en a que ${selection.noSite}. La réserve sans site est vide${selection.stockLeft > 0 ? ` (il reste ${selection.stockLeft} qualifiés, mais ils ont un site)` : ""} : on va en chercher d'autres.`
+                : selection.stockLeft > 0
+                  ? ` — plafond de ${selection.maxPerMetier ?? 5} par métier atteint. Les ${selection.stockLeft} qualifiés restants sont des métiers déjà servis aujourd'hui : on va en chercher d'autres.`
+                  : " — plus assez de comptes qualifiés en stock."}
             </span>
             <button
               onClick={onRefill}

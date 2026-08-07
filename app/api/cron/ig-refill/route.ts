@@ -41,7 +41,11 @@ async function handle(req: NextRequest) {
   try {
     const refill = statusOnly ? null : await refillStock();
     const selection = await ensureDailySelection();
-    const [stock, leads] = await Promise.all([countAvailableStock(), leadsStatus()]);
+    const [stock, stockNoSite, leads] = await Promise.all([
+      countAvailableStock(),
+      countAvailableStock(new Date(), true),
+      leadsStatus(),
+    ]);
 
     const state = {
       day: selection.day,
@@ -50,19 +54,33 @@ async function handle(req: NextRequest) {
       shortfall: selection.shortfall,
       /** Qualifiés encore jamais servis — la réserve pour demain. */
       stock,
+      /** La part SANS SITE de cette réserve : celle qui alimente le plancher. */
+      stockNoSite,
+      /** Plancher « sans site » du compte, et ce que la journée contient. */
+      noSiteMin: selection.noSiteMin,
+      noSite: selection.noSite,
       /** Pistes collectées en attente de résolution (1 requête chacune). */
       pending: leads.pending,
       quota: leads.quota,
     };
 
+    // Le plancher est-il ce qui bloque ? Une réserve pleine mais sans aucun
+    // sans-site produit une journée incomplète que « 300 qualifiés en réserve »
+    // rendrait incompréhensible depuis le téléphone.
+    const plancher = Math.min(state.noSiteMin, state.slots);
+    const bloqueParPlancher = state.noSite < plancher && state.stockNoSite === 0;
+
     if (notify) {
       await sendTelegram(
         state.shortfall > 0
           ? `⚠️ <b>Refill IG incomplet</b>\n${state.selected}/${state.slots} créneaux pourvus — il manque ${state.shortfall}.\n` +
-              `Réserve : ${state.stock} qualifié(s), ${state.pending} piste(s) en file.` +
+              `Réserve : ${state.stock} qualifié(s) dont ${state.stockNoSite} sans site, ${state.pending} piste(s) en file.` +
+              (bloqueParPlancher
+                ? `\n🌐 Plancher sans site : ${state.noSite}/${plancher} — la réserve sans site est vide, c'est elle qui bloque.`
+                : "") +
               (state.quota ? `\nQuota ${state.quota.provider} : ${state.quota.remaining}/${state.quota.limit}.` : "") +
               (refill?.iaError ? `\n🚨 Qualification IA en panne : ${refill.iaError.slice(0, 200)}` : "")
-          : `✅ <b>Sélection IG complète</b>\n${state.selected}/${state.slots} créneaux, ${state.stock} qualifié(s) d'avance.`,
+          : `✅ <b>Sélection IG complète</b>\n${state.selected}/${state.slots} créneaux (${state.noSite} sans site), ${state.stock} qualifié(s) d'avance.`,
       );
     }
 

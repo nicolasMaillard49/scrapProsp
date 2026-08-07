@@ -61,6 +61,20 @@ export interface Selectable {
   followers?: number | null;
   qualification?: string | null;
   last_post_at?: string | null;
+  has_website?: boolean | null;
+}
+
+/**
+ * « Sans site » — la cible prioritaire, puisque ce qu'on vend EST un site.
+ *
+ * `null` compte comme sans site : c'est la convention de tout le reste de
+ * l'outil (filtre du pipeline, export CSV, `prospectScore` qui n'ajoute son
+ * bonus que sur un `false` explicite mais ne pénalise pas l'inconnu). Un profil
+ * dont on ignore s'il a un site vaut la peine d'être ouvert ; un profil dont on
+ * SAIT qu'il en a un, beaucoup moins.
+ */
+export function estSansSite(l: Selectable): boolean {
+  return l.has_website !== true;
 }
 
 /** Métier effectif — même résolution que le cockpit et la file d'envoi. */
@@ -158,13 +172,51 @@ export function roundRobinByMetier<T extends Selectable>(
   return out;
 }
 
+/** Ce qu'il reste à poser dans chacune des deux parts de la journée. */
+export interface PartsDuJour {
+  /** Créneaux à remplir UNIQUEMENT avec des profils sans site. */
+  sansSite: number;
+  /** Créneaux à remplir avec n'importe quel qualifié. */
+  libre: number;
+}
+
+/**
+ * Partage les créneaux restants entre la part réservée aux sans-site et la part
+ * libre.
+ *
+ * `noSiteMin` est un PLANCHER, pas une cible : « au moins N lignes sans site
+ * dans la journée ». Il s'écrête aux créneaux réels — en chauffe J2 il n'y en a
+ * que dix, un plancher de 50 en vaut donc dix.
+ *
+ * Le décompte porte sur la JOURNÉE ENTIÈRE, reports d'hier compris, comme le
+ * plafond par métier : sans ça, dix appels de suite réserveraient chacun 49
+ * créneaux et la part libre ne serait jamais servie.
+ *
+ * Une ligne « avec site » reportée d'hier occupe physiquement un créneau qu'on
+ * ne peut pas lui reprendre : elle mange donc la part réservée quand la part
+ * libre est déjà pleine. Le plancher devient alors inatteignable pour
+ * aujourd'hui — c'est un fait, pas une erreur, et le `shortfall` ne le masque
+ * pas puisque la journée est bien pleine.
+ */
+export function partSansSite(
+  slots: number,
+  noSiteMin: number,
+  dejaSansSite: number,
+  dejaAvecSite: number,
+): PartsDuJour {
+  const reserve = Math.max(0, Math.min(Math.floor(noSiteMin), slots));
+  const restants = Math.max(0, slots - dejaSansSite - dejaAvecSite);
+  const sansSite = Math.max(0, Math.min(reserve - dejaSansSite, restants));
+  return { sansSite, libre: restants - sansSite };
+}
+
 /* ────────────────────────────────────────────────────────────
  * Partie BASE
  * ──────────────────────────────────────────────────────────── */
 
 /** Colonnes du prospect nécessaires à l'affichage de la sélection (M1 compris). */
 const PROSPECT_COLS =
-  "id, username, full_name, bio, category, metier, profession_ia, ville, booking_platform, " +
+  "id, username, full_name, bio, category, metier, profession_ia, ville, booking_platform, has_website, " +
   "followers, score, score_tier, status, stage, qualification, qualification_reason, last_post_at, notes, reply_count";
 
 export interface SelectionRow {
@@ -190,6 +242,17 @@ export interface DailySelection {
   shortfall: number;
   /** Prospects qualifiés encore disponibles après cette sélection. */
   stockLeft: number;
+  /** Part de cette réserve qui est SANS SITE — ce qui alimente le plancher. */
+  stockLeftNoSite: number;
+  /**
+   * Plancher demandé pour ce compte, TEL QU'IL EST STOCKÉ — pas écrêté aux
+   * créneaux. C'est lui que l'écran réaffiche : renvoyer la valeur écrêtée
+   * ferait redescendre le réglage à chaque réaffichage sur un compte en chauffe
+   * (50 demandés, 10 créneaux → 10 réécrits, et le 50 serait perdu pour demain).
+   */
+  noSiteMin: number;
+  /** Lignes sans site réellement dans la journée (écartées exclues). */
+  noSite: number;
   /**
    * Plafond par métier appliqué à cette journée. Remonté au cockpit parce qu'il
    * explique un `shortfall` que le stock seul contredirait (réserve pleine, mais
@@ -204,17 +267,41 @@ interface AccountLite {
   username: string;
   status: AccountStatus;
   started_at: string;
+  /** Plancher « sans site » du jour (migration 028). */
+  no_site_min: number;
 }
 
+const ACCOUNT_COLS = "id, username, status, started_at, no_site_min";
+
 async function loadAccount(accountId?: string): Promise<AccountLite> {
-  const q = supabase.from("ig_accounts").select("id, username, status, started_at");
-  const { data, error } = accountId
-    ? await q.eq("id", accountId).limit(1)
-    : await q.order("created_at", { ascending: true }).limit(1);
+  const lire = (cols: string) => {
+    const q = supabase.from("ig_accounts").select(cols);
+    return accountId ? q.eq("id", accountId).limit(1) : q.order("created_at", { ascending: true }).limit(1);
+  };
+
+  let { data, error } = await lire(ACCOUNT_COLS);
+  // Migration 028 pas encore passée : le cockpit ne doit pas tomber pour un
+  // réglage. On relit sans la colonne et on retombe sur le comportement d'avant
+  // (plancher 0 = aucune part réservée), plutôt que sur le défaut 50 — qui
+  // viderait la journée alors que personne n'a rien demandé.
+  if (error && /no_site_min/.test(error.message)) ({ data, error } = await lire("id, username, status, started_at"));
   if (error) throw new Error(error.message);
-  const a = data?.[0] as AccountLite | undefined;
-  if (!a) throw new Error("Aucun compte émetteur configuré (ig_accounts).");
-  return a;
+
+  const a = data?.[0] as unknown as Partial<AccountLite> | undefined;
+  if (!a?.id) throw new Error("Aucun compte émetteur configuré (ig_accounts).");
+  return { ...a, no_site_min: a.no_site_min ?? 0 } as AccountLite;
+}
+
+/** Écrit le plancher « sans site » d'un compte. Rend la valeur retenue. */
+export async function setNoSiteMin(accountId: string | undefined, valeur: number): Promise<number> {
+  const account = await loadAccount(accountId);
+  // Mêmes bornes que la contrainte SQL : une saisie folle est ramenée dans le
+  // domaine plutôt que rejetée — l'écrêtage au nombre de créneaux se fera de
+  // toute façon à la génération.
+  const n = Math.max(0, Math.min(100, Math.round(Number.isFinite(valeur) ? valeur : 0)));
+  const { error } = await supabase.from("ig_accounts").update({ no_site_min: n }).eq("id", account.id);
+  if (error) throw new Error(error.message);
+  return n;
 }
 
 /**
@@ -266,13 +353,38 @@ export async function ensureDailySelection(accountId?: string, now = new Date())
   const active = existing.filter((r) => !r.skipped_at).length;
   const missing = Math.max(0, slots - active);
   let stockLeft = 0;
+  let stockLeftNoSite = 0;
 
   if (missing > 0) {
-    // Le plafond par métier se compte sur la JOURNÉE entière, reports compris :
-    // on repart donc de ce qui est déjà posé, pas de zéro.
-    const dejaPoses = await metiersDuJour(account.id, day);
-    const { fresh, stock } = await pickFreshProspects(missing, now, dejaPoses);
-    stockLeft = Math.max(0, stock - fresh.length);
+    // Le plafond par métier ET le plancher sans-site se comptent sur la JOURNÉE
+    // entière, reports compris : on repart de ce qui est déjà posé, pas de zéro.
+    const etat = await etatDuJour(account.id, day);
+    const parts = partSansSite(slots, account.no_site_min, etat.sansSite, etat.avecSite);
+    // La liste des déjà-servis est la requête la plus lourde du module : on la
+    // lit UNE fois pour les deux parts.
+    const served = await loadServed();
+    const exclure = new Set<string>();
+
+    // La part réservée d'abord — c'est elle, la contrainte ; la part libre n'est
+    // que le reliquat. Dans l'autre sens, la part libre chiperait les sans-site
+    // les mieux notés et creuserait un manque qu'on paierait ensuite en chasse.
+    const reserve = await pickFreshProspects(parts.sansSite, now, etat.metiers, { served, sansSiteOnly: true });
+    stockLeftNoSite = Math.max(0, reserve.stock - reserve.fresh.length);
+    for (const p of reserve.fresh) {
+      exclure.add(p.id);
+      // `roundRobinByMetier` recopie le compteur qu'on lui passe : sans cette
+      // mise à jour, la part libre repartirait d'un plafond métier vierge et la
+      // journée pourrait contenir dix fois le même métier.
+      const m = metierOf(p).toLowerCase() || "(inconnu)";
+      etat.metiers.set(m, (etat.metiers.get(m) ?? 0) + 1);
+    }
+
+    // Appelée même quand la part libre est nulle : son `stock` est la jauge de
+    // réserve affichée par le cockpit.
+    const libre = await pickFreshProspects(parts.libre, now, etat.metiers, { served, exclure });
+    stockLeft = Math.max(0, libre.stock - libre.fresh.length);
+
+    const fresh = [...reserve.fresh, ...libre.fresh];
     let rank = existing.length ? Math.max(...existing.map((r) => r.rank as number)) + 1 : 0;
     const toInsert = fresh.map((p) => ({
       day,
@@ -290,15 +402,18 @@ export async function ensureDailySelection(accountId?: string, now = new Date())
 
   // `shortfall` se lit sur l'état final : une ligne écartée rouvre un créneau.
   const rows = await readSelectionRows(account.id, day);
-  const stillActive = rows.filter((r) => !r.skipped_at).length;
+  const actives = rows.filter((r) => !r.skipped_at);
   return {
     day,
     accountId: account.id,
     slots,
     rows,
     carried,
-    shortfall: Math.max(0, slots - stillActive),
+    shortfall: Math.max(0, slots - actives.length),
     stockLeft,
+    stockLeftNoSite,
+    noSiteMin: account.no_site_min,
+    noSite: actives.filter((r) => estSansSite(r.prospect as unknown as Selectable)).length,
     maxPerMetier: MAX_PER_METIER,
   };
 }
@@ -315,19 +430,47 @@ export async function readSelectionRows(accountId: string, day: string): Promise
   return ((data ?? []) as unknown as SelectionRow[]).filter((r) => r.prospect);
 }
 
+/** Ce que la journée contient DÉJÀ, vu des deux contraintes de composition. */
+interface EtatDuJour {
+  /** Métiers déjà posés → plafond `MAX_PER_METIER`. */
+  metiers: Map<string, number>;
+  /** Lignes sans site déjà posées → plancher `no_site_min`. */
+  sansSite: number;
+  /** Lignes avec site déjà posées : elles occupent des créneaux pour de bon. */
+  avecSite: number;
+}
+
 /**
- * Métiers déjà posés dans la journée (lignes écartées exclues : elles ont rendu
- * leur créneau, elles ne doivent pas consommer le plafond du métier).
+ * État de composition de la journée (lignes écartées exclues : elles ont rendu
+ * leur créneau, elles ne doivent consommer ni le plafond métier ni le plancher).
  */
-async function metiersDuJour(accountId: string, day: string): Promise<Map<string, number>> {
+async function etatDuJour(accountId: string, day: string): Promise<EtatDuJour> {
   const rows = await readSelectionRows(accountId, day);
-  const tally = new Map<string, number>();
+  const etat: EtatDuJour = { metiers: new Map(), sansSite: 0, avecSite: 0 };
   for (const r of rows) {
     if (r.skipped_at) continue;
-    const m = metierOf(r.prospect as unknown as Selectable).toLowerCase() || "(inconnu)";
-    tally.set(m, (tally.get(m) ?? 0) + 1);
+    const p = r.prospect as unknown as Selectable;
+    const m = metierOf(p).toLowerCase() || "(inconnu)";
+    etat.metiers.set(m, (etat.metiers.get(m) ?? 0) + 1);
+    if (estSansSite(p)) etat.sansSite++;
+    else etat.avecSite++;
   }
-  return tally;
+  return etat;
+}
+
+/** Prospects déjà passés en sélection un jour quelconque — ils ne reviennent jamais. */
+async function loadServed(): Promise<Set<string>> {
+  const { data } = await supabase.from("ig_daily_selection").select("prospect_id").limit(50_000);
+  return new Set((data ?? []).map((r) => r.prospect_id as string));
+}
+
+interface PickOptions {
+  /** Déjà-servis, lus une seule fois par génération. */
+  served?: Set<string>;
+  /** Restreint au vivier sans site (part réservée du jour). */
+  sansSiteOnly?: boolean;
+  /** Prospects posés par la part précédente du MÊME appel de génération. */
+  exclure?: Set<string>;
 }
 
 /**
@@ -339,11 +482,11 @@ async function pickFreshProspects(
   n: number,
   now: Date,
   dejaPoses?: Map<string, number>,
+  opts: PickOptions = {},
 ): Promise<{ fresh: Selectable[]; stock: number }> {
-  const { data: servis } = await supabase.from("ig_daily_selection").select("prospect_id").limit(50_000);
-  const served = new Set((servis ?? []).map((r) => r.prospect_id as string));
+  const served = opts.served ?? (await loadServed());
 
-  const { data, error } = await supabase
+  let q = supabase
     .from("instagram_prospects")
     .select(PROSPECT_COLS)
     .eq("status", "todo")
@@ -351,20 +494,31 @@ async function pickFreshProspects(
     .is("stage", null)
     // `followers <= N` vaut NULL en SQL pour un compte sans nombre d'abonnés et
     // l'exclurait : on garde ces comptes, `isSelectable` les accepte aussi.
-    .or(`followers.lte.${MAX_FOLLOWERS},followers.is.null`)
-    .order("score", { ascending: false, nullsFirst: false })
-    .limit(Math.max(200, n * 6));
+    .or(`followers.lte.${MAX_FOLLOWERS},followers.is.null`);
+
+  // Le tri « sans site » se fait en SQL et pas après coup : un filtrage côté JS
+  // sur la fenêtre déjà récupérée annoncerait « réserve sans site épuisée » dès
+  // que les avec-site occupent le haut du classement — et déclencherait une
+  // chasse payante pour rien. `not.is.true` couvre false ET null, la définition
+  // retenue partout ailleurs (cf. `estSansSite`).
+  if (opts.sansSiteOnly) q = q.not("has_website", "is", true);
+
+  const { data, error } = await q.order("score", { ascending: false, nullsFirst: false }).limit(Math.max(200, n * 6));
   if (error) throw new Error(error.message);
 
   const pool = ((data ?? []) as unknown as Selectable[]).filter(
-    (p) => !served.has(p.id) && isSelectable(p, now.getTime()),
+    (p) => !served.has(p.id) && !opts.exclure?.has(p.id) && isSelectable(p, now.getTime()),
   );
   return { fresh: roundRobinByMetier(pool, n, { already: dejaPoses }), stock: pool.length };
 }
 
-/** Compte les prospects qualifiés jamais sélectionnés (jauge de stock du cockpit). */
-export async function countAvailableStock(now = new Date()): Promise<number> {
-  const { stock } = await pickFreshProspects(0, now);
+/**
+ * Compte les prospects qualifiés jamais sélectionnés (jauge de stock du cockpit).
+ * `sansSiteOnly` restreint au vivier qui alimente le plancher : c'est lui, et
+ * pas le total, qui explique une journée incomplète quand le plancher est haut.
+ */
+export async function countAvailableStock(now = new Date(), sansSiteOnly = false): Promise<number> {
+  const { stock } = await pickFreshProspects(0, now, undefined, { sansSiteOnly });
   return stock;
 }
 

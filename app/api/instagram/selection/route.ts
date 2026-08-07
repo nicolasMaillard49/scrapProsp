@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseConfigured } from "@/app/lib/supabase";
-import { ensureDailySelection, skipSelection, cancelContact, markLostFromSelection, refillStock } from "@/app/lib/igSelection";
+import { ensureDailySelection, skipSelection, cancelContact, markLostFromSelection, refillStock, setNoSiteMin } from "@/app/lib/igSelection";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // le refill enchaîne un scan Apify et des lots Claude
@@ -22,15 +22,17 @@ export async function GET(req: NextRequest) {
 }
 
 interface Body {
-  action?: "skip" | "cancel" | "lost" | "refill";
+  action?: "skip" | "cancel" | "lost" | "refill" | "quota";
   account_id?: string;
   prospect_id?: string;
   reason?: string;
+  no_site_min?: number;
 }
 
 /**
  * POST /api/instagram/selection
  *  { action: "skip", prospect_id, reason? } → écarte le prospect (pas de report demain)
+ *  { action: "quota", no_site_min }         → règle le plancher « sans site » du compte
  *  { action: "refill" }                     → scan hashtag + qualification IA, puis complète
  */
 export async function POST(req: NextRequest) {
@@ -67,6 +69,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, selection: await ensureDailySelection(body.account_id) });
     }
 
+    // Plancher « sans site » du jour. Le réglage vit sur le compte (donc en
+    // base) parce que le cron du matin compose la sélection bien avant qu'un
+    // navigateur ne l'ouvre. La sélection est renvoyée recalculée : baisser le
+    // plancher doit combler les créneaux tout de suite, pas demain.
+    if (body.action === "quota") {
+      if (typeof body.no_site_min !== "number") return NextResponse.json({ error: "no_site_min requis" }, { status: 400 });
+      const noSiteMin = await setNoSiteMin(body.account_id, body.no_site_min);
+      return NextResponse.json({ ok: true, noSiteMin, selection: await ensureDailySelection(body.account_id) });
+    }
+
     if (body.action === "refill") {
       // Passe COURTE : le client « Aller en chercher » relance automatiquement
       // tant qu'il reste des créneaux. Une requête qui revient vite (~30-40 s)
@@ -83,7 +95,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, refill, selection: await ensureDailySelection(body.account_id) });
     }
 
-    return NextResponse.json({ error: "action inconnue (skip | cancel | lost | refill)" }, { status: 400 });
+    return NextResponse.json({ error: "action inconnue (skip | cancel | lost | quota | refill)" }, { status: 400 });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
