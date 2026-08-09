@@ -84,9 +84,12 @@ interface DueFollowup {
 }
 
 interface PeriodStats {
+  /** Ce qui a pesé sur le quota : accroches + relances. */
   sent: number;
   m1: number;
   relances: number;
+  /** M2-M9 / S2-S5 — les réponses de conversation, hors quota. */
+  suites: number;
   added: number;
 }
 
@@ -1428,7 +1431,9 @@ export default function InstagramPage() {
                   <span className="font-mono-num text-xl font-semibold text-[var(--color-text-primary)]">{s.sent}</span>
                   <span className="text-xs text-[var(--color-text-secondary)] truncate">
                     DM · {label.toLowerCase()}
-                    <span className="text-[var(--color-text-muted)]"> — {s.m1} accroches, {s.relances} relances, {s.added} ajoutés</span>
+                    {/* Les suites de conversation sont à part : elles ne coûtent
+                        pas de quota, les mêler au total gonflerait le chiffre. */}
+                    <span className="text-[var(--color-text-muted)]"> — {s.m1} accroches, {s.relances} relances, {s.suites} réponses, {s.added} ajoutés</span>
                   </span>
                 </div>
               ))}

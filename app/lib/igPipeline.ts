@@ -180,6 +180,28 @@ export function isAccrocheStep(step: string): boolean {
 /** Toutes les premières étapes — pour les filtres SQL (`.in("step", …)`). */
 export const ACCROCHE_STEPS = ["M1", "S1"];
 
+/**
+ * Cette étape PÈSE-T-ELLE sur le plafond du jour ?
+ *
+ * Non pour les suites de conversation (M2-M9 / S2-S5). Répondre à quelqu'un qui
+ * vient d'écrire n'est pas un envoi à froid : ce n'est ni le risque que la
+ * chauffe cherche à contenir (Meta juge le contact NON SOLLICITÉ), ni un
+ * prospect de plus. Les compter revenait à faire payer les conversations
+ * vivantes — une journée où l'on répond beaucoup laissait moins de place aux
+ * accroches, exactement l'inverse de ce qu'on veut. C'est le pendant, côté
+ * quota, de l'invariant 2 de `igDmLog` : un envoi compté, c'est une accroche.
+ *
+ * Oui pour la relance : elle s'adresse à un silence, donc à quelqu'un qui n'a
+ * rien demandé — même risque qu'un premier contact, même quota (cf.
+ * `nextFollowup` : « chaque relance programmée est un M1 en moins »).
+ */
+export function countsAgainstQuota(step: string): boolean {
+  return isAccrocheStep(step) || step.startsWith("R");
+}
+
+/** Les étapes qui consomment le quota — pour les filtres SQL (`.in("step", …)`). */
+export const QUOTA_STEPS = [...ACCROCHE_STEPS, "R1", "R2", "R3"];
+
 /** Stade atteint quand on marque une étape de la séquence comme envoyée. */
 export function stageForStep(step: string): Stage | null {
   switch (step) {

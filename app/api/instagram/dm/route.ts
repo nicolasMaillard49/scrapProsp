@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { sendTelegram } from "@/app/lib/notify";
-import { warmupCaps, stageForStep, nextFollowup, VALID_STEPS, isAccrocheStep, type AccountStatus } from "@/app/lib/igPipeline";
+import { warmupCaps, stageForStep, nextFollowup, VALID_STEPS, isAccrocheStep, countsAgainstQuota, QUOTA_STEPS, type AccountStatus } from "@/app/lib/igPipeline";
 import { creditSent } from "@/app/lib/igVariants";
 import { parisDayStart } from "@/app/lib/igCockpit";
 import { parisDayKey } from "@/app/lib/igDmLog";
@@ -28,7 +28,8 @@ interface Body {
 /**
  * POST /api/instagram/dm  { prospect_id, account_id, step, force? }
  * Marque un message de la séquence comme ENVOYÉ (par un humain) :
- * vérifie le quota jour du compte (jour Paris, plan de chauffe — limite par JOUR, pas par heure),
+ * vérifie le quota jour du compte SI l'étape le consomme (accroche ou relance ;
+ * jour Paris, plan de chauffe — limite par JOUR, pas par heure),
  * journalise, avance le stade du prospect, programme la relance par défaut (+48 h),
  * et alerte sur Telegram à l'approche / à l'atteinte du plafond jour.
  * `force: true` journalise malgré le plafond (message déjà envoyé à la main) —
@@ -59,20 +60,29 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   const caps = warmupCaps(account.started_at as string, account.status as AccountStatus, now.getTime());
-  if (caps.daily === 0 && !force) {
+
+  // Répondre n'est pas envoyer. Une suite de conversation (M2-M9 / S2-S5) ne
+  // consomme rien, ne peut donc rien dépasser, et ne doit rien bloquer : le
+  // plafond et la pause ne valent que pour ce qui part à froid (cf.
+  // `countsAgainstQuota`). Sans cette porte, une journée de réponses saturait
+  // la jauge et faisait refuser les vraies accroches.
+  const quota = countsAgainstQuota(step);
+
+  if (caps.daily === 0 && !force && quota) {
     return NextResponse.json({ error: `@${account.username} est en pause — aucun envoi autorisé.` }, { status: 429 });
   }
 
-  // Compteur du jour (jour Paris).
+  // Compteur du jour (jour Paris) — accroches + relances uniquement.
   const dayStart = parisDayStart(now).toISOString();
   const { count: sentDay } = await supabase
     .from("ig_dm_log")
     .select("id", { count: "exact", head: true })
     .eq("account_id", account_id)
+    .in("step", QUOTA_STEPS)
     .gte("sent_at", dayStart);
   const day = sentDay ?? 0;
 
-  const overCap = day >= caps.daily;
+  const overCap = quota && day >= caps.daily;
   if (overCap && !force) {
     void sendTelegram(`🚫 <b>@${account.username}</b> : plafond JOUR atteint (${day}/${caps.daily}) — stop jusqu'à demain 8 h.`);
     return NextResponse.json(
@@ -151,15 +161,19 @@ export async function POST(req: NextRequest) {
   }
 
   // Alertes Telegram au franchissement des seuils (80 % puis 100 % du plafond jour).
-  const newDay = day + 1;
-  const warnAt = Math.ceil(caps.daily * 0.8);
-  if (newDay === caps.daily) {
-    void sendTelegram(`🚫 <b>@${account.username}</b> : plafond JOUR atteint (${newDay}/${caps.daily}). On arrête d'envoyer jusqu'à demain.`);
-  } else if (newDay === warnAt) {
-    void sendTelegram(`⚠️ <b>@${account.username}</b> approche du plafond jour : ${newDay}/${caps.daily}.`);
-  } else if (newDay === caps.daily + 1) {
-    // Premier dépassement seulement : l'alerte informe, elle ne harcèle pas.
-    void sendTelegram(`⚠️ <b>@${account.username}</b> : plafond DÉPASSÉ (${newDay}/${caps.daily}) — journalisé quand même (envoi manuel).`);
+  // Une suite de conversation ne fait pas bouger le compteur : aucun seuil ne
+  // peut être franchi par une réponse.
+  const newDay = quota ? day + 1 : day;
+  if (quota) {
+    const warnAt = Math.ceil(caps.daily * 0.8);
+    if (newDay === caps.daily) {
+      void sendTelegram(`🚫 <b>@${account.username}</b> : plafond JOUR atteint (${newDay}/${caps.daily}). On arrête d'envoyer jusqu'à demain.`);
+    } else if (newDay === warnAt) {
+      void sendTelegram(`⚠️ <b>@${account.username}</b> approche du plafond jour : ${newDay}/${caps.daily}.`);
+    } else if (newDay === caps.daily + 1) {
+      // Premier dépassement seulement : l'alerte informe, elle ne harcèle pas.
+      void sendTelegram(`⚠️ <b>@${account.username}</b> : plafond DÉPASSÉ (${newDay}/${caps.daily}) — journalisé quand même (envoi manuel).`);
+    }
   }
 
   return NextResponse.json({

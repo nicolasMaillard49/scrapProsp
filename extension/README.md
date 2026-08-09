@@ -401,6 +401,11 @@ contact entrante, qui ne dit rien de l'accroche.
   est inscrit quoi qu'il arrive (`force: true` → `POST /api/instagram/dm`).
   Le plafond garde son rôle de frein pour la file automatique (`send-queue`),
   et une alerte Telegram part au premier dépassement.
+- **Répondre ne consomme pas de quota.** La jauge ne compte que ce qui part à
+  froid : accroches (M1 / S1) et relances (R1-R3). Les suites de conversation
+  (M2-M9 / S2-S5) sont journalisées, avancent le stade, mais ne font pas `+1` —
+  une journée où le prospect te répond beaucoup ne doit pas te coûter des
+  accroches.
 
 ## Réponse IA (hors trame)
 

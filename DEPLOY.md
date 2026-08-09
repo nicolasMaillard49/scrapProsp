@@ -44,6 +44,36 @@ Chaque `git push` sur `main` déclenche un nouveau build/deploy. Rien à faire.
 - **État sauvé en localStorage** (statuts, notes, historique des appels) : un autre device = vue vierge. Pas grave pour l'instant ; on bascule en DB le jour où c'est multi-device.
 - **Données = CSV statiques** dans `public/` : pour ajouter des prospects, on commit + push.
 
+## CRM — dossiers clients (migration 029)
+
+Le CRM (`/crm`) vit dans **trois tables dédiées** : `clients`, `client_tasks`
+(la checklist de mission) et `client_notes` (le journal). Rien à configurer, une
+seule migration à jouer :
+
+```bash
+npm run migrate:029
+```
+
+Le script vérifie ensuite ce qui existe **réellement en base** (les trois tables
++ l'index unique) plutôt que de se fier au silence d'un DDL idempotent.
+
+Ce qu'il faut savoir avant d'y toucher :
+
+- **Un client n'est pas un prospect.** `clients` est indépendante de
+  `instagram_prospects` : un client démarché par audit ou par recommandation n'a
+  pas de pseudo Instagram, et l'inscrire côté prospection fausserait la
+  sélection du jour et le taux de réponse. Le lien `instagram_prospect_id` reste
+  possible mais jamais obligatoire, avec un **index unique partiel** — un
+  prospect ne donne qu'un dossier, deux imports successifs ne dédoublent rien.
+- **Seuls les prospects au stade `call_booke`** sont proposés à la reprise. Un
+  prospect en pleine conversation n'est pas un client.
+- **`ON DELETE SET NULL`** sur ce lien : nettoyer la base de prospection ne doit
+  jamais emporter un dossier facturé. À l'inverse, supprimer un dossier client
+  **ne touche pas** au prospect, qui repasse simplement dans les candidats.
+- Les **modèles de mission** (`app/lib/crmTemplates.ts`) sont du CODE, pas des
+  données : ce sont les prestations de l'agence, elles changent au rythme d'un
+  commit. Les appliquer AJOUTE des étapes, sans jamais effacer ce qui est coché.
+
 ## Réenrichir les données SIRENE
 
 À refaire tous les ~6 mois pour rattraper les nouvelles créations / radiations :

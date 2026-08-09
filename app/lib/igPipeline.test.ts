@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   warmupCaps, clampToWindow, nextFollowup, stageForStep, nextStepFor, STAGES, VALID_STEPS, MAX_DAILY,
-  isAccrocheStep, ACCROCHE_STEPS, trameOfStep,
+  isAccrocheStep, ACCROCHE_STEPS, trameOfStep, countsAgainstQuota, QUOTA_STEPS,
 } from "./igPipeline";
 
 const day = (n: number, base = Date.parse("2026-07-01T12:00:00")) => base + (n - 1) * 24 * 3600 * 1000;
@@ -152,4 +152,18 @@ test("isAccrocheStep: les deux trames ont une accroche — sinon la site serait 
   assert.equal(trameOfStep("M3"), "standard");
   assert.equal(trameOfStep("R1"), null); // les relances n'appartiennent à personne
   assert.ok(VALID_STEPS.has("S5") && !VALID_STEPS.has("S6"));
+});
+
+test("countsAgainstQuota: répondre ne consomme pas le quota du jour", () => {
+  // Ce qui part à froid : compté.
+  assert.ok(countsAgainstQuota("M1"));
+  assert.ok(countsAgainstQuota("S1"));
+  assert.ok(countsAgainstQuota("R1"));
+  assert.ok(countsAgainstQuota("R3"));
+  // La conversation déjà engagée : jamais un « +1 ».
+  for (const s of ["M2", "M3", "M5", "M7", "M8", "M9", "S2", "S3", "S4", "S5"]) {
+    assert.ok(!countsAgainstQuota(s), `${s} ne doit pas peser sur le quota`);
+  }
+  // La liste SQL et le prédicat disent la même chose, sur TOUTES les étapes.
+  assert.deepEqual([...VALID_STEPS].filter(countsAgainstQuota).sort(), [...QUOTA_STEPS].sort());
 });

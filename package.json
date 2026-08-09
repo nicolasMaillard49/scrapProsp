@@ -24,7 +24,12 @@
     "migrate:021": "node scripts/apply-migration-021.mjs",
     "migrate:022": "node scripts/apply-migration-022.mjs",
     "migrate:023": "node scripts/apply-migration-023.mjs",
-    "migrate:027": "node scripts/apply-migration-027.mjs"
+    "migrate:027": "node scripts/apply-migration-027.mjs",
+    "migrate:029": "node scripts/apply-migration-029.mjs",
+    "migrate:030": "node scripts/apply-migration-030.mjs",
+    "migrate:031": "node scripts/apply-migration-031.mjs",
+    "migrate:033": "node scripts/apply-migration-033.mjs",
+    "crm:audits": "node scripts/import-audits.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",

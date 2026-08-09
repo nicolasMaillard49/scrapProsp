@@ -3,7 +3,7 @@
 
 import { supabase } from "./supabase";
 import { sendTelegram } from "./notify";
-import { warmupCaps, isAccrocheStep, ACCROCHE_STEPS, type AccountStatus, type Caps, STAGE_LABEL, type Stage } from "./igPipeline";
+import { warmupCaps, isAccrocheStep, countsAgainstQuota, ACCROCHE_STEPS, QUOTA_STEPS, type AccountStatus, type Caps, STAGE_LABEL, type Stage } from "./igPipeline";
 import { activeVariants, verdict, rate } from "./igVariants";
 
 export interface AccountRow {
@@ -16,7 +16,12 @@ export interface AccountRow {
 
 export interface AccountWithCounters extends AccountRow {
   caps: Caps;
-  sentDay: number; // depuis minuit (Europe/Paris)
+  /**
+   * Ce qui a consommé le quota depuis minuit (Europe/Paris) : accroches +
+   * relances. Les réponses de conversation (M2-M9 / S2-S5) n'y entrent pas —
+   * cf. `countsAgainstQuota`.
+   */
+  sentDay: number;
 }
 
 /** Minuit Europe/Paris (epoch ms) — les quotas jour sont en heure française. */
@@ -27,7 +32,10 @@ export function parisDayStart(now = new Date()): Date {
   return new Date(paris.getTime() + offset);
 }
 
-/** Comptes + compteur du jour (jour Paris) + plafond du plan de chauffe. */
+/**
+ * Comptes + compteur du jour (jour Paris) + plafond du plan de chauffe.
+ * Le compteur ne retient QUE les étapes qui pèsent sur le plafond.
+ */
 export async function getAccountsWithCounters(now = new Date()): Promise<AccountWithCounters[]> {
   const { data: accounts, error } = await supabase
     .from("ig_accounts")
@@ -42,6 +50,7 @@ export async function getAccountsWithCounters(now = new Date()): Promise<Account
       .from("ig_dm_log")
       .select("id", { count: "exact", head: true })
       .eq("account_id", a.id)
+      .in("step", QUOTA_STEPS)
       .gte("sent_at", dayStart);
     out.push({
       ...a,
@@ -94,9 +103,12 @@ export function parisMonthStart(now = new Date()): Date {
 }
 
 export interface PeriodStats {
-  sent: number; // tous les envois (M + R)
+  /** Ce qui a pesé sur le quota : accroches + relances (= `m1 + relances`). */
+  sent: number;
   m1: number; // nouvelles accroches = nouveaux prospects contactés
   relances: number; // R1-R3
+  /** M2-M9 / S2-S5 : les réponses de conversation. Comptées, jamais facturées. */
+  suites: number;
   added: number; // prospects ajoutés (scan)
 }
 
@@ -115,7 +127,7 @@ export async function getSendStats(now = new Date()): Promise<SendStats> {
     supabase.from("ig_dm_log").select("step, sent_at").gte("sent_at", sinceIso).limit(10_000),
     supabase.from("instagram_prospects").select("discovered_at").gte("discovered_at", sinceIso).limit(10_000),
   ]);
-  const empty = (): PeriodStats => ({ sent: 0, m1: 0, relances: 0, added: 0 });
+  const empty = (): PeriodStats => ({ sent: 0, m1: 0, relances: 0, suites: 0, added: 0 });
   const out: SendStats = { day: empty(), week: empty(), month: empty() };
   const bump = (t: number, f: (p: PeriodStats) => void) => {
     if (Number.isNaN(t)) return;
@@ -125,7 +137,10 @@ export async function getSendStats(now = new Date()): Promise<SendStats> {
   };
   for (const r of (logs ?? []) as { step: string; sent_at: string }[]) {
     bump(Date.parse(r.sent_at), (p) => {
-      p.sent++;
+      // `sent` ne compte que ce qui a coûté du quota : répondre à un prospect
+      // n'est pas un envoi de plus, c'est la conversation qui continue.
+      if (countsAgainstQuota(r.step)) p.sent++;
+      else p.suites++;
       if (isAccrocheStep(r.step)) p.m1++;
       if (r.step.startsWith("R")) p.relances++;
     });
