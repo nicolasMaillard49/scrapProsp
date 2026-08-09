@@ -201,23 +201,23 @@ export default function AgendaPage() {
       {/* ── Header ── */}
       <div className="shrink-0 z-20 bg-white dark:bg-[#111114] border-b border-[var(--color-border)] px-3 md:px-6 py-3">
         <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-          <Link href="/" className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition" title="Retour aux prospects">
+          <Link href="/" className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-[var(--color-text-secondary)] hover:text-violet-600 dark:hover:text-violet-300 transition" title="Retour aux prospects">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div className="flex items-center gap-2 min-w-0">
             <Calendar className="w-5 h-5 text-violet-500 shrink-0" />
             <div className="min-w-0">
-              <h1 className="font-display text-[20px] md:text-[24px] leading-none tracking-tight text-neutral-900 dark:text-neutral-50">
+              <h1 className="font-display text-[20px] md:text-[24px] leading-none tracking-tight text-[var(--color-text-primary)]">
                 Agenda
               </h1>
-              <p className="text-[10px] md:text-[11px] text-neutral-500 mt-0.5 font-mono-num truncate">
+              <p className="text-[10px] md:text-[11px] text-[var(--color-text-muted)] mt-0.5 font-mono-num truncate">
                 {todayCount} RDV aujourd&apos;hui · synchronisé Google Calendar
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5 ml-auto">
-            <button onClick={refresh} className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-600 dark:text-neutral-400 transition" title="Rafraîchir">
+            <button onClick={refresh} className="p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-[var(--color-text-secondary)] transition" title="Rafraîchir">
               <RefreshCw className={`w-4 h-4 ${revalidating ? "animate-spin" : ""}`} />
             </button>
             {view !== "list" && (
@@ -233,7 +233,7 @@ export default function AgendaPage() {
                 </button>
               </div>
             )}
-            <span className="hidden md:block text-sm text-neutral-500 px-1 font-mono-num capitalize">
+            <span className="hidden md:block text-sm text-[var(--color-text-muted)] px-1 font-mono-num capitalize">
               {periodLabel}
             </span>
             <button
@@ -270,7 +270,7 @@ export default function AgendaPage() {
               ))}
             </div>
             {staleError && <span className="text-[10px] text-amber-600">màj impossible — affichage du cache</span>}
-            <span className="md:hidden text-[11px] text-neutral-500 ml-auto font-mono-num capitalize">{periodLabel}</span>
+            <span className="md:hidden text-[11px] text-[var(--color-text-muted)] ml-auto font-mono-num capitalize">{periodLabel}</span>
           </div>
 
           {/* Vue active (squelette le temps du premier chargement à froid) */}
@@ -367,7 +367,7 @@ export default function AgendaPage() {
             </div>
             <div className="space-y-2 text-sm text-[var(--color-text-secondary)]">
               {selectedProspect && selected.title.trim().toLowerCase() !== selectedProspect.name.trim().toLowerCase() && (
-                <div className="text-[12px] text-neutral-500 -mt-1">{selected.title}</div>
+                <div className="text-[12px] text-[var(--color-text-muted)] -mt-1">{selected.title}</div>
               )}
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-violet-500 shrink-0" />
@@ -438,9 +438,9 @@ function UpcomingAside({ events, now, onOpen }: { events: CalendarEvent[]; now: 
   return (
     <aside className="hidden xl:block xl:w-[300px] shrink-0 min-h-0">
       <div className="glass-panel p-3 h-full overflow-y-auto">
-        <h2 className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2 px-1">Prochains RDV</h2>
+        <h2 className="text-[11px] font-bold uppercase tracking-wider text-[var(--color-text-muted)] mb-2 px-1">Prochains RDV</h2>
         {upcoming.length === 0 ? (
-          <p className="text-sm text-neutral-500 px-1 py-3">Rien de prévu prochainement.</p>
+          <p className="text-sm text-[var(--color-text-muted)] px-1 py-3">Rien de prévu prochainement.</p>
         ) : (
           <ul className="space-y-1">
             {upcoming.map((e) => {
@@ -453,7 +453,7 @@ function UpcomingAside({ events, now, onOpen }: { events: CalendarEvent[]; now: 
                       <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${isToday ? "bg-rose-500" : "bg-violet-500"}`} />
                       <span className="text-[13px] font-medium text-[var(--color-text-primary)] truncate">{e.title}</span>
                     </div>
-                    <div className="text-[11px] text-neutral-500 pl-3.5 font-mono-num">
+                    <div className="text-[11px] text-[var(--color-text-muted)] pl-3.5 font-mono-num">
                       {isToday ? "Aujourd'hui" : fmtDayLong(start)} · {fmtTime(start)}
                     </div>
                   </button>
@@ -577,7 +577,7 @@ GOOGLE_CALENDAR_ID=ton.email@gmail.com`}
           </pre>
         </li>
       </ol>
-      <p className="mt-3 text-[12px] text-neutral-500">
+      <p className="mt-3 text-[12px] text-[var(--color-text-muted)]">
         Détails complets : <code className="text-violet-400">docs/google-calendar-setup.md</code>. Recharge cette page une fois les variables en place.
       </p>
     </div>

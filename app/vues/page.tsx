@@ -51,7 +51,7 @@ interface Viewer {
 type Filter = "all" | "hot" | "cta";
 
 const STATUS_LABELS: Record<Status, { label: string; cls: string }> = {
-  todo: { label: "À appeler", cls: "bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300" },
+  todo: { label: "À appeler", cls: "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)]" },
   called: { label: "Appelé", cls: "bg-sky-100 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300" },
   sms_sent: { label: "SMS envoyé", cls: "bg-violet-100 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300" },
   positive: { label: "Intéressé", cls: "bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
@@ -184,21 +184,21 @@ export default function VuesPage() {
       {/* ── Header ── */}
       <div className="sticky top-0 z-20 bg-white dark:bg-[#111114] border-b border-[var(--color-border)] px-3 md:px-6 py-3">
         <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-          <Link href="/" className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition" title="Retour aux prospects">
+          <Link href="/" className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-[var(--color-text-secondary)] hover:text-violet-600 dark:hover:text-violet-300 transition" title="Retour aux prospects">
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div className="flex items-center gap-2 min-w-0">
             <Eye className="w-5 h-5 text-violet-500 shrink-0" />
             <div className="min-w-0">
-              <h1 className="font-display text-[20px] md:text-[24px] leading-none tracking-tight text-neutral-900 dark:text-neutral-50">
+              <h1 className="font-display text-[20px] md:text-[24px] leading-none tracking-tight text-[var(--color-text-primary)]">
                 Vues démo
               </h1>
-              <p className="text-[10px] md:text-[11px] text-neutral-500 mt-0.5 font-mono-num truncate">
+              <p className="text-[10px] md:text-[11px] text-[var(--color-text-muted)] mt-0.5 font-mono-num truncate">
                 {stats.total} prospect{stats.total > 1 ? "s ont" : " a"} ouvert sa démo · {stats.cta} CTA · {stats.today} aujourd&apos;hui
               </p>
             </div>
           </div>
-          <button onClick={load} className="ml-auto p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-600 dark:text-neutral-400 transition" title="Rafraîchir">
+          <button onClick={load} className="ml-auto p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-[var(--color-text-secondary)] transition" title="Rafraîchir">
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
@@ -220,14 +220,14 @@ export default function VuesPage() {
               className={`px-3 py-1.5 text-[13px] rounded-lg border transition ${
                 filter === key
                   ? "border-violet-500/60 bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-200 font-medium"
-                  : "border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-violet-500/40"
+                  : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-violet-500/40"
               }`}
             >
               {label}
             </button>
           ))}
           <div className="relative ml-auto">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--color-text-muted)]" />
             <input
               type="text"
               placeholder="Nom, ville, métier…"
@@ -245,12 +245,12 @@ export default function VuesPage() {
           </div>
         )}
         {loading && viewers.length === 0 && !error && (
-          <div className="flex items-center gap-2 text-sm text-neutral-500 py-8 justify-center">
+          <div className="flex items-center gap-2 text-sm text-[var(--color-text-muted)] py-8 justify-center">
             <Loader2 className="w-4 h-4 animate-spin" /> Chargement…
           </div>
         )}
         {!loading && !error && filtered.length === 0 && (
-          <p className="text-sm text-neutral-500 py-8 text-center">
+          <p className="text-sm text-[var(--color-text-muted)] py-8 text-center">
             {viewers.length === 0 ? "Personne n'a encore ouvert sa démo." : "Aucun résultat avec ce filtre."}
           </p>
         )}
@@ -291,11 +291,11 @@ export default function VuesPage() {
                       )}
                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${st.cls}`}>{st.label}</span>
                     </div>
-                    <div className="text-[12px] text-neutral-500 mt-0.5 truncate">
+                    <div className="text-[12px] text-[var(--color-text-muted)] mt-0.5 truncate">
                       {[p.metier, p.ville].filter(Boolean).join(" · ")}
                       {p.rating != null && <span className="font-mono-num"> · ⭐ {p.rating} ({p.reviews ?? 0})</span>}
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-[11px] text-neutral-500 font-mono-num flex-wrap">
+                    <div className="flex items-center gap-3 mt-1.5 text-[11px] text-[var(--color-text-muted)] font-mono-num flex-wrap">
                       <span className="flex items-center gap-1">
                         <Eye className="w-3 h-3" /> {v.visits} visite{v.visits > 1 ? "s" : ""}
                       </span>
@@ -314,7 +314,7 @@ export default function VuesPage() {
                     {p.phone && (
                       <a
                         href={`tel:${p.phone.replace(/\s/g, "")}`}
-                        className="p-2 rounded-lg border border-[var(--color-border)] hover:border-emerald-500/50 text-neutral-500 hover:text-emerald-500 transition"
+                        className="p-2 rounded-lg border border-[var(--color-border)] hover:border-emerald-500/50 text-[var(--color-text-muted)] hover:text-emerald-500 transition"
                         title={`Appeler ${p.phone}`}
                       >
                         <Phone className="w-4 h-4" />
@@ -325,7 +325,7 @@ export default function VuesPage() {
                         href={whatsAppUrl(p.phone)}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-2 rounded-lg border border-[var(--color-border)] hover:border-emerald-500/50 text-neutral-500 hover:text-emerald-500 transition"
+                        className="p-2 rounded-lg border border-[var(--color-border)] hover:border-emerald-500/50 text-[var(--color-text-muted)] hover:text-emerald-500 transition"
                         title="WhatsApp"
                       >
                         <MessageCircle className="w-4 h-4" />
@@ -335,7 +335,7 @@ export default function VuesPage() {
                       href={demoUrl(p.id)}
                       target="_blank"
                       rel="noreferrer"
-                      className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-500 hover:text-violet-500 transition"
+                      className="p-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-[var(--color-text-muted)] hover:text-violet-500 transition"
                       title="Voir sa démo"
                     >
                       <ExternalLink className="w-4 h-4" />

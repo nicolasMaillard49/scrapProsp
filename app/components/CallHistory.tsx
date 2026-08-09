@@ -6,7 +6,7 @@ import type { Call, Prospect, Status } from "../lib/types";
 
 /** Pastille de statut compacte (couleurs alignées sur statusConfig de la page). */
 const STATUS_BADGE: Record<Status, { label: string; cls: string }> = {
-  todo: { label: "À appeler", cls: "bg-neutral-200 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300" },
+  todo: { label: "À appeler", cls: "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)]" },
   called: { label: "Appelé", cls: "bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300" },
   sms_sent: { label: "SMS envoyé", cls: "bg-violet-100 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300" },
   positive: { label: "Positif", cls: "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300" },
@@ -111,18 +111,18 @@ export default function CallHistory({
           <History className="w-5 h-5 text-violet-500" />
           <div className="flex-1 min-w-0">
             <h2 className="text-sm font-semibold text-[var(--color-text-primary)]">Historique des appels</h2>
-            <p className="text-[11px] text-neutral-500 font-mono-num">
+            <p className="text-[11px] text-[var(--color-text-muted)] font-mono-num">
               {todayCount} aujourd&apos;hui · {weekCount} sur 7 jours
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-2)] text-neutral-500 hover:text-[var(--color-text-primary)] transition" title="Fermer (Échap)">
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-[var(--color-surface-2)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition" title="Fermer (Échap)">
             <X className="w-4 h-4" />
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-2">
           {groups.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center text-neutral-500 gap-2">
+            <div className="flex flex-col items-center justify-center h-full text-center text-[var(--color-text-muted)] gap-2">
               <PhoneCall className="w-8 h-8 opacity-40" />
               <p className="text-sm">Aucun appel enregistré pour l&apos;instant.</p>
               <p className="text-[11px]">Chaque changement de statut sur une fiche crée une entrée ici.</p>
@@ -131,8 +131,8 @@ export default function CallHistory({
 
           {groups.map((g) => (
             <div key={g.label} className="mb-3">
-              <div className="sticky top-0 bg-[var(--color-surface)] px-1 py-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                {g.label} <span className="text-neutral-400 dark:text-neutral-600">· {g.items.length}</span>
+              <div className="sticky top-0 bg-[var(--color-surface)] px-1 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-muted)]">
+                {g.label} <span className="text-[var(--color-text-muted)]">· {g.items.length}</span>
               </div>
               <ul className="space-y-1">
                 {g.items.map(({ call, prospect }) => {
@@ -151,7 +151,7 @@ export default function CallHistory({
                             {badge.label}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-neutral-500">
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-[var(--color-text-muted)]">
                           <span className="font-mono-num">{timeLabel(new Date(call.called_at))}</span>
                           {call.duration != null && call.duration > 0 && (
                             <span className="flex items-center gap-0.5 font-mono-num">
@@ -162,7 +162,7 @@ export default function CallHistory({
                           <span className="truncate">{prospect.metier} · {prospect.ville}</span>
                         </div>
                         {call.note && (
-                          <p className="mt-1 text-[11px] text-neutral-500 line-clamp-2">{call.note}</p>
+                          <p className="mt-1 text-[11px] text-[var(--color-text-muted)] line-clamp-2">{call.note}</p>
                         )}
                       </button>
                     </li>
@@ -173,7 +173,7 @@ export default function CallHistory({
           ))}
 
           {entries.length === MAX_ENTRIES && (
-            <p className="text-center text-[10px] text-neutral-500 py-2">Les {MAX_ENTRIES} appels les plus récents sont affichés.</p>
+            <p className="text-center text-[10px] text-[var(--color-text-muted)] py-2">Les {MAX_ENTRIES} appels les plus récents sont affichés.</p>
           )}
         </div>
       </aside>

@@ -17,7 +17,7 @@ export default function ListView({
     .sort((a, b) => a.start.localeCompare(b.start));
 
   if (upcoming.length === 0) {
-    return <div className="glass-panel p-10 text-center text-sm text-neutral-500">Aucun RDV à venir. Double-clique un créneau en vue Semaine pour en créer un.</div>;
+    return <div className="glass-panel p-10 text-center text-sm text-[var(--color-text-muted)]">Aucun RDV à venir. Double-clique un créneau en vue Semaine pour en créer un.</div>;
   }
 
   // Groupe par jour
@@ -34,7 +34,7 @@ export default function ListView({
     <div className="glass-panel p-3 space-y-4">
       {groups.map((g) => (
         <div key={g.key}>
-          <h3 className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 px-1 ${sameDay(g.date, now) ? "text-violet-500" : "text-neutral-500"}`}>
+          <h3 className={`text-[11px] font-bold uppercase tracking-wider mb-1.5 px-1 ${sameDay(g.date, now) ? "text-violet-500" : "text-[var(--color-text-muted)]"}`}>
             {sameDay(g.date, now) ? "Aujourd'hui" : fmtDay(g.date)}
           </h3>
           <div className="space-y-1">

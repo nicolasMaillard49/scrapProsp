@@ -136,7 +136,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       className={`px-2.5 py-1 rounded-full text-[11px] font-medium border transition ${
         active
-          ? "bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white border-transparent shadow"
+          ? "bg-[var(--color-accent)] hover:brightness-110 text-white border-transparent shadow"
           : "border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)]"
       }`}
     >
@@ -350,7 +350,7 @@ export default function CallScript({
   const tabBase =
     "flex items-center justify-center gap-1.5 py-2 rounded-lg text-[12px] font-medium transition";
   const tabOff = "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]";
-  const tabOn = "bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow";
+  const tabOn = "bg-[var(--color-accent)] hover:brightness-110 text-white shadow";
 
   return (
     <div className="bg-[var(--color-surface)] border border-[var(--color-border-strong)] rounded-2xl w-full md:w-80 lg:w-96 p-4 shadow-2xl shrink-0 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto overflow-x-hidden">

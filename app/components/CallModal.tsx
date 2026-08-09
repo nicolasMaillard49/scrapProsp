@@ -37,7 +37,7 @@ interface Props {
 }
 
 const statusLabel: Record<Status, { label: string; cls: string }> = {
-  todo: { label: "À appeler", cls: "bg-neutral-200 text-neutral-700 border-neutral-300 dark:bg-neutral-700/40 dark:text-[var(--color-text-secondary)] dark:border-neutral-600/50" },
+  todo: { label: "À appeler", cls: "bg-neutral-200 text-[var(--color-text-secondary)] border-[var(--color-border-strong)]/40 dark:text-[var(--color-text-secondary)]/50" },
   called: { label: "Déjà appelé", cls: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-200 dark:border-amber-500/40" },
   sms_sent: { label: "SMS envoyé", cls: "bg-violet-100 text-violet-800 border-violet-300 dark:bg-violet-500/15 dark:text-violet-200 dark:border-violet-500/40" },
   positive: { label: "Positif", cls: "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-500/40" },
@@ -497,7 +497,7 @@ export default function CallModal({
               )}
               {typeof isOpen === "boolean" && (
                 <span className={`flex items-center gap-1 text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                  isOpen ? "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30" : "bg-neutral-100 text-neutral-600 border border-neutral-300 dark:bg-neutral-800/60 dark:text-[var(--color-text-muted)] dark:border-neutral-700"
+                  isOpen ? "bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30" : "bg-[var(--color-surface-2)] text-[var(--color-text-secondary)] border border-[var(--color-border-strong)]/60 dark:text-[var(--color-text-muted)]"
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${isOpen ? "bg-emerald-400" : "bg-neutral-600"}`} />
                   {isOpen ? "Ouvert" : "Fermé"}
@@ -696,7 +696,7 @@ export default function CallModal({
                   </button>
                   <button
                     onClick={sendSms}
-                    className="py-2 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
+                    className="py-2 rounded-lg bg-[var(--color-accent)] hover:brightness-110 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
                   >
                     <Send className="w-4 h-4" /> Envoyer
                   </button>
@@ -743,7 +743,7 @@ export default function CallModal({
                   </button>
                   <button
                     onClick={sendRdvSms}
-                    className="py-2 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 hover:from-teal-400 hover:to-cyan-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
+                    className="py-2 rounded-lg bg-[var(--color-accent)] hover:from-teal-400 hover:to-cyan-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
                   >
                     <Send className="w-4 h-4" /> Envoyer
                   </button>
@@ -849,7 +849,7 @@ export default function CallModal({
                   </button>
                   <button
                     onClick={sendElig}
-                    className="py-2 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
+                    className="py-2 rounded-lg bg-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-medium text-sm flex items-center justify-center gap-1.5 transition"
                   >
                     <Send className="w-4 h-4" /> Envoyer le SMS
                   </button>
@@ -883,7 +883,7 @@ export default function CallModal({
                   ? "bg-emerald-600/80 text-white shadow-emerald-900/30"
                   : pushError
                     ? "bg-rose-600/70 hover:bg-rose-600/85 text-white shadow-rose-900/30"
-                    : "bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white shadow-violet-900/30"
+                    : "bg-[var(--color-accent)] hover:brightness-110 text-white shadow-violet-900/30"
               }`}
             >
               {pushed ? (
@@ -1139,7 +1139,7 @@ function RdvForm({ prospectId, name, phone, notes, address, onCreated }: { prosp
         className={`w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-white font-medium text-sm transition shadow-lg ${
           state === "done"
             ? "bg-emerald-600 shadow-emerald-900/30"
-            : "bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 shadow-violet-900/30 disabled:opacity-70"
+            : "bg-[var(--color-accent)] hover:brightness-110 shadow-violet-900/30 disabled:opacity-70"
         }`}
       >
         {state === "sending" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}

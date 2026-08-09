@@ -115,7 +115,7 @@ export default function FocusMode({ open, prospects, initialIndex, onClose, onSe
         aria-hidden="true"
       >
         <div
-          className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-300"
+          className="h-full bg-[var(--color-accent)] transition-all duration-300"
           style={{ width: `${progressPct}%` }}
         />
       </div>
@@ -172,7 +172,7 @@ export default function FocusMode({ open, prospects, initialIndex, onClose, onSe
             <a
               href={`tel:${cleanPhone}`}
               onClick={startCall}
-              className="group flex items-center justify-between px-5 py-5 bg-gradient-to-br from-emerald-500 to-emerald-700 hover:from-emerald-400 hover:to-emerald-600 rounded-xl shadow-lg shadow-emerald-900/30 transition animate-pulse-ring"
+              className="group flex items-center justify-between px-5 py-5 bg-emerald-600 hover:from-emerald-400 hover:to-emerald-600 rounded-xl shadow-lg shadow-emerald-900/30 transition animate-pulse-ring"
             >
               <div className="flex items-center gap-3">
                 <PhoneCall className="w-7 h-7 text-white" />

@@ -28,7 +28,7 @@ import { Avatar, IgIcon } from "./ui";
 
 /** Teinte de colonne : un filet de couleur en tête, jamais un fond coloré. */
 const RAIL: Record<string, string> = {
-  todo: "bg-neutral-400",
+  todo: "bg-[var(--color-text-muted)]",
   progress: "bg-violet-500",
   wait: "bg-amber-500",
   warm: "bg-sky-500",

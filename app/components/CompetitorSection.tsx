@@ -176,7 +176,7 @@ export default function CompetitorSection({
         </div>
         <button
           onClick={() => analyze()}
-          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[var(--color-accent)] hover:brightness-110 text-white font-medium text-sm transition shadow-lg shadow-violet-900/30"
         >
           <TrendingUp className="w-4 h-4" />
           Analyser
@@ -194,7 +194,7 @@ export default function CompetitorSection({
           <Loader2 className="w-6 h-6 text-violet-600 dark:text-violet-400 animate-spin" />
           <p className="text-sm text-[var(--color-text-secondary)]">Analyse en cours... (~15-30s)</p>
           <div className="w-32 h-1 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
-            <div className="h-full w-full bg-gradient-to-r from-violet-500 to-fuchsia-500 animate-pulse rounded-full" />
+            <div className="h-full w-full bg-[var(--color-accent)] animate-pulse rounded-full" />
           </div>
         </div>
       )}

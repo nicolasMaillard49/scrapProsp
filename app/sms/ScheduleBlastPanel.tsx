@@ -119,7 +119,7 @@ export default function ScheduleBlastPanel() {
                 className="mt-1 block rounded-lg bg-[var(--color-surface-2)] border border-[var(--color-border)] px-2 py-1.5 text-sm text-[var(--color-text-primary)]" />
             </label>
             <button onClick={submit} disabled={submitting || outOfWindow}
-              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium">
+              className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-[var(--color-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium">
               {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Programmer
             </button>
           </div>

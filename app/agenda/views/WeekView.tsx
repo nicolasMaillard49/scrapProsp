@@ -37,7 +37,7 @@ export default function WeekView({
           const today = sameDay(d, now);
           return (
             <div key={i} className={`px-1 py-1.5 text-center ${today ? "bg-violet-500/10" : ""}`}>
-              <div className={`text-[9px] uppercase tracking-wider ${today ? "text-violet-500 font-bold" : "text-neutral-500"}`}>{DAYS[i]}</div>
+              <div className={`text-[9px] uppercase tracking-wider ${today ? "text-violet-500 font-bold" : "text-[var(--color-text-muted)]"}`}>{DAYS[i]}</div>
               <div className={`text-base leading-tight font-mono-num ${today ? "text-violet-500 font-bold" : "text-[var(--color-text-primary)]"}`}>{d.getDate()}</div>
             </div>
           );
@@ -51,7 +51,7 @@ export default function WeekView({
           {hours.map((h, i) => (
             <div
               key={h}
-              className="absolute right-1 -translate-y-1/2 text-[9px] text-neutral-400 dark:text-neutral-600 font-mono-num"
+              className="absolute right-1 -translate-y-1/2 text-[9px] text-[var(--color-text-muted)] font-mono-num"
               style={{ top: `${(i / SPAN) * 100}%` }}
             >
               {i > 0 && i < SPAN ? `${h}h` : ""}

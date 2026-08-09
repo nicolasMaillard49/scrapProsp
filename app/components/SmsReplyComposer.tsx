@@ -106,7 +106,7 @@ export default function SmsReplyComposer({ to, prospectId, blocked, onSent, comp
           type="button"
           onClick={send}
           disabled={!trimmed || sending}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition"
+          className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-[var(--color-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition"
           title="Envoyer (Ctrl+Entrée)"
         >
           {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

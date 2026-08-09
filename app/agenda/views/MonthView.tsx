@@ -27,7 +27,7 @@ export default function MonthView({
       {/* En-têtes jours */}
       <div className="grid grid-cols-7 border-b border-[var(--color-border)] shrink-0">
         {DOW.map((d) => (
-          <div key={d} className="px-2 py-1.5 text-center text-[10px] uppercase tracking-wider text-neutral-500">{d}</div>
+          <div key={d} className="px-2 py-1.5 text-center text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">{d}</div>
         ))}
       </div>
       {/* 6 semaines réparties sur toute la hauteur */}
@@ -50,7 +50,7 @@ export default function MonthView({
                     today
                       ? "bg-violet-600 text-white font-bold"
                       : dim
-                        ? "text-neutral-500"
+                        ? "text-[var(--color-text-muted)]"
                         : "text-[var(--color-text-secondary)]"
                   }`}
                 >
@@ -72,7 +72,7 @@ export default function MonthView({
                     </div>
                   );
                 })}
-                {evs.length > 3 && <div className="text-[9px] text-neutral-500 pl-0.5">+{evs.length - 3}</div>}
+                {evs.length > 3 && <div className="text-[9px] text-[var(--color-text-muted)] pl-0.5">+{evs.length - 3}</div>}
               </div>
             </button>
           );

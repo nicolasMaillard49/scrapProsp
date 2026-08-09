@@ -28,7 +28,7 @@ import { metierLabel } from "./maquette/templates/data";
 import { normalizePhoneFR } from "./lib/match";
 
 const statusConfig: Record<Status, { label: string; ring: string; row: string; text: string }> = {
-  todo: { label: "À appeler", ring: "ring-neutral-400 dark:ring-neutral-700", row: "border-l-[3px] border-l-neutral-300 dark:border-l-transparent dark:bg-neutral-500/5", text: "text-neutral-500 dark:text-neutral-400" },
+  todo: { label: "À appeler", ring: "ring-[var(--color-border-strong)]", row: "border-l-[3px] border-l-[var(--color-border)]", text: "text-[var(--color-text-muted)]" },
   called: { label: "Appelé", ring: "ring-amber-500/60 dark:ring-amber-600/60", row: "border-l-[3px] border-l-amber-400 dark:border-l-transparent dark:bg-amber-500/10", text: "text-amber-600 dark:text-amber-300" },
   sms_sent: { label: "SMS envoyé", ring: "ring-violet-500/70", row: "border-l-[3px] border-l-violet-500 dark:border-l-transparent dark:bg-violet-500/10", text: "text-violet-600 dark:text-violet-300" },
   positive: { label: "Positif", ring: "ring-emerald-500/70", row: "border-l-[3px] border-l-emerald-500 dark:border-l-transparent dark:bg-emerald-500/10", text: "text-emerald-600 dark:text-emerald-300" },
@@ -352,7 +352,7 @@ function HomeInner() {
               <h1 className="font-display text-[22px] md:text-[28px] text-[var(--color-text-primary)]">
                 Prospects <span className="text-[var(--color-accent-text)]">Tracker</span>
               </h1>
-              <p className="text-[10px] md:text-[11px] text-neutral-500 dark:text-neutral-500 truncate mt-1 font-mono-num">
+              <p className="text-[10px] md:text-[11px] text-[var(--color-text-muted)] truncate mt-1 font-mono-num">
                 {regions.length > 0 ? `${regions.length} régions` : ""} · {stats.total} prospects {regionFilter !== "all" ? `(${regions.find(r => r.key === regionFilter)?.label ?? ""})` : ""}
               </p>
             </div>
@@ -393,7 +393,7 @@ function HomeInner() {
               <History className="w-4 h-4" />
               <span className="hidden md:inline">Historique</span>
             </button>
-            <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition" title="Raccourcis (?)">
+            <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition" title="Raccourcis (?)">
               <Keyboard className="w-4 h-4" />
             </button>
             <label className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-[var(--radius-control)] border border-[var(--color-border)] hover:border-[var(--color-border-strong)] cursor-pointer transition-colors duration-200">
@@ -415,7 +415,7 @@ function HomeInner() {
               className={`shrink-0 px-3 py-1.5 text-xs rounded-full border transition ${
                 regionFilter === "all"
                   ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
-                  : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                  : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
               }`}
             >
               <Globe className="w-3 h-3 inline mr-1" />
@@ -430,10 +430,10 @@ function HomeInner() {
                   className={`shrink-0 px-3 py-1.5 text-xs rounded-full border transition ${
                     regionFilter === r.key
                       ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
-                      : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                      : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
                   }`}
                 >
-                  {r.label} <span className="text-neutral-400 dark:text-neutral-600">({count})</span>
+                  {r.label} <span className="text-[var(--color-text-muted)]">({count})</span>
                 </button>
               );
             })}
@@ -443,8 +443,8 @@ function HomeInner() {
 
       <div className="px-3 md:px-6 py-3 md:py-4">
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 md:gap-2 mb-3 md:mb-4 stagger-1">
-          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.sms_sent + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-neutral-800 dark:text-neutral-100" />
-          <StatCard label="À appeler" value={stats.todo} sub="non traités" active={filter === "todo"} onClick={() => setFilter("todo")} accent="text-neutral-700 dark:text-neutral-300" iconBg="bg-neutral-300 dark:bg-neutral-800" />
+          <StatCard label="Total" value={stats.total} sub={`${Math.round(((stats.positive + stats.called + stats.sms_sent + stats.negative + stats.no_answer) / Math.max(stats.total, 1)) * 100)} % traités`} active={filter === "all"} onClick={() => setFilter("all")} accent="text-[var(--color-text-primary)]" />
+          <StatCard label="À appeler" value={stats.todo} sub="non traités" active={filter === "todo"} onClick={() => setFilter("todo")} accent="text-[var(--color-text-secondary)]" iconBg="bg-neutral-300" />
           <StatCard label="SMS envoyés" value={stats.sms_sent} sub="contactés" active={filter === "sms_sent"} onClick={() => setFilter("sms_sent")} accent="text-violet-600 dark:text-violet-300" iconBg="bg-violet-200 dark:bg-violet-950/40" />
           <StatCard label="Appelés" value={stats.called} sub="en attente" active={filter === "called"} onClick={() => setFilter("called")} accent="text-amber-600 dark:text-amber-300" iconBg="bg-amber-200 dark:bg-amber-950/40" />
           <StatCard label="Pas de rép." value={stats.no_answer} sub="à rappeler" active={filter === "no_answer"} onClick={() => setFilter("no_answer")} accent="text-sky-600 dark:text-sky-300" iconBg="bg-sky-200 dark:bg-sky-950/40" />
@@ -454,7 +454,7 @@ function HomeInner() {
 
         <div className="flex flex-wrap gap-1.5 md:gap-2 items-stretch mb-3 stagger-2">
           <div className="relative w-full md:flex-1 md:min-w-[220px]">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
             <input
               ref={searchRef}
               type="text"
@@ -516,7 +516,7 @@ function HomeInner() {
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               openNowOnly
                 ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
             }`}
             title="N'afficher que les ouverts maintenant"
           >
@@ -528,7 +528,7 @@ function HomeInner() {
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               jeuneOnly
                 ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
             }`}
             title="N'afficher que les entreprises jeunes (< 5 ans)"
           >
@@ -540,7 +540,7 @@ function HomeInner() {
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               radarOnly
                 ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
             }`}
             title="N'afficher que les prospects detectes par le Radar"
           >
@@ -552,7 +552,7 @@ function HomeInner() {
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               adsOnly
                 ? "bg-fuchsia-500/15 border-fuchsia-500/40 text-fuchsia-700 dark:text-fuchsia-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
             }`}
             title="N'afficher que les cibles Google Ads : scrape villes ≥ 5000 hab AVEC site web (la fiche s'ouvre direct sur le script Ads)"
           >
@@ -563,7 +563,7 @@ function HomeInner() {
             onClick={() => setHideRadie((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               hideRadie
-                ? "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                ? "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
                 : "bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-200"
             }`}
             title={hideRadie ? "Les entreprises radiées sont masquées (cliquer pour afficher)" : "Les radiées sont visibles (cliquer pour masquer)"}
@@ -575,7 +575,7 @@ function HomeInner() {
             onClick={() => setHideBig((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               hideBig
-                ? "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                ? "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
                 : "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-200"
             }`}
             title={hideBig ? "Les grosses boîtes (ETI/GE, transporteurs, garde-meuble, déménageurs ≥50 avis) sont masquées (cliquer pour afficher)" : "Les grosses boîtes sont visibles (cliquer pour masquer)"}
@@ -595,7 +595,7 @@ function HomeInner() {
             className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition ${
               tourneeMode
                 ? "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-200"
-                : "bg-[var(--color-surface)] border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)]"
+                : "bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)]"
             }`}
             title="Mode Tournée : prospects triés par potentiel GBP, filtrés à appeler"
           >
@@ -606,7 +606,7 @@ function HomeInner() {
 
         {(villeExclude.length > 0 || metierExclude.length > 0) && (
           <div className="flex items-center gap-1.5 flex-wrap mb-3 -mt-1">
-            <span className="text-[11px] uppercase tracking-wider text-neutral-500 font-semibold mr-0.5">Exclus :</span>
+            <span className="text-[11px] uppercase tracking-wider text-[var(--color-text-muted)] font-semibold mr-0.5">Exclus :</span>
             {villeExclude.map((v) => (
               <button
                 key={`v-${v}`}
@@ -629,14 +629,14 @@ function HomeInner() {
             ))}
             <button
               onClick={() => { setVilleExclude([]); setMetierExclude([]); }}
-              className="text-[11px] text-neutral-500 hover:text-rose-500 underline underline-offset-2 ml-1"
+              className="text-[11px] text-[var(--color-text-muted)] hover:text-rose-500 underline underline-offset-2 ml-1"
             >
               tout réintégrer
             </button>
           </div>
         )}
 
-        <div className="text-xs text-neutral-500 mb-2 flex items-center gap-2 flex-wrap">
+        <div className="text-xs text-[var(--color-text-muted)] mb-2 flex items-center gap-2 flex-wrap">
           <span>{filtered.length} prospect{filtered.length > 1 ? "s" : ""}</span>
           {stats.jeunes > 0 && (
             <button
@@ -691,13 +691,13 @@ function HomeInner() {
                 <div className="flex items-start gap-2.5 mb-2.5">
                   <button
                     onClick={() => { setFocusStart(idx); setFocusOpen(true); }}
-                    className={`shrink-0 w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center ring-2 ${cfg.ring} text-neutral-500 hover:text-violet-600 dark:hover:text-violet-300 transition`}
+                    className={`shrink-0 w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center ring-2 ${cfg.ring} text-[var(--color-text-muted)] hover:text-violet-600 dark:hover:text-violet-300 transition`}
                   >
                     {idx + 1}
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-900 dark:text-neutral-100 leading-tight text-[15px] break-words text-left hover:text-violet-600 dark:hover:text-violet-300 transition cursor-pointer">{p.name}</button>
+                      <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-[var(--color-text-primary)] leading-tight text-[15px] break-words text-left hover:text-violet-600 dark:hover:text-violet-300 transition cursor-pointer">{p.name}</button>
                       {p.source === "radar" && p.radar_detected_at && (Date.now() - new Date(p.radar_detected_at).getTime() < 48 * 3600_000) && (
                         <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-700 dark:text-violet-300 uppercase tracking-wider">Nouveau</span>
                       )}
@@ -719,18 +719,18 @@ function HomeInner() {
                           </span>
                         );
                       })()}
-                      <span className="flex items-center gap-1 text-neutral-600 dark:text-neutral-500">
+                      <span className="flex items-center gap-1 text-[var(--color-text-secondary)] dark:text-[var(--color-text-muted)]">
                         <MapPin className="w-3 h-3" /> {p.ville}
                       </span>
                     </div>
                     {(p.dirigeant_nom || p.dirigeant_prenom) && (
-                      <div className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
-                        <User className="w-3 h-3 text-neutral-600 shrink-0" />
+                      <div className="text-xs text-[var(--color-text-muted)] mt-1 flex items-center gap-1">
+                        <User className="w-3 h-3 text-[var(--color-text-secondary)] shrink-0" />
                         <span className="truncate">{[p.dirigeant_prenom, p.dirigeant_nom].filter(Boolean).join(" ")}</span>
                       </div>
                     )}
                     {p.address && (
-                      <div className="text-xs text-neutral-500 dark:text-neutral-600 mt-1 break-words" title={p.address}>
+                      <div className="text-xs text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)] mt-1 break-words" title={p.address}>
                         {p.address}
                       </div>
                     )}
@@ -739,7 +739,7 @@ function HomeInner() {
                     <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-600 dark:text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
                       <ExternalLink className="w-3.5 h-3.5" /> Google
                     </a>
-                    <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1.5 text-neutral-400 dark:text-neutral-600 hover:text-fuchsia-500 dark:hover:text-fuchsia-400 transition" title="Maquette site">
+                    <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1.5 text-[var(--color-text-muted)] hover:text-fuchsia-500 dark:hover:text-fuchsia-400 transition" title="Maquette site">
                       <Sparkles className="w-4 h-4" />
                     </a>
                   </div>
@@ -749,19 +749,19 @@ function HomeInner() {
                   {(() => {
                     const badge = gbpBadge(p.rating, p.reviews);
                     return p.rating ? (
-                      <div className="flex items-center gap-1 text-neutral-700 dark:text-neutral-300">
+                      <div className="flex items-center gap-1 text-[var(--color-text-secondary)]">
                         <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
                         <span className="font-semibold">{p.rating}</span>
-                        <span className="text-neutral-500 dark:text-neutral-600">({p.reviews})</span>
+                        <span className="text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)]">({p.reviews})</span>
                         <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.bg} ${badge.color}`}>{badge.label}</span>
                       </div>
                     ) : (
-                      <span className="text-neutral-400 dark:text-neutral-700">— pas de note —</span>
+                      <span className="text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)]">— pas de note —</span>
                     );
                   })()}
                   <div className="flex items-center gap-1.5">
-                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
-                    <span className={`${isOpen ? "text-emerald-600 dark:text-emerald-300" : "text-neutral-500"} truncate max-w-[160px]`}>
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-[var(--color-text-muted)]"}`} />
+                    <span className={`${isOpen ? "text-emerald-600 dark:text-emerald-300" : "text-[var(--color-text-muted)]"} truncate max-w-[160px]`}>
                       {openLabel(p, now, now)}
                     </span>
                   </div>
@@ -779,7 +779,7 @@ function HomeInner() {
                   </a>
                   <a
                     href={`tel:${p.phone.replace(/\s/g, "")}`}
-                    className="flex items-center justify-center px-3 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 active:bg-violet-500/10 text-neutral-500 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
+                    className="flex items-center justify-center px-3 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 active:bg-violet-500/10 text-[var(--color-text-muted)] hover:text-violet-600 dark:hover:text-violet-300 transition"
                     title="Appeler directement"
                   >
                     <Phone className="w-5 h-5" />
@@ -792,7 +792,7 @@ function HomeInner() {
                   <StatusBtn active={p.status === "no_answer"} onClick={() => updateStatus(p.id, p.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
                   <StatusBtn active={p.status === "negative"} onClick={() => updateStatus(p.id, p.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
                   {p.status !== "todo" && (
-                    <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-neutral-400 dark:text-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 transition" title="Reset">
+                    <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] dark:hover:text-[var(--color-text-muted)] transition" title="Reset">
                       <Undo2 className="w-4 h-4" />
                     </button>
                   )}
@@ -805,14 +805,14 @@ function HomeInner() {
                   value={p.notes}
                   onChange={(e) => setLocalNotes(p.id, e.target.value)}
                   onBlur={(e) => updateNotes(p.id, e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--color-background)] border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
+                  className="w-full px-3 py-2 text-sm rounded-lg bg-[var(--color-background)] border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-[var(--color-text-muted)] dark:placeholder:text-[var(--color-text-secondary)]"
                 />
               </div>
             );
           })}
           {loaded && paginated.length === 0 && (
-            <div className="py-12 text-center text-neutral-500 flex flex-col items-center gap-2">
-              <Search className="w-8 h-8 text-neutral-400 dark:text-neutral-700" />
+            <div className="py-12 text-center text-[var(--color-text-muted)] flex flex-col items-center gap-2">
+              <Search className="w-8 h-8 text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)]" />
               <div>Aucun prospect avec ces filtres</div>
               <button onClick={resetFilters} className="text-xs text-violet-400 hover:text-violet-300">
                 Réinitialiser les filtres
@@ -846,7 +846,7 @@ function HomeInner() {
                     <td className="px-4 py-3">
                       <button
                         onClick={() => { setFocusStart(idx); setFocusOpen(true); }}
-                        className={`w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center ring-2 ${cfg.ring} text-neutral-500 hover:text-violet-300 hover:ring-violet-500 transition`}
+                        className={`w-7 h-7 rounded-full text-xs font-medium flex items-center justify-center ring-2 ${cfg.ring} text-[var(--color-text-muted)] hover:text-violet-300 hover:ring-violet-500 transition`}
                         title="Ouvrir en Focus Mode"
                       >
                         {idx + 1}
@@ -854,7 +854,7 @@ function HomeInner() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-neutral-900 dark:text-neutral-100 leading-tight text-base text-left hover:text-violet-600 dark:hover:text-violet-300 transition cursor-pointer">{p.name}</button>
+                        <button onClick={() => { setCallTab("call"); setCallTarget(p); }} className="font-semibold text-[var(--color-text-primary)] leading-tight text-base text-left hover:text-violet-600 dark:hover:text-violet-300 transition cursor-pointer">{p.name}</button>
                         {p.source === "radar" && p.radar_detected_at && (Date.now() - new Date(p.radar_detected_at).getTime() < 48 * 3600_000) && (
                           <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-700 dark:text-violet-300 uppercase tracking-wider">Nouveau</span>
                         )}
@@ -876,21 +876,21 @@ function HomeInner() {
                             </span>
                           );
                         })()}
-                        <span className="flex items-center gap-1 text-neutral-700 dark:text-neutral-300 font-medium">
-                          <MapPin className="w-4 h-4 text-neutral-500" /> {p.ville}
+                        <span className="flex items-center gap-1 text-[var(--color-text-secondary)] font-medium">
+                          <MapPin className="w-4 h-4 text-[var(--color-text-muted)]" /> {p.ville}
                         </span>
                         {p.region_label && p.region_label !== p.ville && (
-                          <span className="text-neutral-500 dark:text-neutral-400">· {p.region_label}</span>
+                          <span className="text-[var(--color-text-muted)]">· {p.region_label}</span>
                         )}
                       </div>
                       {(p.dirigeant_nom || p.dirigeant_prenom) && (
-                        <div className="text-xs text-neutral-500 mt-1 flex items-center gap-1">
-                          <User className="w-3 h-3 text-neutral-600 shrink-0" />
+                        <div className="text-xs text-[var(--color-text-muted)] mt-1 flex items-center gap-1">
+                          <User className="w-3 h-3 text-[var(--color-text-secondary)] shrink-0" />
                           <span className="truncate max-w-[280px]">{[p.dirigeant_prenom, p.dirigeant_nom].filter(Boolean).join(" ")}</span>
                         </div>
                       )}
                       {p.address && (
-                        <div className="text-xs text-neutral-500 dark:text-neutral-600 mt-1 truncate max-w-[300px]" title={p.address}>
+                        <div className="text-xs text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)] mt-1 truncate max-w-[300px]" title={p.address}>
                           {p.address}
                         </div>
                       )}
@@ -909,7 +909,7 @@ function HomeInner() {
                         </a>
                         <a
                           href={`tel:${p.phone.replace(/\s/g, "")}`}
-                          className="flex items-center justify-center px-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 hover:bg-violet-500/10 text-neutral-500 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
+                          className="flex items-center justify-center px-2 rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 hover:bg-violet-500/10 text-[var(--color-text-muted)] hover:text-violet-600 dark:hover:text-violet-300 transition"
                           title="Appeler directement"
                         >
                           <Phone className="w-4 h-4" />
@@ -918,8 +918,8 @@ function HomeInner() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-start gap-1.5">
-                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-neutral-600"}`} />
-                        <span className={`text-sm leading-tight ${isOpen ? "text-emerald-600 dark:text-emerald-300" : "text-neutral-500"}`}>
+                        <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${isOpen ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-[var(--color-text-muted)]"}`} />
+                        <span className={`text-sm leading-tight ${isOpen ? "text-emerald-600 dark:text-emerald-300" : "text-[var(--color-text-muted)]"}`}>
                           {openLabel(p, now, now)}
                         </span>
                       </div>
@@ -928,14 +928,14 @@ function HomeInner() {
                       {(() => {
                         const badge = gbpBadge(p.rating, p.reviews);
                         return p.rating ? (
-                          <div className="flex items-center gap-1 text-neutral-700 dark:text-neutral-300">
+                          <div className="flex items-center gap-1 text-[var(--color-text-secondary)]">
                             <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
                             <span className="font-semibold text-base">{p.rating}</span>
-                            <span className="text-neutral-500 dark:text-neutral-600 text-sm">({p.reviews})</span>
+                            <span className="text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)] text-sm">({p.reviews})</span>
                             <span className={`ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${badge.bg} ${badge.color}`}>{badge.label}</span>
                           </div>
                         ) : (
-                          <span className="text-neutral-400 dark:text-neutral-700">—</span>
+                          <span className="text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)]">—</span>
                         );
                       })()}
                     </td>
@@ -946,7 +946,7 @@ function HomeInner() {
                         <StatusBtn active={p.status === "no_answer"} onClick={() => updateStatus(p.id, p.status === "no_answer" ? "todo" : "no_answer")} color="sky" icon={<PhoneOff className="w-4 h-4" />} title="Pas de réponse" />
                         <StatusBtn active={p.status === "negative"} onClick={() => updateStatus(p.id, p.status === "negative" ? "todo" : "negative")} color="rose" icon={<XCircle className="w-4 h-4" />} title="Négatif" />
                         {p.status !== "todo" && (
-                          <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-neutral-400 dark:text-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300 transition" title="Reset">
+                          <button onClick={() => { resetProspect(p.id); toast.push("info", "Statut réinitialisé"); }} className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] dark:hover:text-[var(--color-text-muted)] transition" title="Reset">
                             <Undo2 className="w-4 h-4" />
                           </button>
                         )}
@@ -959,7 +959,7 @@ function HomeInner() {
                         value={p.notes}
                         onChange={(e) => setLocalNotes(p.id, e.target.value)}
                         onBlur={(e) => updateNotes(p.id, e.target.value)}
-                        className="w-full px-2.5 py-1.5 text-sm rounded bg-[var(--color-background)] border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-neutral-400 dark:placeholder:text-neutral-700"
+                        className="w-full px-2.5 py-1.5 text-sm rounded bg-[var(--color-background)] border border-[var(--color-border)] focus:border-violet-500/40 transition placeholder:text-[var(--color-text-muted)] dark:placeholder:text-[var(--color-text-secondary)]"
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -967,7 +967,7 @@ function HomeInner() {
                         <a href={p.maps_url} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-2 py-1 rounded-lg border border-sky-500/30 bg-sky-500/10 text-[11px] font-medium text-sky-600 dark:text-sky-300 hover:bg-sky-500/20 hover:border-sky-500/50 transition" title="Fiche Google Maps">
                           <ExternalLink className="w-3.5 h-3.5" /> Google
                         </a>
-                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1 text-neutral-400 dark:text-neutral-600 hover:text-fuchsia-500 dark:hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
+                        <a href={`/maquette/${p.id}`} target="_blank" rel="noreferrer" className="p-1 text-[var(--color-text-muted)] hover:text-fuchsia-500 dark:hover:text-fuchsia-400 transition inline-flex" title="Maquette site">
                           <Sparkles className="w-4 h-4" />
                         </a>
                       </div>
@@ -978,8 +978,8 @@ function HomeInner() {
               {loaded && filtered.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-3 py-16 text-center">
-                    <div className="flex flex-col items-center gap-2 text-neutral-500">
-                      <Search className="w-8 h-8 text-neutral-400 dark:text-neutral-700" />
+                    <div className="flex flex-col items-center gap-2 text-[var(--color-text-muted)]">
+                      <Search className="w-8 h-8 text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)]" />
                       <div>Aucun prospect avec ces filtres</div>
                       <button onClick={resetFilters} className="text-xs text-violet-400 hover:text-violet-300">
                         Réinitialiser les filtres
@@ -1003,7 +1003,7 @@ function HomeInner() {
           />
         )}
 
-        <footer className="mt-6 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-600">
+        <footer className="mt-6 flex items-center justify-between text-xs text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)]">
           <span>Supabase · {prospects.filter(p => p.status !== "todo").length} interactions enregistrées</span>
           <button
             onClick={() => {
@@ -1109,7 +1109,7 @@ function StatCard({ label, value, sub, active, onClick, accent, iconBg }: { labe
         <div className="absolute inset-x-0 -top-px h-px bg-gradient-to-r from-transparent via-violet-400/60 to-transparent" />
       )}
       <div className="flex items-center justify-between mb-0.5">
-        <div className="text-[9px] md:text-[10px] text-neutral-500 uppercase tracking-[0.14em] truncate">{label}</div>
+        <div className="text-[9px] md:text-[10px] text-[var(--color-text-muted)] uppercase tracking-[0.14em] truncate">{label}</div>
         {iconBg && <div className={`w-1.5 h-1.5 rounded-full ${iconBg}`} />}
       </div>
       <div
@@ -1118,15 +1118,15 @@ function StatCard({ label, value, sub, active, onClick, accent, iconBg }: { labe
       >
         {value}
       </div>
-      {sub && <div className="hidden md:block text-[10px] text-neutral-500 dark:text-neutral-600 mt-1 font-mono-num">{sub}</div>}
+      {sub && <div className="hidden md:block text-[10px] text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)] mt-1 font-mono-num">{sub}</div>}
     </button>
   );
 }
 
 function SelectIcon({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-neutral-600 dark:text-neutral-400 hover:border-[var(--color-border-strong)] transition">
-      <span className="text-neutral-500">{icon}</span>
+    <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-[var(--color-border-strong)] transition">
+      <span className="text-[var(--color-text-muted)]">{icon}</span>
       {children}
     </div>
   );
@@ -1155,18 +1155,18 @@ function Pagination({ page, totalPages, pageSize, total, onPage, onPageSize }: {
 
   return (
     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 md:gap-3 px-1">
-      <div className="flex items-center gap-1.5 md:gap-2 text-xs text-neutral-500">
+      <div className="flex items-center gap-1.5 md:gap-2 text-xs text-[var(--color-text-muted)]">
         <span>
-          <span className="text-neutral-700 dark:text-neutral-300 font-medium tabular-nums">{from}–{to}</span>
+          <span className="text-[var(--color-text-secondary)] font-medium tabular-nums">{from}–{to}</span>
           <span className="mx-1">/</span>
-          <span className="text-neutral-500 dark:text-neutral-400 tabular-nums">{total}</span>
+          <span className="text-[var(--color-text-muted)] tabular-nums">{total}</span>
         </span>
-        <span className="text-neutral-400 dark:text-neutral-700 hidden sm:inline">·</span>
+        <span className="text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)] hidden sm:inline">·</span>
         <span className="hidden sm:inline">
           <select
             value={pageSize}
             onChange={(e) => onPageSize(Number(e.target.value))}
-            className="bg-transparent border-none outline-none text-xs text-neutral-700 dark:text-neutral-300 hover:text-violet-600 dark:hover:text-violet-300 cursor-pointer"
+            className="bg-transparent border-none outline-none text-xs text-[var(--color-text-secondary)] hover:text-violet-600 dark:hover:text-violet-300 cursor-pointer"
           >
             <option value={20}>20 / page</option>
             <option value={50}>50 / page</option>
@@ -1186,16 +1186,16 @@ function Pagination({ page, totalPages, pageSize, total, onPage, onPageSize }: {
             <ChevronLeft className="w-3.5 h-3.5" />
           </PageBtn>
           {/* mobile : compteur compact */}
-          <span className="md:hidden px-2 py-1 text-xs text-neutral-500 dark:text-neutral-400 tabular-nums">
+          <span className="md:hidden px-2 py-1 text-xs text-[var(--color-text-muted)] tabular-nums">
             <span className="text-violet-600 dark:text-violet-300 font-medium">{page}</span>
-            <span className="text-neutral-400 dark:text-neutral-700"> / </span>
+            <span className="text-[var(--color-text-muted)] dark:text-[var(--color-text-secondary)]"> / </span>
             <span>{totalPages}</span>
           </span>
           {/* desktop : numéros */}
           <div className="hidden md:flex items-center gap-0.5 mx-1">
             {range.map((r, i) =>
               r === "…" ? (
-                <span key={`e-${i}`} className="px-1.5 text-xs text-neutral-400 dark:text-neutral-600">…</span>
+                <span key={`e-${i}`} className="px-1.5 text-xs text-[var(--color-text-muted)]">…</span>
               ) : (
                 <button
                   key={r}
@@ -1203,7 +1203,7 @@ function Pagination({ page, totalPages, pageSize, total, onPage, onPageSize }: {
                   className={`min-w-[28px] px-1.5 py-1 text-xs rounded transition tabular-nums ${
                     r === page
                       ? "bg-violet-500/20 text-violet-700 dark:text-violet-200 border border-violet-500/40"
-                      : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:bg-[var(--color-surface)]"
+                      : "text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface)]"
                   }`}
                 >
                   {r}
@@ -1229,7 +1229,7 @@ function PageBtn({ children, onClick, disabled, title }: { children: React.React
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="p-1.5 rounded border border-[var(--color-border)] text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 hover:border-[var(--color-border-strong)] disabled:opacity-30 disabled:cursor-not-allowed transition"
+      className="p-1.5 rounded border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:border-[var(--color-border-strong)] disabled:opacity-30 disabled:cursor-not-allowed transition"
     >
       {children}
     </button>
@@ -1242,7 +1242,7 @@ function StatusBtn({ active, onClick, color, icon, title }: { active: boolean; o
     amber: "bg-amber-500/15 border-amber-500/50 text-amber-300",
     rose: "bg-rose-500/15 border-rose-500/50 text-rose-300",
     sky: "bg-sky-500/15 border-sky-500/50 text-sky-300",
-  }[color] : "border-[var(--color-border)] text-neutral-400 dark:text-neutral-500 hover:border-neutral-400 dark:hover:border-neutral-600 hover:text-neutral-700 dark:hover:text-neutral-300";
+  }[color] : "border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-border-strong)] hover:text-[var(--color-text-secondary)] dark:hover:text-[var(--color-text-muted)]";
   return (
     <button onClick={onClick} title={title} className={`p-1.5 rounded border transition ${styles}`}>
       {icon}

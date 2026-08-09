@@ -345,7 +345,7 @@ export default function SmsPage() {
           <button
             onClick={runClassify}
             disabled={classifying || pendingCount === 0}
-            className="flex items-center gap-2 px-3 md:px-4 py-2 text-sm rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition shadow-lg shadow-violet-900/30"
+            className="flex items-center gap-2 px-3 md:px-4 py-2 text-sm rounded-lg bg-[var(--color-accent)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium transition shadow-lg shadow-violet-900/30"
           >
             {classifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             Classer{pendingCount > 0 ? ` (${pendingCount})` : ""}
