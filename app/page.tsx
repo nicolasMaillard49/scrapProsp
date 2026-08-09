@@ -349,8 +349,8 @@ function HomeInner() {
               <ProgressRing positive={stats.positive} called={stats.called} negative={stats.negative} total={stats.total} size={44} />
             </div>
             <div className="min-w-0">
-              <h1 className="font-display italic text-[22px] md:text-[28px] leading-none tracking-tight text-neutral-900 dark:text-neutral-50 truncate">
-                Prospects <span className="text-violet-600 dark:text-violet-300">Tracker</span>
+              <h1 className="font-display text-[22px] md:text-[28px] text-[var(--color-text-primary)]">
+                Prospects <span className="text-[var(--color-accent-text)]">Tracker</span>
               </h1>
               <p className="text-[10px] md:text-[11px] text-neutral-500 dark:text-neutral-500 truncate mt-1 font-mono-num">
                 {regions.length > 0 ? `${regions.length} régions` : ""} · {stats.total} prospects {regionFilter !== "all" ? `(${regions.find(r => r.key === regionFilter)?.label ?? ""})` : ""}
@@ -365,80 +365,29 @@ function HomeInner() {
                 setFocusStart(0);
                 setFocusOpen(true);
               }}
-              className="flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-2 text-sm rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 hover:from-violet-400 hover:to-fuchsia-500 text-white font-medium transition shadow-lg shadow-violet-900/30"
+              className="flex items-center gap-1.5 md:gap-2 px-4 min-h-10 text-sm rounded-[var(--radius-control)] bg-[var(--color-accent)] hover:brightness-110 text-white font-medium transition-[filter,transform] duration-200 active:scale-[0.97]"
             >
               <Sparkles className="w-4 h-4" />
               <span className="hidden min-[420px]:inline">Focus</span>
               <span className="hidden md:inline">Mode</span>
               <kbd className="hidden md:inline ml-1 px-1.5 py-0.5 text-[10px] font-mono bg-black/20 rounded">F</kbd>
             </button>
-            <Link
-              href="/carte"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
-              title="Carte des prospects"
-            >
-              <MapPin className="w-4 h-4" />
-              <span className="hidden md:inline">Carte</span>
-            </Link>
+            {/* Les destinations (Carte, Ajout, Agenda, Clients, SMS, Funnel,
+                Instagram) vivent désormais dans le rail du shell : les répéter
+                ici donnait deux navigations concurrentes, dont une qui changeait
+                de forme à chaque page. Ne restent que les actions PROPRES à cet
+                écran. */}
             <Link
               href="/ajout"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-[var(--radius-control)] border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 text-[var(--color-text-secondary)] hover:text-[var(--color-accent-text)] transition-colors duration-200"
               title="Ajouter un prospect manuellement"
             >
               <UserPlus className="w-4 h-4" />
               <span className="hidden md:inline">Ajout</span>
             </Link>
-            <Link
-              href="/agenda"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
-              title="Agenda — RDV Google Calendar"
-            >
-              <CalendarDays className="w-4 h-4" />
-              <span className="hidden md:inline">Agenda</span>
-            </Link>
-            <Link
-              href="/vues"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
-              title="Prospects qui ont regardé leur démo"
-            >
-              <Eye className="w-4 h-4" />
-              <span className="hidden md:inline">Vues</span>
-            </Link>
-            <Link
-              href="/crm"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
-              title="Dossiers clients — checklist de mission, tarifs, journal"
-            >
-              <Briefcase className="w-4 h-4" />
-              <span className="hidden md:inline">Clients</span>
-            </Link>
-            <Link
-              href="/sms"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
-              title="Suivi des SMS"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span className="hidden md:inline">SMS</span>
-            </Link>
-            <Link
-              href="/admin/funnel"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
-              title="Console funnel éligibilité : aperçu pages client, emails, miroir live"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span className="hidden md:inline">Funnel</span>
-            </Link>
-            <Link
-              href="/instagram"
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
-              title="Prospection Instagram"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
-              <span className="hidden md:inline">Instagram</span>
-            </Link>
             <button
               onClick={() => setHistoryOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-violet-500/50 text-neutral-600 dark:text-neutral-400 hover:text-violet-600 dark:hover:text-violet-300 transition"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-[var(--radius-control)] border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 text-[var(--color-text-secondary)] hover:text-[var(--color-accent-text)] transition-colors duration-200"
               title="Historique des appels (H)"
             >
               <History className="w-4 h-4" />
@@ -447,12 +396,12 @@ function HomeInner() {
             <button onClick={() => setHelpOpen(true)} className="hidden sm:flex p-2 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 transition" title="Raccourcis (?)">
               <Keyboard className="w-4 h-4" />
             </button>
-            <label className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] cursor-pointer transition">
+            <label className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-[var(--radius-control)] border border-[var(--color-border)] hover:border-[var(--color-border-strong)] cursor-pointer transition-colors duration-200">
               <Upload className="w-4 h-4" />
               <span className="hidden md:inline">Import</span>
               <input type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
             </label>
-            <button onClick={exportCsv} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-[var(--color-border)] hover:border-[var(--color-border-strong)] transition">
+            <button onClick={exportCsv} className="flex items-center gap-1.5 px-3 py-2 text-sm rounded-[var(--radius-control)] border border-[var(--color-border)] hover:border-[var(--color-border-strong)] transition-colors duration-200">
               <Download className="w-4 h-4" />
               <span className="hidden md:inline">Export</span>
             </button>
@@ -1164,7 +1113,7 @@ function StatCard({ label, value, sub, active, onClick, accent, iconBg }: { labe
         {iconBg && <div className={`w-1.5 h-1.5 rounded-full ${iconBg}`} />}
       </div>
       <div
-        className={`${active ? "font-display italic" : "font-display"} text-2xl md:text-3xl leading-none tabular-nums ${accent}`}
+        className={`${active ? "font-display" : "font-display"} text-2xl md:text-3xl leading-none tabular-nums ${accent}`}
         style={{ fontVariantNumeric: "tabular-nums" }}
       >
         {value}

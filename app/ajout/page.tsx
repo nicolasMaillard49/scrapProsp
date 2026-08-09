@@ -125,7 +125,7 @@ export default function AjoutPage() {
             <ArrowLeft className="w-4 h-4" />
           </Link>
           <div>
-            <h1 className="font-display italic text-[22px] leading-none tracking-tight">
+            <h1 className="font-display text-[22px] leading-none tracking-tight">
               Ajout <span className="text-violet-300">manuel</span>
             </h1>
             <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 font-mono">

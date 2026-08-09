@@ -1,59 +1,139 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   ATELIER NMF — direction artistique commune (skill apply-atelier-nmf-design)
+
+   L'interface est l'envers du décor : un atelier numérique précis, tactile et
+   calme. Sombre inspiré DA 18, clair inspiré DA 46. Les données et les médias
+   métier restent les objets les plus expressifs — l'habillage s'efface.
+
+   Deux règles gouvernent tout ce fichier :
+    1. les composants consomment des RÔLES (`--color-surface`, `--color-accent`)
+       et jamais des hexadécimaux — changer la DA reste un changement d'un seul
+       endroit ;
+    2. les noms de tokens historiques sont CONSERVÉS et remappés. Renommer
+       aurait voulu dire toucher 25 écrans le même soir, donc casser du métier
+       pour une couche de peinture.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
 /* Branche le variant `dark:` sur la classe .dark (posée par ThemeToggle),
    et NON sur `prefers-color-scheme` (l'OS). Sans ça, le toggle ne bascule
    que les variables CSS et laisse tous les `dark:` figés sur le thème système. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ── Light theme (default) — LiquidGlass ── */
+/* ── Thème CLAIR (défaut) — relief froid, DA 46 ── */
 @theme {
-  --color-background: #f3f4f6;
-  --color-surface: #ffffff;
-  --color-surface-2: #f9fafb;
-  --color-border: #e0e0e6;
-  --color-border-strong: #c8c8d0;
-  --color-text-primary: #111111;
-  --color-text-secondary: #444444;
-  --color-text-muted: #777777;
-  --color-accent: #7c3aed;
-  --color-accent-soft: rgba(124, 58, 237, 0.1);
+  /* Rôles canoniques de la DA */
+  --color-canvas: #e6ebf2;
+  --color-canvas-recessed: #dbe1ea;
+
+  /* Rôles historiques, remappés sur la DA */
+  --color-background: #e6ebf2;
+  --color-surface: #edf1f6;
+  --color-surface-2: #f4f6fa;
   /* Surface OPAQUE — pour les menus/popovers qui recouvrent du contenu.
-     `--color-surface` est semi-transparent en thème sombre : le texte du dessous
-     transparaît. Ne pas confondre les deux. */
-  --color-surface-solid: #ffffff;
-  --font-display: var(--font-display);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
+     Ne pas confondre avec `--color-surface`, qui peut être translucide. */
+  --color-surface-solid: #f4f6fa;
+  --color-border: #c7cfda;
+  --color-border-strong: #aeb9c7;
+  --color-text-primary: #34404c;
+  --color-text-secondary: #647181;
+  --color-text-muted: #84909e;
+  --color-accent: #7857ff;
+  --color-accent-soft: color-mix(in srgb, #7857ff 14%, transparent);
+  --color-accent-text: #6043d9;
+
+  /* États — toujours doublés d'un texte ou d'un glyphe, jamais la couleur seule */
+  --color-state-success: #16805f;
+  --color-state-warning: #a56816;
+  --color-state-danger: #c74860;
+  --color-accent-coral: #dd6073;
+
+  /* Une seule famille pour toute l'application. Aucune police secondaire, et
+     surtout aucun italique — la DA l'interdit explicitement. */
+  --font-sans: "Helvetica Neue", "HelveticaNeue", Helvetica, Arial,
+    "Liberation Sans", system-ui, sans-serif;
+  --font-display: var(--font-sans);
+  --font-mono: var(--font-sans);
+
+  /* Géométrie : 4 pour le technique, 12 pour les contrôles, 16 pour les
+     surfaces majeures. La pilule est réservée aux statuts et aux segments. */
+  --radius-card: 4px;
+  --radius-control: 12px;
+  --radius-surface: 16px;
+
+  /* Mouvement : court, fonctionnel, une seule courbe. */
+  --ease-nmf: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-nmf: 200ms;
+
+  --shadow-raised: 12px 12px 28px rgb(163 174 189 / 0.58),
+    -10px -10px 26px rgb(255 255 255 / 0.78);
 }
 
-/* ── Dark theme ── */
+/* ── Thème SOMBRE — profondeur DA 18 ── */
 .dark {
-  --color-background: #0a0a0c;
-  --color-surface: rgba(17, 17, 20, 0.7);
-  --color-surface-2: rgba(23, 23, 28, 0.6);
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.12);
-  --color-text-primary: #ededf2;
-  --color-text-secondary: #a0a0aa;
-  --color-text-muted: #6b6b75;
-  --color-accent: #8b5cf6;
-  --color-accent-soft: rgba(139, 92, 246, 0.15);
-  --color-surface-solid: #16161a;
+  --color-canvas: #080817;
+  --color-canvas-recessed: #05050f;
+
+  --color-background: #080817;
+  --color-surface: #111122;
+  --color-surface-2: #18182b;
+  --color-surface-solid: #18182b;
+  --color-border: #30304b;
+  --color-border-strong: #3f3f60;
+  --color-text-primary: #f5f4ff;
+  --color-text-secondary: #aaa9be;
+  --color-text-muted: #7a7991;
+  --color-accent: #6250ff;
+  --color-accent-soft: color-mix(in srgb, #6250ff 22%, transparent);
+  --color-accent-text: #a9a0ff;
+
+  --color-state-success: #61d7ae;
+  --color-state-warning: #f3bd66;
+  --color-state-danger: #ff7c8a;
+  --color-accent-coral: #ff7c8a;
+
+  --shadow-raised: 0 18px 48px rgb(0 0 0 / 0.26),
+    inset 0 1px rgb(255 255 255 / 0.055);
+}
+
+/* ── Les familles Tailwind alignées sur la DA ───────────────────────────────
+   L'app appelle `bg-violet-600`, `text-emerald-500`, `text-rose-500` dans des
+   centaines d'endroits. Plutôt que de réécrire chaque classe — donc de toucher
+   du code métier pour une couleur — on redéfinit les variables que Tailwind v4
+   compile derrière ces classes. Même mécanique que `.agenda-theme` plus bas.
+   L'accent devient le brand NMF, et les trois familles d'état deviennent les
+   trois états de la DA. */
+@theme {
+  --color-violet-50: #f1eeff;  --color-violet-100: #e4deff; --color-violet-200: #cdc2ff;
+  --color-violet-300: #b0a0ff; --color-violet-400: #957fff; --color-violet-500: #7857ff;
+  --color-violet-600: #6043d9; --color-violet-700: #4f37b4; --color-violet-800: #3f2c8f;
+  --color-violet-900: #32236f; --color-violet-950: #1d1440;
+
+  --color-emerald-400: #3fa583; --color-emerald-500: #16805f; --color-emerald-600: #126b50;
+  --color-amber-400: #bd7c22;   --color-amber-500: #a56816;  --color-amber-600: #8c5712;
+  --color-rose-400: #d9576e;    --color-rose-500: #c74860;   --color-rose-600: #ab3b51;
+}
+.dark {
+  --color-violet-50: #f4f2ff;  --color-violet-100: #e9e5ff; --color-violet-200: #d5ceff;
+  --color-violet-300: #bcb0ff; --color-violet-400: #a396ff; --color-violet-500: #8878ff;
+  --color-violet-600: #6250ff; --color-violet-700: #4f3fdb; --color-violet-800: #4034b0;
+  --color-violet-900: #342b8c; --color-violet-950: #1e1854;
+
+  --color-emerald-400: #7ee2c0; --color-emerald-500: #61d7ae; --color-emerald-600: #3fc196;
+  --color-amber-400: #f7cd8a;   --color-amber-500: #f3bd66;  --color-amber-600: #d9a24a;
+  --color-rose-400: #ff9aa5;    --color-rose-500: #ff7c8a;   --color-rose-600: #e86372;
 }
 
 /* ── Thème de l'AGENDA uniquement ───────────────────────────────────────
-   Scopé à .agenda-theme : on remappe les variables de palette violet/fuchsia
-   (utilisées en dur par les classes Tailwind des composants agenda) sans
-   toucher au reste de l'app. Light = blanc/bleu, Dark = noir/rouge/blanc.
-   Tailwind v4 compile `bg-violet-500` en `var(--color-violet-500)` : il suffit
-   de redéfinir ces variables dans ce sous-arbre. */
+   Scopé à .agenda-theme : on remappe les variables de palette (utilisées en
+   dur par les classes Tailwind des composants agenda) sans toucher au reste.
+   Light = bleu, Dark = rouge. */
 .agenda-theme {
-  /* Light : violet -> bleu */
   --color-violet-50: #eff6ff;  --color-violet-100: #dbeafe; --color-violet-200: #bfdbfe;
   --color-violet-300: #93c5fd; --color-violet-400: #60a5fa; --color-violet-500: #3b82f6;
   --color-violet-600: #2563eb; --color-violet-700: #1d4ed8; --color-violet-800: #1e40af;
   --color-violet-900: #1e3a8a; --color-violet-950: #172554;
-  /* Light : fuchsia -> cyan/bleu clair (dégradés) */
   --color-fuchsia-50: #f0f9ff;  --color-fuchsia-100: #e0f2fe; --color-fuchsia-200: #bae6fd;
   --color-fuchsia-300: #7dd3fc; --color-fuchsia-400: #38bdf8; --color-fuchsia-500: #0ea5e9;
   --color-fuchsia-600: #0284c7; --color-fuchsia-700: #0369a1; --color-fuchsia-800: #075985;
@@ -62,12 +142,10 @@
   --color-accent-soft: rgba(37, 99, 235, 0.1);
 }
 .dark .agenda-theme {
-  /* Dark : violet -> rouge */
   --color-violet-50: #fef2f2;  --color-violet-100: #fee2e2; --color-violet-200: #fecaca;
   --color-violet-300: #fca5a5; --color-violet-400: #f87171; --color-violet-500: #ef4444;
   --color-violet-600: #dc2626; --color-violet-700: #b91c1c; --color-violet-800: #991b1b;
   --color-violet-900: #7f1d1d; --color-violet-950: #450a0a;
-  /* Dark : fuchsia -> rose (dégradés) */
   --color-fuchsia-50: #fff1f2;  --color-fuchsia-100: #ffe4e6; --color-fuchsia-200: #fecdd3;
   --color-fuchsia-300: #fda4af; --color-fuchsia-400: #fb7185; --color-fuchsia-500: #f43f5e;
   --color-fuchsia-600: #e11d48; --color-fuchsia-700: #be123c; --color-fuchsia-800: #9f1239;
@@ -76,159 +154,206 @@
   --color-accent-soft: rgba(239, 68, 68, 0.15);
 }
 
+/* ── Fondations typographiques ─────────────────────────────────────────── */
+
 html, body {
   height: 100%;
   color: var(--color-text-primary);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+  /* Corps : 15px / 1.55, graisse 400. */
+  font-size: 0.9375rem;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Aucun italique nulle part — y compris là où le navigateur l'impose. */
+em, i, address, cite, dfn, var { font-style: normal; }
+
+/* Un titre qui identifie une donnée ne se coupe pas ; il s'équilibre. */
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
 body {
   position: relative;
   background: var(--color-background);
+  /* UN seul halo, depuis le coin supérieur droit, éteint à 28rem. Pas
+     d'empilement de lueurs : la DA proscrit les gradients décoratifs. */
   background-image:
-    radial-gradient(at 0% 0%, rgba(124, 58, 237, 0.08) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(96, 165, 250, 0.06) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(124, 58, 237, 0.04) 0px, transparent 60%);
+    radial-gradient(28rem 28rem at 100% 0%, var(--color-accent-soft) 0%, transparent 100%);
   background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 
-.dark body {
-  background-image:
-    radial-gradient(at 8% 0%, rgba(123, 79, 224, 0.14) 0px, transparent 45%),
-    radial-gradient(at 100% 8%, rgba(96, 165, 250, 0.07) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(123, 79, 224, 0.05) 0px, transparent 60%);
+/* NE PAS réintroduire `body > * { position: relative }` : cette règle servait à
+   passer au-dessus d'un voile de bruit qui n'existe plus, et — parce qu'elle
+   vit hors `@layer` — elle BAT les utilitaires Tailwind. Elle transformait
+   silencieusement tout `fixed` de premier niveau en `relative` : le rail
+   poussait le contenu de 296 px vers le bas au lieu de flotter. */
+
+/* ── Décalage du contenu par le shell ────────────────────────────────────
+   Le rail est fixe : sans marge, il recouvrirait le premier tiers de chaque
+   écran. La marge est posée ICI, une fois, plutôt que dans le `<main>` de
+   vingt-cinq pages — où il aurait suffi d'en oublier une. */
+body[data-rail="1"] > main,
+body[data-rail="1"] > div > main {
+  /* Mobile : la barre basse mange 96 px, rien ne doit passer dessous. */
+  padding-bottom: 96px;
+}
+@media (min-width: 900px) {
+  body[data-rail="1"] > main,
+  body[data-rail="1"] > div > main {
+    padding-left: calc(64px + 20px);
+    padding-bottom: 0;
+  }
+}
+@media (min-width: 1200px) {
+  body[data-rail="1"] > main,
+  body[data-rail="1"] > div > main {
+    padding-left: calc(64px + 192px + 24px);
+  }
+}
+/* Le rail contextuel n'existe que sur les espaces qui ont des destinations
+   secondaires — ailleurs, le contenu reprend la place. */
+body[data-rail="1"][data-subrail="0"] > main {
+  padding-left: calc(64px + 20px);
 }
 
-/* tactile noise overlay */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.018;
-  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  background-size: 200px 200px;
-  mix-blend-mode: overlay;
-}
-.dark body::before { opacity: 0.025; }
-
-body > * { position: relative; z-index: 1; }
-
-/* ── LiquidGlass surfaces ── */
+/* ── Surfaces ───────────────────────────────────────────────────────────
+   Trois niveaux et rien de plus : base, haute, creusée. Le relief signale
+   l'importance ; l'empiler partout ne signale plus rien. */
 .glass {
-  background: #ffffff;
-  border: 1px solid #e0e0e6;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
-}
-.dark .glass {
-  background: rgba(17, 17, 20, 0.65);
-  border-color: rgba(255, 255, 255, 0.06);
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.2),
-    0 8px 24px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+  border-radius: var(--radius-surface);
+  box-shadow: none;
 }
 
 .glass-card {
-  background: #ffffff;
-  border: 1px solid #e0e0e6;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03);
-  transition: box-shadow 0.2s, border-color 0.2s;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow-raised);
+  transition: border-color var(--dur-nmf) var(--ease-nmf),
+    transform var(--dur-nmf) var(--ease-nmf);
 }
 .glass-card:hover {
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 8px 20px rgba(0, 0, 0, 0.06);
-  border-color: #c8c8d0;
-}
-.dark .glass-card {
-  background: rgba(23, 23, 28, 0.55);
-  border-color: rgba(255, 255, 255, 0.06);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.15),
-    0 4px 16px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-.dark .glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.2),
-    0 8px 24px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border-color: var(--color-border-strong);
+  /* Translation maximale de 2 px : on confirme la présence, on ne fait pas
+     danser l'interface. */
+  transform: translateY(-2px);
 }
 
 .glass-input {
-  background: #ffffff;
-  border: 1px solid #d0d0d8;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  background: color-mix(in srgb, var(--color-canvas-recessed) 55%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  transition: border-color var(--dur-nmf) var(--ease-nmf),
+    box-shadow var(--dur-nmf) var(--ease-nmf);
 }
 .glass-input:focus-within {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft), inset 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-.dark .glass-input {
-  background: rgba(23, 23, 28, 0.5);
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
-}
-.dark .glass-input:focus-within {
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft), inset 0 1px 2px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 /* Variante sobre du focus, pour les champs qu'on active en permanence — la
    recherche de prospects — où le marquage habituel attire l'œil à chaque frappe
    alors qu'on regarde la liste, pas le champ.
-   Trois choses à neutraliser, pas une : le halo de 3 px, le liseré d'accent, et
-   surtout l'`outline` de 2 px posé plus haut sur TOUT `input:focus-visible`.
-   Ce dernier est plus spécifique que l'`outline-none` de Tailwind : il gagnait,
-   et dessinait un second rectangle à 2 px à l'intérieur du champ. */
+   Trois choses à neutraliser, pas une : le halo, le liseré d'accent, et surtout
+   l'`outline` posé plus bas sur TOUT `input:focus-visible` — plus spécifique
+   que l'`outline-none` de Tailwind, il dessinait un second rectangle dedans. */
 .glass-input--soft:focus-within {
-  border-color: #b9b9c4;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  border-color: var(--color-border-strong);
+  box-shadow: none;
 }
-.dark .glass-input--soft:focus-within {
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
-}
-.glass-input--soft input:focus-visible {
-  outline: none;
-}
+.glass-input--soft input:focus-visible { outline: none; }
 
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 5px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
-.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-text-muted) 55%, transparent);
+}
 
 /* Conteneur qui défile sans sa barre native (vue pipeline : la barre est
    affichée au-dessus des colonnes par une barre miroir synchronisée). */
 .scrollbar-none { scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 
-/* ── Focus ring ── */
-input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-visible {
-  outline: 2px solid rgba(123, 79, 224, 0.5);
+/* ── Focus ── */
+input:focus-visible, select:focus-visible, button:focus-visible,
+textarea:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
-/* ── Fonts ── */
-.font-display { font-family: var(--font-display), Georgia, serif; }
-.font-mono-num { font-family: var(--font-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+/* Lien d'évitement : premier élément tabulable, invisible jusqu'au focus. */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: var(--radius-control);
+  background: var(--color-surface-solid);
+  border: 1px solid var(--color-accent);
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  transition: top var(--dur-nmf) var(--ease-nmf);
+}
+.skip-link:focus { top: 12px; }
 
-/* Typo Helvetica, scopée à la page KPI Instagram (le reste de l'app garde Geist +
-   Instrument Serif). Stack système : vraie Helvetica Neue sur macOS, Arial —
-   métriquement identique — sur Windows. */
+/* ── Familles typographiques ─────────────────────────────────────────────
+   Une seule famille : ces classes ne changent plus de police, elles changent
+   de RÔLE (emphase, chiffres alignés). C'est ce que demande la DA. */
+.font-display {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+.font-mono-num {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+/* Héritée de la page KPI, conservée pour ne rien casser : elle demande
+   désormais la même famille que le reste. */
 .font-helvetica,
 .font-helvetica .font-display,
-.font-helvetica .font-mono-num {
-  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-}
+.font-helvetica .font-mono-num { font-family: var(--font-sans); }
 .font-helvetica .font-mono-num { font-variant-numeric: tabular-nums; }
+
+/* Micro-label : le seul endroit où les capitales et le tracking large servent. */
+.nmf-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+}
+
+/* Valeur forte — un chiffre qu'on lit de loin. */
+.nmf-value {
+  font-size: clamp(24px, 3vw, 39.2px);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Titre de page. */
+.nmf-title {
+  font-size: clamp(32px, 4.2vw, 60.8px);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.052em;
+}
 
 /* ── Tactile (mobile) ──
    Sur pointeur grossier (doigt), on garantit des cibles ≥ 40 px sans alourdir
@@ -245,11 +370,12 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
 .safe-x { padding-left: max(0px, env(safe-area-inset-left)); padding-right: max(0px, env(safe-area-inset-right)); }
 .safe-b { padding-bottom: env(safe-area-inset-bottom); }
 
-/* ── Animations ── */
+/* ── Animations ───────────────────────────────────────────────────────────
+   150 à 240 ms, une seule courbe, et uniquement transform/opacité/couleur. */
 @keyframes pulse-ring {
-  0% { box-shadow: 0 0 0 0 rgba(123, 79, 224, 0.6); }
-  70% { box-shadow: 0 0 0 12px rgba(123, 79, 224, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(123, 79, 224, 0); }
+  0% { box-shadow: 0 0 0 0 var(--color-accent-soft); }
+  70% { box-shadow: 0 0 0 12px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 
 @keyframes slide-up {
@@ -285,41 +411,36 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
   100% { background-position: 200% 0; }
 }
 
-.animate-pulse-ring { animation: pulse-ring 2s cubic-bezier(0.66, 0, 0, 1) infinite; }
-.animate-slide-up { animation: slide-up 200ms ease-out; }
-.animate-fade-in { animation: fade-in 200ms ease-out; }
+.animate-pulse-ring { animation: pulse-ring 2s var(--ease-nmf) infinite; }
+.animate-slide-up { animation: slide-up var(--dur-nmf) var(--ease-nmf); }
+.animate-fade-in { animation: fade-in 150ms var(--ease-nmf); }
 
-@media (prefers-reduced-motion: reduce) {
-  .animate-pulse-ring, .animate-slide-up, .animate-fade-in, .animate-confetti, .animate-confetti-fall,
-  .stagger-1, .stagger-2, .stagger-3, .stagger-4, .skeleton {
-    animation: none;
-  }
-}
-.animate-confetti { animation: confetti-pop 800ms ease-out forwards; }
-.stagger-1 { animation: stagger-in 400ms ease-out 0ms both; }
-.stagger-2 { animation: stagger-in 400ms ease-out 80ms both; }
-.stagger-3 { animation: stagger-in 400ms ease-out 160ms both; }
-.stagger-4 { animation: stagger-in 400ms ease-out 240ms both; }
+.animate-confetti { animation: confetti-pop 800ms var(--ease-nmf) forwards; }
+.stagger-1 { animation: stagger-in 240ms var(--ease-nmf) 0ms both; }
+.stagger-2 { animation: stagger-in 240ms var(--ease-nmf) 60ms both; }
+.stagger-3 { animation: stagger-in 240ms var(--ease-nmf) 120ms both; }
+.stagger-4 { animation: stagger-in 240ms var(--ease-nmf) 180ms both; }
 
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(0,0,0,0.04) 0%,
-    rgba(0,0,0,0.08) 50%,
-    rgba(0,0,0,0.04) 100%
+    color-mix(in srgb, var(--color-text-muted) 10%, transparent) 0%,
+    color-mix(in srgb, var(--color-text-muted) 22%, transparent) 50%,
+    color-mix(in srgb, var(--color-text-muted) 10%, transparent) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-card);
 }
-.dark .skeleton {
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0.04) 0%,
-    rgba(255,255,255,0.08) 50%,
-    rgba(255,255,255,0.04) 100%
-  );
-  background-size: 200% 100%;
+
+/* Le mouvement ne porte jamais d'information : le couper ne cache rien. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ── Leaflet overrides ── */
@@ -327,65 +448,52 @@ input:focus-visible, select:focus-visible, button:focus-visible, textarea:focus-
   background: transparent !important;
   box-shadow: none !important;
   padding: 0 !important;
-  border-radius: 10px !important;
+  border-radius: var(--radius-control) !important;
 }
 .leaflet-popup-content { margin: 0 !important; }
 .leaflet-popup-tip {
-  background: var(--color-surface) !important;
+  background: var(--color-surface-solid) !important;
   border: 1px solid var(--color-border) !important;
 }
 .leaflet-popup-close-button { color: var(--color-text-muted) !important; }
 .leaflet-popup-close-button:hover { color: var(--color-text-secondary) !important; }
 .leaflet-control-attribution {
-  background: rgba(255, 255, 255, 0.7) !important;
-  backdrop-filter: blur(8px) !important;
-  color: #666 !important;
+  background: color-mix(in srgb, var(--color-surface-solid) 80%, transparent) !important;
+  color: var(--color-text-muted) !important;
   font-size: 9px !important;
-}
-.dark .leaflet-control-attribution {
-  background: rgba(17, 17, 20, 0.8) !important;
-  color: #555 !important;
 }
 .leaflet-control-attribution a { color: var(--color-text-muted) !important; }
 
-/* ── Agenda · Liquid glass ─────────────────────────────────────────── */
-/* Surfaces de l'agenda — rendu PLAT et PRO (pas de glassmorphisme/fluo) */
+/* ── Agenda ─────────────────────────────────────────────────────────────
+   Rendu PLAT et PRO : pas de glassmorphisme, pas de fluo. L'accent y signale
+   un état, jamais une décoration. */
 .glass-panel {
   position: relative;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--color-border);
-  background: #141418;
+  background: var(--color-surface);
   box-shadow: none;
 }
-:root:not(.dark) .glass-panel {
-  border-color: var(--color-border);
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-}
 .glass-amb { position: relative; isolation: isolate; }
-/* plus de glow ambiant — sobre */
 .glass-amb::before { content: none; }
 .glass-event {
-  position: relative; overflow: hidden; border-radius: 0;
-  transition: background .15s ease, border-color .15s ease;
+  position: relative; overflow: hidden; border-radius: var(--radius-card);
+  transition: background var(--dur-nmf) var(--ease-nmf),
+    border-color var(--dur-nmf) var(--ease-nmf);
 }
-/* États (l'accent = état, jamais déco) — plat, sans dégradé ni glow. */
 /* Dark : normal = rouge, en cours = rose, passé = gris */
 .ev-normal { background: rgba(239,68,68,.16); border: 1px solid rgba(239,68,68,.4); border-left-width: 3px; color: #fca5a5; }
 .ev-now    { background: rgba(244,63,94,.18); border: 1px solid rgba(244,63,94,.45); border-left-width: 3px; color: #fda4af; }
-.ev-past   { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); color: #8a8a93; }
+.ev-past   { background: color-mix(in srgb, var(--color-text-muted) 8%, transparent); border: 1px solid var(--color-border); color: var(--color-text-muted); }
 /* Light : normal = bleu, en cours = cyan, passé = gris */
 :root:not(.dark) .ev-normal { background: rgba(37,99,235,.10); border-color: rgba(37,99,235,.4); color: #1d4ed8; }
 :root:not(.dark) .ev-now    { background: rgba(2,132,199,.10); border-color: rgba(2,132,199,.45); color: #075985; }
-:root:not(.dark) .ev-past   { background: #f3f4f6; border-color: rgba(0,0,0,.08); color: #6b7280; }
+:root:not(.dark) .ev-past   { background: var(--color-canvas-recessed); border-color: var(--color-border); color: var(--color-text-muted); }
 /* Arrondis réduits dans tout le sous-arbre agenda (on garde rounded-full pour les pastilles) */
-.agenda-theme .rounded-2xl { border-radius: 8px; }
-.agenda-theme .rounded-xl  { border-radius: 6px; }
-.agenda-theme .rounded-lg  { border-radius: 6px; }
-.agenda-theme .rounded-md  { border-radius: 4px; }
-@media (prefers-reduced-motion: reduce) {
-  .glass-event { transition: none; }
-}
+.agenda-theme .rounded-2xl { border-radius: var(--radius-control); }
+.agenda-theme .rounded-xl  { border-radius: var(--radius-card); }
+.agenda-theme .rounded-lg  { border-radius: var(--radius-card); }
+.agenda-theme .rounded-md  { border-radius: var(--radius-card); }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-panel { background: var(--color-surface); }
   .glass-event.ev-normal, .glass-event.ev-now, .glass-event.ev-past { backdrop-filter: none; }

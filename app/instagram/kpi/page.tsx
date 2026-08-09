@@ -334,7 +334,7 @@ function DayPanel({ row, detail }: { row: DayRow; detail: DayDetail | undefined 
                   <div key={i} className="mt-0.5 flex items-baseline gap-2">
                     <span className="font-mono-num text-[10px] text-[var(--color-text-muted)] shrink-0">{hhmm(rep.at)}</span>
                     <span className={`shrink-0 font-medium ${KIND_LABEL[rep.kind]?.cls ?? ""}`}>{KIND_LABEL[rep.kind]?.label ?? rep.kind}</span>
-                    {rep.excerpt && <span className="text-[var(--color-text-secondary)] italic">« {rep.excerpt} »</span>}
+                    {rep.excerpt && <span className="text-[var(--color-text-secondary)]">« {rep.excerpt} »</span>}
                   </div>
                 ))}
               </div>

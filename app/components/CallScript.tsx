@@ -120,7 +120,7 @@ function AdsObjections({ items }: { items: AdsObjection[] }) {
       </div>
       {cur && (
         <>
-          <p className="mt-2 text-[11px] italic text-[var(--color-text-muted)]">{cur.line}</p>
+          <p className="mt-2 text-[11px] text-[var(--color-text-muted)]">{cur.line}</p>
           <Relance>{cur.reponse}</Relance>
         </>
       )}
@@ -908,7 +908,7 @@ export default function CallScript({
                 et ce que vous voulez vraiment c’est {obj ? <V>{obj.ambition}</V> : <V>[son ambition]</V>}.
                 C’est <V>exactement</V> pour ça que je vous ai préparé ce site. »</Say>
               {(!painText || !obj) && (
-                <div className="text-[10px] text-[var(--color-text-muted)] italic">
+                <div className="text-[10px] text-[var(--color-text-muted)]">
                   Clique sur les ressentis et le moteur en phase 1 (Découverte) pour remplir automatiquement les passages en couleur.
                 </div>
               )}

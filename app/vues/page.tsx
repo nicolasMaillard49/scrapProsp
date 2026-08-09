@@ -190,7 +190,7 @@ export default function VuesPage() {
           <div className="flex items-center gap-2 min-w-0">
             <Eye className="w-5 h-5 text-violet-500 shrink-0" />
             <div className="min-w-0">
-              <h1 className="font-display italic text-[20px] md:text-[24px] leading-none tracking-tight text-neutral-900 dark:text-neutral-50">
+              <h1 className="font-display text-[20px] md:text-[24px] leading-none tracking-tight text-neutral-900 dark:text-neutral-50">
                 Vues démo
               </h1>
               <p className="text-[10px] md:text-[11px] text-neutral-500 mt-0.5 font-mono-num truncate">

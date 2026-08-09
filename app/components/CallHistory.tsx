@@ -162,7 +162,7 @@ export default function CallHistory({
                           <span className="truncate">{prospect.metier} · {prospect.ville}</span>
                         </div>
                         {call.note && (
-                          <p className="mt-1 text-[11px] text-neutral-500 italic line-clamp-2">{call.note}</p>
+                          <p className="mt-1 text-[11px] text-neutral-500 line-clamp-2">{call.note}</p>
                         )}
                       </button>
                     </li>

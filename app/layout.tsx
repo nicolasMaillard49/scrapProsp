@@ -1,27 +1,13 @@
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
-import { Instrument_Serif, Geist, Geist_Mono } from "next/font/google";
 import ThemeToggle from "./components/ThemeToggle";
+import AppRail from "./components/nmf/AppRail";
 
-const display = Instrument_Serif({
-  weight: "400",
-  style: ["normal", "italic"],
-  subsets: ["latin"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-const sans = Geist({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
-const mono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
+// Aucune police chargée : la DA Atelier NMF impose UNE famille, Helvetica Neue,
+// avec un repli métriquement compatible (Arial, Liberation Sans). Une police
+// distante, c'est un aller-retour réseau et un flash de texte pour un résultat
+// que le système rend déjà — et une seconde famille est interdite par la DA.
+// La pile exacte vit dans `globals.css` (`--font-sans`).
 
 export const metadata: Metadata = {
   title: "Prospects Tracker",
@@ -39,18 +25,40 @@ export const viewport: Viewport = {
   // paddings env(safe-area-inset-*) dans globals.css).
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f3f4f6" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0c" },
+    { media: "(prefers-color-scheme: light)", color: "#e6ebf2" },
+    { media: "(prefers-color-scheme: dark)", color: "#080817" },
   ],
 };
 
+/**
+ * Le thème est résolu AVANT le rendu, dans le `<head>`.
+ *
+ * Trois valeurs possibles — `system`, `dark`, `light` — dont `system` par
+ * défaut. Poser la classe après l'hydratation ferait clignoter l'app en clair
+ * pendant un instant à chaque chargement ; c'est le seul flash que l'utilisateur
+ * remarque vraiment.
+ *
+ * On pose À LA FOIS `data-theme` (le contrat de la DA) et la classe `.dark`
+ * (dont dépend le variant `dark:` de Tailwind dans toute l'app) : les deux
+ * décrivent le même état, en retirer une casserait la moitié des écrans.
+ */
+const BOOT_THEME = `(function(){try{
+var p=localStorage.getItem("theme")||"system";
+var d=p==="dark"||(p==="system"&&matchMedia("(prefers-color-scheme:dark)").matches);
+var r=document.documentElement;
+r.classList.toggle("dark",d);
+r.setAttribute("data-theme",d?"dark":"light");
+}catch(e){}})()`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={`${display.variable} ${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="fr" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||(!t&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.classList.add("dark")}catch(e){}})()` }} />
+        <script dangerouslySetInnerHTML={{ __html: BOOT_THEME }} />
       </head>
       <body>
+        <a href="#contenu" className="skip-link">Aller au contenu</a>
+        <AppRail />
         {children}
         <ThemeToggle />
       </body>

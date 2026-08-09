@@ -356,7 +356,7 @@ export default function CartePage() {
           </button>
 
           <div className="shrink-0">
-            <h1 className="font-display italic text-[22px] leading-none tracking-tight text-[var(--color-text-primary)]">
+            <h1 className="font-display text-[22px] leading-none tracking-tight text-[var(--color-text-primary)]">
               Carte <span className="text-violet-700 dark:text-violet-300">Explorer</span>
             </h1>
             <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5 font-mono">

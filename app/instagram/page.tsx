@@ -2469,7 +2469,7 @@ function NoteField({
         placeholder="Ajouter une note…"
         rows={compact ? 1 : 2}
         aria-label="Note interne sur ce prospect"
-        className="flex-1 resize-none bg-transparent border-none outline-none text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] placeholder:italic leading-snug"
+        className="flex-1 resize-none bg-transparent border-none outline-none text-xs text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] leading-snug"
       />
       {saved && <Check className="w-3 h-3 mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
     </div>

@@ -58,7 +58,7 @@ export default async function LoginPage({
           </div>
         </div>
 
-        <h1 className="font-display italic text-3xl text-center text-[var(--color-text-primary)] mb-1 leading-none">
+        <h1 className="font-display text-3xl text-center text-[var(--color-text-primary)] mb-1 leading-none">
           Prospects <span className="text-violet-300">Tracker</span>
         </h1>
         <p className="text-sm text-[var(--color-text-muted)] text-center mb-6 font-mono-num">Saisis le code pour entrer</p>
