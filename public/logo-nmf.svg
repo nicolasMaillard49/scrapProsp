@@ -1,0 +1,25 @@
+<!--
+  Marque scrapProsp — SOURCE DE VÉRITÉ de toutes les icônes.
+  Le X de NMF (deux arcs opposés, vide central) dont le vide porte un point :
+  la marque de l'agence, rendue propre à l'outil par la cible acquise.
+  Régénérer les PNG (app, PWA, extension) : node scripts/build-icons.mjs
+-->
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="12" y1="56" x2="52" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8B5CF6"/>
+      <stop offset=".55" stop-color="#B84FE8"/>
+      <stop offset="1" stop-color="#E85FD4"/>
+    </linearGradient>
+    <mask id="void">
+      <rect width="64" height="64" fill="#fff"/>
+      <circle cx="32" cy="32" r="10" fill="#000"/>
+    </mask>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0B0D14"/>
+  <g mask="url(#void)" fill="none" stroke="url(#g)" stroke-width="10.5" stroke-linecap="round">
+    <path d="M13.5 10 C13.5 32 50.5 32 50.5 10"/>
+    <path d="M13.5 54 C13.5 32 50.5 32 50.5 54"/>
+  </g>
+  <circle cx="32" cy="32" r="4.25" fill="#E85FD4"/>
+</svg>

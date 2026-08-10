@@ -14,7 +14,6 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useEffect } from "react";
 import {
   ListChecks, Map, CalendarDays, Users, MessageSquare, Filter, BarChart3,
 } from "lucide-react";
@@ -53,22 +52,27 @@ export default function AppRail() {
   const path = usePathname() || "/";
   const publique = PUBLIQUES.some((r) => r.test(path));
 
-  // Le décalage du contenu vit en CSS, piloté par un attribut sur `body` :
-  // sans ça il faudrait modifier le `<main>` de vingt-cinq pages pour la même
-  // marge, et en oublier une.
   const espace = ESPACES.find((e) => e.actif(path));
   const secondaires = CONTEXTE[espace?.href ?? ""] ?? [];
 
-  useEffect(() => {
-    document.body.dataset.rail = publique ? "0" : "1";
-    document.body.dataset.subrail = !publique && secondaires.length > 0 ? "1" : "0";
-    return () => { document.body.dataset.rail = "0"; };
-  }, [publique, secondaires.length]);
-
   if (publique) return null;
+
+  const decalage = `
+    main { padding-bottom: 96px; }
+    @media (min-width: 900px) {
+      main { padding-left: 84px; padding-bottom: 0; }
+    }
+    ${secondaires.length > 0 ? `@media (min-width: 1200px) { main { padding-left: 280px; } }` : ""}
+  `;
 
   return (
     <>
+      {/* Le décalage du contenu voyage AVEC le rail : rendu par le serveur en
+          même temps que lui, il ne peut pas arriver en retard ni manquer. Une
+          version pilotée par un attribut sur le document laissait le contenu
+          passer sous le rail tant que l'effet n'avait pas tourné. */}
+      <style>{decalage}</style>
+
       {/* ── Desktop : rail fixe de 64 px ── */}
       <nav
         aria-label="Navigation principale"
@@ -79,9 +83,12 @@ export default function AppRail() {
           aria-label="Prospects Tracker — accueil"
           className="w-11 h-11 grid place-items-center rounded-[var(--radius-control)] mb-2"
         >
-          {/* Le vrai logo de l'app, jamais une marque typographique de remplacement. */}
+          {/* Le vrai logo de l'app, jamais une marque typographique de
+              remplacement. Servi depuis `public/` : `app/icon.svg` est publié
+              par Next avec une empreinte dans l'URL, donc introuvable à
+              `/icon.svg` — le rail affichait une image cassée. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icon.svg" alt="" className="w-9 h-9 object-contain" />
+          <img src="/logo-nmf.svg" alt="" className="w-9 h-9 object-contain" />
         </Link>
 
         {ESPACES.map(({ href, label, Icone, actif }) => {

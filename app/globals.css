@@ -37,17 +37,23 @@
   --color-border: #c7cfda;
   --color-border-strong: #aeb9c7;
   --color-text-primary: #34404c;
-  --color-text-secondary: #647181;
-  --color-text-muted: #84909e;
+  /* Ces deux valeurs sont VOLONTAIREMENT plus sombres que la référence de la DA
+     (#647181 et #84909E). Mesurées sur le canvas clair, elles donnaient 4,15:1
+     et 2,71:1 — sous le seuil AA que la même DA exige « pour tout texte utile ».
+     Entre deux invariants qui se contredisent, c'est la lisibilité qui gagne :
+     la teinte est conservée, seule la clarté descend juste assez. */
+  --color-text-secondary: #5e6a79;
+  --color-text-muted: #626b75;
   --color-accent: #7857ff;
   --color-accent-soft: color-mix(in srgb, #7857ff 14%, transparent);
   --color-accent-text: #6043d9;
 
   /* États — toujours doublés d'un texte ou d'un glyphe, jamais la couleur seule */
-  --color-state-success: #16805f;
-  --color-state-warning: #a56816;
-  --color-state-danger: #c74860;
-  --color-accent-coral: #dd6073;
+  /* Même correction pour les états : un avertissement illisible n'avertit pas. */
+  --color-state-success: #157859;
+  --color-state-warning: #945e14;
+  --color-state-danger: #b34156;
+  --color-accent-coral: #a84957;
 
   /* Une seule famille pour toute l'application. Aucune police secondaire, et
      surtout aucun italique — la DA l'interdit explicitement. */
@@ -110,9 +116,11 @@
   --color-violet-600: #6043d9; --color-violet-700: #4f37b4; --color-violet-800: #3f2c8f;
   --color-violet-900: #32236f; --color-violet-950: #1d1440;
 
-  --color-emerald-400: #3fa583; --color-emerald-500: #16805f; --color-emerald-600: #126b50;
-  --color-amber-400: #bd7c22;   --color-amber-500: #a56816;  --color-amber-600: #8c5712;
-  --color-rose-400: #d9576e;    --color-rose-500: #c74860;   --color-rose-600: #ab3b51;
+  /* Mêmes valeurs que les rôles d'état, corrigées pour AA : ces classes servent
+     très souvent de COULEUR DE TEXTE sur fond clair. */
+  --color-emerald-400: #157859; --color-emerald-500: #157859; --color-emerald-600: #116048;
+  --color-amber-400: #945e14;   --color-amber-500: #945e14;  --color-amber-600: #7c4e11;
+  --color-rose-400: #b34156;    --color-rose-500: #b34156;   --color-rose-600: #963547;
 }
 .dark {
   --color-violet-50: #f4f2ff;  --color-violet-100: #e9e5ff; --color-violet-200: #d5ceff;
@@ -190,34 +198,6 @@ body {
    vit hors `@layer` — elle BAT les utilitaires Tailwind. Elle transformait
    silencieusement tout `fixed` de premier niveau en `relative` : le rail
    poussait le contenu de 296 px vers le bas au lieu de flotter. */
-
-/* ── Décalage du contenu par le shell ────────────────────────────────────
-   Le rail est fixe : sans marge, il recouvrirait le premier tiers de chaque
-   écran. La marge est posée ICI, une fois, plutôt que dans le `<main>` de
-   vingt-cinq pages — où il aurait suffi d'en oublier une. */
-body[data-rail="1"] > main,
-body[data-rail="1"] > div > main {
-  /* Mobile : la barre basse mange 96 px, rien ne doit passer dessous. */
-  padding-bottom: 96px;
-}
-@media (min-width: 900px) {
-  body[data-rail="1"] > main,
-  body[data-rail="1"] > div > main {
-    padding-left: calc(64px + 20px);
-    padding-bottom: 0;
-  }
-}
-@media (min-width: 1200px) {
-  body[data-rail="1"] > main,
-  body[data-rail="1"] > div > main {
-    padding-left: calc(64px + 192px + 24px);
-  }
-}
-/* Le rail contextuel n'existe que sur les espaces qui ont des destinations
-   secondaires — ailleurs, le contenu reprend la place. */
-body[data-rail="1"][data-subrail="0"] > main {
-  padding-left: calc(64px + 20px);
-}
 
 /* ── Surfaces ───────────────────────────────────────────────────────────
    Trois niveaux et rien de plus : base, haute, creusée. Le relief signale
