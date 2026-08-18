@@ -21,6 +21,7 @@ import {
 // Instagram. On réutilise le glyphe maison plutôt que d'en faire une troisième
 // copie dans le projet.
 import { IgIcon } from "@/app/crm/ui";
+import { appShellOffsetCss } from "@/app/lib/appShell";
 
 /** Les espaces de travail. Cinq, pas douze : au-delà on ne choisit plus, on cherche. */
 const ESPACES = [
@@ -57,20 +58,13 @@ export default function AppRail() {
 
   if (publique) return null;
 
-  const decalage = `
-    main { padding-bottom: 96px; }
-    @media (min-width: 900px) {
-      main { padding-left: 84px; padding-bottom: 0; }
-    }
-    ${secondaires.length > 0 ? `@media (min-width: 1200px) { main { padding-left: 280px; } }` : ""}
-  `;
+  const decalage = appShellOffsetCss(secondaires.length > 0);
 
   return (
     <>
-      {/* Le décalage du contenu voyage AVEC le rail : rendu par le serveur en
-          même temps que lui, il ne peut pas arriver en retard ni manquer. Une
-          version pilotée par un attribut sur le document laissait le contenu
-          passer sous le rail tant que l'effet n'avait pas tourné. */}
+      {/* Le décalage de la PAGE ENTIÈRE voyage avec le rail. Il englobe aussi
+          les headers sticky placés avant leur <main> (Instagram, KPI, Stats),
+          qui sinon passeraient sous la navigation verticale. */}
       <style>{decalage}</style>
 
       {/* ── Desktop : rail fixe de 64 px ── */}

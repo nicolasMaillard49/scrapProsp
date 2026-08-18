@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { cleanText, parseTarif, nextRank, SERVICE_COLS, TASK_COLS } from "@/app/lib/crm";
-import { serviceByCode, etapesAAjouter } from "@/app/lib/crmServices";
+import { serviceByCode, etapesAAjouter, customServiceCode } from "@/app/lib/crmServices";
 
 export const dynamic = "force-dynamic";
 
@@ -37,16 +37,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!supabaseConfigured) return NextResponse.json({ error: "Supabase non configuré" }, { status: 503 });
   const { id } = await params;
 
-  let body: { code?: string; montant_ht?: string | number | null };
+  let body: { code?: string; label?: string; montant_ht?: string | number | null };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "JSON invalide" }, { status: 400 });
   }
 
-  const code = cleanText(body.code);
-  const def = code ? serviceByCode(code) : null;
-  if (!def) return NextResponse.json({ error: `prestation inconnue (${body.code})` }, { status: 400 });
+  const requestedCode = cleanText(body.code);
+  const customLabel = cleanText(body.label);
+  const catalogDef = requestedCode ? serviceByCode(requestedCode) : null;
+  const customCode = !requestedCode && customLabel ? customServiceCode(customLabel) : null;
+  if (!catalogDef && !customCode) {
+    return NextResponse.json({ error: requestedCode ? `prestation inconnue (${body.code})` : "libellé requis" }, { status: 400 });
+  }
+
+  const def = catalogDef ?? {
+    code: customCode!, label: customLabel!, montant: null, groupe: "Suivi" as const,
+  };
 
   const montant = body.montant_ht !== undefined ? parseTarif(body.montant_ht) : def.montant;
 

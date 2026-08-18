@@ -25,6 +25,7 @@ import {
 } from "@/app/lib/crm";
 import { euros, type ClientRow, type Candidate } from "./types";
 import { Avatar, IgIcon } from "./ui";
+import { boardColumnWeight } from "@/app/lib/crmBoard";
 
 /** Teinte de colonne : un filet de couleur en tête, jamais un fond coloré. */
 const RAIL: Record<string, string> = {
@@ -73,10 +74,17 @@ export function Board({
 
   return (
     <DndContext sensors={sensors} onDragStart={debut} onDragEnd={fin} onDragCancel={() => setDragged(null)}>
-      {/* Six colonnes qui se partagent la largeur : pas de défilement horizontal.
-          Une barre à pousser pour voir un client est une barre de trop — le
-          tableau doit se lire d'un regard et se traverser en glissant. */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 items-stretch gap-3 min-h-[min(70vh,620px)]">
+      {/* Les colonnes chargées gagnent de la largeur. Le tableau reste borné à
+          l'écran et défile horizontalement si les six minima ne tiennent pas. */}
+      <div
+        className="grid items-start gap-3 overflow-x-auto pb-2"
+        style={{
+          gridTemplateColumns: colonnes.map(({ rows: cartes }, index) => {
+            const count = cartes.length + (index === 0 ? candidates.length : 0);
+            return `minmax(220px, ${boardColumnWeight(count)}fr)`;
+          }).join(" "),
+        }}
+      >
         {colonnes.map(({ statut, rows: cartes }) => (
           <Colonne
             key={statut}
@@ -124,7 +132,7 @@ function Colonne({
     <section
       ref={setNodeRef}
       aria-label={CLIENT_STATUS_LABEL[statut]}
-      className={`min-w-0 flex flex-col rounded-xl border transition-colors duration-200 motion-reduce:transition-none ${
+      className={`min-w-0 max-h-[calc(100dvh-15rem)] flex flex-col rounded-xl border transition-colors duration-200 motion-reduce:transition-none ${
         isOver
           ? "border-violet-500/70 bg-violet-500/[0.06]"
           : survole
@@ -144,7 +152,7 @@ function Colonne({
         <p className="mt-1 text-[11px] leading-snug text-[var(--color-text-muted)]">{CLIENT_STATUS_HINT[statut]}</p>
       </header>
 
-      <div className="p-2 pt-1 flex flex-col gap-2 flex-1">
+      <div className="min-h-0 overflow-y-auto p-2 pt-1 flex flex-col gap-2 flex-1">
         {candidates.map((p) => (
           <Reprise key={p.id} p={p} busy={importing === p.id} onImport={onImport} now={now} />
         ))}

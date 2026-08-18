@@ -105,7 +105,7 @@ export default function FicheClient() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-8 max-w-[1200px] mx-auto">
+    <main className="min-h-screen w-full px-4 py-6 sm:px-8">
       <header className="flex flex-wrap items-center gap-3 mb-5">
         <Link
           href="/crm"
@@ -555,6 +555,8 @@ function Prestations({
   const [busy, setBusy] = useState<string | null>(null);
   const [ouvert, setOuvert] = useState(false);
   const [ajout, setAjout] = useState("");
+  const [customLabel, setCustomLabel] = useState("");
+  const [customMontant, setCustomMontant] = useState("");
 
   const pris = new Map(services.map((s) => [s.code, s]));
   const total = totalPrestations(services);
@@ -562,18 +564,19 @@ function Prestations({
   const tarif = parseTarif(tarifDossier) ?? 0;
   const ecart = Math.abs(total - tarif) >= 0.01;
 
-  async function appel(code: string, url: string, init: RequestInit) {
+  async function appel(code: string, url: string, init: RequestInit): Promise<boolean> {
     setBusy(code);
     try {
       const r = await fetch(url, init);
       const j = await r.json().catch(() => null);
-      if (!r.ok) { onError(messageErreur(j, r.status)); return; }
+      if (!r.ok) { onError(messageErreur(j, r.status)); return false; }
       setServices(j.services ?? []);
       // La checklist du service arrive avec la réponse : l'écran doit montrer
       // les étapes apparues, sinon l'ajout a l'air sans effet.
       if (j.tasks) setTasks(j.tasks);
       setAjout(j.ajoutees ? `${j.ajoutees} étape${j.ajoutees > 1 ? "s" : ""} ajoutée${j.ajoutees > 1 ? "s" : ""} à la checklist` : "");
       onError("");
+      return true;
     } finally {
       setBusy(null);
     }
@@ -588,6 +591,22 @@ function Prestations({
 
   const retirer = (s: ClientService) =>
     appel(s.code, `/api/crm/${clientId}/services?service=${s.id}`, { method: "DELETE" });
+
+  async function ajouterCustom(e: React.FormEvent) {
+    e.preventDefault();
+    const label = customLabel.trim();
+    if (!label) return;
+    const ok = await appel("custom", `/api/crm/${clientId}/services`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ label, montant_ht: customMontant }),
+    });
+    if (ok) {
+      setCustomLabel("");
+      setCustomMontant("");
+      setAjout("Prestation personnalisée ajoutée");
+    }
+  }
 
   return (
     <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
@@ -683,6 +702,30 @@ function Prestations({
               </div>
             </div>
           ))}
+          <form onSubmit={ajouterCustom} className="grid gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
+            <input
+              value={customLabel}
+              onChange={(e) => setCustomLabel(e.target.value)}
+              placeholder="Prestation personnalisée"
+              aria-label="Nom de la prestation personnalisée"
+              className={INPUT}
+            />
+            <input
+              value={customMontant}
+              onChange={(e) => setCustomMontant(e.target.value)}
+              placeholder="Montant HT"
+              aria-label="Montant HT de la prestation personnalisée"
+              inputMode="decimal"
+              className={INPUT}
+            />
+            <button
+              type="submit"
+              disabled={!customLabel.trim() || busy === "custom"}
+              className="px-3 py-2 text-xs rounded-lg bg-violet-600 text-white hover:bg-violet-500 disabled:opacity-50 transition-colors motion-reduce:transition-none"
+            >
+              Ajouter
+            </button>
+          </form>
         </div>
       )}
     </section>

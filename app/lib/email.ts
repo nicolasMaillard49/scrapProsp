@@ -33,7 +33,8 @@ export interface SendEmailInput {
 export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; id?: string; error?: string; skipped?: boolean }> {
   if (!emailConfigured) return { ok: false, skipped: true, error: "RESEND_API_KEY manquant" };
   const perCallBcc = input.bcc ? (Array.isArray(input.bcc) ? input.bcc : [input.bcc]) : [];
-  const bcc = [...BCC, ...perCallBcc];
+  const to = input.to.trim().toLowerCase();
+  const bcc = [...new Set([...BCC, ...perCallBcc].map((value) => value.trim()).filter((value) => value && value.toLowerCase() !== to))];
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

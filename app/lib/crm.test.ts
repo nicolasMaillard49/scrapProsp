@@ -8,7 +8,10 @@ import {
   moisDe, moisFr, etatFacture, enSupervision, mrr, supervisionSummary, prochainePeriode,
   echeanceDe, parseJourEcheance, moisPrecedents, type Invoice,
 } from "./crm";
-import { SERVICES, serviceByCode, totalPrestations, etapesAAjouter, livrablesManquants } from "./crmServices";
+import {
+  SERVICES, serviceByCode, totalPrestations, etapesAAjouter, livrablesManquants,
+  customServiceCode,
+} from "./crmServices";
 import { MISSION_TEMPLATES, templateById } from "./crmTemplates";
 
 // ── Statuts ────────────────────────────────────────────────────────────────
@@ -358,6 +361,12 @@ test("le total des prestations EXCLUT les mensuelles", () => {
   assert.equal(totalPrestations(lignes), 450);
   assert.equal(totalPrestations([{ code: "refonte", montant_ht: null }]), 0); // sur devis
   assert.equal(totalPrestations([]), 0);
+});
+
+test("une prestation personnalisée reçoit un code stable et sûr pour la base", () => {
+  assert.equal(customServiceCode("  Shooting photos & drone  "), "custom-shooting-photos-drone");
+  assert.equal(customServiceCode("Création logo"), "custom-creation-logo");
+  assert.equal(customServiceCode("   "), null);
 });
 
 // ── Erreurs affichables ────────────────────────────────────────────────────

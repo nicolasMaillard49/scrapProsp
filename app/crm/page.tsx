@@ -103,7 +103,7 @@ export default function CrmPage() {
   }, [load]);
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-8 max-w-[1400px] mx-auto">
+    <main className="min-h-screen w-full px-4 py-6 sm:px-8">
       <header className="flex flex-wrap items-center gap-3 mb-6">
         <Link
           href="/"

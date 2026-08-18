@@ -282,6 +282,19 @@ export function serviceByCode(code: string): ServiceDef | null {
   return SERVICES.find((s) => s.code === code) ?? null;
 }
 
+/** Code déterministe d'une prestation libre, compatible avec l'index (client, code). */
+export function customServiceCode(label: string): string | null {
+  const slug = label
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 72);
+  return slug ? `custom-${slug}` : null;
+}
+
 /**
  * Total HT des prestations NON mensuelles.
  *

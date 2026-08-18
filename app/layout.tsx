@@ -59,7 +59,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <a href="#contenu" className="skip-link">Aller au contenu</a>
         <AppRail />
-        {children}
+        <div id="contenu" className="app-shell-content">
+          {children}
+        </div>
         <ThemeToggle />
       </body>
     </html>
