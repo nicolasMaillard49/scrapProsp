@@ -29,6 +29,13 @@ test("shouldAdvanceAssist: avance seulement après une accroche réellement jour
   assert.equal(NMFUtil.shouldAdvanceAssist(true, "M1", { ok: true, deduped: true }), false);
 });
 
+test("nextQueueProspect: ignore le profil indisponible pour éviter de boucler dessus", () => {
+  assert.equal(typeof NMFUtil.nextQueueProspect, "function");
+  const rows = [{ username: "profil_mort" }, { username: "profil_suivant" }];
+  assert.deepEqual(NMFUtil.nextQueueProspect(rows, "profil_mort"), rows[1]);
+  assert.equal(NMFUtil.nextQueueProspect([{ username: "PROFIL_MORT" }], "profil_mort"), null);
+});
+
 test("pickAccountId: un seul compte declare = pas de choix a faire", () => {
   const one = [{ id: "a1", username: "nmfagence" }];
   assert.equal(NMFUtil.pickAccountId(one, "nmfagence"), "a1");

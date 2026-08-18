@@ -1506,6 +1506,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
   if (msg?.type === "ig:assist") {
     if (msg.state === "moving") $("error").textContent = `Ouverture de @${msg.username}…`;
+    if (msg.state === "skipped") $("error").textContent = `@${msg.username} indisponible — marqué Perdu, passage au suivant…`;
     if (msg.state === "ready") $("error").textContent = `@${msg.username} — ${msg.step} prêt. Lis puis appuie sur Entrée.`;
     if (msg.state === "done") $("error").textContent = "File du jour terminée ✓";
     if (msg.state === "stopped") $("error").textContent = msg.error || "Mode assisté arrêté.";

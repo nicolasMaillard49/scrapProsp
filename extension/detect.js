@@ -177,13 +177,18 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     }
   }
 
-  function actionLabel(el) {
-    return (el?.getAttribute?.("aria-label") || el?.getAttribute?.("title") || el?.textContent || "")
+  function normalizeDomText(value) {
+    return String(value ?? "")
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[’‘]/g, "'")
       .replace(/\s+/g, " ")
       .trim()
       .toLowerCase();
+  }
+
+  function actionLabel(el) {
+    return normalizeDomText(el?.getAttribute?.("aria-label") || el?.getAttribute?.("title") || el?.textContent || "");
   }
 
   /** Bouton du profil qui ouvre une première conversation, jamais « Envoyer ». */
@@ -218,6 +223,22 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     }
   }
 
+  /** Page d'erreur affichée par Instagram pour un compte supprimé/inaccessible. */
+  function profileUnavailable(doc) {
+    try {
+      const root = doc.querySelector("main") || doc.body;
+      const text = normalizeDomText(root?.textContent);
+      return [
+        "cette page n'est malheureusement pas disponible",
+        "desole, cette page n'est pas disponible",
+        "sorry, this page isn't available",
+        "the link you followed may be broken, or the page may have been removed",
+      ].some((message) => text.includes(message));
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Attend le rendu asynchrone du profil, clique chaque sas utile une seule
    * fois, puis attend réellement le champ DM. Un clic manuel reste valable :
@@ -233,6 +254,7 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
 
     while (Date.now() - started < timeoutMs) {
       if (composerNode(doc)) return { ok: true, clicked: firstClicked };
+      if (profileUnavailable(doc)) return { ok: false, reason: "profile-unavailable", clicked: firstClicked };
 
       const button = contactButton(doc, clickedNodes);
       if (button) {
@@ -633,7 +655,7 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   }
 
   return {
-    currentUsername, composerNode, contactButton, prepareContact, loggedInAccount, watchSend,
+    currentUsername, composerNode, contactButton, profileUnavailable, prepareContact, loggedInAccount, watchSend,
     profileSnapshot,
     usernameFromHref, lastIncomingText, conversationThread, insertIntoComposer,
     messageScroller,

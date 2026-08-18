@@ -14,6 +14,14 @@ const NMFUtil = (() => {
   function shouldAdvanceAssist(enabled, step, result) {
     return enabled === true && (step === "M1" || step === "S1") && result?.ok === true && result?.deduped !== true;
   }
+  /** Premier profil valide de la file, sauf celui que l'on vient d'écarter. */
+  function nextQueueProspect(rows, excludedUsername = null) {
+    const excluded = String(excludedUsername ?? "").replace(/^@/, "").trim().toLowerCase();
+    return (Array.isArray(rows) ? rows : []).find((row) => {
+      const username = String(row?.username ?? "").replace(/^@/, "").trim().toLowerCase();
+      return username && username !== excluded;
+    }) ?? null;
+  }
   function prune(sentKeys, max = 200) {
     return sentKeys.length <= max ? sentKeys : sentKeys.slice(sentKeys.length - max);
   }
@@ -360,7 +368,7 @@ const NMFUtil = (() => {
   }
 
   return {
-    dedupeKey, shouldLog, shouldAdvanceAssist, prune, estMessageLibre, pickAccountId, formatThread, splitThread,
+    dedupeKey, shouldLog, shouldAdvanceAssist, nextQueueProspect, prune, estMessageLibre, pickAccountId, formatThread, splitThread,
     parisDay, replyKey, similarity, matchStep, incomingReply, incomingKey,
     DEFAULT_LINKS, parseLinks, serializeLinks, sinceLabel, replyState,
     pushSend, paceState, PACE_MIN_S,

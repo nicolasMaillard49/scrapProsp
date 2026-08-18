@@ -158,6 +158,30 @@ test("prepareContact: traverse Contacter puis Message si Instagram affiche deux 
   assert.ok(NMFDetect.composerNode(d.window.document));
 });
 
+test("profileUnavailable: reconnaît les pages supprimées Instagram en français et anglais", () => {
+  assert.equal(typeof NMFDetect.profileUnavailable, "function");
+  const fr = dom(`<body><main><h2>Cette page n’est malheureusement pas disponible.</h2>
+    <p>Le lien que vous avez suivi est peut-être rompu, ou la page a été supprimée.</p></main></body>`);
+  const en = dom(`<body><main><h2>Sorry, this page isn't available.</h2>
+    <p>The link you followed may be broken, or the page may have been removed.</p></main></body>`);
+  const profil = dom(`<body><main><h2>Laura</h2><button>Contacter</button></main></body>`);
+
+  assert.equal(NMFDetect.profileUnavailable(fr.window.document), true);
+  assert.equal(NMFDetect.profileUnavailable(en.window.document), true);
+  assert.equal(NMFDetect.profileUnavailable(profil.window.document), false);
+});
+
+test("prepareContact: arrête immédiatement l'attente sur un profil indisponible", async () => {
+  const d = dom(`<body><main><h2>Cette page n'est malheureusement pas disponible.</h2></main></body>`);
+  const result = await NMFDetect.prepareContact(d.window.document, {
+    win: { setTimeout: () => { throw new Error("aucune attente ne doit être planifiée"); } },
+    intervalMs: 5,
+    timeoutMs: 200,
+  });
+
+  assert.deepEqual(result, { ok: false, reason: "profile-unavailable", clicked: null });
+});
+
 test("loggedInAccount: lien de nav vers son propre profil (img alt « photo de profil ») → pseudo", () => {
   const d = dom(
     `<body><nav><a href="/nmf.agence/"><img alt="Photo de profil de nmf.agence" /></a></nav></body>`,

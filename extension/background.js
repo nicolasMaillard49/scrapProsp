@@ -245,6 +245,10 @@ async function prepareAssist(pending) {
   await chrome.storage.session.set({ assistPending: { ...pending, preparing: true, startedAt: Date.now() } });
   const opened = await sendToTab({ type: "ig:prepare-contact" });
   if (!opened?.ok) {
+    if (opened?.reason === "profile-unavailable") {
+      await loseUnavailableAssist(pending);
+      return;
+    }
     await stopAssistPreparation(opened?.reason === "no-contact-button"
       ? "Bouton Contacter introuvable — pilote arrêté sur ce profil."
       : "Conversation impossible à ouvrir — pilote arrêté sur ce profil.");
@@ -278,6 +282,23 @@ async function prepareAssist(pending) {
   broadcast({ type: "ig:assist", state: "ready", username: pending.username, step: step.step });
 }
 
+/** Même écriture que le bouton « Perdu », puis reprise automatique de la file. */
+async function loseUnavailableAssist(pending) {
+  const { status, json } = await api("/api/instagram/classify-reply", {
+    method: "POST",
+    body: JSON.stringify({ username: pending.username, record: "stage", stage: "perdu" }),
+  });
+  if (status !== 200 || !json?.ok) {
+    await stopAssistPreparation(json?.error || `Profil indisponible, mais passage en Perdu impossible (erreur ${status}).`);
+    return;
+  }
+
+  await setArmed(null);
+  await chrome.storage.session.remove(["cachedTrame", "prefetched"]);
+  broadcast({ type: "ig:assist", state: "skipped", username: pending.username });
+  await moveAssistToNext(pending.username);
+}
+
 /** Reprend une préparation quand le profil suivant vient d'être rendu. */
 async function maybePrepareAssist(username) {
   if (!username || !(await assistEnabled())) return;
@@ -289,24 +310,38 @@ async function maybePrepareAssist(username) {
   await prepareAssist(assistPending);
 }
 
-/** Après l'Entrée humaine sur M1/S1, positionne le prochain profil. */
-async function advanceAssist(armed, result) {
-  const enabled = await assistEnabled();
-  if (!NMFUtil.shouldAdvanceAssist(enabled, armed?.step, result)) return;
+/** Positionne le prochain profil sans jamais reboucler sur celui qui vient de sortir. */
+async function moveAssistToNext(excludedUsername = null) {
   const { status, json } = await api("/api/instagram/queue");
-  const next = status === 200 ? json.next?.[0] : null;
+  if (status !== 200) {
+    await stopAssistPreparation(json?.error || `File Instagram inaccessible (erreur ${status}).`);
+    return;
+  }
+  const next = NMFUtil.nextQueueProspect(json.next, excludedUsername);
   if (!next?.username) {
+    await chrome.storage.session.remove("assistPending");
     broadcast({ type: "ig:assist", state: "done" });
     return;
   }
   const { id } = await instagramTab();
   if (!id) {
-    broadcast({ type: "ig:assist", state: "stopped", error: "Onglet Instagram introuvable — pilote arrêté." });
+    await stopAssistPreparation("Onglet Instagram introuvable — pilote arrêté.");
     return;
   }
   await chrome.storage.session.set({ assistPending: { username: next.username, preparing: false, startedAt: 0 } });
   broadcast({ type: "ig:assist", state: "moving", username: next.username });
-  await chrome.tabs.update(id, { url: `https://www.instagram.com/${next.username}/` });
+  try {
+    await chrome.tabs.update(id, { url: `https://www.instagram.com/${next.username}/` });
+  } catch {
+    await stopAssistPreparation("Impossible d'ouvrir le prospect suivant — pilote arrêté.");
+  }
+}
+
+/** Après l'Entrée humaine sur M1/S1, positionne le prochain profil. */
+async function advanceAssist(armed, result) {
+  const enabled = await assistEnabled();
+  if (!NMFUtil.shouldAdvanceAssist(enabled, armed?.step, result)) return;
+  await moveAssistToNext(armed?.username ?? null);
 }
 
 // ── Raccourcis clavier ──────────────────────────────────────────────────────
