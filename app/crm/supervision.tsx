@@ -43,13 +43,13 @@ export function Supervision({ rows, onChange }: { rows: ClientRow[]; onChange: (
   const aEmettre = bilans.filter((b) => prochainePeriode(b.c.invoices ?? [], now) !== null).length;
 
   return (
-    <section className="mt-6">
-      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
-        <h2 className="text-sm font-medium text-[var(--color-text-primary)]">Terminé, mais sous supervision</h2>
-        <p className="text-xs text-[var(--color-text-muted)]">
+    <section className="mt-8">
+      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-2 mb-4">
+        <h2 className="text-lg font-semibold text-[var(--color-text-primary)]">Terminé, mais sous supervision</h2>
+        <p className="text-base leading-relaxed text-[var(--color-text-secondary)]">
           La mission est livrée, la maintenance court. Ce tableau dit qui a payé {moisFr(moisDe(now))}.
         </p>
-        <div className="ml-auto flex items-center gap-4 text-xs">
+        <div className="ml-auto flex flex-wrap items-center gap-x-5 gap-y-2 text-base">
           <span className="font-mono-num text-[var(--color-text-secondary)]">
             {euros(recurrent)} <span className="text-[var(--color-text-muted)]">/mois</span>
           </span>
@@ -65,15 +65,15 @@ export function Supervision({ rows, onChange }: { rows: ClientRow[]; onChange: (
       </header>
 
       {enRetard > 0 && (
-        <p className="flex items-center gap-1.5 mb-3 px-3 py-2 rounded-lg border border-rose-500/40 bg-rose-500/10 text-xs text-rose-500">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        <p className="flex items-center gap-2 mb-4 px-4 py-3 rounded-lg border border-rose-500/40 bg-rose-500/10 text-base text-rose-500">
+          <AlertTriangle className="w-5 h-5 shrink-0" />
           {enRetard === 1 ? "Un dossier a une échéance dépassée" : `${enRetard} dossiers ont une échéance dépassée`} — à relancer.
         </p>
       )}
 
       {incomplets.length > 0 && (
-        <div className="mb-3 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs text-amber-600 dark:text-amber-500">
-          <p className="mb-1">
+        <div className="mb-4 px-4 py-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-base leading-relaxed text-amber-700 dark:text-amber-400">
+          <p className="mb-2">
             Maintenance activée sans montant mensuel — impossible de suivre les paiements tant qu'il est vide.
           </p>
           <p className="flex flex-wrap gap-x-3 gap-y-1">
@@ -160,21 +160,21 @@ function LigneSupervision({
   const frise = moisPrecedents(now, 6).map((m) => ({ mois: m, f: parPeriode.get(m) ?? null }));
 
   return (
-    <div className="p-3 flex flex-wrap items-center gap-x-4 gap-y-3">
-      <Link href={`/crm/${c.id}`} className="group flex items-center gap-3 min-w-0 w-56 shrink-0">
-        <Avatar url={c.image_url} nom={c.nom} size={40} />
+    <div className="p-4 sm:p-5 flex flex-wrap items-center gap-x-6 gap-y-4">
+      <Link href={`/crm/${c.id}`} className="group flex items-center gap-3.5 min-w-0 w-64 shrink-0">
+        <Avatar url={c.image_url} nom={c.nom} size={48} />
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-[var(--color-text-primary)] truncate group-hover:text-violet-500 transition-colors motion-reduce:transition-none">
+          <span className="block text-base font-semibold text-[var(--color-text-primary)] truncate group-hover:text-violet-500 transition-colors motion-reduce:transition-none">
             {c.nom}
           </span>
-          <span className="block text-[11px] text-[var(--color-text-muted)] truncate">
+          <span className="block mt-0.5 text-sm text-[var(--color-text-secondary)] truncate">
             {euros(c.maintenance_ht)} /mois · le {c.maintenance_day ?? 30}
           </span>
         </span>
       </Link>
 
       {/* La frise des mois : l'historique de paiement en un coup d'œil. */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-2">
         {frise.map(({ mois, f }) => {
           const etat = f ? etatFacture(f, now) : null;
           const titre = f
@@ -186,7 +186,7 @@ function LigneSupervision({
               onClick={() => void (f ? basculer(f.id, !f.paid_at) : rattraper(mois))}
               disabled={busy}
               title={titre}
-              className={`px-2 py-1 rounded-md border text-[10px] font-mono-num transition-colors motion-reduce:transition-none disabled:opacity-50 ${
+              className={`min-h-10 px-3 py-2 rounded-md border text-sm font-medium font-mono-num transition-colors motion-reduce:transition-none disabled:opacity-50 ${
                 etat === "payee"
                   ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-500"
                   : etat === "en_retard"
@@ -202,7 +202,7 @@ function LigneSupervision({
         })}
       </div>
 
-      <div className="text-[11px] min-w-0">
+      <div className="text-sm leading-relaxed min-w-48">
         <span className={ETAT_CLASS[s.courante ? etatFacture(s.courante, now) : "a_echoir"]}>
           {s.courante
             ? `${moisFr(s.courante.periode)} · ${ETAT_FACTURE_LABEL[etatFacture(s.courante, now)]}`
@@ -213,16 +213,16 @@ function LigneSupervision({
         </span>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        {err && <span className="text-[11px] text-rose-500">{err}</span>}
+      <div className="ml-auto flex flex-wrap items-center gap-2.5">
+        {err && <span className="text-sm text-rose-500">{err}</span>}
 
         {s.courante && !s.courante.paid_at && (
           <button
             onClick={() => void basculer(s.courante!.id, true)}
             disabled={busy}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-emerald-600 text-white hover:bg-emerald-500 transition-colors motion-reduce:transition-none disabled:opacity-50"
+            className="flex min-h-11 items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-500 transition-colors motion-reduce:transition-none disabled:opacity-50"
           >
-            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             Marquer payé
           </button>
         )}
@@ -232,9 +232,9 @@ function LigneSupervision({
             onClick={() => void basculer(s.courante!.id, false)}
             disabled={busy}
             title="Annuler l'encaissement"
-            className="flex items-center gap-1.5 px-2 py-1.5 text-xs rounded-md border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors motion-reduce:transition-none disabled:opacity-50"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-md border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors motion-reduce:transition-none disabled:opacity-50"
           >
-            <Undo2 className="w-3.5 h-3.5" />
+            <Undo2 className="w-4 h-4" />
           </button>
         )}
 
@@ -242,9 +242,9 @@ function LigneSupervision({
           <button
             onClick={() => void emettre()}
             disabled={busy}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md border border-violet-500/40 text-violet-500 hover:bg-violet-500/10 transition-colors motion-reduce:transition-none disabled:opacity-50"
+            className="flex min-h-11 items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md border border-violet-500/40 text-violet-500 hover:bg-violet-500/10 transition-colors motion-reduce:transition-none disabled:opacity-50"
           >
-            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             Facturer {moisFr(aEmettre)}
           </button>
         )}
