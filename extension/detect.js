@@ -177,13 +177,34 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     }
   }
 
+  function actionLabel(el) {
+    return (el?.getAttribute?.("aria-label") || el?.getAttribute?.("title") || el?.textContent || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
   /** Bouton du profil qui ouvre une première conversation, jamais « Envoyer ». */
-  function contactButton(doc) {
+  function contactButton(doc, ignored = null) {
     try {
-      const candidates = [...doc.querySelectorAll('button, [role="button"]')].map((el) => ({
-        el,
-        label: (el.getAttribute("aria-label") || el.textContent || "").replace(/\s+/g, " ").trim().toLowerCase(),
-      }));
+      const clickableSelector = 'button, [role="button"], a[href], [tabindex="0"]';
+      const elements = [...doc.querySelectorAll(clickableSelector)];
+
+      // Instagram change régulièrement le conteneur cliquable. Si le libellé
+      // vit dans un span/div sans rôle, cliquer cette feuille fait tout de même
+      // remonter l'événement vers le handler React de son parent.
+      for (const leaf of doc.querySelectorAll("span, div")) {
+        const label = actionLabel(leaf);
+        if (!["contacter", "contact", "message", "envoyer un message", "send message"].includes(label)) continue;
+        const clickable = leaf.closest(clickableSelector) || leaf;
+        if (!elements.includes(clickable)) elements.push(clickable);
+      }
+
+      const candidates = elements
+        .filter((el) => !ignored?.has?.(el))
+        .map((el) => ({ el, label: actionLabel(el) }));
       // Sur le profil observé, « Contacter » est le sas nécessaire avant que
       // la conversation existe. Il prime donc même si « Message » apparaît
       // ailleurs dans le DOM (menu, navigation ou autre action secondaire).
@@ -195,6 +216,40 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Attend le rendu asynchrone du profil, clique chaque sas utile une seule
+   * fois, puis attend réellement le champ DM. Un clic manuel reste valable :
+   * dès que le champ apparaît, l'attente réussit et l'insertion peut suivre.
+   */
+  async function prepareContact(doc, opts = {}) {
+    const win = opts.win || (typeof window !== "undefined" ? window : globalThis);
+    const intervalMs = opts.intervalMs ?? 200;
+    const timeoutMs = opts.timeoutMs ?? 15_000;
+    const started = Date.now();
+    const clickedNodes = new WeakSet();
+    let firstClicked = null;
+
+    while (Date.now() - started < timeoutMs) {
+      if (composerNode(doc)) return { ok: true, clicked: firstClicked };
+
+      const button = contactButton(doc, clickedNodes);
+      if (button) {
+        clickedNodes.add(button);
+        if (firstClicked === null) firstClicked = actionLabel(button);
+        try { button.click(); } catch { /* l'attente détectera un clic manuel */ }
+      }
+
+      await new Promise((resolve) => win.setTimeout(resolve, intervalMs));
+    }
+
+    if (composerNode(doc)) return { ok: true, clicked: firstClicked };
+    return {
+      ok: false,
+      reason: firstClicked === null ? "no-contact-button" : "no-composer",
+      clicked: firstClicked,
+    };
   }
 
   /** Pseudo tiré d'un lien de profil portant un avatar, dans un périmètre donné. */
@@ -578,7 +633,7 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   }
 
   return {
-    currentUsername, composerNode, contactButton, loggedInAccount, watchSend,
+    currentUsername, composerNode, contactButton, prepareContact, loggedInAccount, watchSend,
     profileSnapshot,
     usernameFromHref, lastIncomingText, conversationThread, insertIntoComposer,
     messageScroller,

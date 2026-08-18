@@ -203,27 +203,7 @@
     } else if (msg?.type === "ig:prepare-contact") {
       // Pilote ASSISTÉ : ouvre la conversation et attend son champ, mais ne
       // touche jamais au bouton Envoyer. Le seul envoi reste l'Entrée humaine.
-      const ready = NMFDetect.composerNode(document);
-      if (ready) {
-        sendResponse({ ok: true });
-        return;
-      }
-      const button = NMFDetect.contactButton(document);
-      if (!button) {
-        sendResponse({ ok: false, reason: "no-contact-button" });
-        return;
-      }
-      button.click();
-      const started = Date.now();
-      const timer = setInterval(() => {
-        if (NMFDetect.composerNode(document)) {
-          clearInterval(timer);
-          sendResponse({ ok: true });
-        } else if (Date.now() - started >= 10_000) {
-          clearInterval(timer);
-          sendResponse({ ok: false, reason: "no-composer" });
-        }
-      }, 250);
+      NMFDetect.prepareContact(document).then(sendResponse);
       return true;
     } else if (msg?.type === "ig:thread") {
       // Lecture seule du fil : alimente le bloc « réponse IA ». Le pseudo du

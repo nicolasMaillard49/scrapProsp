@@ -246,7 +246,7 @@ async function prepareAssist(pending) {
   const opened = await sendToTab({ type: "ig:prepare-contact" });
   if (!opened?.ok) {
     await stopAssistPreparation(opened?.reason === "no-contact-button"
-      ? "Bouton Message introuvable — pilote arrêté sur ce profil."
+      ? "Bouton Contacter introuvable — pilote arrêté sur ce profil."
       : "Conversation impossible à ouvrir — pilote arrêté sur ce profil.");
     return;
   }

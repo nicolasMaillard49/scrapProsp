@@ -112,6 +112,52 @@ test("contactButton: Contacter prime avant Message, sans confondre le bouton Env
   assert.equal(NMFDetect.contactButton(absent.window.document), null);
 });
 
+test("prepareContact: attend Contacter rendu en retard puis le champ DM", async () => {
+  assert.equal(typeof NMFDetect.prepareContact, "function");
+  const d = dom(`<body><main id="profile"></main></body>`, "https://www.instagram.com/laura_x/");
+  d.window.setTimeout(() => {
+    const profile = d.window.document.getElementById("profile");
+    profile.innerHTML = `<a href="#" id="contact"><span>Contacter</span></a>`;
+    profile.querySelector("#contact").addEventListener("click", (event) => {
+      event.preventDefault();
+      d.window.setTimeout(() => {
+        profile.innerHTML = `<div contenteditable="true" aria-label="Message" role="textbox"></div>`;
+      }, 10);
+    });
+  }, 10);
+
+  const result = await NMFDetect.prepareContact(d.window.document, { win: d.window, intervalMs: 5, timeoutMs: 200 });
+  assert.deepEqual(result, { ok: true, clicked: "contacter" });
+  assert.ok(NMFDetect.composerNode(d.window.document));
+});
+
+test("prepareContact: un clic manuel pendant l'attente mène quand même à l'insertion", async () => {
+  assert.equal(typeof NMFDetect.prepareContact, "function");
+  const d = dom(`<body><main id="profile"></main></body>`, "https://www.instagram.com/laura_x/");
+  d.window.setTimeout(() => {
+    d.window.document.getElementById("profile").innerHTML =
+      `<div contenteditable="true" aria-label="Message" role="textbox"></div>`;
+  }, 10);
+
+  const result = await NMFDetect.prepareContact(d.window.document, { win: d.window, intervalMs: 5, timeoutMs: 200 });
+  assert.deepEqual(result, { ok: true, clicked: null });
+});
+
+test("prepareContact: traverse Contacter puis Message si Instagram affiche deux sas", async () => {
+  const d = dom(`<body><main id="profile"><button id="contact">Contacter</button></main></body>`, "https://www.instagram.com/laura_x/");
+  const profile = d.window.document.getElementById("profile");
+  profile.querySelector("#contact").addEventListener("click", () => {
+    profile.insertAdjacentHTML("beforeend", `<button id="message"><span>Message</span></button>`);
+    profile.querySelector("#message").addEventListener("click", () => {
+      profile.innerHTML = `<div contenteditable="true" aria-label="Message" role="textbox"></div>`;
+    });
+  });
+
+  const result = await NMFDetect.prepareContact(d.window.document, { win: d.window, intervalMs: 5, timeoutMs: 200 });
+  assert.deepEqual(result, { ok: true, clicked: "contacter" });
+  assert.ok(NMFDetect.composerNode(d.window.document));
+});
+
 test("loggedInAccount: lien de nav vers son propre profil (img alt « photo de profil ») → pseudo", () => {
   const d = dom(
     `<body><nav><a href="/nmf.agence/"><img alt="Photo de profil de nmf.agence" /></a></nav></body>`,
