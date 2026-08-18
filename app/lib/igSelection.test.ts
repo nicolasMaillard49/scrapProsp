@@ -39,6 +39,10 @@ test("countRealFollowups: un M1 sans réponse ne mange pas de quota", () => {
 
 test("isSelectable: uniquement le qualifié IA, dans la cible et sous le plafond", () => {
   assert.ok(isSelectable({ ...base }));
+  // La liste quotidienne sert exclusivement l'offre « création de site ».
+  assert.ok(!isSelectable({ ...base, has_website: true }));
+  assert.ok(isSelectable({ ...base, has_website: false }));
+  assert.ok(isSelectable({ ...base, has_website: null }));
   // Verdict IA : rien d'autre que « qualified » n'entre dans la sélection.
   assert.ok(!isSelectable({ ...base, qualification: "borderline" }));
   assert.ok(!isSelectable({ ...base, qualification: "rejected" }));

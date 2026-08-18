@@ -94,6 +94,7 @@ export function metierOf(l: Selectable): string {
  */
 export function isSelectable(l: Selectable, now = Date.now()): boolean {
   if (l.qualification !== "qualified") return false;
+  if (!estSansSite(l)) return false;
   if (typeof l.followers === "number" && l.followers > MAX_FOLLOWERS) return false;
   if (isHorsCible(l)) return false;
   if (l.last_post_at && !isActiveSince(l.last_post_at, 3, now)) return false;
@@ -338,6 +339,24 @@ export async function ensureDailySelection(accountId?: string, now = new Date())
     if (error) await supabase.from("ig_daily_selection").delete().eq("id", r.id as string);
   }
 
+  // Un site avéré peut avoir été découvert après la composition de la journée,
+  // ou vivre dans un report ancien. Il sort alors immédiatement de la file :
+  // le prospect reste en base, mais cette cible ne doit plus être démarchée.
+  const avecSiteOuverts = (await readSelectionRows(account.id, day))
+    .filter((r) => !r.done_at && !r.skipped_at && !estSansSite(r.prospect as unknown as Selectable))
+    .map((r) => r.prospect_id);
+  if (avecSiteOuverts.length) {
+    const { error } = await supabase
+      .from("ig_daily_selection")
+      .update({ skipped_at: now.toISOString(), skip_reason: "site internet avéré — purge automatique" })
+      .eq("account_id", account.id)
+      .eq("day", day)
+      .in("prospect_id", avecSiteOuverts)
+      .is("done_at", null)
+      .is("skipped_at", null);
+    if (error) throw new Error(error.message);
+  }
+
   // 2) État de la sélection du jour après report.
   const { data: todayRows, error: todayErr } = await supabase
     .from("ig_daily_selection")
@@ -492,17 +511,16 @@ async function pickFreshProspects(
     .eq("status", "todo")
     .eq("qualification", "qualified")
     .is("stage", null)
+    .not("has_website", "is", true)
     // `followers <= N` vaut NULL en SQL pour un compte sans nombre d'abonnés et
     // l'exclurait : on garde ces comptes, `isSelectable` les accepte aussi.
     .or(`followers.lte.${MAX_FOLLOWERS},followers.is.null`);
 
-  // Le tri « sans site » se fait en SQL et pas après coup : un filtrage côté JS
+  // L'exclusion « avec site » se fait en SQL et pas après coup : un filtrage côté JS
   // sur la fenêtre déjà récupérée annoncerait « réserve sans site épuisée » dès
   // que les avec-site occupent le haut du classement — et déclencherait une
   // chasse payante pour rien. `not.is.true` couvre false ET null, la définition
   // retenue partout ailleurs (cf. `estSansSite`).
-  if (opts.sansSiteOnly) q = q.not("has_website", "is", true);
-
   const { data, error } = await q.order("score", { ascending: false, nullsFirst: false }).limit(Math.max(200, n * 6));
   if (error) throw new Error(error.message);
 
