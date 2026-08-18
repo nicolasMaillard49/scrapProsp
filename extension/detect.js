@@ -180,10 +180,16 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   /** Bouton du profil qui ouvre une première conversation, jamais « Envoyer ». */
   function contactButton(doc) {
     try {
-      const labels = new Set(["message", "envoyer un message", "send message"]);
-      for (const el of doc.querySelectorAll('button, [role="button"]')) {
-        const label = (el.getAttribute("aria-label") || el.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
-        if (labels.has(label)) return el;
+      const candidates = [...doc.querySelectorAll('button, [role="button"]')].map((el) => ({
+        el,
+        label: (el.getAttribute("aria-label") || el.textContent || "").replace(/\s+/g, " ").trim().toLowerCase(),
+      }));
+      // Sur le profil observé, « Contacter » est le sas nécessaire avant que
+      // la conversation existe. Il prime donc même si « Message » apparaît
+      // ailleurs dans le DOM (menu, navigation ou autre action secondaire).
+      for (const wanted of ["contacter", "contact", "message", "envoyer un message", "send message"]) {
+        const hit = candidates.find((candidate) => candidate.label === wanted);
+        if (hit) return hit.el;
       }
       return null;
     } catch {

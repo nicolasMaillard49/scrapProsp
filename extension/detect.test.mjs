@@ -99,11 +99,12 @@ test("composerNode: contenteditable avec aria-label Message → trouvé ; sinon 
   assert.equal(NMFDetect.composerNode(ko.window.document), null);
 });
 
-test("contactButton: trouve l'action profil Message sans confondre le bouton Envoyer", () => {
+test("contactButton: Contacter prime avant Message, sans confondre le bouton Envoyer", () => {
   assert.equal(typeof NMFDetect.contactButton, "function");
   const d = dom(`<body>
     <button>Envoyer</button>
-    <div role="button" id="contact"><span>Message</span></div>
+    <button id="message">Message</button>
+    <div role="button" id="contact"><span>Contacter</span></div>
   </body>`, "https://www.instagram.com/laura_x/");
   assert.equal(NMFDetect.contactButton(d.window.document)?.id, "contact");
 
