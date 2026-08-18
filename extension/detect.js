@@ -177,6 +177,20 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     }
   }
 
+  /** Bouton du profil qui ouvre une première conversation, jamais « Envoyer ». */
+  function contactButton(doc) {
+    try {
+      const labels = new Set(["message", "envoyer un message", "send message"]);
+      for (const el of doc.querySelectorAll('button, [role="button"]')) {
+        const label = (el.getAttribute("aria-label") || el.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+        if (labels.has(label)) return el;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   /** Pseudo tiré d'un lien de profil portant un avatar, dans un périmètre donné. */
   function fromAvatarLinks(scope) {
     for (const a of scope.querySelectorAll("a[href]")) {
@@ -558,7 +572,7 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   }
 
   return {
-    currentUsername, composerNode, loggedInAccount, watchSend,
+    currentUsername, composerNode, contactButton, loggedInAccount, watchSend,
     profileSnapshot,
     usernameFromHref, lastIncomingText, conversationThread, insertIntoComposer,
     messageScroller,

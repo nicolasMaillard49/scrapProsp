@@ -17,11 +17,26 @@ détecté dans l'app (quota, stade, relance).
      Les options priment sur le fichier.
 4. Ouvrir instagram.com, cliquer l'icône → le panel s'ouvre.
 
+### Test local du mode assisté
+
+1. `chrome://extensions` → **NMF — Trame DM Instagram** → **Recharger**.
+2. Ouvrir Instagram et le panneau, puis activer **Assisté**.
+3. Sur une accroche déjà préparée, relire le texte et appuyer sur `Entrée`.
+4. Vérifier que le profil suivant s'ouvre, que la conversation apparaît et
+   que son M1/S1 est inséré sans être envoyé.
+5. Relire puis appuyer sur `Entrée` pour continuer. Désactiver **Assisté** pour
+   arrêter la chaîne à tout moment.
+
 ## Le panneau pilote, Instagram est l'écran
 
 - **Prospect suivant** (`Alt+N`) ouvre le profil du prochain prospect de la
   sélection du jour (`GET /api/instagram/queue`, lecture seule). Plus besoin
   de chercher qui contacter.
+- **Assisté** enchaîne une session sans automatiser l'envoi : après ton appui
+  sur `Entrée`, l'extension journalise le M1/S1, ouvre le profil suivant,
+  ouvre sa conversation et insère son accroche. Tu lis puis appuies à nouveau
+  sur `Entrée`. Une erreur de navigation ou d'insertion arrête immédiatement
+  la préparation ; aucun clic n'est produit sur « Envoyer ».
 - **Sans site** (bascule, à côté de « Suivant ») : le bouton ne sert plus que
   des profils **sans site**. Le plancher `no_site_min` compose déjà la journée,
   mais pas toujours à 100 % — reports de la veille, plancher baissé, vivier à

@@ -16,6 +16,7 @@ let state = {
   manual: null,        // pseudo saisi à la main (détection en échec)
   trame: null,         // trame CHOISIE ici ; null = laisse l'app décider
   queueNoSite: false,  // « Suivant » ne sert que des profils sans site
+  assistMode: false,   // après Entrée : ouvre le suivant et prépare son M1
 };
 
 /**
@@ -1238,6 +1239,18 @@ async function loadQueueFilter() {
   paintQueueFilter();
 }
 
+function paintAssistMode() {
+  const b = $("assistMode");
+  b.classList.toggle("on", state.assistMode === true);
+  b.textContent = state.assistMode ? "Assisté ✓" : "Assisté";
+}
+
+async function loadAssistMode() {
+  const { assistMode } = await chrome.storage.local.get("assistMode");
+  state.assistMode = assistMode === true;
+  paintAssistMode();
+}
+
 async function loadQueue() {
   const r = await chrome.runtime
     .sendMessage({ type: "ig:queue", noSite: state.queueNoSite === true })
@@ -1322,6 +1335,16 @@ $("queueNoSite").addEventListener("click", async () => {
   await chrome.storage.local.set({ queueNoSite: state.queueNoSite });
   paintQueueFilter();
   await loadQueue();
+});
+
+$("assistMode").addEventListener("click", async () => {
+  state.assistMode = state.assistMode !== true;
+  await chrome.storage.local.set({ assistMode: state.assistMode });
+  if (!state.assistMode) await chrome.storage.session.remove("assistPending");
+  paintAssistMode();
+  $("error").textContent = state.assistMode
+    ? "Mode assisté actif — envoie avec Entrée, le M1 suivant sera préparé."
+    : "Mode assisté arrêté.";
 });
 
 $("nextProspect").addEventListener("click", async () => {
@@ -1481,6 +1504,12 @@ chrome.runtime.onMessage.addListener((msg) => {
       refreshPace(); // un envoi de plus : la cadence vient de changer
     } else { $("error").textContent = msg.error || "Journalisation refusée."; $("fallback").hidden = false; }
   }
+  if (msg?.type === "ig:assist") {
+    if (msg.state === "moving") $("error").textContent = `Ouverture de @${msg.username}…`;
+    if (msg.state === "ready") $("error").textContent = `@${msg.username} — ${msg.step} prêt. Lis puis appuie sur Entrée.`;
+    if (msg.state === "done") $("error").textContent = "File du jour terminée ✓";
+    if (msg.state === "stopped") $("error").textContent = msg.error || "Mode assisté arrêté.";
+  }
   // Réponse reçue détectée dans la conversation ouverte. Inscrite d'office
   // quand le modèle est sûr ; sinon le verdict s'affiche avec son bouton, la
   // décision reste à Nicolas — mais il la voit, au lieu de rater la réponse.
@@ -1513,6 +1542,7 @@ chrome.runtime.onMessage.addListener((msg) => {
   // AVANT loadQueue : sinon la premiere file part sans le filtre memorise, et
   // « Suivant » ouvrirait un profil avec site alors que la bascule est armee.
   await loadQueueFilter();
+  await loadAssistMode();
   refresh(null);
   loadQueue();
   loadRadar();

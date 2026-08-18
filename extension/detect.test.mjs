@@ -99,6 +99,18 @@ test("composerNode: contenteditable avec aria-label Message → trouvé ; sinon 
   assert.equal(NMFDetect.composerNode(ko.window.document), null);
 });
 
+test("contactButton: trouve l'action profil Message sans confondre le bouton Envoyer", () => {
+  assert.equal(typeof NMFDetect.contactButton, "function");
+  const d = dom(`<body>
+    <button>Envoyer</button>
+    <div role="button" id="contact"><span>Message</span></div>
+  </body>`, "https://www.instagram.com/laura_x/");
+  assert.equal(NMFDetect.contactButton(d.window.document)?.id, "contact");
+
+  const absent = dom(`<body><button>Suivre</button><button>Envoyer</button></body>`);
+  assert.equal(NMFDetect.contactButton(absent.window.document), null);
+});
+
 test("loggedInAccount: lien de nav vers son propre profil (img alt « photo de profil ») → pseudo", () => {
   const d = dom(
     `<body><nav><a href="/nmf.agence/"><img alt="Photo de profil de nmf.agence" /></a></nav></body>`,

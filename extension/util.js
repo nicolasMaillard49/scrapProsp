@@ -10,6 +10,10 @@ const NMFUtil = (() => {
   function shouldLog(sentKeys, key) {
     return !sentKeys.includes(key);
   }
+  /** Le pilote ne passe au suivant qu'après une première accroche certaine. */
+  function shouldAdvanceAssist(enabled, step, result) {
+    return enabled === true && (step === "M1" || step === "S1") && result?.ok === true && result?.deduped !== true;
+  }
   function prune(sentKeys, max = 200) {
     return sentKeys.length <= max ? sentKeys : sentKeys.slice(sentKeys.length - max);
   }
@@ -356,7 +360,7 @@ const NMFUtil = (() => {
   }
 
   return {
-    dedupeKey, shouldLog, prune, estMessageLibre, pickAccountId, formatThread, splitThread,
+    dedupeKey, shouldLog, shouldAdvanceAssist, prune, estMessageLibre, pickAccountId, formatThread, splitThread,
     parisDay, replyKey, similarity, matchStep, incomingReply, incomingKey,
     DEFAULT_LINKS, parseLinks, serializeLinks, sinceLabel, replyState,
     pushSend, paceState, PACE_MIN_S,

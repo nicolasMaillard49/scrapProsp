@@ -228,6 +228,87 @@ async function sendToTab(payload) {
   return (await chrome.tabs.sendMessage(id, payload).catch(() => null)) ?? { ok: false, reason: "no-content-script" };
 }
 
+// ── Pilote assisté : l'humain envoie, l'extension prépare le suivant ──────
+
+async function assistEnabled() {
+  const { assistMode } = await chrome.storage.local.get("assistMode");
+  return assistMode === true;
+}
+
+async function stopAssistPreparation(reason) {
+  await chrome.storage.session.remove("assistPending");
+  broadcast({ type: "ig:assist", state: "stopped", error: reason });
+}
+
+/** Ouvre le champ du profil déjà affiché, y insère son accroche et l'arme. */
+async function prepareAssist(pending) {
+  await chrome.storage.session.set({ assistPending: { ...pending, preparing: true, startedAt: Date.now() } });
+  const opened = await sendToTab({ type: "ig:prepare-contact" });
+  if (!opened?.ok) {
+    await stopAssistPreparation(opened?.reason === "no-contact-button"
+      ? "Bouton Message introuvable — pilote arrêté sur ce profil."
+      : "Conversation impossible à ouvrir — pilote arrêté sur ce profil.");
+    return;
+  }
+
+  const payload = await currentTrame();
+  const step = payload?.steps?.find((s) => s.step === payload.nextStep);
+  if (!payload?.prospect?.id || !step || !["M1", "S1"].includes(step.step)) {
+    await stopAssistPreparation("Aucune accroche M1 à préparer — pilote arrêté.");
+    return;
+  }
+  const accountId = await currentAccountId(payload);
+  if (!accountId) {
+    await stopAssistPreparation("Compte émetteur indéterminé — pilote arrêté.");
+    return;
+  }
+  const inserted = await sendToTab({ type: "ig:insert", text: step.text });
+  if (!inserted?.ok) {
+    await stopAssistPreparation("M1 non inséré — pilote arrêté, utilise le bouton Insérer.");
+    return;
+  }
+  await setArmed({
+    prospectId: payload.prospect.id,
+    accountId,
+    step: step.step,
+    variant: payload.variantId ?? null,
+    username: pending.username,
+  });
+  await chrome.storage.session.remove("assistPending");
+  broadcast({ type: "ig:assist", state: "ready", username: pending.username, step: step.step });
+}
+
+/** Reprend une préparation quand le profil suivant vient d'être rendu. */
+async function maybePrepareAssist(username) {
+  if (!username || !(await assistEnabled())) return;
+  const { assistPending } = await chrome.storage.session.get("assistPending");
+  if (!assistPending || assistPending.username !== username) return;
+  // Une seconde annonce de la SPA ne doit pas ouvrir/insérer deux fois. Après
+  // 15 s, on autorise toutefois la reprise si le service worker s'est arrêté.
+  if (assistPending.preparing && Date.now() - (assistPending.startedAt ?? 0) < 15_000) return;
+  await prepareAssist(assistPending);
+}
+
+/** Après l'Entrée humaine sur M1/S1, positionne le prochain profil. */
+async function advanceAssist(armed, result) {
+  const enabled = await assistEnabled();
+  if (!NMFUtil.shouldAdvanceAssist(enabled, armed?.step, result)) return;
+  const { status, json } = await api("/api/instagram/queue");
+  const next = status === 200 ? json.next?.[0] : null;
+  if (!next?.username) {
+    broadcast({ type: "ig:assist", state: "done" });
+    return;
+  }
+  const { id } = await instagramTab();
+  if (!id) {
+    broadcast({ type: "ig:assist", state: "stopped", error: "Onglet Instagram introuvable — pilote arrêté." });
+    return;
+  }
+  await chrome.storage.session.set({ assistPending: { username: next.username, preparing: false, startedAt: 0 } });
+  broadcast({ type: "ig:assist", state: "moving", username: next.username });
+  await chrome.tabs.update(id, { url: `https://www.instagram.com/${next.username}/` });
+}
+
 // ── Raccourcis clavier ──────────────────────────────────────────────────────
 // À 50 DM/jour, chaque aller-retour souris casse le flux. Le service worker
 // exécute directement l'action : elle marche même panneau fermé.
@@ -277,6 +358,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         await chrome.storage.session.remove("cachedTrame"); // autre prospect, autre trame
         void prefetchNext(); // on charge le suivant pendant qu'il écrit celui-ci
         broadcast({ type: "ig:prospect-changed", username: msg.username, account: msg.account });
+        await maybePrepareAssist(msg.username);
         sendResponse({ ok: true });
         break;
       // sidepanel : donne-moi la trame de ce pseudo (ou le contexte courant).
@@ -451,6 +533,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         await setArmed(null); // consommé : une détection par armement
         const result = await logSend(armed);
         broadcast({ type: "ig:logged", ...result });
+        await advanceAssist(armed, result);
         sendResponse(result);
         break;
       }

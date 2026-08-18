@@ -19,6 +19,16 @@ test("shouldLog: une double detection ne journalise qu'une fois", () => {
   assert.equal(NMFUtil.shouldLog(keys, k), false);
 });
 
+test("shouldAdvanceAssist: avance seulement après une accroche réellement journalisée", () => {
+  assert.equal(typeof NMFUtil.shouldAdvanceAssist, "function");
+  assert.equal(NMFUtil.shouldAdvanceAssist(true, "M1", { ok: true }), true);
+  assert.equal(NMFUtil.shouldAdvanceAssist(true, "S1", { ok: true }), true);
+  assert.equal(NMFUtil.shouldAdvanceAssist(false, "M1", { ok: true }), false);
+  assert.equal(NMFUtil.shouldAdvanceAssist(true, "M2", { ok: true }), false);
+  assert.equal(NMFUtil.shouldAdvanceAssist(true, "M1", { ok: false }), false);
+  assert.equal(NMFUtil.shouldAdvanceAssist(true, "M1", { ok: true, deduped: true }), false);
+});
+
 test("pickAccountId: un seul compte declare = pas de choix a faire", () => {
   const one = [{ id: "a1", username: "nmfagence" }];
   assert.equal(NMFUtil.pickAccountId(one, "nmfagence"), "a1");
