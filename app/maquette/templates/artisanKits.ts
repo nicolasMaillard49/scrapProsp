@@ -425,7 +425,7 @@ const COUVREUR: ArtisanKit = {
     u("photo-1528223871781-8f4c984f6164", 700),
     u("photo-1763665814538-8ba04597286c", 700),
     u("photo-1504241932178-447c4c934e98", 700),
-    u("photo-1632778149955-e80f8ceca2e8", 700),
+    u("photo-1654531015087-8cc3d04d1b2d", 700),
   ],
   services: [
     { name: "Réfection complète de toiture", desc: "Dépose, écran sous-toiture, liteaunage et couverture neuve.", price: 120, from: true, unit: "/m²", cat: "Toiture" },
