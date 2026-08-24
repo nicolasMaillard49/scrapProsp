@@ -295,7 +295,7 @@ export function OfferBlock({ theme, kit, label, ville }: OfferProps) {
               {lead}
             </p>
           </div>
-          <div style={{ textAlign: "right", flex: "0 0 auto" }}>
+          <div className="offer-price" style={{ textAlign: "right", flex: "0 1 auto", minWidth: 0 }}>
             <div style={{ ...meta, marginBottom: 4 }}>À partir de</div>
             <div
               style={{
@@ -368,6 +368,8 @@ export const SHARED_CSS = `
   .offer-grid { }
   @media (max-width: 860px) {
     .offer-grid { grid-template-columns: 1fr !important; }
+    /* Empilé sous le texte : le prix se relit à gauche, comme le reste de la carte. */
+    .offer-price { text-align: left !important; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
