@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Family, ShowcaseEntry } from "../templates/showcase";
+import { MAINTENANCE_PRICE } from "../templates/niches/shared";
 
 /* ──────────────────────────────────────────────────────────────
  * Planche de contact des maquettes.
@@ -205,7 +206,9 @@ export default function GalerieGrid({ entries }: { entries: ShowcaseEntry[] }) {
 
             {/* Fiche */}
             <div style={{ padding: "12px 14px 14px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              {/* wrap : en vignette mobile (250 px), le libellé le plus long
+                  ne laisse plus la place au prix sur la même ligne. */}
+              <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 15, fontWeight: 700, color: "#f9fafb" }}>{e.label}</span>
                 <span
                   className="chip"
@@ -217,9 +220,16 @@ export default function GalerieGrid({ entries }: { entries: ShowcaseEntry[] }) {
                 >
                   {FAMILY_LABEL[e.family]}
                 </span>
-                <span style={{ marginLeft: "auto", fontSize: 13, fontWeight: 700, color: e.price === 500 ? "#34d399" : "#e5e7eb" }}>
-                  {e.price ? `${e.price} € HT` : "selon métier"}
-                </span>
+                {/* Le récurrent fait partie du prix : la planche annonce les deux,
+                    comme le bloc d'offre en bas de chaque maquette. */}
+                <div style={{ marginLeft: "auto", textAlign: "right", lineHeight: 1.25 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", color: e.price === 500 ? "#34d399" : "#e5e7eb" }}>
+                    {e.price ? `${e.price} € HT` : "selon métier"}
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 500, whiteSpace: "nowrap", color: "#9ca3af" }}>
+                    + {MAINTENANCE_PRICE} €/mois
+                  </div>
+                </div>
               </div>
 
               <div style={{ fontSize: 12, color: "#a78bfa", marginBottom: 6 }}>

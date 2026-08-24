@@ -52,7 +52,16 @@ export interface OfferTheme {
 /** Prix de l'offre, en euros HT — cf. vault Agence : 300 vitrine / 500 réservation. */
 export const OFFER_PRICE = { vitrine: 300, booking: 500 } as const;
 
-const MONTHLY = "puis 29 €/mois — hébergement, maintenance et mises à jour inclus.";
+/**
+ * Récurrent mensuel annoncé avec chaque maquette, en euros HT.
+ *
+ * Il fait partie du prix au même titre que les 300 / 500 € : partout où on
+ * annonce l'offre, on annonce les deux. Un montant unique ici évite que la
+ * planche de contact et le bloc d'offre finissent par raconter deux choses.
+ */
+export const MAINTENANCE_PRICE = 29;
+
+const MONTHLY = `puis ${MAINTENANCE_PRICE} €/mois — hébergement, maintenance et mises à jour inclus.`;
 
 /* ── Aides de rendu ─────────────────────────────────────────── */
 
