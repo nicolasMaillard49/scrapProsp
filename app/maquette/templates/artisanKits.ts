@@ -226,7 +226,7 @@ const SERRURIER: ArtisanKit = {
   gallery: [
     u("photo-1643804926339-e94f0a655185", 700),
     u("photo-1733244766159-f58f4184fd38", 700),
-    u("photo-1558618666-fcd25c85f82e", 700),
+    u("photo-1563845104292-41c1b4825255", 700),
     u("photo-1585914641050-fa9883c4e21c", 700),
   ],
   services: [
@@ -355,10 +355,10 @@ const CHAUFFAGISTE: ArtisanKit = {
   portrait: "/templates/chauffagiste-portrait.webp",
   gallery: [
     u("photo-1650551182956-47efa0f90b64", 700),
-    u("photo-1748442001865-5583ec02ae22", 700),
-    u("photo-1581578731548-c64695cc6952", 700),
-    u("photo-1509391366360-2e959784a276", 700),
-    u("photo-1558618666-fcd25c85f82e", 700),
+    u("photo-1639866496281-573747d7051f", 700),
+    u("photo-1710829558487-53baf9e26003", 700),
+    u("photo-1669729227685-770f727fb709", 700),
+    u("photo-1518276779712-dfdcb9daa7a1", 700),
     u("photo-1504328345606-18bbc8c9d7d1", 700),
   ],
   services: [
@@ -554,15 +554,15 @@ const MACON: ArtisanKit = {
 const MENUISIER: ArtisanKit = {
   accent: "#A0673A",
   accentDark: "#7A4C29",
-  hero: u("photo-1547609434-b732edfee020", 1400),
+  hero: u("photo-1590880795696-20c7dfadacde", 1400),
   about: u("photo-1631396326646-c06a935ff3a6", 1000),
   portrait: "/templates/menuisier-portrait.webp",
   gallery: [
     u("photo-1497219055242-93359eeed651", 700),
     u("photo-1597960194599-22929afc25b1", 700),
     u("photo-1497218770144-3fea6dbc33fe", 700),
-    u("photo-1600585154340-be6161a56a0c", 700),
-    u("photo-1547609434-b732edfee020", 700),
+    u("photo-1594580701468-e5678582b8ce", 700),
+    u("photo-1426927308491-6380b6a9936f", 700),
     u("photo-1631396326646-c06a935ff3a6", 700),
   ],
   services: [

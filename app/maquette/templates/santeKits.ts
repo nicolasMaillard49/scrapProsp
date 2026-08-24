@@ -223,7 +223,7 @@ const DENTISTE: SanteKit = {
 const KINE: SanteKit = {
   accent: "#1F7A6B",
   accentDark: "#155A4F",
-  hero: u("photo-1758654860100-32cd2e83e74a"),
+  hero: u("photo-1649751361457-01d3a696c7e6"),
   about: u("photo-1770012905139-713758ded6ec"),
   portrait: "/templates/kine-portrait.webp",
   services: [
@@ -343,7 +343,7 @@ const OSTEOPATHE: SanteKit = {
 const PODOLOGUE: SanteKit = {
   accent: "#E4572E",
   accentDark: "#B33F1D",
-  hero: u("photo-1758654860024-9e352f70d1f9"),
+  hero: u("photo-1545463913-5083aa7359a6"),
   about: u("photo-1770012905139-713758ded6ec"),
   portrait: "/templates/podologue-portrait.webp",
   services: [
@@ -515,7 +515,7 @@ const MEDECIN: SanteKit = {
   accent: "#2F6DB5",
   accentDark: "#224E82",
   hero: u("photo-1771574204208-b47e2d863bc5"),
-  about: u("photo-1758654860024-9e352f70d1f9"),
+  about: u("photo-1576085898384-b3cdb88736e9"),
   portrait: "/templates/medecin-portrait.webp",
   services: [
     { name: "Consultation au cabinet", desc: "Consultation de médecine générale, adulte et enfant.", price: 26.5, cat: "Consultation", refund: "remboursé à 70 % dans le parcours de soins" },
