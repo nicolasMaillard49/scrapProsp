@@ -47,7 +47,18 @@ const CONTEXTE: Record<string, { href: string; label: string; Icone: typeof Map 
 };
 
 /** Les surfaces vues par un PROSPECT : jamais de navigation interne dessus. */
-const PUBLIQUES = [/^\/login/, /^\/di\//, /^\/d\//, /^\/demo/, /^\/maquette/, /^\/eligibilite/, /^\/admin\/funnel\/live/];
+const PUBLIQUES = [
+  /^\/login/,
+  /^\/di\//,
+  /^\/d\//,
+  /^\/demo/,
+  /^\/maquette/,
+  /^\/eligibilite/,
+  // Qualification d'un devis par l'artisan, ouverte depuis sa notification.
+  // Il n'a rien à voir de notre outil interne.
+  /^\/q\//,
+  /^\/admin\/funnel\/live/,
+];
 
 export default function AppRail() {
   const path = usePathname() || "/";
