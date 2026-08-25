@@ -56,6 +56,15 @@ export function middleware(req: NextRequest) {
     // — consommé par l'Apps Script du Google Sheet de tracking.
     pathname === "/api/instagram/kpi" ||
     pathname === "/api/demo/track" ||
+    // Demandes de devis venues des landing pages Google Ads : le POST arrive
+    // d'un AUTRE projet Vercel, sans cookie. Sa protection est le jeton partagé
+    // que la route vérifie elle-même (LEAD_INGEST_SECRET).
+    pathname === "/api/leads" ||
+    // Qualification par l'artisan, depuis le lien reçu dans sa notification.
+    // Authentifiée par le jeton du lien, long et aléatoire — on ne demande pas
+    // un mot de passe à quelqu'un qui répond depuis un chantier.
+    pathname === "/api/leads/qualify" ||
+    pathname.startsWith("/q/") ||
     // Jumeau du precedent pour les maquettes Instagram (/di) : appele depuis
     // le navigateur DU PROSPECT, donc forcement ouvert.
     pathname === "/api/instagram/demo-view" ||

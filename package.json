@@ -29,6 +29,7 @@
     "migrate:030": "node scripts/apply-migration-030.mjs",
     "migrate:031": "node scripts/apply-migration-031.mjs",
     "migrate:033": "node scripts/apply-migration-033.mjs",
+    "migrate:034": "node scripts/apply-migration-034.mjs",
     "crm:audits": "node scripts/import-audits.mjs"
   },
   "dependencies": {
