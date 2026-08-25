@@ -68,10 +68,13 @@ CREATE INDEX IF NOT EXISTS idx_ads_leads_token    ON ads_leads(token);
 CREATE INDEX IF NOT EXISTS idx_ads_leads_pending
   ON ads_leads(received_at) WHERE request_uploaded_at IS NULL;
 
--- Anti-doublon : un formulaire renvoyé deux fois de suite (double-clic, retour
--- arrière) ne doit pas produire deux leads ni deux conversions.
-CREATE UNIQUE INDEX IF NOT EXISTS idx_ads_leads_dedup
-  ON ads_leads(client_slug, phone, date_trunc('hour', received_at));
+-- Anti-doublon : le double-clic et le retour arrière renvoient le même
+-- formulaire deux fois de suite. La détection se fait dans la route, sur une
+-- fenêtre de quelques minutes — un index unique par tranche horaire refuserait
+-- aussi la deuxième demande, légitime, d'un client qui rappelle vingt minutes
+-- plus tard. Cet index sert la recherche du rejeu, pas son interdiction.
+CREATE INDEX IF NOT EXISTS idx_ads_leads_rejeu
+  ON ads_leads(client_slug, phone, received_at DESC);
 
 -- Le client du jour. customer_id et les deux actions restent NULL tant que le
 -- compte Ads n'est pas monté — la route l'accepte et enregistre quand même le

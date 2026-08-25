@@ -31,6 +31,9 @@ const SECRET = process.env.LEAD_INGEST_SECRET ?? "";
 /** L'origine du lien de qualification, celle que l'artisan ouvrira. */
 const PUBLIC_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://scrap-prosp.vercel.app").replace(/\/$/, "");
 
+/** Fenêtre pendant laquelle un formulaire identique est tenu pour un rejeu. */
+const REJEU_MINUTES = 5;
+
 export async function POST(req: NextRequest) {
   if (!SECRET) {
     return NextResponse.json({ error: "LEAD_INGEST_SECRET non configuré" }, { status: 503 });
@@ -64,6 +67,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Client « ${slug} » inconnu` }, { status: 404 });
   }
 
+  // ── 0. Le rejeu. Double-clic, retour arrière, renvoi du formulaire : la même
+  // demande arrive deux fois en quelques secondes. On la reconnaît au numéro et
+  // au message, sur une fenêtre courte — au-delà, c'est un client qui rappelle,
+  // et sa deuxième demande a le droit d'exister.
+  const depuis = new Date(Date.now() - REJEU_MINUTES * 60_000).toISOString();
+  const { data: recent } = await supabaseAdmin
+    .from("ads_leads")
+    .select("id")
+    .eq("client_slug", slug)
+    .eq("phone", row.phone)
+    .eq("message", row.message)
+    .gte("received_at", depuis)
+    .limit(1)
+    .maybeSingle();
+  if (recent) return NextResponse.json({ ok: true, id: recent.id, duplicate: true });
+
   // ── 1. Écrire. Le seul échec qui doit remonter au formulaire.
   const { data: lead, error } = await supabaseAdmin
     .from("ads_leads")
@@ -72,9 +91,6 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) {
-    // 23505 = doublon sur l'index anti-rejeu (même numéro, même heure). Le
-    // visiteur a cliqué deux fois : sa demande est déjà passée, on le rassure.
-    if (error.code === "23505") return NextResponse.json({ ok: true, duplicate: true });
     console.error("[leads] écriture impossible", error);
     return NextResponse.json({ error: "Enregistrement impossible" }, { status: 500 });
   }
