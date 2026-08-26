@@ -29,6 +29,24 @@ test("shouldAdvanceAssist: avance seulement après une accroche réellement jour
   assert.equal(NMFUtil.shouldAdvanceAssist(true, "M1", { ok: true, deduped: true }), false);
 });
 
+test("isUnreachableReason: le profil sans bouton Contacter vaut verdict, l'incident non", () => {
+  assert.equal(typeof NMFUtil.isUnreachableReason, "function");
+  // Verdicts : aucun moyen d'écrire à ce prospect → Perdu et on enchaîne.
+  assert.equal(NMFUtil.isUnreachableReason("no-contact-button"), true);
+  assert.equal(NMFUtil.isUnreachableReason("profile-unavailable"), true);
+  // Incidents : Instagram a flanché, le prospect n'y est pour rien.
+  assert.equal(NMFUtil.isUnreachableReason("no-composer"), false);
+  assert.equal(NMFUtil.isUnreachableReason("profile-not-rendered"), false);
+  assert.equal(NMFUtil.isUnreachableReason("no-content-script"), false);
+  assert.equal(NMFUtil.isUnreachableReason(undefined), false);
+});
+
+test("unreachableLabel: le motif écrit dans la sélection dit LEQUEL des deux cas", () => {
+  assert.equal(NMFUtil.unreachableLabel("no-contact-button"), "perdu — profil sans bouton Contacter");
+  assert.equal(NMFUtil.unreachableLabel("profile-unavailable"), "perdu — profil indisponible");
+  assert.equal(NMFUtil.unreachableLabel("autre"), "perdu — injoignable");
+});
+
 test("nextQueueProspect: ignore le profil indisponible pour éviter de boucler dessus", () => {
   assert.equal(typeof NMFUtil.nextQueueProspect, "function");
   const rows = [{ username: "profil_mort" }, { username: "profil_suivant" }];

@@ -14,6 +14,25 @@ const NMFUtil = (() => {
   function shouldAdvanceAssist(enabled, step, result) {
     return enabled === true && (step === "M1" || step === "S1") && result?.ok === true && result?.deduped !== true;
   }
+  /**
+   * Motifs d'échec qui VALENT verdict : ce prospect ne peut pas être contacté.
+   *
+   * Le compte supprimé et le profil sans bouton Contacter disent la même
+   * chose — il n'y a aucun moyen de lui écrire, donc rien à espérer de lui.
+   * `no-composer` (un sas cliqué mais pas de champ) et `profile-not-rendered`
+   * (la page n'est jamais venue) restent des INCIDENTS : on arrête le pilote
+   * plutôt que de brûler un prospect sur un aléa d'Instagram.
+   */
+  const UNREACHABLE_REASONS = new Set(["profile-unavailable", "no-contact-button"]);
+  function isUnreachableReason(reason) {
+    return UNREACHABLE_REASONS.has(String(reason ?? ""));
+  }
+  /** Ce que l'on inscrit dans `skip_reason` — lisible dans la sélection du jour. */
+  function unreachableLabel(reason) {
+    if (reason === "no-contact-button") return "perdu — profil sans bouton Contacter";
+    if (reason === "profile-unavailable") return "perdu — profil indisponible";
+    return "perdu — injoignable";
+  }
   /** Premier profil valide de la file, sauf celui que l'on vient d'écarter. */
   function nextQueueProspect(rows, excludedUsername = null) {
     const excluded = String(excludedUsername ?? "").replace(/^@/, "").trim().toLowerCase();
@@ -368,7 +387,8 @@ const NMFUtil = (() => {
   }
 
   return {
-    dedupeKey, shouldLog, shouldAdvanceAssist, nextQueueProspect, prune, estMessageLibre, pickAccountId, formatThread, splitThread,
+    dedupeKey, shouldLog, shouldAdvanceAssist, isUnreachableReason, unreachableLabel,
+    nextQueueProspect, prune, estMessageLibre, pickAccountId, formatThread, splitThread,
     parisDay, replyKey, similarity, matchStep, incomingReply, incomingKey,
     DEFAULT_LINKS, parseLinks, serializeLinks, sinceLabel, replyState,
     pushSend, paceState, PACE_MIN_S,

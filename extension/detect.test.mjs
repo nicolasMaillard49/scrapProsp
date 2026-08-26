@@ -182,6 +182,66 @@ test("prepareContact: arrête immédiatement l'attente sur un profil indisponibl
   assert.deepEqual(result, { ok: false, reason: "profile-unavailable", clicked: null });
 });
 
+test("profileRendered: l'en-tête compté (publications/followers) suffit, une page vide non", () => {
+  assert.equal(typeof NMFDetect.profileRendered, "function");
+  const compteurs = dom(`<body><main><h2>gcjassocies</h2>
+    <ul><li>3 publications</li><li>63 followers</li><li>79 suivi(e)s</li></ul></main></body>`);
+  const anglais = dom(`<body><main><h2>gcjassocies</h2>
+    <ul><li>3 posts</li><li>63 followers</li><li>79 following</li></ul></main></body>`);
+  const boutonSeul = dom(`<body><main><h2>gcjassocies</h2><button>Suivre</button></main></body>`);
+  const vide = dom(`<body><main></main></body>`);
+  const squelette = dom(`<body><main><div class="loader"></div></main></body>`);
+
+  assert.equal(NMFDetect.profileRendered(compteurs.window.document), true);
+  assert.equal(NMFDetect.profileRendered(anglais.window.document), true);
+  assert.equal(NMFDetect.profileRendered(boutonSeul.window.document), true);
+  assert.equal(NMFDetect.profileRendered(vide.window.document), false);
+  assert.equal(NMFDetect.profileRendered(squelette.window.document), false);
+});
+
+test("prepareContact: profil rendu SANS bouton Contacter → verdict no-contact-button avant le délai plein", async () => {
+  // Le cas du terrain : le profil s'affiche (compteurs, « Suivre »), mais
+  // Instagram n'offre aucun message. Inutile d'attendre les 15 s.
+  const d = dom(`<body><main><h2>gcjassocies</h2>
+    <ul><li>3 publications</li><li>63 followers</li><li>79 suivi(e)s</li></ul>
+    <button>Suivre</button></main></body>`, "https://www.instagram.com/gcjassocies/");
+
+  const result = await NMFDetect.prepareContact(d.window.document, {
+    win: d.window, intervalMs: 5, graceMs: 20, timeoutMs: 5_000,
+  });
+
+  assert.deepEqual(result, { ok: false, reason: "no-contact-button", clicked: null, rendered: true });
+});
+
+test("prepareContact: page jamais rendue → profile-not-rendered, PAS un verdict sur le prospect", async () => {
+  const d = dom(`<body><main></main></body>`, "https://www.instagram.com/laura_x/");
+
+  const result = await NMFDetect.prepareContact(d.window.document, {
+    win: d.window, intervalMs: 5, graceMs: 20, timeoutMs: 60,
+  });
+
+  assert.deepEqual(result, { ok: false, reason: "profile-not-rendered", clicked: null, rendered: false });
+});
+
+test("prepareContact: le bouton Contacter rendu APRÈS l'en-tête n'est pas manqué", async () => {
+  // L'en-tête arrive avant les actions : le sursis doit couvrir ce décalage.
+  const d = dom(`<body><main id="profile"><ul><li>3 publications</li><li>63 followers</li></ul></main></body>`,
+    "https://www.instagram.com/laura_x/");
+  const profile = d.window.document.getElementById("profile");
+  d.window.setTimeout(() => {
+    profile.insertAdjacentHTML("beforeend", `<button id="contact">Contacter</button>`);
+    profile.querySelector("#contact").addEventListener("click", () => {
+      profile.innerHTML = `<div contenteditable="true" aria-label="Message" role="textbox"></div>`;
+    });
+  }, 30);
+
+  const result = await NMFDetect.prepareContact(d.window.document, {
+    win: d.window, intervalMs: 5, graceMs: 200, timeoutMs: 1_000,
+  });
+
+  assert.deepEqual(result, { ok: true, clicked: "contacter" });
+});
+
 test("loggedInAccount: lien de nav vers son propre profil (img alt « photo de profil ») → pseudo", () => {
   const d = dom(
     `<body><nav><a href="/nmf.agence/"><img alt="Photo de profil de nmf.agence" /></a></nav></body>`,

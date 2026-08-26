@@ -31,6 +31,12 @@ interface Body {
   excerpt?: string;
   account_id?: string;
   stage?: string;
+  /**
+   * Motif écrit dans `skip_reason` quand le stade ferme la ligne du jour.
+   * L'extension y met ce qu'elle a constaté (« profil sans bouton Contacter »),
+   * pour qu'on distingue plus tard un rejet humain d'un profil injoignable.
+   */
+  reason?: string;
 }
 
 /**
@@ -86,7 +92,8 @@ export async function POST(req: NextRequest) {
       // Passe par l'écrivain unique : jusqu'ici c'était un `update({ stage })`
       // nu, donc un « perdu » posé depuis l'extension gardait son statut et sa
       // relance programmée — le prospect revenait dans la file.
-      await setStage(prospect.id as string, stage, "perdu — clos depuis l'extension");
+      const reason = (body.reason ?? "").trim().slice(0, 120) || "perdu — clos depuis l'extension";
+      await setStage(prospect.id as string, stage, reason);
     } catch (e) {
       return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
     }

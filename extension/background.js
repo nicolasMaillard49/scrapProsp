@@ -245,12 +245,16 @@ async function prepareAssist(pending) {
   await chrome.storage.session.set({ assistPending: { ...pending, preparing: true, startedAt: Date.now() } });
   const opened = await sendToTab({ type: "ig:prepare-contact" });
   if (!opened?.ok) {
-    if (opened?.reason === "profile-unavailable") {
-      await loseUnavailableAssist(pending);
+    // Injoignable = verdict, pas incident : compte supprimé OU profil rendu
+    // sans bouton Contacter. Dans les deux cas il n'y a aucun moyen de lui
+    // écrire — le prospect part en Perdu et le pilote enchaîne, au lieu de
+    // s'arrêter et d'attendre un clic qui n'aboutira jamais.
+    if (NMFUtil.isUnreachableReason(opened?.reason)) {
+      await loseUnavailableAssist(pending, opened.reason);
       return;
     }
-    await stopAssistPreparation(opened?.reason === "no-contact-button"
-      ? "Bouton Contacter introuvable — pilote arrêté sur ce profil."
+    await stopAssistPreparation(opened?.reason === "profile-not-rendered"
+      ? "Profil non rendu — pilote arrêté, recharge la page."
       : "Conversation impossible à ouvrir — pilote arrêté sur ce profil.");
     return;
   }
@@ -283,19 +287,20 @@ async function prepareAssist(pending) {
 }
 
 /** Même écriture que le bouton « Perdu », puis reprise automatique de la file. */
-async function loseUnavailableAssist(pending) {
+async function loseUnavailableAssist(pending, reason = "profile-unavailable") {
+  const label = NMFUtil.unreachableLabel(reason);
   const { status, json } = await api("/api/instagram/classify-reply", {
     method: "POST",
-    body: JSON.stringify({ username: pending.username, record: "stage", stage: "perdu" }),
+    body: JSON.stringify({ username: pending.username, record: "stage", stage: "perdu", reason: label }),
   });
   if (status !== 200 || !json?.ok) {
-    await stopAssistPreparation(json?.error || `Profil indisponible, mais passage en Perdu impossible (erreur ${status}).`);
+    await stopAssistPreparation(json?.error || `Profil injoignable, mais passage en Perdu impossible (erreur ${status}).`);
     return;
   }
 
   await setArmed(null);
   await chrome.storage.session.remove(["cachedTrame", "prefetched"]);
-  broadcast({ type: "ig:assist", state: "skipped", username: pending.username });
+  broadcast({ type: "ig:assist", state: "skipped", username: pending.username, reason });
   await moveAssistToNext(pending.username);
 }
 

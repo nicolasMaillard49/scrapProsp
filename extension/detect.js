@@ -223,6 +223,37 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     }
   }
 
+  // Libellés du bouton d'abonnement, dans ses quatre états. Leur présence
+  // prouve que l'en-tête du profil est bel et bien rendu.
+  const FOLLOW_LABELS = new Set([
+    "suivre", "follow", "suivi(e)", "abonne", "abonnes", "following", "se desabonner", "unfollow",
+    "demande envoyee", "requested",
+  ]);
+  // Compteurs de l'en-tête : « 3 publications · 63 followers · 79 suivi(e)s ».
+  const HEADER_COUNTERS = /\b(publications?|posts?|followers?|abonnes?|suivi\(?e\)?s?|following)\b/;
+
+  /**
+   * L'en-tête du profil est-il rendu ?
+   *
+   * Sans ce garde-fou, « aucun bouton Contacter » ne veut rien dire : une page
+   * encore blanche donne le même résultat qu'un profil qui n'accepte pas les
+   * messages. Le premier cas est un incident, le second un VERDICT — et on
+   * marque « perdu » sur le second seulement.
+   */
+  function profileRendered(doc) {
+    try {
+      const root = doc.querySelector("main") || doc.body;
+      if (!root) return false;
+      if (HEADER_COUNTERS.test(normalizeDomText(root.textContent))) return true;
+      for (const el of root.querySelectorAll('button, [role="button"], span, div')) {
+        if (FOLLOW_LABELS.has(actionLabel(el))) return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
   /** Page d'erreur affichée par Instagram pour un compte supprimé/inaccessible. */
   function profileUnavailable(doc) {
     try {
@@ -248,9 +279,14 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
     const win = opts.win || (typeof window !== "undefined" ? window : globalThis);
     const intervalMs = opts.intervalMs ?? 200;
     const timeoutMs = opts.timeoutMs ?? 15_000;
+    // Délai laissé au bouton Contacter APRÈS que l'en-tête soit rendu. Passé
+    // ce point, il n'arrive plus : inutile d'user les 15 s complètes sur un
+    // profil qui n'offre pas de message.
+    const graceMs = opts.graceMs ?? 3_000;
     const started = Date.now();
     const clickedNodes = new WeakSet();
     let firstClicked = null;
+    let renderedAt = null;
 
     while (Date.now() - started < timeoutMs) {
       if (composerNode(doc)) return { ok: true, clicked: firstClicked };
@@ -263,14 +299,26 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
         try { button.click(); } catch { /* l'attente détectera un clic manuel */ }
       }
 
+      if (firstClicked === null) {
+        if (renderedAt === null && profileRendered(doc)) renderedAt = Date.now();
+        if (renderedAt !== null && Date.now() - renderedAt >= graceMs) {
+          return { ok: false, reason: "no-contact-button", clicked: null, rendered: true };
+        }
+      }
+
       await new Promise((resolve) => win.setTimeout(resolve, intervalMs));
     }
 
     if (composerNode(doc)) return { ok: true, clicked: firstClicked };
+    if (firstClicked !== null) return { ok: false, reason: "no-composer", clicked: firstClicked };
+    // En-tête jamais rendu : c'est la page qui n'est pas venue, pas le profil
+    // qui refuse les messages. Deux motifs distincts, deux issues distinctes.
+    const rendered = profileRendered(doc);
     return {
       ok: false,
-      reason: firstClicked === null ? "no-contact-button" : "no-composer",
-      clicked: firstClicked,
+      reason: rendered ? "no-contact-button" : "profile-not-rendered",
+      clicked: null,
+      rendered,
     };
   }
 
@@ -655,7 +703,7 @@ var NMFDetect = typeof NMFDetect !== "undefined" ? NMFDetect : (() => {
   }
 
   return {
-    currentUsername, composerNode, contactButton, profileUnavailable, prepareContact, loggedInAccount, watchSend,
+    currentUsername, composerNode, contactButton, profileUnavailable, profileRendered, prepareContact, loggedInAccount, watchSend,
     profileSnapshot,
     usernameFromHref, lastIncomingText, conversationThread, insertIntoComposer,
     messageScroller,
