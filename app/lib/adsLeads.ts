@@ -75,6 +75,41 @@ export function makeToken(random: () => number = Math.random): string {
   return out;
 }
 
+/** Les colonnes de suivi, communes à une demande de devis et à un appel. */
+export interface TrackingColumns {
+  gclid: string | null;
+  ag: string | null;
+  kw: string | null;
+  mt: string | null;
+  device: string | null;
+  loc: string | null;
+  camp: string | null;
+  landing: string | null;
+  referrer: string | null;
+}
+
+/**
+ * Le ticket de clic Google Ads, mis en forme pour la base.
+ *
+ * Partagé par `parseLead` et par l'enregistrement d'un appel : les deux
+ * écrivent exactement le même ticket, et c'est lui qui rend la conversion à
+ * Google. Deux copies auraient fini par diverger sur un plafond de longueur.
+ */
+export function parseTracking(raw: unknown): TrackingColumns {
+  const t = (raw ?? {}) as Record<string, unknown>;
+  return {
+    gclid: optional(t.gclid, 512),
+    ag: optional(t.ag, 40),
+    kw: optional(t.kw, 200),
+    mt: optional(t.mt, 20),
+    device: optional(t.dev, 20),
+    loc: optional(t.loc, 40),
+    camp: optional(t.camp, 40),
+    landing: optional(t.landing, 200),
+    referrer: optional(t.referrer, 500),
+  };
+}
+
 export type ParseResult =
   | { ok: true; row: LeadRow }
   | { ok: false; status: 400 | 422; error: string };
@@ -97,8 +132,6 @@ export function parseLead(body: LeadInput, slug: string, token = makeToken()): P
   const phone = normalizePhone(rawPhone);
   if (!phone) return { ok: false, status: 422, error: "Numéro de téléphone invalide" };
 
-  const t = (body.tracking ?? {}) as Record<string, unknown>;
-
   return {
     ok: true,
     row: {
@@ -109,15 +142,7 @@ export function parseLead(body: LeadInput, slug: string, token = makeToken()): P
       commune: optional(body.commune, 120),
       message,
       service: optional(body.service, 80),
-      gclid: optional(t.gclid, 512),
-      ag: optional(t.ag, 40),
-      kw: optional(t.kw, 200),
-      mt: optional(t.mt, 20),
-      device: optional(t.dev, 20),
-      loc: optional(t.loc, 40),
-      camp: optional(t.camp, 40),
-      landing: optional(t.landing, 200),
-      referrer: optional(t.referrer, 500),
+      ...parseTracking(body.tracking),
       token,
     },
   };
@@ -138,6 +163,27 @@ export function leadNotification(row: LeadRow, label: string, qualifyUrl: string
     `Devis signé ? → ${qualifyUrl}`,
   ];
   return lignes.filter((l) => l !== null).join("\n");
+}
+
+/**
+ * La même demande, en SMS. Volontairement plus courte que la version Telegram :
+ * on vise un seul segment (160 caractères en GSM-7), donc pas de message du
+ * client, pas de mot-clé, pas d'avertissement gclid. Le SMS sert à faire
+ * décrocher vite ; le détail est dans le mail et dans Telegram.
+ *
+ * Le numéro reste au format +33… : c'est celui que le téléphone rend cliquable.
+ */
+export function leadSmsNotification(row: LeadRow, label: string, qualifyUrl: string): string {
+  const lieu = row.commune ? `, ${row.commune}` : "";
+  return (
+    `${label} - nouvelle demande de devis
+` +
+    `${row.name}${lieu}
+` +
+    `${row.phone}
+` +
+    `Devis signe ? ${qualifyUrl}`
+  );
 }
 
 export function escapeHtml(s: string): string {

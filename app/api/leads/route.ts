@@ -2,14 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, supabaseAdminConfigured } from "@/app/lib/supabaseAdmin";
 import { sendTelegram } from "@/app/lib/notify";
 import { sendEmail } from "@/app/lib/email";
-import { parseLead, leadNotification, makeToken, escapeHtml } from "@/app/lib/adsLeads";
+import { sendSms } from "@/app/lib/smsNotify";
+import { parseLead, parseTracking, leadNotification, leadSmsNotification, makeToken, escapeHtml } from "@/app/lib/adsLeads";
 import { uploadClickConversion } from "@/app/lib/googleAds/conversions";
 
 /**
  * POST /api/leads
  *
- * Réception d'une demande de devis venue d'une landing page Google Ads. C'est
- * l'endpoint que `LEAD_FORWARD_URL` désigne côté projet des landing pages.
+ * Réception d'un contact venu d'une landing page Google Ads. C'est l'endpoint
+ * que `LEAD_FORWARD_URL` désigne côté projet des landing pages.
+ *
+ * Deux natures de contact, distinguées par `kind` :
+ *  - `"form"` (défaut) — une demande de devis écrite. Le reste de ce commentaire
+ *    la décrit ;
+ *  - `"call"` — un clic sur le numéro de téléphone. Table à part, action de
+ *    conversion à part, aucune notification. Voir `enregistrerAppel` en bas de
+ *    ce fichier.
  *
  * Trois choses, dans cet ordre, et la première seule est bloquante :
  *  1. écrire le lead — sans ça la demande est perdue ;
@@ -34,6 +42,13 @@ const PUBLIC_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://scrap-prosp.verc
 /** Fenêtre pendant laquelle un formulaire identique est tenu pour un rejeu. */
 const REJEU_MINUTES = 5;
 
+/**
+ * Idem pour un appel, mais plus court. On raccroche, on reclique, on retombe
+ * sur un répondeur et on réessaie : c'est le même appel. Au-delà de deux
+ * minutes, c'est un visiteur qui rappelle vraiment, et ça compte.
+ */
+const REJEU_APPEL_MINUTES = 2;
+
 export async function POST(req: NextRequest) {
   if (!SECRET) {
     return NextResponse.json({ error: "LEAD_INGEST_SECRET non configuré" }, { status: 503 });
@@ -54,18 +69,31 @@ export async function POST(req: NextRequest) {
   }
 
   const slug = typeof body.client === "string" && body.client ? body.client : "totowood";
-  const parsed = parseLead(body, slug, makeToken());
-  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
-  const row = parsed.row;
+
+  const kind = typeof body.kind === "string" ? body.kind : "form";
+  if (kind !== "form" && kind !== "call") {
+    return NextResponse.json({ error: `Type de demande inconnu : ${kind}` }, { status: 400 });
+  }
 
   const { data: client } = await supabaseAdmin
     .from("ads_clients")
-    .select("slug, label, customer_id, action_request, notify_email, notify_telegram")
+    .select("slug, label, customer_id, action_request, action_call, notify_email, notify_telegram, notify_sms")
     .eq("slug", slug)
     .single();
   if (!client) {
     return NextResponse.json({ error: `Client « ${slug} » inconnu` }, { status: 404 });
   }
+
+  /* Un appel n'est pas une demande de devis amputée : le visiteur ne laisse ni
+     nom, ni message, ni numéro où le rappeler. Il part vers sa propre table et
+     sa propre action de conversion, et il ne déclenche aucune notification —
+     le téléphone de l'artisan sonne, c'est la notification. Voir la
+     migration 036 pour le raisonnement complet. */
+  if (kind === "call") return enregistrerAppel(body, client);
+
+  const parsed = parseLead(body, slug, makeToken());
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: parsed.status });
+  const row = parsed.row;
 
   // ── 0. Le rejeu. Double-clic, retour arrière, renvoi du formulaire : la même
   // demande arrive deux fois en quelques secondes. On la reconnaît au numéro et
@@ -115,6 +143,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  /* Le SMS en dernier des trois, et c'est voulu : c'est le seul qui coûte de
+     l'argent. Pas de numéro, pas d'envoi — la colonne porte le numéro et non
+     un booléen, donc l'état « activé mais sans numéro » n'existe pas. */
+  if (client.notify_sms) {
+    taches.push(
+      sendSms({
+        to: client.notify_sms,
+        body: leadSmsNotification(row, client.label, qualifyUrl),
+        statusCallback: PUBLIC_URL + "/api/sms/status",
+      }),
+    );
+  }
+
   // ── 3. Rendre le ticket à Google, tout de suite. À J0 on est très loin de la
   // limite des 90 jours, et le compte a du signal dès la première semaine.
   const envoi = uploadClickConversion({
@@ -138,4 +179,78 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, id: lead.id });
+}
+
+/**
+ * Un clic sur le numéro de téléphone d'une landing page.
+ *
+ * Ce qu'on mesure : le clic, pas l'appel décroché. Sur mobile c'est un signal
+ * d'intention très fort — le clic ouvre le composeur. Sur ordinateur c'est plus
+ * faible : le visiteur lit le numéro et compose sur son propre téléphone sans
+ * jamais cliquer. La colonne `device` permet de faire la part des choses.
+ *
+ * On n'utilise pas le suivi des appels natif de Google, qui exige la balise
+ * gtag.js, donc des cookies publicitaires, donc un bandeau de consentement —
+ * alors que la politique de confidentialité de ces pages promet noir sur blanc
+ * « aucun cookie publicitaire ». Le clic passe par notre propre API, comme le
+ * formulaire, et la conversion est rendue à Google par l'API avec le gclid.
+ */
+async function enregistrerAppel(
+  body: Record<string, unknown>,
+  client: { slug: string; customer_id: string | null; action_call: string | null },
+) {
+  const tracking = parseTracking(body.tracking);
+
+  // ── 0. Le rejeu, même principe que pour un formulaire.
+  const depuis = new Date(Date.now() - REJEU_APPEL_MINUTES * 60_000).toISOString();
+  const base = supabaseAdmin
+    .from("ads_calls")
+    .select("id")
+    .eq("client_slug", client.slug)
+    .gte("clicked_at", depuis);
+  /* Sans gclid, on n'a pas de quoi distinguer deux visiteurs : on se rabat sur
+     la page. C'est volontairement grossier — un clic sans gclid ne remontera
+     de toute façon jamais à Google, il n'a de valeur que statistique. */
+  const { data: recent } = await (tracking.gclid
+    ? base.eq("gclid", tracking.gclid)
+    : base.is("gclid", null).eq("landing", tracking.landing ?? "")
+  )
+    .limit(1)
+    .maybeSingle();
+  if (recent) return NextResponse.json({ ok: true, id: recent.id, duplicate: true });
+
+  // ── 1. Écrire. Seul échec qui remonte.
+  const { data: appel, error } = await supabaseAdmin
+    .from("ads_calls")
+    .insert({ client_slug: client.slug, ...tracking })
+    .select("id, clicked_at")
+    .single();
+
+  if (error) {
+    console.error("[calls] écriture impossible", error);
+    return NextResponse.json({ error: "Enregistrement impossible" }, { status: 500 });
+  }
+
+  // ── 2. Rendre le ticket à Google. Tant que l'action n'existe pas dans le
+  // compte Ads, `uploadClickConversion` répond `skipped` et le clic reste en
+  // base : il repartira quand `action_call` sera renseignée.
+  const resultat = await uploadClickConversion({
+    customerId: client.customer_id || "",
+    conversionAction: client.action_call || "",
+    gclid: tracking.gclid || "",
+    at: new Date(appel.clicked_at),
+    orderId: appel.id,
+  });
+
+  if (resultat.ok) {
+    await supabaseAdmin
+      .from("ads_calls")
+      .update({ uploaded_at: new Date().toISOString(), upload_error: null })
+      .eq("id", appel.id);
+  } else if (!resultat.skipped) {
+    console.error("[calls] conversion non remontée", resultat.error);
+    await supabaseAdmin.from("ads_calls").update({ upload_error: resultat.error }).eq("id", appel.id);
+  }
+
+  return NextResponse.json({ ok: true, id: appel.id });
 }
