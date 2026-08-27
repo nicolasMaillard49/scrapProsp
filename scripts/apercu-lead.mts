@@ -10,6 +10,10 @@
  *   npx tsx scripts/apercu-lead.mts
  *       → écrit previews/apercu-mail-devis.html et imprime le SMS dans la console.
  *
+ *   npx tsx scripts/apercu-lead.mts --mail prenom@exemple.fr
+ *       → envoie EN PLUS le mail pour de vrai, via Resend. C'est bien celui
+ *         que l'artisan recevra, expédié par le même code qu'en production.
+ *
  *   npx tsx scripts/apercu-lead.mts --sms 0612345678
  *       → envoie EN PLUS le SMS pour de vrai, via Twilio (facturé, ~0,08 €).
  *         Le message part tel quel : c'est bien celui que l'artisan recevra.
@@ -124,4 +128,40 @@ if (i >= 0) {
     body: sms,
   });
   console.log(`\nSMS envoyé à ${to} — sid ${msg.sid}, statut ${msg.status}`);
+}
+
+/* ── Envoi réel du MAIL, uniquement sur demande explicite. ──────────────────── */
+const j = process.argv.indexOf("--mail");
+if (j >= 0) {
+  const destinataire = process.argv[j + 1];
+  if (!destinataire || !destinataire.includes("@")) {
+    console.error("\n--mail attend une adresse : --mail prenom@exemple.fr");
+    process.exit(1);
+  }
+  chargerEnvLocal();
+  /* Import dynamique et non statique : `email.ts` lit RESEND_API_KEY au moment
+     où le module est évalué. Le charger en haut du fichier le figerait à vide,
+     avant que `chargerEnvLocal()` n'ait eu la moindre chance de le remplir. */
+  const { sendEmail, emailConfigured } = await import("../app/lib/email.ts");
+  if (!emailConfigured) {
+    console.error("\nRESEND_API_KEY manquante dans .env.local — rien n'a été envoyé.");
+    process.exit(1);
+  }
+  const r = await sendEmail({
+    to: destinataire,
+    subject: mail.subject,
+    html: mail.html,
+    text: mail.text,
+    /* Le même en-tête qu'en production : répondre à la notification écrit au
+       client. Sur un envoi de test ça vise l'adresse d'exemple, ce qui permet
+       au moins de vérifier que le bouton « Répondre » ne pointe pas dans le
+       vide. */
+    ...(EXEMPLE.email ? { replyTo: EXEMPLE.email } : {}),
+  });
+  console.log(
+    r.ok
+      ? `\nMail envoyé à ${destinataire} — id ${r.id}`
+      : `\nÉchec de l'envoi : ${r.error}`,
+  );
+  if (!r.ok) process.exit(1);
 }
