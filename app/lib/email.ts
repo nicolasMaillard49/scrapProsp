@@ -25,6 +25,9 @@ export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
+  /** Variante texte du message. Toujours la fournir : un e-mail HTML sans
+   *  `text/plain` part avec un mauvais score chez la plupart des filtres. */
+  text?: string;
   replyTo?: string;
   /** BCC additionnel pour cet envoi (s'ajoute à EMAIL_BCC). */
   bcc?: string | string[];
@@ -47,6 +50,7 @@ export async function sendEmail(input: SendEmailInput): Promise<{ ok: boolean; i
         to: input.to,
         subject: input.subject,
         html: input.html,
+        ...(input.text ? { text: input.text } : {}),
         reply_to: input.replyTo,
         ...(bcc.length ? { bcc } : {}),
       }),

@@ -3,7 +3,8 @@ import { supabaseAdmin, supabaseAdminConfigured } from "@/app/lib/supabaseAdmin"
 import { sendTelegram } from "@/app/lib/notify";
 import { sendEmail } from "@/app/lib/email";
 import { sendSms } from "@/app/lib/smsNotify";
-import { parseLead, parseTracking, leadNotification, leadSmsNotification, makeToken, escapeHtml } from "@/app/lib/adsLeads";
+import { parseLead, parseTracking, leadNotification, leadSmsNotification, makeToken } from "@/app/lib/adsLeads";
+import { leadEmail } from "@/app/lib/adsLeadEmail";
 import { uploadClickConversion } from "@/app/lib/googleAds/conversions";
 
 /**
@@ -36,8 +37,24 @@ export const dynamic = "force-dynamic";
 
 const SECRET = process.env.LEAD_INGEST_SECRET ?? "";
 
-/** L'origine du lien de qualification, celle que l'artisan ouvrira. */
-const PUBLIC_URL = (process.env.NEXT_PUBLIC_APP_URL || "https://scrap-prosp.vercel.app").replace(/\/$/, "");
+/**
+ * L'origine du lien de qualification, celle que l'artisan ouvrira.
+ *
+ * Le repli est le domaine de l'agence, PAS l'URL technique `*.vercel.app`.
+ * Ce lien part par e-mail et par SMS chez un client : il est lu, parfois
+ * recopié, et il porte le nom de la boîte. Une adresse en `vercel.app` dit à
+ * l'artisan qu'on lui envoie un outil de dev, et les filtres anti-spam
+ * n'aiment pas non plus les domaines mutualisés d'hébergeur.
+ *
+ * `NEXT_PUBLIC_DEMO_BASE_URL` est accepté en second : c'est la variable que le
+ * reste de l'application utilise déjà pour la même chose, et deux conventions
+ * qui se contredisent finissent toujours par produire un lien mort.
+ */
+const PUBLIC_URL = (
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.NEXT_PUBLIC_DEMO_BASE_URL ||
+  "https://prospects.nmf-agence.com"
+).replace(/\/$/, "");
 
 /** Fenêtre pendant laquelle un formulaire identique est tenu pour un rejeu. */
 const REJEU_MINUTES = 5;
@@ -130,15 +147,18 @@ export async function POST(req: NextRequest) {
   const taches: Promise<unknown>[] = [];
   if (client.notify_telegram) taches.push(sendTelegram(texte));
   if (client.notify_email) {
+    /* Le gabarit vit dans `adsLeadEmail.ts` : c'est le seul des trois canaux
+       qui ait une mise en forme, et elle n'a rien à faire dans une route. */
+    const mail = leadEmail(row, client.label, qualifyUrl, new Date(lead.received_at));
     taches.push(
       sendEmail({
         to: client.notify_email,
-        subject: `${client.label} — nouvelle demande de devis : ${row.name}`,
-        html:
-          `<p><b>${escapeHtml(row.name)}</b> — <a href="tel:${escapeHtml(row.phone)}">${escapeHtml(row.phone)}</a>` +
-          (row.commune ? ` · ${escapeHtml(row.commune)}` : "") +
-          `</p><p>${escapeHtml(row.message).replace(/\n/g, "<br>")}</p>` +
-          `<p><a href="${qualifyUrl}">Ce devis a été signé →</a></p>`,
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
+        /* Répondre à la notification écrit au client, pas dans le vide. Les
+           demandes sans e-mail gardent l'expéditeur par défaut. */
+        ...(row.email ? { replyTo: row.email } : {}),
       }),
     );
   }

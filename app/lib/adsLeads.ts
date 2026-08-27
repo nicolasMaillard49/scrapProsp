@@ -165,25 +165,43 @@ export function leadNotification(row: LeadRow, label: string, qualifyUrl: string
   return lignes.filter((l) => l !== null).join("\n");
 }
 
+/** Un segment SMS en GSM-7. Au-delà, l'opérateur découpe et facture double. */
+const SEGMENT_GSM7 = 160;
+
 /**
  * La même demande, en SMS. Volontairement plus courte que la version Telegram :
- * on vise un seul segment (160 caractères en GSM-7), donc pas de message du
- * client, pas de mot-clé, pas d'avertissement gclid. Le SMS sert à faire
- * décrocher vite ; le détail est dans le mail et dans Telegram.
+ * on vise un seul segment, donc pas de message du client, pas de mot-clé, pas
+ * d'avertissement gclid. Le SMS sert à faire décrocher vite ; le détail est
+ * dans le mail et dans Telegram.
  *
  * Le numéro reste au format +33… : c'est celui que le téléphone rend cliquable.
+ *
+ * La limite est désormais TENUE, pas seulement souhaitée. Le message type fait
+ * 155 caractères : il ne restait que cinq caractères de marge, et un nom
+ * composé suivi d'une commune à rallonge la dépassait sans que rien ne le
+ * signale — le SMS partait en deux morceaux, facturés deux fois, le lien coupé
+ * au milieu dans certains combinés.
+ *
+ * L'ordre des sacrifices suit ce que le SMS sert à faire. On rappelle : le
+ * numéro et le lien ne se coupent jamais. La commune part la première — elle
+ * est dans le mail, et elle ne sert qu'à situer. Le nom est raccourci en
+ * dernier recours, jamais supprimé : c'est lui qui permet de dire « bonjour
+ * madame Untel » en décrochant.
  */
 export function leadSmsNotification(row: LeadRow, label: string, qualifyUrl: string): string {
-  const lieu = row.commune ? `, ${row.commune}` : "";
-  return (
-    `${label} - nouvelle demande de devis
-` +
-    `${row.name}${lieu}
-` +
-    `${row.phone}
-` +
-    `Devis signe ? ${qualifyUrl}`
-  );
+  const composer = (identite: string) =>
+    `${label} - nouvelle demande de devis\n` +
+    `${identite}\n` +
+    `${row.phone}\n` +
+    `Devis signe ? ${qualifyUrl}`;
+
+  const complet = row.commune ? `${row.name}, ${row.commune}` : row.name;
+  if (composer(complet).length <= SEGMENT_GSM7) return composer(complet);
+
+  if (composer(row.name).length <= SEGMENT_GSM7) return composer(row.name);
+
+  const marge = SEGMENT_GSM7 - composer("").length;
+  return composer(row.name.slice(0, Math.max(0, marge)).trimEnd());
 }
 
 export function escapeHtml(s: string): string {

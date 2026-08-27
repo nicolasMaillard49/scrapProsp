@@ -5,7 +5,9 @@ import {
   parseLead,
   makeToken,
   leadNotification,
+  leadSmsNotification,
   googleAdsDateTime,
+  type LeadRow,
 } from "./adsLeads";
 
 test("normalizePhone accepte les formats qu'un visiteur tape vraiment", () => {
@@ -118,4 +120,71 @@ test("googleAdsDateTime écrit le décalage explicite que Google exige", () => {
   const d = new Date("2026-09-01T19:14:03.000Z");
   assert.equal(googleAdsDateTime(d, 120), "2026-09-01 21:14:03+02:00");
   assert.equal(googleAdsDateTime(d, 60), "2026-09-01 20:14:03+01:00");
+});
+
+/* ── Le SMS tient en un segment ───────────────────────────────────────────────
+   Un segment GSM-7 fait 160 caractères. Au-delà, l'opérateur découpe et
+   facture deux fois. La contrainte n'était qu'un commentaire jusqu'ici ; ces
+   tests la rendent vraie, parce que le dépassement ne se voit pas à l'écriture
+   — il se voit sur la facture, un mois plus tard. */
+
+const SMS_ROW: LeadRow = {
+  client_slug: "totowood",
+  name: "Camille Perrot",
+  phone: "+33615907873",
+  email: null,
+  commune: "Annet-sur-Marne",
+  message: "Un dressing sous pente.",
+  service: "Dressing",
+  gclid: "Cj0K",
+  ag: "dressing",
+  kw: "dressing sur mesure",
+  mt: "e",
+  device: "m",
+  loc: "9040990",
+  camp: "totowood",
+  landing: "/dressing",
+  referrer: "https://www.google.com/",
+  token: "kzr7pq3mf8xat2vhnc9wdjeb",
+};
+
+const SMS_QUALIFY = "https://prospects.nmf-agence.com/q/kzr7pq3mf8xat2vhnc9wdjeb";
+
+test("le SMS type tient en un segment et porte le domaine de l'agence", () => {
+  const sms = leadSmsNotification(SMS_ROW, "Totowood", SMS_QUALIFY);
+  assert.ok(sms.length <= 160, `${sms.length} caractères, soit deux segments`);
+  assert.ok(sms.includes("prospects.nmf-agence.com"), sms);
+  assert.ok(!sms.includes("vercel.app"), "l'URL technique est repartie dans le SMS");
+  assert.ok(sms.includes("Camille Perrot, Annet-sur-Marne"), sms);
+});
+
+test("un nom et une commune à rallonge ne font pas deux segments", () => {
+  const long = leadSmsNotification(
+    { ...SMS_ROW, name: "Jean-Christophe Bouchard-Levasseur", commune: "Bussy-Saint-Georges" },
+    "Totowood",
+    SMS_QUALIFY,
+  );
+  assert.ok(long.length <= 160, `${long.length} caractères`);
+  // La commune est sacrifiée avant le nom : elle est dans le mail, et c'est le
+  // nom qu'on prononce en décrochant.
+  assert.ok(long.includes("Jean-Christophe Bouchard-Levasseur"), long);
+  assert.ok(!long.includes("Bussy-Saint-Georges"), long);
+});
+
+test("ce qui permet d'agir survit toujours : le numéro et le lien entiers", () => {
+  const extreme = leadSmsNotification(
+    { ...SMS_ROW, name: "A".repeat(200), commune: "B".repeat(200) },
+    "Totowood",
+    SMS_QUALIFY,
+  );
+  assert.ok(extreme.length <= 160, `${extreme.length} caractères`);
+  assert.ok(extreme.includes("+33615907873"), "le numéro a été rogné");
+  assert.ok(extreme.endsWith(SMS_QUALIFY), "le lien a été coupé");
+});
+
+test("une demande sans commune ne laisse ni virgule ni trou", () => {
+  const sms = leadSmsNotification({ ...SMS_ROW, commune: null }, "Totowood", SMS_QUALIFY);
+  assert.ok(sms.includes("Camille Perrot\n"), sms);
+  assert.ok(!sms.includes("null"), sms);
+  assert.ok(!sms.includes(", \n"), sms);
 });
