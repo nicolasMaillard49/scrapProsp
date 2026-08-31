@@ -7,13 +7,41 @@
  * a signé », on rend le ticket avec le montant écrit dessus, et Google retrouve
  * le mot-clé, l'annonce et la commune qui ont produit ce chiffre d'affaires.
  *
- * Deux contraintes dures, qui expliquent la forme de ce module :
+ * ── Deux APIs, et ce n'est pas un accident ──────────────────────────────────
+ *
+ * Depuis le 15/06/2026, Google a fermé `ConversionUploadService` de l'API Google
+ * Ads aux nouvelles intégrations : l'ENVOI d'une conversion passe désormais par
+ * la Data Manager API. Vérifié le 31/08/2026 en `validate_only` sur le compte
+ * Totowood, le rejet tombant avant même toute validation du gclid.
+ *
+ * En revanche `ConversionAdjustmentUploadService` — un service DISTINCT — n'est
+ * pas concerné. Vérifié le même jour, au même endroit : l'appel est accepté et
+ * ne renvoie qu'un `CONVERSION_NOT_FOUND`, l'erreur attendue pour un `order_id`
+ * de sonde. La documentation officielle ne porte aucun avis de dépréciation. La
+ * Data Manager API, elle, n'expose aucun endpoint d'ajustement — sa référence ne
+ * connaît que `events:ingest`, `adEvents:ingest` (Analytics, sur liste blanche)
+ * et les audiences.
+ *
+ * D'où le partage, qui est la seule combinaison qui fonctionne aujourd'hui :
+ *
+ *   ENVOI       Data Manager API · events:ingest · scope datamanager
+ *   AJUSTEMENT  Google Ads API · ConversionAdjustmentUploadService · scope adwords
+ *
+ * La couture entre les deux est l'identifiant du lead : il part en
+ * `transactionId` à l'envoi et revient en `order_id` à l'ajustement. C'est par
+ * lui que Google retrouve la conversion à corriger — la doc le recommande
+ * explicitement plutôt que le couple gclid + date.
+ *
+ * ── Trois contraintes dures ─────────────────────────────────────────────────
  *  · 90 jours. Passé ce délai après le clic, Google refuse le gclid.
- *  · 4 à 6 heures. Une action de conversion tout juste créée refuse les imports.
- *    Un envoi lancé trop tôt échoue en silence.
+ *  · 4 à 6 heures. Une action de conversion tout juste créée refuse les envois
+ *    comme les ajustements. Un appel lancé trop tôt échoue en silence.
+ *  · Un ajustement ne peut pas créer de conversion : si l'envoi initial n'est
+ *    jamais passé, la correction repart en `CONVERSION_NOT_FOUND`.
  */
 import { clientCustomer, googleAdsConfigured } from "./client";
 import { googleAdsDateTime, parisOffsetMinutes } from "../adsLeads";
+import { dataManagerConfigured, ingestEvent } from "./dataManager";
 
 export interface UploadResult {
   ok: boolean;
@@ -36,7 +64,7 @@ function readError(e: unknown): string {
 
 /**
  * `partial_failure` renvoie les rejets ligne par ligne dans la réponse au lieu
- * de faire tomber le lot. Un gclid périmé ne doit pas emporter les autres.
+ * de faire tomber le lot. Un identifiant périmé ne doit pas emporter les autres.
  */
 function partialFailure(res: unknown): string | null {
   const r = res as { partial_failure_error?: { message?: string } | null };
@@ -46,7 +74,7 @@ function partialFailure(res: unknown): string | null {
 
 interface UploadInput {
   customerId: string;
-  /** L'identifiant de RESSOURCE de l'action, pas son libellé. */
+  /** L'identifiant de l'action : resource name hérité, ou numérique. */
   conversionAction: string;
   gclid: string;
   /** Date du fait mesuré : réception du formulaire, ou signature du devis. */
@@ -55,41 +83,30 @@ interface UploadInput {
   orderId: string;
   /** Uniquement pour « Devis signé ». */
   valueEuros?: number;
+  /** Valide la requête auprès de Google sans rien écrire. */
+  validateOnly?: boolean;
 }
 
 /**
- * Envoie une conversion. Idempotent par `order_id` : rejouer le même envoi ne
- * crée pas de doublon côté Google, ce qui permet de relancer sans réfléchir.
+ * Envoie une conversion, par la Data Manager API.
+ *
+ * `transactionId` porte l'identifiant du lead : Google déduplique dessus, ce qui
+ * rend l'envoi rejouable sans compter deux fois. C'est aussi la clé que
+ * `restateConversionValue` réutilisera en `order_id`.
  */
 export async function uploadClickConversion(input: UploadInput): Promise<UploadResult> {
-  if (!googleAdsConfigured()) return { ok: false, skipped: true, error: "Google Ads non configuré" };
-  if (!input.customerId) return { ok: false, skipped: true, error: "customer_id absent" };
-  if (!input.conversionAction) return { ok: false, skipped: true, error: "action de conversion absente" };
-  if (!input.gclid) return { ok: false, skipped: true, error: "aucun gclid sur ce lead" };
+  if (!dataManagerConfigured()) return { ok: false, skipped: true, error: "Google non configuré" };
 
-  const customer = clientCustomer(input.customerId);
-  const conversion: Record<string, unknown> = {
+  return ingestEvent({
+    operatingAccountId: (input.customerId || "").replace(/-/g, ""),
+    conversionAction: input.conversionAction,
     gclid: input.gclid,
-    conversion_action: input.conversionAction,
-    conversion_date_time: googleAdsDateTime(input.at, parisOffsetMinutes(input.at)),
-    order_id: input.orderId,
-  };
-  if (typeof input.valueEuros === "number") {
-    conversion.conversion_value = input.valueEuros;
-    conversion.currency_code = "EUR";
-  }
-
-  try {
-    const res = await customer.conversionUploads.uploadClickConversions({
-      customer_id: input.customerId,
-      conversions: [conversion],
-      partial_failure: true,
-    } as never);
-    const failed = partialFailure(res);
-    return failed ? { ok: false, error: failed } : { ok: true };
-  } catch (e) {
-    return { ok: false, error: readError(e) };
-  }
+    at: input.at,
+    offsetMinutes: parisOffsetMinutes(input.at),
+    transactionId: input.orderId,
+    valueEuros: input.valueEuros,
+    validateOnly: input.validateOnly,
+  });
 }
 
 /**
@@ -97,7 +114,15 @@ export async function uploadClickConversion(input: UploadInput): Promise<UploadR
  * mais facturé 5 800 €. Sans ça, Google apprendrait un ordre de grandeur au lieu
  * du montant réel, et enchérirait à côté sur les mots-clés qui rapportent.
  *
+ * Passe par l'API Google Ads, pas par la Data Manager : voir l'en-tête du
+ * fichier. `RESTATEMENT` change la valeur sans toucher au compte de conversions
+ * — c'est bien ce qu'on veut, le chantier reste un chantier.
+ *
  * La conversion visée est retrouvée par `order_id`, celui de l'envoi initial.
+ * Deux conséquences à garder en tête : une correction sur un lead dont l'envoi
+ * n'est jamais passé repart en `CONVERSION_NOT_FOUND`, et une conversion déjà
+ * ramenée à zéro ne peut plus être ajustée — Google ignore alors l'appel sans
+ * message d'erreur.
  */
 export async function restateConversionValue(input: {
   customerId: string;
@@ -107,16 +132,18 @@ export async function restateConversionValue(input: {
   originalAt: Date;
   at: Date;
   valueEuros: number;
+  validateOnly?: boolean;
 }): Promise<UploadResult> {
   if (!googleAdsConfigured()) return { ok: false, skipped: true, error: "Google Ads non configuré" };
   if (!input.customerId || !input.conversionAction) {
     return { ok: false, skipped: true, error: "compte ou action de conversion absent" };
   }
 
-  const customer = clientCustomer(input.customerId);
+  const customerId = input.customerId.replace(/-/g, "");
+  const customer = clientCustomer(customerId);
   try {
     const res = await customer.conversionAdjustmentUploads.uploadConversionAdjustments({
-      customer_id: input.customerId,
+      customer_id: customerId,
       conversion_adjustments: [
         {
           conversion_action: input.conversionAction,
@@ -127,6 +154,7 @@ export async function restateConversionValue(input: {
         },
       ],
       partial_failure: true,
+      validate_only: !!input.validateOnly,
     } as never);
     const failed = partialFailure(res);
     return failed ? { ok: false, error: failed } : { ok: true };
