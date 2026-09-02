@@ -53,6 +53,7 @@ const NICHE_LABELS: Record<NicheKey, string> = {
   esthetique: "Esthéticienne",
   onglerie: "Onglerie",
   restaurant: "Restaurant",
+  traiteur: "Traiteur",
   fleuriste: "Fleuriste",
   tatoueur: "Tatoueur",
 };
@@ -144,8 +145,18 @@ const SEEDS: Seed[] = [
     da: "Salle du soir",
     pitch: "Réservation couverts / service / heure, carte à pointillés comme une ardoise.",
     palette: "Didone, ambre sur nuit",
-    aliases: "restau, resto, traiteur, pizzeria, brasserie, bistrot, burger, sushi",
+    aliases: "restau, resto, pizzeria, brasserie, bistrot, burger, sushi",
     demo: p("La Table de Marius", "restaurant", "Saumur", "02 41 51 33 90", 4.6, 342, "3 quai Mayaud, 49400 Saumur"),
+  },
+  {
+    key: "traiteur",
+    family: "niche",
+    niche: "traiteur",
+    da: "Le carton",
+    pitch: "Les samedis encore libres, avec ceux déjà pris barrés — la disponibilité comme argument de rareté.",
+    palette: "Lin + cuivre, EB Garamond et filets doubles",
+    aliases: "traiteur, charcuterie, banquet, noces, salle de réception",
+    demo: p("Maison Perrin", "traiteur", "Angers", "02 41 43 27 60", 4.8, 96, "14 rue Baudrière, 49100 Angers"),
   },
   {
     key: "fleuriste",

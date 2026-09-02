@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "tsx --test app/lib/*.test.ts",
+    "test": "tsx --test \"app/**/*.test.ts\"",
     "apercu:lead": "tsx scripts/apercu-lead.mts",
     "typecheck": "tsc --noEmit",
     "health:ig": "node scripts/health-ig.mjs",

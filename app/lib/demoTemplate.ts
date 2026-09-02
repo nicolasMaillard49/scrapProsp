@@ -25,6 +25,7 @@ import BarbierTemplate from "@/app/maquette/templates/niches/BarbierTemplate";
 import InstitutTemplate from "@/app/maquette/templates/niches/InstitutTemplate";
 import OnglerieTemplate from "@/app/maquette/templates/niches/OnglerieTemplate";
 import RestaurantTemplate from "@/app/maquette/templates/niches/RestaurantTemplate";
+import TraiteurTemplate from "@/app/maquette/templates/niches/TraiteurTemplate";
 import FleuristeTemplate from "@/app/maquette/templates/niches/FleuristeTemplate";
 import TatoueurTemplate from "@/app/maquette/templates/niches/TatoueurTemplate";
 import { matchNiche, type NicheKey } from "@/app/maquette/templates/nicheKits";
@@ -39,6 +40,7 @@ export const TEMPLATES = {
   institut: InstitutTemplate,
   onglerie: OnglerieTemplate,
   restaurant: RestaurantTemplate,
+  traiteur: TraiteurTemplate,
   fleuriste: FleuristeTemplate,
   tatoueur: TatoueurTemplate,
   // Artisans — une DA par métier, bâtie sur ce qu'il vend réellement.
@@ -81,6 +83,7 @@ export const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   institut: "Institut",
   onglerie: "Onglerie",
   restaurant: "Restaurant",
+  traiteur: "Traiteur",
   fleuriste: "Fleuriste",
   tatoueur: "Tatoueur",
   plombier: "Plombier",
@@ -117,6 +120,7 @@ export const NICHE_TEMPLATE: Record<NicheKey, TemplateKey> = {
   esthetique: "institut",
   onglerie: "onglerie",
   restaurant: "restaurant",
+  traiteur: "traiteur",
   fleuriste: "fleuriste",
   tatoueur: "tatoueur",
 };

@@ -58,7 +58,7 @@ export function isProspect(profile: IgProfile): boolean {
  * Renvoie un code aligné sur les kits de template (nicheKits.ts).
  * ──────────────────────────────────────────────────────────── */
 type Niche =
-  | "coiffeur" | "restaurant" | "estheticienne" | "fleuriste" | "tatoueur"
+  | "coiffeur" | "restaurant" | "traiteur" | "estheticienne" | "fleuriste" | "tatoueur"
   | "menuisier" | "paysagiste" | "carreleur" | "peintre" | "macon" | "couvreur"
   | "charpentier" | "ferronnier" | "plaquiste" | "cuisiniste" | "plombier"
   | "electricien" | "chauffagiste"
@@ -112,7 +112,13 @@ const NICHE_RULES: { niche: Exclude<Niche, "">; re: RegExp }[] = [
   { niche: "medecin", re: /(m[eé]decin g[eé]n[eé]raliste|cabinet m[eé]dical|docteur en m[eé]decine|\bg[eé]n[eé]raliste\b|maison de sant[eé])/i },
   // Autres niches locales
   { niche: "coiffeur", re: /(coiff|barbi|barber|\bhair\b|hairdress|hairstyl|coloris|salon de coiff)/i },
-  { niche: "restaurant", re: /(restaur|resto|bistrot|brasserie|pizz|burger|traiteur|cuisine|chef|food|caf[eé]|coffee|sushi|tacos|kebab|cr[eê]perie)/i },
+  // « traiteur » AVANT « restaurant » : un traiteur ne vend pas une table mais
+  // une date et un devis, et sa maquette (nicheKits TRAITEUR) est construite
+  // là-dessus. Classé « restaurant », il recevait une page de réservation de
+  // couverts qui ne parle pas de son métier. « Caterer » est la catégorie
+  // business Instagram anglophone, très fréquente sur ces comptes.
+  { niche: "traiteur", re: /(traiteur|caterer|catering|charcuti|banquet|noces|plateaux? repas|c[oô]t[eé] traiteur|salle de r[eé]ception|d[iî]natoire)/i },
+  { niche: "restaurant", re: /(restaur|resto|bistrot|brasserie|pizz|burger|cuisine|chef|food|caf[eé]|coffee|sushi|tacos|kebab|cr[eê]perie)/i },
   // Juridique et chiffre — après « restaurant » : « avocat » est aussi un fruit,
   // et un menu qui l'affiche ne doit pas basculer en cabinet d'avocats.
   { niche: "avocat", re: /(avocat[e]?s? (au barreau|associ|sp[eé]cialis)|barreau de|cabinet d'?avocat|\bavocat fiscalist|droit du travail|droit de la famille)/i },
@@ -180,7 +186,9 @@ export function competitorHook(input: {
   const requete = `« ${metier} ${ville} »`;
   // Artisans = business téléphone-first ; métiers à RDV (beauté, resto…) = réservations.
   const RDV_METIERS = new Set<string>([
-    "estheticienne", "coiffeur", "tatoueur", "restaurant",
+    // Le traiteur non plus ne vit pas de l'appel d'urgence : on lui bloque une
+    // date de réception des mois à l'avance.
+    "estheticienne", "coiffeur", "tatoueur", "restaurant", "traiteur",
     // Les libérales vivent d'un agenda, pas d'appels d'urgence.
     "medecin", "dentiste", "kine", "osteopathe", "podologue", "orthophoniste",
     "psychologue", "sagefemme", "veterinaire", "dieteticien", "sophrologue",
@@ -201,6 +209,7 @@ export function competitorHook(input: {
 const NICHE_COPY: Record<string, { intro: (loc: string) => string; hook: string; value: string }> = {
   coiffeur: { intro: (l) => `En cherchant des coiffeurs ${l}, je suis tombé sur ton salon`, hook: "ton feed donne envie", value: "la prise de RDV en ligne" },
   restaurant: { intro: (l) => `En cherchant des restos ${l}, je suis tombé sur ton compte`, hook: "ça donne faim 😋", value: "le menu et les réservations en ligne" },
+  traiteur: { intro: (l) => `En cherchant des traiteurs ${l}, je suis tombé sur ton compte`, hook: "tes buffets donnent faim 😋", value: "les formules, les prix et les demandes de devis en ligne" },
   estheticienne: { intro: (l) => `En cherchant des instituts ${l}, je suis tombé sur ton compte`, hook: "ton univers donne envie de prendre soin de soi", value: "la prise de RDV en ligne" },
   fleuriste: { intro: (l) => `En cherchant des fleuristes ${l}, je suis tombé sur ta boutique`, hook: "tes compositions sont superbes", value: "une vitrine et les commandes en ligne" },
   tatoueur: { intro: (l) => `En cherchant des tatoueurs ${l}, je suis tombé sur ton compte`, hook: "ton travail est impressionnant", value: "un book en ligne et les demandes de RDV" },
@@ -546,6 +555,7 @@ const METIER_NOUN: Record<string, string> = {
   estheticienne: "esthéticienne",
   fleuriste: "fleuriste",
   tatoueur: "tatoueur(se)",
+  traiteur: "traiteur",
   photographe: "photographe",
   boulanger: "boulanger",
 };
@@ -564,6 +574,11 @@ function painWording(metier: string): { demandes: string; stable: string } {
   }
   if (metier === "restaurant") {
     return { demandes: "des réservations régulières", stable: "une salle bien remplie toute la semaine" };
+  }
+  // Le traiteur ne remplit pas une salle : il remplit un calendrier de dates,
+  // et chaque date se gagne sur devis.
+  if (metier === "traiteur") {
+    return { demandes: "des demandes de devis régulières", stable: "un calendrier de réceptions rempli des mois à l'avance" };
   }
   if (metier === "coiffeur" || metier === "estheticienne" || metier === "tatoueur") {
     return { demandes: "des demandes de RDV régulières", stable: "un agenda bien rempli" };

@@ -140,6 +140,17 @@ test("detectMetier: métiers artisans détectés (catégorie ou bio)", () => {
   assert.equal(detectMetier(null, "juste un compte perso"), "");
 });
 
+test("detectMetier: un traiteur n'est plus rangé en restaurant", () => {
+  // Cas réel (@lesdelicesdecode, 02/09) : classé « restaurant », il recevait la
+  // maquette de réservation de couverts au lieu de celle des réceptions.
+  assert.equal(detectMetier("Caterer", "Traiteur | Box apéro gourmandes\nMariages & événements sur mesure"), "traiteur");
+  assert.equal(detectMetier("Traiteur", null), "traiteur");
+  assert.equal(detectMetier(null, "Charcuterie artisanale, plateaux repas et banquets"), "traiteur");
+  // Le restaurant, lui, ne bouge pas.
+  assert.equal(detectMetier("Restaurant", "Bistrot de quartier, cuisine maison"), "restaurant");
+  assert.equal(detectMetier(null, "Pizzeria au feu de bois"), "restaurant");
+});
+
 test("detectMetier: les artisans priment — plus de faux positifs esthéticienne", () => {
   // « la beauté de vos jardins » matchait l'esthétique avant le fix.
   assert.equal(detectMetier(null, "Paysagiste passionné — la beauté de vos jardins, spa de nage & terrasses"), "paysagiste");

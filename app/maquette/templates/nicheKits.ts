@@ -20,6 +20,14 @@ export interface NicheService {
   duration?: number; // min — omis pour les niches sans créneau (resto, fleuriste)
   /** Prix à partir de (affiche « dès 250 € »). */
   from?: boolean;
+  /**
+   * Unité accolée au prix (« /pers. », « /plateau »).
+   *
+   * Un traiteur ne vend pas une prestation mais un prix PAR CONVIVE : « dès
+   * 32 € » sans unité laisse croire que le cocktail coûte 32 € pour tout le
+   * monde. Omise partout ailleurs, où le prix est celui de la prestation.
+   */
+  unit?: string;
 }
 export interface NicheTestimonial {
   author: string;
@@ -289,6 +297,57 @@ const RESTAURANT: NicheKit = {
   },
 };
 
+const TRAITEUR: NicheKit = {
+  accent: "#A65A3A",
+  accentDark: "#7E3F26",
+  hero: u("1635341108990-9201f2f48625", 1000),
+  about: u("1577219491135-ce391730fb2c", 1000),
+  gallery: [
+    u("1555244162-803834f70033", 700),
+    u("1677768061409-3d4fbd0250d1", 700),
+    u("1671612451404-f4f8fc5fe25e", 700),
+    u("1616668856493-9df876327739", 700),
+    u("1574862612718-adc4a21d2204", 700),
+    u("1633424414664-c24a6d28086b", 700),
+  ],
+  /* Deux catégories, et c'est délibéré : le même traiteur vit des mariages du
+     samedi ET des plateaux repas du mardi. Ne montrer que l'événementiel le
+     ferait passer pour hors de prix auprès des entreprises ; ne montrer que le
+     quotidien lui ferait perdre les réceptions, qui font le chiffre. */
+  services: [
+    { name: "Cocktail dînatoire", desc: "Douze pièces salées et sucrées par personne, dressées sur place.", price: 32, from: true, unit: "/pers.", cat: "Réceptions" },
+    { name: "Menu servi à table", desc: "Entrée, plat, fromage, dessert. Personnel de salle en option.", price: 48, from: true, unit: "/pers.", cat: "Réceptions" },
+    { name: "Buffet campagnard", desc: "Charcuteries et terrines maison, salades, pain de nos boulangers.", price: 27, from: true, unit: "/pers.", cat: "Réceptions" },
+    { name: "Brunch du lendemain", desc: "Le dimanche qui suit, dressé et débarrassé pendant que vous dormez.", price: 22, from: true, unit: "/pers.", cat: "Réceptions" },
+    { name: "Plateau repas entreprise", desc: "Entrée, plat, dessert dans un plateau scellé. À partir de 5 plateaux.", price: 14, from: true, unit: "/plateau", cat: "Au quotidien" },
+    { name: "Plateau apéritif", desc: "Cinquante pièces cocktail, à poser sur la table en arrivant.", price: 45, unit: "/10 pers.", cat: "Au quotidien" },
+    { name: "Pause séminaire", desc: "Viennoiseries, boissons chaudes et fruits, livrés sur votre site.", price: 9, from: true, unit: "/pers.", cat: "Au quotidien" },
+    { name: "Dégustation avant devis", desc: "On goûte ensemble le menu retenu, avant de signer quoi que ce soit.", price: 0, cat: "Au quotidien" },
+  ],
+  testimonials: [
+    { author: "Marion & Pierre", rating: 5, comment: "150 convives, service impeccable et un buffet encore chaud à minuit. Notre mariage tenait à ça.", date: "mars 2024" },
+    { author: "Karine L.", rating: 5, comment: "On commande les plateaux repas toutes les semaines pour le bureau. Jamais un retard, jamais une erreur.", date: "février 2024" },
+    { author: "Guillaume T.", rating: 5, comment: "La dégustation avant devis change tout : on savait exactement ce qu'on allait servir.", date: "janvier 2024" },
+  ],
+  aboutText:
+    "Depuis le laboratoire de {ville}, {name} cuisine chaque réception à la commande — pas de plats sortis d'un catalogue. On choisit les producteurs, on goûte avec vous, et le jour dit on installe, on sert et on repart en ayant tout rangé.",
+  ticker: ["Mariages & réceptions", "Plateaux repas", "Devis sous 24 h", "Cuisiné maison"],
+  offer: "booking",
+  bookingWord: "le calendrier des dates",
+  labels: {
+    ...DEFAULT_LABELS,
+    catalogue: "Les formules",
+    catalogueSub: "et leurs prix",
+    catalogueNote:
+      "Prix par convive, à partir de 20 personnes. Chaque menu est ajusté après la dégustation — ce sont des points de départ, pas un catalogue fermé.",
+    gallery: "Nos",
+    gallerySub: "réceptions",
+    cta: "Vérifier ma date",
+    ctaFinal: "réserver",
+    serviceUnit: "",
+  },
+};
+
 const FLEURISTE: NicheKit = {
   accent: "#4B6B4F",
   accentDark: "#33503A",
@@ -384,6 +443,7 @@ export type NicheKey =
   | "esthetique"
   | "onglerie"
   | "restaurant"
+  | "traiteur"
   | "fleuriste"
   | "tatoueur";
 
@@ -393,22 +453,28 @@ export const NICHE_KITS: Record<NicheKey, NicheKit> = {
   esthetique: ESTHETIQUE,
   onglerie: ONGLERIE,
   restaurant: RESTAURANT,
+  traiteur: TRAITEUR,
   fleuriste: FLEURISTE,
   tatoueur: TATOUEUR,
 };
 
 /**
  * Reconnaissance du métier → niche. L'ordre COMPTE : « barbier » doit être
- * testé avant « coiffeur » (un barbier est un coiffeur, l'inverse est faux), et
+ * testé avant « coiffeur » (un barbier est un coiffeur, l'inverse est faux),
  * « onglerie » avant « esthétique » (une prothésiste ongulaire n'est pas une
- * esthéticienne, mais les libellés scrapés mélangent souvent les deux).
+ * esthéticienne, mais les libellés scrapés mélangent souvent les deux), et
+ * « traiteur » avant « restaurant » — un « restaurant traiteur » vend des
+ * réceptions, et c'est la date qu'il faut lui faire vendre, pas la table.
  */
 const MATCHERS: Array<[RegExp, NicheKey]> = [
   [/(barbi|barber|barbe)/, "barbier"],
   [/(ongl|nail|manucur|podolog|capillair(?=.*ongl))/, "onglerie"],
   [/(tatou|tattoo|piercing|ink\b)/, "tatoueur"],
   [/(fleur|flori|floral|bouquet)/, "fleuriste"],
-  [/(restau|resto|traiteur|pizz|brasserie|bistrot|burger|sushi|cuisine)/, "restaurant"],
+  // « charcuterie » et « salle de réception » n'ont pas de maquette à eux :
+  // celle du traiteur est de loin la plus proche de ce qu'ils vendent.
+  [/(traiteur|charcut|banquet|noces|r[eé]ception)/, "traiteur"],
+  [/(restau|resto|pizz|brasserie|bistrot|burger|sushi|cuisine)/, "restaurant"],
   [/(coiff|hair|coloris|salon de coiffure)/, "coiffure"],
   [/(esth|institut|beaut|spa|cils|epilation|épilation|massage|onglerie)/, "esthetique"],
 ];

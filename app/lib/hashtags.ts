@@ -42,6 +42,7 @@ export function slugify(s: string): string {
 const METIER_SYNONYMS: Record<string, string[]> = {
   coiffeur: ["coiffeur", "coiffure", "barbier", "salondecoiffure"],
   restaurant: ["restaurant", "resto"],
+  traiteur: ["traiteur", "traiteurmariage", "buffet"],
   estheticienne: [
     "estheticienne", "institutbeaute", "ongles", "nailart",
     "prothesisteongulaire", "extensiondecils", "epilationlaser", "microblading",
@@ -101,7 +102,8 @@ const METIER_HASHTAGS: Record<string, string[]> = {
   electricien: ["electricien", "electricite", "artisanelectricien", "renovationelectrique", "domotique"],
   chauffagiste: ["chauffagiste", "chauffage", "pompeachaleur", "climatisation"],
   coiffeur: ["coiffeur", "coiffure", "barbier", "salondecoiffure", "coiffeurcoloriste", "balayage", "coiffeuse"],
-  restaurant: ["restaurant", "resto", "restaurantfrancais", "faitmaison", "bistrot", "traiteur"],
+  restaurant: ["restaurant", "resto", "restaurantfrancais", "faitmaison", "bistrot"],
+  traiteur: ["traiteur", "traiteurmariage", "traiteurevenementiel", "buffet", "cocktaildinatoire", "plateaurepas", "receptionmariage"],
   // Beauté — biais volontaire haut ticket (laser, cils, ongles, dermo) :
   // prestations 80–300 €, vraie culture Insta, budget pub envisageable.
   estheticienne: [
