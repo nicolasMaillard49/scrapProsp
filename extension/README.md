@@ -52,6 +52,33 @@ détecté dans l'app (quota, stade, relance).
 - **Raccourcis** : `Alt+I` insère l'étape à envoyer, `Alt+O` corrige le champ,
   `Alt+N` passe au suivant. Ils fonctionnent même panneau fermé.
 
+## L'Entrée déléguée au clavier (AutoHotkey)
+
+L'extension n'envoie jamais : elle prépare, l'`Entrée` humaine part. Pour
+déléguer cette dernière touche à un script clavier
+(`Documents/AutoHotkey/auto-enter.ahk`), il faut lui dire **quand** un message
+attend — un script clavier ne voit rien de la page.
+
+`content.js` préfixe donc le titre de l'onglet par **`[NMF]`** pendant
+exactement la fenêtre utile : posé quand le texte vient d'être inséré et que la
+détection d'envoi est armée, retiré dès que le champ se vide (donc à l'envoi),
+au changement de conversation, et sur un envoi tapé à la main. Le titre est le
+seul canal qu'un automate clavier sache lire : ni port local à ouvrir, ni hôte
+de messagerie native à installer, et ça reste vrai panneau fermé. Le préfixe
+est visible dans l'onglet — c'est aussi un témoin pour l'œil.
+
+Le script attend ce drapeau, tape `Entrée` après un délai variable, puis
+**vérifie que le drapeau est tombé** : tant qu'il est là, le message est encore
+dans le champ et l'Entrée n'a rien fait (focus perdu, page figée) — il retente,
+et s'arrête au bout de trois échecs. Une Entrée par message, jamais avant,
+jamais deux fois. Il ne tape que si Chrome est au premier plan.
+
+Symétriquement, tant qu'un message attend, `content.js` rend le focus au champ
+s'il l'a perdu — mais jamais pendant une saisie en cours ni quand la page n'a
+pas le focus (panneau, autre fenêtre).
+
+Si tu changes `[NMF]`, change-le des **deux** côtés (`content.js` et le `.ahk`).
+
 ## ⚠️ Migrations à jouer
 
 Trois migrations SQL accompagnent ces fonctionnalités. **Tout marche sans

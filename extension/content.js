@@ -76,6 +76,57 @@
   // (rechargement de l'extension) : son état vit dans le storage, pas ici.
   chrome.storage.local.get("sasOn").then(({ sasOn: saved }) => setSas(saved === true)).catch(() => {});
 
+  // ── Le drapeau d'envoi : le seul mot que l'automate clavier sait lire ────
+  //
+  // L'extension n'envoie JAMAIS elle-même (cf. l'en-tête de ce fichier) :
+  // c'est l'Entrée humaine qui part. Quand Nicolas délègue cette Entrée à un
+  // script AutoHotkey, ce script ne voit RIEN de la page — il ne connaît que
+  // le titre de la fenêtre Chrome. Une Entrée toutes les N secondes tombe donc
+  // à côté deux fois sur trois : dans le vide pendant que le pilote navigue et
+  // prépare, puis une seconde fois sur le message suivant à peine inséré.
+  //
+  // On lui donne l'information qui lui manque, par le seul canal qu'il lit :
+  // un préfixe dans le titre de l'onglet, posé UNIQUEMENT quand le message est
+  // déjà dans le champ et n'attend plus que son Entrée. Il apparaît à
+  // l'insertion, disparaît dès que le champ se vide — donc dès l'envoi.
+  //
+  // Le titre plutôt qu'un port local ou un hôte de messagerie native : zéro
+  // permission en plus, zéro processus en plus, et ça reste vrai même panneau
+  // fermé. Le préfixe est visible dans l'onglet : c'est aussi un témoin pour
+  // l'humain, qui voit d'un coup d'œil si un message attend.
+  const TITLE_FLAG = "[NMF]";
+  let sendReady = false;
+
+  function paintTitleFlag() {
+    // Instagram réécrit son titre à chaque navigation SPA : on le repose.
+    const marked = document.title.startsWith(TITLE_FLAG);
+    if (sendReady && !marked) document.title = `${TITLE_FLAG} ${document.title}`;
+    else if (!sendReady && marked) document.title = document.title.slice(TITLE_FLAG.length).trimStart();
+  }
+
+  function setSendReady(on) {
+    sendReady = on === true;
+    paintTitleFlag();
+  }
+
+  /** Le champ perd le focus à la moindre navigation du pilote — or une Entrée
+   *  envoyée hors du champ ne part nulle part. Tant qu'un message attend, on
+   *  lui rend le focus, mais jamais au prix d'une saisie en cours : on ne
+   *  reprend la main ni quand la page n'a pas le focus (Nicolas est dans le
+   *  panneau ou ailleurs), ni quand il écrit dans un autre champ. */
+  function keepComposerFocused() {
+    if (!sendReady || !document.hasFocus()) return;
+    const active = document.activeElement;
+    if (active && (active.isContentEditable || /^(INPUT|TEXTAREA)$/.test(active.tagName))) return;
+    const node = NMFDetect.composerNode(document);
+    if (node) try { node.focus(); } catch { /* focus refusé : l'Entrée suivante retentera */ }
+  }
+
+  setInterval(() => {
+    paintTitleFlag();
+    keepComposerFocused();
+  }, 250);
+
   // ── Auto-journalisation : surveille TOUT ce qui part du champ ────────────
   // Nicolas écrit souvent à la main, sans passer par « Insérer ». Ces envois
   // n'étaient jamais journalisés, et le stade décrochait de la conversation.
@@ -88,6 +139,10 @@
     if (!now && lastDraft) {
       const sent = lastDraft;
       lastDraft = "";
+      // Le champ s'est vidé : le message est parti, plus rien n'attend
+      // d'Entrée. Ici plutôt que dans le seul `watchSend` : un envoi à la main
+      // (sans passer par « Insérer ») doit lui aussi baisser le drapeau.
+      setSendReady(false);
       chrome.runtime.sendMessage({ type: "ig:sent-auto", text: sent }).catch(() => {});
       return;
     }
@@ -154,6 +209,10 @@
       // arrête la détection d'envoi en cours et on désarme côté background.
       unwatch();
       unwatch = () => {};
+      // On change de conversation : ce qui attendait une Entrée n'existe plus.
+      // Sans ça, le drapeau survivrait à la navigation du pilote et l'automate
+      // enverrait une Entrée sur le profil suivant, champ vide.
+      setSendReady(false);
       chrome.runtime.sendMessage({ type: "ig:disarm" }).catch(() => {});
       setTimeout(announce, 800);
       setTimeout(announce, 2500); // 2e passe : header parfois lent à monter
@@ -180,8 +239,12 @@
         // Arme la détection d'envoi (one-shot). Ré-armer remplace l'ancienne.
         unwatch();
         unwatch = NMFDetect.watchSend(node, () => {
+          setSendReady(false);
           chrome.runtime.sendMessage({ type: "ig:sent" }).catch(() => {});
         });
+        // Le texte est dans le champ et le champ est armé : à partir d'ici, et
+        // seulement à partir d'ici, une Entrée envoie le bon message.
+        setSendReady(true);
         sendResponse({ ok: true });
       });
       return true; // réponse asynchrone
