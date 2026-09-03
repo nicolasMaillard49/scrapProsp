@@ -106,6 +106,12 @@ test("nextStepFor: aller-retour cohérent avec stageForStep sur toute la séquen
 });
 
 test("trame site: S1→S5 avancent le stade comme M1→M9, sans jamais reculer", () => {
+  // S2 n'est plus produit depuis le 03/09/2026, mais son code reste lisible :
+  // les envois d'avant doivent garder leur stade dans le journal et les KPI.
+  assert.ok(VALID_STEPS.has("S2"));
+  assert.equal(stageForStep("S2"), "presentation");
+  assert.equal(nextStepFor("accroche", "site"), "S3");
+  assert.equal(nextStepFor("receptif", "site"), "S3");
   // Le même invariant que ci-dessus, appliqué à la seconde partition : c'est
   // lui qui garantit qu'un prospect ne peut pas boucler sur la même étape.
   for (const stage of STAGES) {
@@ -124,7 +130,7 @@ test("trame site: S1→S5 avancent le stade comme M1→M9, sans jamais reculer",
   assert.equal(stageForStep("S5"), "questionnaire_envoye");
 });
 
-test("trame site: la trame arrive à la douleur en 3 messages là où la standard en met 7", () => {
+test("trame site: la maquette part au 2ᵉ message là où la standard met 4 envois pour arriver à la douleur", () => {
   // Ce n'est pas de la cosmétique : c'est la raison d'être de cette trame.
   const compte = (trame: "standard" | "site") => {
     let stage: string | null = null;
@@ -138,7 +144,7 @@ test("trame site: la trame arrive à la douleur en 3 messages là où la standar
     }
     return null;
   };
-  assert.equal(compte("site"), 3);
+  assert.equal(compte("site"), 2); // S1 puis S3 : rien ne s'intercale entre son oui et l'aperçu
   assert.equal(compte("standard"), 4); // M1, M2(→M5), M5(→M7), M7 : 4 envois pilotés
 });
 

@@ -288,20 +288,25 @@ Sous la partition, une bascule choisit la méthode déroulée sur ce prospect.
 
 - **Standard** (`M1`-`M9`) : la méthode complète — présentation, connexion,
   puis la douleur au 7ᵉ message. Aucune ressource en DM.
-- **Site** (`S1`-`S5`) : la variante pour les comptes **sans site web** — c'est
-  toute l'audience, sélectionnée sur `has_website === false` (+30 au score).
-  La question tombe au 2ᵉ message, **sa maquette au 3ᵉ**.
+- **Site** (`S1`, `S3`-`S5`) : la variante pour les comptes **sans site web** —
+  c'est toute l'audience, sélectionnée sur `has_website === false` (+30 au
+  score). **Sa maquette part dès le message qui suit son oui.**
 
 ```
 S1  Hello Laura ! J'ai vu que vous étiez esthéticienne, c'est toujours le cas ?
-S2  Parfait ! Une question toute bête : aujourd'hui, quand quelqu'un cherche
-    votre nom sur Google — ou juste « esthéticienne Angers » — il tombe sur quoi ?
-S3  C'est exactement là que ça coince : on passe son temps à chercher des
-    clients, pendant que ceux qui vous cherchent DÉJÀ ne vous trouvent pas.
-    → https://prospects.nmf-agence.com/di/<code>
-S4  Le plus simple c'est qu'on se cale 15-20 min…
+S3  Top ! Du coup je vous ai fait un aperçu de ce que ça donnerait à votre nom
+    — ce que devrait trouver quelqu'un qui tape « esthéticienne Angers ».
+    30 secondes à regarder :
+    https://prospects.nmf-agence.com/di/<code>
+S4  Content que ça vous parle ! Le plus simple c'est qu'on se cale 15-20 min…
 S5  Questionnaire, puis on bloque le créneau.
 ```
+
+`S2` (« quand quelqu'un cherche votre nom sur Google, il tombe sur quoi ? ») a
+été **retiré le 03/09/2026**. Sur 90 jours : 799 accroches, 122 réponses,
+17 maquettes envoyées — la question intermédiaire perdait 86 % des répondants.
+Le code reste connu du journal et des KPI pour l'historique ; la partition du
+panneau numérote les temps par position, pas par code, d'où `1 2 3 4`.
 
 La règle « aucune ressource avant M9 » n'est pas violée : la maquette **n'est
 pas une ressource** (guide, étude de cas, lien d'agence) — c'est *son* site,

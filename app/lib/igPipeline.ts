@@ -151,8 +151,11 @@ export function leadState(stage: string | null, replyCount: number, status: stri
 /**
  * Les deux trames DM.
  *  - `standard` : M1…M9, la méthode complète (présentation, connexion, douleur).
- *  - `site`     : S1…S5, la variante « il n'a pas de site » — question au 2ᵉ
- *                 message, maquette au 3ᵉ (cf. `instagramDmSequenceSite`).
+ *  - `site`     : S1, S3, S4, S5 — la variante « il n'a pas de site » : sa
+ *                 maquette dès le message qui suit son oui (cf.
+ *                 `instagramDmSequenceSite`). S2 (la question « on vous
+ *                 trouve où ? ») a été retiré le 03/09/2026 ; le code reste
+ *                 connu pour l'historique du journal.
  * Les relances R1-R3 sont communes : elles relancent le silence, pas l'étape.
  */
 export const TRAMES = ["standard", "site"] as const;
@@ -228,9 +231,9 @@ export function stageForStep(step: string): Stage | null {
     // kanban monotone et les deux trames comparables colonne par colonne.
     case "S1":
       return "accroche";
-    case "S2": // la question « on vous trouve où ? » — le message qui installe le sujet
+    case "S2": // historique uniquement (retiré le 03/09/2026) — la question « on vous trouve où ? »
       return "presentation";
-    case "S3": // le retournement + la maquette
+    case "S3": // la maquette, dès son oui
       return "douleur";
     case "S4":
       return "appel_propose";
@@ -263,9 +266,11 @@ export function nextStepFor(stage: string | null, trame: Trame = "standard"): st
       case null:
       case "":
         return "S1";
+      // Dès qu'il a répondu, la maquette. `presentation` (un S2 envoyé avant
+      // le 03/09/2026) mène au même endroit : ces prospects n'ont jamais reçu
+      // leur aperçu, c'est précisément ce qui leur manque.
       case "accroche":
       case "receptif":
-        return "S2";
       case "presentation":
         return "S3";
       // `connexion` n'appartient pas à la trame site : elle ne peut y arriver

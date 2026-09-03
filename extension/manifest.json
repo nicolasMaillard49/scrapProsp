@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "NMF — Trame DM Instagram",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Affiche la trame DM du prospect à l'écran, insère le message, journalise l'envoi. N'envoie jamais.",
   "permissions": ["storage", "tabs", "sidePanel", "scripting"],
   "host_permissions": ["https://www.instagram.com/*", "https://*.nmf-agence.com/*", "http://localhost:3000/*"],

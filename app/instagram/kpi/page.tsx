@@ -87,7 +87,7 @@ const STEP_ORDER = [
 const STEP_TITLE: Record<string, string> = {
   M1: "Accroche", M2: "Contexte", M3: "Présentation", M4: "Anti-objection", M5: "Connexion",
   M6: "Focus", M7: "Douleur", M8: "Proposition d'appel", M9: "Questionnaire",
-  S1: "Accroche (site)", S2: "On vous trouve où ?", S3: "Retournement + maquette",
+  S1: "Accroche (site)", S2: "On vous trouve où ? (retiré le 03/09)", S3: "Maquette dès son oui",
   S4: "Proposition d'appel (site)", S5: "Questionnaire (site)",
   R1: "Relance 1", R2: "Relance 2", R3: "Relance 3",
 };

@@ -812,13 +812,13 @@ export function searchQueryOf(p: IgDmInput): string | null {
 }
 
 /**
- * Trame SITE (S1…S5) — la variante « il n'a pas de site ».
+ * Trame SITE (S1, S3…S5) — la variante « il n'a pas de site ».
  *
  * POURQUOI une seconde trame plutôt qu'un réglage de la première : toute
  * l'audience Instagram est sélectionnée sur `has_website === false` (+30 au
  * score d'opportunité), et la trame standard met SEPT messages à arriver sur
  * la douleur — sans jamais nommer celle qu'on est venu résoudre. Ici la
- * question tombe au 2ᵉ message et la maquette au 3ᵉ.
+ * maquette part au message qui suit son oui (S2 a été retiré, voir plus bas).
  *
  * La règle « aucune ressource avant M9 » de la trame standard ne s'applique
  * pas ici, et ce n'est pas un oubli : la maquette N'EST PAS une ressource
@@ -835,13 +835,18 @@ export function searchQueryOf(p: IgDmInput): string | null {
  * c'est ce qui garde le kanban et les KPI lisibles.
  */
 export function instagramDmSequenceSite(p: IgDmInput, demoLink: string): IgDmStep[] {
+  // S2 — « quand quelqu'un cherche votre nom sur Google, il tombe sur quoi ? » —
+  // a été RETIRÉ le 03/09/2026. Mesuré sur 90 jours (06/06 → 03/09) : 799 S1,
+  // 122 réponses, 17 maquettes envoyées. La question intermédiaire demandait
+  // un effort de plus à quelqu'un qui venait de dire oui, et 86 % des
+  // répondants sortaient là. Le oui est une fenêtre de quelques minutes : le
+  // message qui le suit doit DONNER quelque chose, pas redemander.
+  //
+  // Le code S2 est conservé dans `stageForStep` / `VALID_STEPS` pour que
+  // l'historique du journal reste lisible ; il n'est plus jamais produit. S3
+  // garde son code (et son stade `douleur`) : c'est ce qui rend l'avant/après
+  // comparable dans les KPI — la mesure est tout l'intérêt du changement.
   const query = searchQueryOf(p);
-  // La question porte d'abord sur SON nom (ce qu'il vérifiera lui-même dans la
-  // minute), puis sur la requête générique — dans cet ordre : le premier lui
-  // parle de lui, le second lui parle de ses clients perdus.
-  const question = query
-    ? `Parfait ! Une question toute bête : aujourd'hui, quand quelqu'un cherche votre nom sur Google — ou juste « ${query} » — il tombe sur quoi ?`
-    : `Parfait ! Une question toute bête : aujourd'hui, quand quelqu'un cherche votre nom sur Google, il tombe sur quoi ?`;
 
   return [
     {
@@ -850,22 +855,16 @@ export function instagramDmSequenceSite(p: IgDmInput, demoLink: string): IgDmSte
       text: accrocheOf(p),
     },
     {
-      step: "S2",
-      title: "La question qui ouvre le sujet (après son oui)",
-      text: question,
-    },
-    {
       step: "S3",
-      title: "Le retournement + la maquette (le message qui porte la trame)",
-      // Le retournement d'abord, la preuve juste après : montrer la maquette
-      // avant d'avoir nommé le manque en fait une jolie image ; après, elle
-      // devient la réponse à un problème qu'il vient de formuler lui-même.
-      // Le lien est sur sa propre ligne pour qu'il puisse partir en deux
-      // bulles — un lien seul dans sa bulle s'ouvre bien plus qu'un lien
-      // collé en fin de paragraphe.
+      title: "La maquette, dès son oui (le message qui porte la trame)",
+      // La requête « métier ville » nomme ce que ses clients tapent : elle
+      // donne un sens à l'aperçu sans poser de question. Le lien est sur sa
+      // propre ligne pour qu'il puisse partir en deux bulles — un lien seul
+      // dans sa bulle s'ouvre bien plus qu'un lien collé en fin de paragraphe.
       text:
-        `C'est exactement là que ça coince : on passe son temps à chercher des clients, pendant que ceux qui vous cherchent DÉJÀ ne vous trouvent pas.\n\n` +
-        `Du coup je vous ai fait un aperçu de ce que ça pourrait donner, à votre nom — 30 secondes à regarder :\n` +
+        (query
+          ? `Top ! Du coup je vous ai fait un aperçu de ce que ça donnerait à votre nom — ce que devrait trouver quelqu'un qui tape « ${query} ». 30 secondes à regarder :\n`
+          : `Top ! Du coup je vous ai fait un aperçu de ce que ça donnerait à votre nom — 30 secondes à regarder :\n`) +
         (demoLink || "(aperçu indisponible — prospect hors base)"),
     },
     {

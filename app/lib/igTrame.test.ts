@@ -43,10 +43,10 @@ test("igTrame: prospect inconnu → trame générique, nextStep M1, prospect nul
   assert.ok(m1.text.length > 10);
 });
 
-test("igTrame site: 8 étapes (S1-S5 + relances) et la maquette EST dans S3", () => {
+test("igTrame site: 7 étapes (S1, S3-S5 + relances) et la maquette EST dans S3", () => {
   const t = buildTrame(laura, "https://prospects.nmf-agence.com", "site");
   assert.equal(t.trame, "site");
-  assert.deepEqual(t.steps.map((s) => s.step), ["S1", "S2", "S3", "S4", "S5", "R1", "R2", "R3"]);
+  assert.deepEqual(t.steps.map((s) => s.step), ["S1", "S3", "S4", "S5", "R1", "R2", "R3"]);
   // Le lien d'aperçu est bâti sur les 8 premiers caractères de l'UUID.
   assert.equal(t.demoLink, "https://prospects.nmf-agence.com/di/a1b2c3d4");
   const s3 = t.steps.find((s) => s.step === "S3")!;
@@ -54,19 +54,22 @@ test("igTrame site: 8 étapes (S1-S5 + relances) et la maquette EST dans S3", ()
   for (const s of t.steps) assert.ok(!s.text.includes("undefined"), s.step);
 });
 
-test("igTrame site: la question nomme le métier ET la ville, comme un client les taperait", () => {
-  const s2 = buildTrame(laura, "", "site").steps.find((s) => s.step === "S2")!;
-  assert.match(s2.text, /« esthéticienne Angers »/);
-  // Sans métier ni ville, la question tient debout seule — jamais de « «  » ».
+test("igTrame site: la maquette nomme le métier ET la ville, comme un client les taperait", () => {
+  const s3 = buildTrame(laura, "", "site").steps.find((s) => s.step === "S3")!;
+  assert.match(s3.text, /« esthéticienne Angers »/);
+  // Sans métier ni ville, le message tient debout seul — jamais de « «  » ».
   const nu = buildTrame({ ...laura, metier: "", profession_ia: null, category: null, bio: null, ville: null }, "", "site")
-    .steps.find((s) => s.step === "S2")!;
+    .steps.find((s) => s.step === "S3")!;
   assert.doesNotMatch(nu.text, /«/);
-  assert.match(nu.text, /cherche votre nom sur Google/);
+  assert.match(nu.text, /aperçu/);
 });
 
 test("igTrame site: le stade décide de l'étape, dans la trame servie", () => {
-  // `presentation` = S2 envoyé → la maquette est la suite.
+  // `presentation` = un S2 envoyé avant le 03/09 → la maquette est la suite.
   assert.equal(buildTrame(laura, "", "site").nextStep, "S3");
+  // Dès qu'il a répondu à l'accroche, c'est la maquette qui part.
+  assert.equal(buildTrame({ ...laura, stage: "accroche" }, "", "site").nextStep, "S3");
+  assert.equal(buildTrame({ ...laura, stage: "receptif" }, "", "site").nextStep, "S3");
   assert.equal(buildTrame({ ...laura, stage: "douleur" }, "", "site").nextStep, "S4");
   assert.equal(buildTrame({ ...laura, stage: "appel_propose" }, "", "site").nextStep, "S5");
   assert.equal(buildTrame({ ...laura, stage: "questionnaire_envoye" }, "", "site").nextStep, null);

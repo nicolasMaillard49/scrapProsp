@@ -221,7 +221,8 @@ test("instagramDmSequence: messages COURTS — un DM long se lit comme un texte 
 test("instagramDmSequenceSite: mêmes règles de tenue que la trame standard", () => {
   const demo = "https://x.fr/di/abc";
   const steps = instagramDmSequenceSite({ metier: "estheticienne", ville: "Angers", firstName: "Julie" }, demo);
-  assert.deepEqual(steps.map((s) => s.step), ["S1", "S2", "S3", "S4", "S5", "R1", "R2", "R3"]);
+  // Plus de S2 depuis le 03/09/2026 : la maquette suit directement le oui.
+  assert.deepEqual(steps.map((s) => s.step), ["S1", "S3", "S4", "S5", "R1", "R2", "R3"]);
 
   const tutoie = /(?:^|[^\p{L}])(tu|toi|ton|tes)(?:[^\p{L}]|$)/iu;
   for (const s of steps) {
@@ -238,11 +239,21 @@ test("instagramDmSequenceSite: mêmes règles de tenue que la trame standard", (
   // Un seul lien avant le questionnaire, et c'est l'aperçu — pas une ressource.
   const liens = steps.filter((s) => /https?:\/\//.test(s.text)).map((s) => s.step);
   assert.deepEqual(liens, ["S3", "S5"]);
-  assert.ok(steps.find((s) => s.step === "S3")!.text.includes(demo));
+  const s3 = steps.find((s) => s.step === "S3")!;
+  assert.ok(s3.text.includes(demo));
+  // Le message qui suit le oui DONNE : il ne pose aucune question avant l'aperçu.
+  assert.ok(!s3.text.replace(/https?:\/\/\S+/g, "").includes("?"), `S3 ne doit rien demander : ${s3.text}`);
+  // La requête nomme ce que ses clients tapent — c'est ce qui donne un sens à l'aperçu.
+  assert.match(s3.text, /« esthéticienne Angers »/);
+  // Le lien est seul sur sa ligne : il part en deux bulles.
+  assert.ok(s3.text.endsWith(`\n${demo}`), "le lien doit fermer le message, sur sa propre ligne");
+});
 
-  // La question s'adresse au client du prospect, pas au prospect.
-  assert.match(steps.find((s) => s.step === "S2")!.text, /cherche votre nom sur Google/);
-  assert.match(steps.find((s) => s.step === "S2")!.text, /« esthéticienne Angers »/);
+test("instagramDmSequenceSite: sans métier ni ville, la maquette part quand même, sans « «  » »", () => {
+  const steps = instagramDmSequenceSite({ metier: "", ville: "" }, "https://x.fr/di/abc");
+  const s3 = steps.find((s) => s.step === "S3")!;
+  assert.doesNotMatch(s3.text, /«/);
+  assert.ok(s3.text.includes("https://x.fr/di/abc"));
 });
 
 test("competitorHook: appels pour artisans, réservations pour métiers à RDV", () => {

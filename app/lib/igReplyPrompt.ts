@@ -27,6 +27,12 @@ export interface ReplyContext {
    * `moi:` (Nicolas), `lui:` (le prospect), `?:` (auteur incertain).
    */
   history?: string;
+  /**
+   * L'aperçu du prospect (/di/<code>), quand la trame le porte. C'est le seul
+   * lien que la réponse assistée a le droit de proposer avant la dernière
+   * étape : en trame site il part dès le premier oui.
+   */
+  demoLink?: string | null;
 }
 
 export interface ReplySuggestion {
@@ -94,7 +100,11 @@ Sers-toi de TOUT le fil, pas seulement du dernier message : ce qui a déjà ét�
 - Vouvoiement, ton direct et humain, jamais commercial ni "corporate".
 - TRÈS court : 1 à 3 phrases, comme un vrai DM tapé au pouce. Jamais de pavé.
 - Aucune signature, aucun nom d'agence en bas de message, aucune coordonnée (téléphone, email, site) : c'est un DM, pas un courrier.
-- Aucun lien tant que l'étape ${derniere} n'est pas atteinte. Aucun prix, aucun devis, aucune promesse de résultat chiffrée.
+- ${
+    ctx.demoLink
+      ? `Un seul lien autorisé avant l'étape ${derniere} : son aperçu ${ctx.demoLink}, et seulement une fois qu'il a répondu à l'accroche — s'il n'a pas encore reçu cet aperçu, c'est LA chose à lui envoyer. Aucun autre lien.`
+      : `Aucun lien tant que l'étape ${derniere} n'est pas atteinte.`
+  } Aucun prix, aucun devis, aucune promesse de résultat chiffrée.
 - N'invente jamais un fait sur son activité que tu n'as pas dans le contexte ci-dessus.
 - Une seule question par message maximum.
 - Si le prospect refuse clairement, propose une sortie propre et respectueuse — on n'insiste pas.

@@ -434,7 +434,7 @@ function renderDemo() {
 
 const TRAME_PICKS = [
   { trame: "standard", label: "Standard", title: "M1-M9 : la méthode complète — présentation, connexion, puis douleur au 7ᵉ message" },
-  { trame: "site", label: "Site", title: "S1-S5 : « on vous trouve où ? » au 2ᵉ message, sa maquette au 3ᵉ" },
+  { trame: "site", label: "Site", title: "S1, S3-S5 : sa maquette dès le message qui suit son oui, puis l'appel" },
 ];
 
 /**
@@ -465,12 +465,14 @@ function renderTrameSwitch() {
 }
 
 /**
- * La partition : un temps par message de la séquence (M1…M9, ou S1…S5).
+ * La partition : un temps par message de la séquence (M1…M9, ou S1, S3…S5).
  *
  * La trame EST une suite ordonnée, donc la numéroter dit quelque chose de
- * vrai — ce n'est pas de la décoration. Les temps joués restent sourds, seul
- * le temps courant est violet : la règle de couleur du panneau veut que le
- * violet ne désigne que ce qui part.
+ * vrai — ce n'est pas de la décoration. Le numéro affiché est la POSITION dans
+ * la séquence, pas le chiffre du code d'étape : la trame site a perdu S2 le
+ * 03/09/2026 et ses codes ne se suivent plus, alors que ses temps, si. Les
+ * temps joués restent sourds, seul le temps courant est violet : la règle de
+ * couleur du panneau veut que le violet ne désigne que ce qui part.
  */
 function renderRail() {
   const beats = (state.data?.steps ?? []).filter((s) => /^[MS]\d$/.test(s.step));
@@ -479,7 +481,7 @@ function renderRail() {
   $("rail").innerHTML = beats
     .map((s, i) => {
       const cls = idx < 0 ? "done" : i < idx ? "done" : i === idx ? "now" : "";
-      return `<span class="beat ${cls}"><i></i><b>${esc(s.step.slice(1))}</b></span>`;
+      return `<span class="beat ${cls}" title="${esc(s.step)}"><i></i><b>${i + 1}</b></span>`;
     })
     .join("");
 

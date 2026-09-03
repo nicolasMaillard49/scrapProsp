@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
         : null,
       steps: trame.steps,
       nextStep: trame.nextStep,
+      demoLink: trame.demoLink || null,
       incoming,
       history,
     };
