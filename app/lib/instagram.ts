@@ -870,14 +870,23 @@ export function instagramDmSequenceSite(p: IgDmInput, demoLink: string): IgDmSte
     {
       step: "S4",
       title: "Proposition d'appel (après sa réaction à la maquette)",
-      text: `Content que ça vous parle ! Le plus simple c'est qu'on se cale 15-20 min, je vous montre ce qu'on peut en faire. Vous avez un créneau cette semaine ?`,
+      // Mesuré sur 90 jours : 10 appels proposés, 1 booké. « On se cale 15-20
+      // min, vous avez un créneau cette semaine ? » demandait à un artisan de
+      // sortir son agenda pour un inconnu. Ici c'est un coup de fil court, à
+      // choisir entre deux heures où il n'est pas sur un chantier — répondre
+      // ne coûte qu'un mot.
+      text: `Content que ça vous parle ! Je vous appelle 5 min pour vous montrer ce qu'on peut en faire — plutôt demain 12 h 30 ou 18 h ?`,
     },
     {
       step: "S5",
-      title: "Questionnaire (après son oui, avant de bloquer le créneau)",
+      title: "Créneau noté + questionnaire (après qu'il a choisi son heure)",
+      // Le questionnaire passait AVANT le créneau (« dites-moi quand c'est
+      // fait ») : une seconde condition posée à quelqu'un qui venait d'en
+      // accepter une. Il vient désormais après, dans le message qui confirme
+      // l'heure, et il est dit optionnel — le rendez-vous ne dépend plus de lui.
       text:
-        `Top ! Avant que je bloque le créneau, un petit questionnaire pour préparer l'appel — 2 min 👉 ${QUESTIONNAIRE_URL}\n\n` +
-        `Dites-moi quand c'est fait.`,
+        `C'est noté ! D'ici là, si vous avez 2 min, un petit questionnaire pour que j'arrive préparé 👉 ${QUESTIONNAIRE_URL}\n\n` +
+        `Pas obligatoire, mais ça nous fait gagner du temps à l'appel.`,
     },
     ...relancesOf(p),
   ];

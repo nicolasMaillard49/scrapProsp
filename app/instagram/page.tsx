@@ -23,7 +23,7 @@ import Link from "next/link";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { matchesProspect } from "@/app/lib/search";
 import { instagramDmSequence, detectMetier, firstNameOf, competitorHook } from "@/app/lib/instagram";
-import { STAGE_LABEL, STAGE_SHORT, STAGES, stageTone, nextStepFor, type Stage, type StageTone } from "@/app/lib/igPipeline";
+import { STAGE_LABEL, STAGE_SHORT, STAGES, stageTone, nextStepFor, sansMaquette, type Stage, type StageTone } from "@/app/lib/igPipeline";
 import { shortCode } from "@/app/lib/links";
 import type { IgCompetitorReport } from "@/app/lib/igCompetitor";
 import ProspectionTool from "./ProspectionTool";
@@ -1056,7 +1056,10 @@ export default function InstagramPage() {
 
   const shown = useMemo(() => {
     let filtered = statusFilter === "all" ? baseFiltered : baseFiltered.filter((l) => l.status === statusFilter);
-    if (stageFilter !== "all") {
+    if (stageFilter === "sans_maquette") {
+      // Ils ont répondu et n'ont jamais vu leur aperçu : à rattraper en premier.
+      filtered = filtered.filter((l) => sansMaquette(l.stage, l.reply_count));
+    } else if (stageFilter !== "all") {
       filtered = filtered.filter((l) => (stageFilter === "none" ? !l.stage : l.stage === stageFilter));
     }
     if (orderMode === "followers") {
@@ -1603,6 +1606,7 @@ export default function InstagramPage() {
               >
                 <option value="all">Stade : tous</option>
                 <option value="none">Pas encore contacté</option>
+                <option value="sans_maquette">Ont répondu, sans maquette</option>
                 {STAGES.map((s) => (
                   <option key={s} value={s}>{STAGE_SHORT[s]}</option>
                 ))}

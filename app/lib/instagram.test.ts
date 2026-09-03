@@ -249,6 +249,19 @@ test("instagramDmSequenceSite: mêmes règles de tenue que la trame standard", (
   assert.ok(s3.text.endsWith(`\n${demo}`), "le lien doit fermer le message, sur sa propre ligne");
 });
 
+test("instagramDmSequenceSite: l'appel se propose en un mot, le questionnaire après le créneau", () => {
+  const steps = instagramDmSequenceSite({ metier: "plombier", ville: "Tours", firstName: "Marc" }, "https://x.fr/di/abc");
+  const s4 = steps.find((s) => s.step === "S4")!;
+  // Deux heures concrètes : répondre ne demande ni agenda ni réflexion.
+  assert.match(s4.text, /12 h 30 ou 18 h/);
+  assert.doesNotMatch(s4.text, /15-20 min|créneau cette semaine/);
+  const s5 = steps.find((s) => s.step === "S5")!;
+  // Le créneau est acquis AVANT le questionnaire, et celui-ci ne conditionne rien.
+  assert.match(s5.text, /^C'est noté/);
+  assert.match(s5.text, /Pas obligatoire/);
+  assert.doesNotMatch(s5.text, /avant que je bloque|dites-moi quand c'est fait/i);
+});
+
 test("instagramDmSequenceSite: sans métier ni ville, la maquette part quand même, sans « «  » »", () => {
   const steps = instagramDmSequenceSite({ metier: "", ville: "" }, "https://x.fr/di/abc");
   const s3 = steps.find((s) => s.step === "S3")!;

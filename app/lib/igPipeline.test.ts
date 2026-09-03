@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   warmupCaps, clampToWindow, nextFollowup, stageForStep, nextStepFor, STAGES, VALID_STEPS, MAX_DAILY,
+  advanceStage, sansMaquette,
   isAccrocheStep, ACCROCHE_STEPS, trameOfStep, countsAgainstQuota, QUOTA_STEPS,
 } from "./igPipeline";
 
@@ -172,4 +173,36 @@ test("countsAgainstQuota: répondre ne consomme pas le quota du jour", () => {
   }
   // La liste SQL et le prédicat disent la même chose, sur TOUTES les étapes.
   assert.deepEqual([...VALID_STEPS].filter(countsAgainstQuota).sort(), [...QUOTA_STEPS].sort());
+});
+
+test("advanceStage: l'envoi d'une étape ne fait jamais reculer un stade", () => {
+  // Le cas qui a motivé la règle : le questionnaire S5 part APRÈS le créneau
+  // pris — un prospect booké doit le rester.
+  assert.equal(advanceStage("call_booke", "S5"), "call_booke");
+  assert.equal(advanceStage("douleur", "M2"), "douleur");
+  // Vers l'avant, le stade de l'étape s'impose.
+  assert.equal(advanceStage("accroche", "S3"), "douleur");
+  assert.equal(advanceStage(null, "S1"), "accroche");
+  assert.equal(advanceStage("receptif", "S3"), "douleur");
+  // Une relance ne porte pas de stade : on garde le courant.
+  assert.equal(advanceStage("presentation", "R1"), "presentation");
+  assert.equal(advanceStage(null, "R1"), null);
+  // Écrire à un perdu, c'est rouvrir.
+  assert.equal(advanceStage("perdu", "S1"), "accroche");
+  // Un stade inconnu ne bloque pas l'avancée.
+  assert.equal(advanceStage("n_importe_quoi", "S4"), "appel_propose");
+});
+
+test("sansMaquette: a répondu, et n'a jamais dépassé la présentation", () => {
+  assert.ok(sansMaquette("receptif", 1));
+  assert.ok(sansMaquette("presentation", 2));
+  assert.ok(sansMaquette("accroche", 1));
+  assert.ok(sansMaquette(null, 1), "répondu sans stade posé : à rattraper aussi");
+  // Sans réponse, rien à rattraper — c'est la file de relance qui s'en occupe.
+  assert.ok(!sansMaquette("receptif", 0));
+  assert.ok(!sansMaquette("presentation", null));
+  // À partir de la douleur, la maquette est passée.
+  for (const s of ["douleur", "appel_propose", "questionnaire_envoye", "call_booke", "perdu"]) {
+    assert.ok(!sansMaquette(s, 3), `${s} a déjà vu sa maquette (ou est clos)`);
+  }
 });

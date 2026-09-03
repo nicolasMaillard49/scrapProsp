@@ -244,6 +244,44 @@ export function stageForStep(step: string): Stage | null {
   }
 }
 
+/**
+ * Stade après l'envoi d'une étape : celui de l'étape, sauf si le prospect est
+ * DÉJÀ plus loin — un stade n'a pas le droit de reculer parce qu'on a envoyé
+ * un message de séquence en retard (le questionnaire S5 après un call déjà
+ * booké, une présentation M2 tapée à un prospect déjà en douleur). Avant, la
+ * route DM écrasait le stade sans regarder : un prospect booké redescendait
+ * en « questionnaire envoyé », et sa relance était reprogrammée.
+ *
+ * « Perdu » est l'exception : lui écrire, c'est rouvrir — le stade repart de
+ * l'étape envoyée. Les relances (R…) ne portent aucun stade : on garde le
+ * stade courant.
+ */
+export function advanceStage(current: string | null, step: string): string | null {
+  const reached = stageForStep(step);
+  if (!reached) return current;
+  if (!current || current === "perdu") return reached;
+  const idx = (STAGES as readonly string[]).indexOf(current);
+  if (idx < 0) return reached; // stade inconnu : on repart sur du solide
+  return STAGES.indexOf(reached) > idx ? reached : current;
+}
+
+/**
+ * A répondu, mais n'a jamais reçu sa maquette.
+ *
+ * Mesuré sur 90 jours (06/06 → 03/09/2026) : 122 réponses, 17 maquettes
+ * envoyées. Ces prospects ont dit oui et se sont vu poser une question de
+ * plus (l'ancien S2) au lieu de recevoir quelque chose ; ils sont restés en
+ * « réceptif » ou « présentation ». Ils sont la source d'appels la moins
+ * chère de la base : un seul message avec le lien, et le panneau le sert
+ * déjà (leur prochaine étape est S3).
+ */
+export function sansMaquette(stage: string | null, replyCount: number | null): boolean {
+  if ((replyCount ?? 0) <= 0) return false;
+  if (!stage) return true;
+  const idx = (STAGES as readonly string[]).indexOf(stage);
+  return idx >= 0 && idx < STAGES.indexOf("douleur");
+}
+
 export const VALID_STEPS = new Set([
   "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9",
   "S1", "S2", "S3", "S4", "S5",

@@ -298,8 +298,10 @@ S3  Top ! Du coup je vous ai fait un aperçu de ce que ça donnerait à votre no
     — ce que devrait trouver quelqu'un qui tape « esthéticienne Angers ».
     30 secondes à regarder :
     https://prospects.nmf-agence.com/di/<code>
-S4  Content que ça vous parle ! Le plus simple c'est qu'on se cale 15-20 min…
-S5  Questionnaire, puis on bloque le créneau.
+S4  Content que ça vous parle ! Je vous appelle 5 min pour vous montrer ce
+    qu'on peut en faire — plutôt demain 12 h 30 ou 18 h ?
+S5  C'est noté ! D'ici là, si vous avez 2 min, un petit questionnaire pour
+    que j'arrive préparé 👉 <questionnaire> — pas obligatoire.
 ```
 
 `S2` (« quand quelqu'un cherche votre nom sur Google, il tombe sur quoi ? ») a

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseConfigured } from "@/app/lib/supabase";
 import { sendTelegram } from "@/app/lib/notify";
-import { warmupCaps, stageForStep, nextFollowup, VALID_STEPS, isAccrocheStep, countsAgainstQuota, QUOTA_STEPS, type AccountStatus } from "@/app/lib/igPipeline";
+import { warmupCaps, advanceStage, nextFollowup, VALID_STEPS, isAccrocheStep, countsAgainstQuota, QUOTA_STEPS, type AccountStatus } from "@/app/lib/igPipeline";
 import { creditSent } from "@/app/lib/igVariants";
 import { parisDayStart } from "@/app/lib/igCockpit";
 import { parisDayKey } from "@/app/lib/igDmLog";
@@ -126,7 +126,8 @@ export async function POST(req: NextRequest) {
 
   // Avance le prospect.
   const isRelance = step.startsWith("R");
-  const newStage = stageForStep(step) ?? (prospect.stage as string | null);
+  // Jamais en arrière : un S5 envoyé à un prospect déjà booké le laisse booké.
+  const newStage = advanceStage(prospect.stage as string | null, step);
   const followupCount = isRelance ? ((prospect.followup_count as number) ?? 0) + 1 : 0;
   const patch: Record<string, unknown> = {
     contacted_by: account_id,
