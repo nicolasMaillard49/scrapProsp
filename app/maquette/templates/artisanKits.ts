@@ -47,6 +47,12 @@ export interface ConformiteModule {
   kind: "conformite";
   norme: string;
   checks: Array<{ point: string; why: string; ok: boolean }>;
+  /** Repères posés sur la photo du hero : quel point du diagnostic, et où il
+   *  se trouve dans l'image (en % de sa largeur / hauteur, origine en haut à
+   *  gauche). `side` dit de quel côté du point la pastille écrit son libellé.
+   *  Les coordonnées collent à UNE photo précise : si `hero` change, elles
+   *  changent aussi. */
+  hotspots?: Array<{ check: number; x: number; y: number; side: "left" | "right" }>;
 }
 
 /** Thermique (chauffagiste) : économies annuelles et aides de l'État. */
@@ -108,6 +114,10 @@ export interface ArtisanKit {
   /** Portrait du professionnel — cf. templates/portrait.tsx. */
   portrait: string;
   gallery: string[];
+  /** Légende de chaque photo de la galerie, dans le même ordre. Une photo
+   *  légendée se lit comme un chantier ; sans légende, elle reste une image de
+   *  banque. Optionnel : les kits qui n'en donnent pas gardent l'ancien rendu. */
+  galleryNotes?: string[];
   services: ArtisanService[];
   testimonials: NicheTestimonial[];
   /** Paragraphe à-propos. Placeholders {ville} / {name}. */
@@ -284,16 +294,26 @@ const SERRURIER: ArtisanKit = {
 const ELECTRICIEN: ArtisanKit = {
   accent: "#F5C518",
   accentDark: "#C79C0B",
-  hero: "/templates/electricien-hero.jpg",
+  // Le hero est une photo de tableau prise de face, en 4/3 pile : c'est elle
+  // qui porte les repères du diagnostic, d'où le cadrage frontal imposé.
+  hero: u("photo-1576446470246-499c738d1c8e", 1400),
   about: "/templates/electricien-mise-aux-normes.jpg",
   portrait: "/templates/electricien-portrait.webp",
   gallery: [
-    "/templates/electricien-depannage.jpg",
+    "/templates/electricien-hero.jpg",
     u("photo-1635335874521-7987db781153", 700),
-    u("photo-1576446470246-499c738d1c8e", 700),
-    u("photo-1601462904263-f2fa0c851cb9", 700),
-    u("photo-1558002038-1055907df827", 700),
-    "/templates/electricien-mise-aux-normes.jpg",
+    u("photo-1544724569-5f546fd6f2b5", 700),
+    u("photo-1704475187766-058b6f7b7929", 700),
+    u("photo-1655194827229-a1d3192b533e", 700),
+    u("photo-1587316205943-b15dc52a12e0", 700),
+  ],
+  galleryNotes: [
+    "Dépannage — origine trouvée avant réparation",
+    "Tableau recâblé, circuits séparés",
+    "Chaque départ repéré et étiqueté",
+    "Borne 7 kW posée et déclarée",
+    "Commande murale, éclairage et thermostat",
+    "Éclairage encastré, pièce par pièce",
   ],
   services: [
     { name: "Mise aux normes du tableau", desc: "Remplacement du tableau, différentiels 30 mA et repérage des circuits.", price: 890, from: true, cat: "Conformité" },
@@ -341,6 +361,13 @@ const ELECTRICIEN: ArtisanKit = {
       { point: "Protection par circuit", why: "Un disjoncteur adapté à chaque section de câble, pas un fusible universel.", ok: true },
       { point: "Liaison équipotentielle", why: "Salle de bain : toutes les masses métalliques reliées au même potentiel.", ok: false },
       { point: "Matériel sans risque de contact", why: "Aucun conducteur nu accessible, aucune vieille prise sans obturateur.", ok: true },
+    ],
+    // Trois repères seulement : au-delà, la photo devient illisible. On montre
+    // deux points tenus et celui qui manque — c'est ce trou-là qui fait appeler.
+    hotspots: [
+      { check: 3, x: 66, y: 16, side: "left" }, // la rangée de disjoncteurs, en haut
+      { check: 0, x: 22, y: 45, side: "right" }, // l'appareil de coupure, à gauche du rail
+      { check: 2, x: 44, y: 78, side: "right" }, // le bornier du bas : la terre
     ],
   },
 };

@@ -12,9 +12,11 @@ import { ARTISAN_CSS, HeroCall, StickyCall, artisanPrice, artisanView } from "./
  * montre — c'est plus convaincant que n'importe quelle photo de chantier.
  *
  * D'où la DA : noir atelier, jaune de sécurité, tout en monospace et en grille,
- * comme un rapport de contrôle. Le hero porte un schéma de tableau dessiné en
- * SVG plutôt qu'une photo : un tableau propre et repéré, c'est exactement le
- * produit fini qu'on vend, et aucune banque d'images ne le montre correctement.
+ * comme un rapport de contrôle. Le hero portait un schéma de tableau dessiné en
+ * SVG ; il porte maintenant la photo d'un vrai tableau, annotée. Le dessin
+ * disait la norme, la photo dit le matériel — et le visiteur reconnaît le sien.
+ * Les repères sont posés par le kit (`module.hotspots`), parce qu'ils
+ * appartiennent à la photo autant qu'au diagnostic.
  * ────────────────────────────────────────────────────────────── */
 
 const C = {
@@ -31,46 +33,136 @@ const C = {
 const DISPLAY = "'IBM Plex Mono', ui-monospace, monospace";
 const BODY = "'IBM Plex Sans', system-ui, sans-serif";
 
-/** Schéma d'un tableau divisionnaire : rangées de disjoncteurs sur rail DIN. */
-function TableauSchema({ accent }: { accent: string }) {
-  const rows = [0, 1, 2];
-  const cols = Array.from({ length: 9 }, (_, i) => i);
-  // Deux modules signalés : ce sont eux que le diagnostic vient chercher.
-  const flagged = new Set(["1-3", "2-6"]);
+/** La photo du tableau, annotée : le relevé posé sur le vrai matériel.
+ *
+ *  L'image est servie en 4/3 sans recadrage, donc les % des `hotspots` tombent
+ *  exactement là où on les a mesurés sur la photo. Changer de photo sans
+ *  reprendre les coordonnées déplacerait les repères. */
+function TableauPhoto({
+  src,
+  alt,
+  accent,
+  norme,
+  checks,
+  hotspots,
+}: {
+  src: string;
+  alt: string;
+  accent: string;
+  norme: string;
+  checks: Array<{ point: string; ok: boolean }>;
+  hotspots: Array<{ check: number; x: number; y: number; side: "left" | "right" }>;
+}) {
+  const conformes = checks.filter((c) => c.ok).length;
+  const anomalies = checks.length - conformes;
+
+  const caption: React.CSSProperties = {
+    fontFamily: DISPLAY,
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: "0.18em",
+  };
+
   return (
-    <svg viewBox="0 0 420 300" width="100%" role="img" aria-label="Schéma d'un tableau électrique">
-      <rect x="6" y="6" width="408" height="288" rx="10" fill="none" stroke={C.line} strokeWidth="2" />
-      <rect x="6" y="6" width="408" height="34" rx="10" fill={C.panelSoft} />
-      <text x="22" y="28" fill={C.inkSoft} fontFamily={DISPLAY} fontSize="12" letterSpacing="2">
-        TABLEAU · NF C 15-100
-      </text>
-      <circle cx="392" cy="23" r="5" fill={accent} />
-      {rows.map((r) => {
-        const y = 66 + r * 78;
-        return (
-          <g key={r}>
-            <rect x="24" y={y - 10} width="372" height="58" rx="4" fill={C.panelSoft} />
-            <line x1="24" y1={y + 24} x2="396" y2={y + 24} stroke={C.line} strokeWidth="1" />
-            {cols.map((c) => {
-              const x = 34 + c * 40;
-              const key = `${r}-${c}`;
-              const bad = flagged.has(key);
-              return (
-                <g key={c}>
-                  <rect x={x} y={y - 2} width="30" height="42" rx="3" fill={C.bg} stroke={bad ? C.ko : C.line} strokeWidth={bad ? 2 : 1} />
-                  <rect x={x + 8} y={y + 4} width="14" height="12" rx="2" fill={bad ? C.ko : accent} opacity={bad ? 1 : 0.85} />
-                  <line x1={x + 6} y1={y + 26} x2={x + 24} y2={y + 26} stroke={C.line} strokeWidth="1.5" />
-                  <line x1={x + 6} y1={y + 32} x2={x + 18} y2={y + 32} stroke={C.line} strokeWidth="1.5" />
-                </g>
-              );
-            })}
-          </g>
-        );
-      })}
-      <text x="24" y="286" fill={C.ko} fontFamily={DISPLAY} fontSize="11" letterSpacing="1">
-        2 anomalies relevées
-      </text>
-    </svg>
+    <figure
+      style={{
+        margin: 0,
+        background: C.panel,
+        border: `1px solid ${C.line}`,
+        borderRadius: 8,
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ position: "relative", aspectRatio: "4 / 3" }}>
+        <img src={src} alt={alt} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {/* La photo est claire, la page est noire : ce voile les raccorde et
+            rend les pastilles lisibles quel que soit le fond derrière. */}
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(180deg, rgba(11,11,12,0.52) 0%, rgba(11,11,12,0.10) 34%, rgba(11,11,12,0.30) 62%, rgba(11,11,12,0.80) 100%)",
+          }}
+        />
+
+        <div style={{ ...caption, position: "absolute", top: 16, left: 18, color: C.ink }}>
+          Tableau relevé · {norme}
+        </div>
+
+        {hotspots.map((h) => {
+          const c = checks[h.check];
+          if (!c) return null;
+          const tint = c.ok ? accent : C.ko;
+          return (
+            <div key={h.check} style={{ position: "absolute", left: `${h.x}%`, top: `${h.y}%`, width: 0, height: 0 }}>
+              <div
+                className="cn-pin"
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 9,
+                  ...(h.side === "left"
+                    ? { right: -7, flexDirection: "row-reverse" as const }
+                    : { left: -7, flexDirection: "row" as const }),
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    flex: "0 0 auto",
+                    width: 14,
+                    height: 14,
+                    borderRadius: "50%",
+                    background: tint,
+                    boxShadow: `0 0 0 4px ${c.ok ? "rgba(245,197,24,0.22)" : "rgba(255,107,74,0.22)"}`,
+                  }}
+                />
+                <span
+                  className="cn-pin-label"
+                  style={{
+                    ...caption,
+                    letterSpacing: "0.08em",
+                    whiteSpace: "nowrap",
+                    color: C.ink,
+                    background: "rgba(11,11,12,0.86)",
+                    border: `1px solid ${tint}`,
+                    borderRadius: 3,
+                    padding: "6px 10px",
+                    backdropFilter: "blur(4px)",
+                  }}
+                >
+                  {c.point} <span style={{ color: tint }}>{c.ok ? "✓" : "✕"}</span>
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <figcaption
+        style={{
+          ...caption,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 14,
+          flexWrap: "wrap",
+          padding: "15px 18px",
+          borderTop: `1px solid ${C.line}`,
+          color: C.inkSoft,
+        }}
+      >
+        <span>Relevé sur place, rapport écrit</span>
+        <span style={{ color: anomalies ? C.ko : C.ok }}>
+          {anomalies} anomalie{anomalies > 1 ? "s" : ""} · {conformes}/{checks.length} conformes
+        </span>
+      </figcaption>
+    </figure>
   );
 }
 
@@ -155,6 +247,10 @@ export default function ConformiteTemplate({
         .cn-check:hover { border-color: ${accent}; background: ${C.panelSoft}; }
         .cn-shot img { transition: transform .6s cubic-bezier(.2,.7,.3,1); filter: grayscale(0.25); }
         .cn-shot:hover img { transform: scale(1.04); filter: none; }
+        @media (max-width: 620px) {
+          .cn-pin-label { font-size: 9px !important; padding: 4px 7px !important; letter-spacing: 0.04em !important; }
+          .cn-pin { gap: 6px !important; }
+        }
         .cn-cta { transition: filter .15s ease; }
         .cn-cta:hover { filter: brightness(1.1); }
         a:focus-visible { outline: 2px solid ${accent}; outline-offset: 3px; }
@@ -291,9 +387,14 @@ export default function ConformiteTemplate({
             </div>
           </div>
 
-          <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 8, padding: 22 }}>
-            <TableauSchema accent={accent} />
-          </div>
+          <TableauPhoto
+            src={kit.hero}
+            alt={`Tableau électrique relevé par ${name} à ${v.cityLabel}`}
+            accent={accent}
+            norme={m.norme}
+            checks={m.checks}
+            hotspots={m.hotspots ?? []}
+          />
         </div>
       </section>
 
@@ -468,15 +569,40 @@ export default function ConformiteTemplate({
             {kit.labels.gallery} <span style={{ color: accent }}>{kit.labels.gallerySub}</span>
           </h2>
           <div className="ar-three" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            {kit.gallery.map((src, i) => (
-              <figure
-                key={`${src}-${i}`}
-                className="cn-shot"
-                style={{ margin: 0, borderRadius: 6, overflow: "hidden", aspectRatio: "4/3", background: C.panel }}
-              >
-                <img src={src} alt={`Installation ${i + 1} — ${name}`} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </figure>
-            ))}
+            {kit.gallery.map((src, i) => {
+              const note = kit.galleryNotes?.[i];
+              return (
+                <figure
+                  key={`${src}-${i}`}
+                  className="cn-shot"
+                  style={{ margin: 0, borderRadius: 6, overflow: "hidden", aspectRatio: "4/3", background: C.panel, position: "relative" }}
+                >
+                  <img
+                    src={src}
+                    alt={note ? `${note} — ${name}` : `Installation ${i + 1} — ${name}`}
+                    loading="lazy"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                  {/* La légende fait la différence entre un chantier et une
+                      photo de banque : elle dit ce qu'on regarde. */}
+                  {note && (
+                    <figcaption
+                      style={{
+                        position: "absolute",
+                        inset: "auto 0 0 0",
+                        padding: "34px 14px 12px",
+                        background: "linear-gradient(180deg, rgba(11,11,12,0) 0%, rgba(11,11,12,0.86) 62%)",
+                        ...meta,
+                        color: C.ink,
+                        letterSpacing: "0.08em",
+                      }}
+                    >
+                      {note}
+                    </figcaption>
+                  )}
+                </figure>
+              );
+            })}
           </div>
         </div>
       </section>
